@@ -39,6 +39,7 @@ import {
   type InstanceSchedulerHeartbeatAgent,
   upsertAgentInstructionsFileSchema,
   restoreAgentInstructionSchema,
+  resolveAgentInstructionCandidateSchema,
   updateAgentInstructionsBundleSchema,
   updateAgentPermissionsSchema,
   updateAgentInstructionsPathSchema,
@@ -65,6 +66,7 @@ import { trackAgentCreated } from "@paperclipai/shared/telemetry";
 import { validate } from "../middleware/validate.js";
 import { inheritNativeRunnerAdapterConfig } from "../services/native-runtime/native-agent-runtime-inheritance.js";
 import { agentInstructionRevisionService } from "../services/agent-instruction-revisions.js";
+import { agentInstructionWorkingCopyService } from "../services/agent-instruction-working-copies.js";
 import { instructionPath } from "../services/agent-instruction-files.js";
 import { agentInstructionsBundleMode, deriveBundleState } from "../services/agent-instructions.js";
 import {
@@ -729,6 +731,7 @@ export function agentRoutes(
   const secretsSvc = secretService(db);
   const instructions = agentInstructionsService(db);
   const instructionRevisions = agentInstructionRevisionService(db);
+  const instructionWorkingCopies = agentInstructionWorkingCopyService(db);
   function instructionFileDetail(snapshot: import("@paperclipai/shared").AgentInstructionSnapshot,
     receipt?: import("@paperclipai/shared").AgentInstructionCommitReceipt) {
     const path = snapshot.revision.entryFile;
@@ -5178,6 +5181,11 @@ export function agentRoutes(
       const receipt = await instructionRevisions.commit({ companyId: existing.companyId, agentId: existing.id,
         entryFile, content: req.body.content, baseRevisionId: req.body.baseRevisionId,
         source: req.actor.type === "board" ? "board" : "api" }, req.actor);
+      if (req.actor.type === "agent" && req.actor.runId) {
+        await instructionWorkingCopies.acknowledgeExplicitSave({ companyId: existing.companyId, agentId: existing.id,
+          runId: req.actor.runId, entryFile: receipt.revision.entryFile, revisionId: receipt.revision.id,
+          contentHash: receipt.revision.contentHash }).catch(() => undefined);
+      }
       if (req.body.clearLegacyPromptTemplate) {
         const fresh = await svc.getById(existing.id);
         if (fresh) {
@@ -5234,6 +5242,24 @@ export function agentRoutes(
     res.json(result.file);
   });
 
+  router.get("/agents/:id/instructions-bundle/candidates", async (req, res) => {
+    const existing = await getAccessibleResource(req, res, svc.getById(req.params.id as string), "Agent not found");
+    if (!existing) return;
+    assertExternalInstructionsAdmin(req, existing);
+    res.json(await instructionWorkingCopies.list(existing.companyId, existing.id, req.actor));
+  });
+
+  router.post("/agents/:id/instructions-bundle/candidates/:runId/resolve", validate(resolveAgentInstructionCandidateSchema), async (req, res) => {
+    const existing = await getAccessibleResource(req, res, svc.getById(req.params.id as string), "Agent not found");
+    if (!existing) return;
+    assertExternalInstructionsAdmin(req, existing);
+    const runId = req.params.runId as string;
+    if (!isUuidLike(runId)) throw unprocessable("Invalid instruction candidate run id");
+    const receipt = await instructionWorkingCopies.resolve({ companyId: existing.companyId, agentId: existing.id,
+      runId, baseRevisionId: req.body.baseRevisionId, content: req.body.content }, req.actor);
+    res.json(instructionFileDetail(receipt, receipt));
+  });
+
   router.get("/agents/:id/instructions-bundle/history", async (req, res) => {
     const existing = await getAccessibleResource(req, res, svc.getById(req.params.id as string), "Agent not found");
     if (!existing) return;
@@ -5268,6 +5294,11 @@ export function agentRoutes(
     assertExternalInstructionsAdmin(req, existing);
     const receipt = await instructionRevisions.restore({ companyId: existing.companyId, agentId: existing.id,
       entryFile: req.body.path, baseRevisionId: req.body.baseRevisionId, revisionId: req.body.revisionId }, req.actor);
+    if (req.actor.type === "agent" && req.actor.runId) {
+      await instructionWorkingCopies.acknowledgeExplicitSave({ companyId: existing.companyId, agentId: existing.id,
+        runId: req.actor.runId, entryFile: receipt.revision.entryFile, revisionId: receipt.revision.id,
+        contentHash: receipt.revision.contentHash }).catch(() => undefined);
+    }
     res.json(instructionFileDetail(receipt, receipt));
   });
 

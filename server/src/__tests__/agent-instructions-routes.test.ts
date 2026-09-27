@@ -24,6 +24,9 @@ const mockAgentInstructionsService = vi.hoisted(() => ({
   materializeManagedBundle: vi.fn(),
 }));
 
+const mockInstructionWorkingCopies = vi.hoisted(() => ({ list: vi.fn(), resolve: vi.fn(), acknowledgeExplicitSave: vi.fn() }));
+vi.mock("../services/agent-instruction-working-copies.js", () => ({ agentInstructionWorkingCopyService: () => mockInstructionWorkingCopies }));
+
 const mockInstructionRevisions = vi.hoisted(() => ({ readCurrent: vi.fn(), commit: vi.fn(), restore: vi.fn(), history: vi.fn(), readRevision: vi.fn(), diff: vi.fn(), materializeCurrent: vi.fn() }));
 vi.mock("../services/agent-instruction-revisions.js", () => ({ agentInstructionRevisionService: () => mockInstructionRevisions }));
 
@@ -613,6 +616,27 @@ describe("agent instructions bundle routes", () => {
     expect(res.body.content).toBe("committed");
     expect(res.body.revision.id).toBe("33333333-3333-4333-8333-333333333333");
     expect(mockAgentInstructionsService.readFile).not.toHaveBeenCalled();
+  });
+
+  it("lists and resolves preserved edits with server scope, actor, and explicit revision", async () => {
+    const app = await createApp();
+    const runId = "55555555-5555-4555-8555-555555555555";
+    const baseRevisionId = "44444444-4444-4444-8444-444444444444";
+    const prefix = "/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle/candidates";
+    mockInstructionWorkingCopies.list.mockResolvedValue([{ runId, entryFile: "AGENTS.md", state: "conflict", content: "preserved" }]);
+    mockInstructionWorkingCopies.resolve.mockResolvedValue({ revision: { id: baseRevisionId, entryFile: "AGENTS.md", byteLength: 8 }, content: "resolved", changed: true, materialization: "current" });
+    const listed = await requestApp(app, (url) => request(url).get(prefix));
+    expect(listed.status).toBe(200);
+    expect(listed.body).toEqual([{ runId, entryFile: "AGENTS.md", state: "conflict", content: "preserved" }]);
+    expect(mockInstructionWorkingCopies.list).toHaveBeenCalledWith("company-1", "11111111-1111-4111-8111-111111111111", expect.objectContaining({ type: "board", userId: "local-board" }));
+    const resolved = await requestApp(app, (url) => request(url).post(`${prefix}/${runId}/resolve`).send({ baseRevisionId, content: "resolved" }));
+    expect(resolved.status).toBe(200);
+    expect(resolved.body).toMatchObject({ content: "resolved", receipt: { changed: true } });
+    expect(mockInstructionWorkingCopies.resolve).toHaveBeenCalledWith({ companyId: "company-1", agentId: "11111111-1111-4111-8111-111111111111", runId, baseRevisionId, content: "resolved" }, expect.objectContaining({ type: "board", userId: "local-board" }));
+    for (const body of [{ content: "missing base" }, { baseRevisionId, content: "forged", responsibleUserId: "other" }, { baseRevisionId, content: "forged", entryFile: "other.md" }]) {
+      expect((await requestApp(app, (url) => request(url).post(`${prefix}/${runId}/resolve`).send(body))).status).toBe(400);
+    }
+    expect(mockInstructionWorkingCopies.resolve).toHaveBeenCalledOnce();
   });
 
   it("exposes scoped history, diff and restore with the server actor", async () => {

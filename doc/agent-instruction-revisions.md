@@ -108,6 +108,8 @@ Existing company-scoped agent URLs now support:
 | Revision content | `GET /api/agents/:id/instructions-bundle/revision/:revisionId?path=...` |
 | Diff | `GET /api/agents/:id/instructions-bundle/diff?path=...&from=...&to=...` |
 | Restore | `POST /api/agents/:id/instructions-bundle/restore` |
+| Preserved edits | `GET /api/agents/:id/instructions-bundle/candidates` |
+| Resolve preserved edits | `POST /api/agents/:id/instructions-bundle/candidates/:runId/resolve` |
 
 Entry PUT requires `{ path, content, baseRevisionId }`. Restore requires
 `{ path, revisionId, baseRevisionId }`. Content requests reject unknown fields,
@@ -187,3 +189,11 @@ A tool commit is immediately durable. If a run-local working copy still contains
 older content, cleanup must preserve its conflict candidate rather than replace
 the newer tool commit. A 409 response requires explicit conflict resolution;
 never silently retry an old candidate against the latest revision.
+
+The instructions editor lists preserved run edits, including conflicts and
+unavailable collection results. Review loads the preserved bytes into an editable
+draft and pins the current canonical revision. Saving resolves that candidate
+through the same permission and CAS checks. Conflicts retain both the draft and
+its original base. Candidate API responses contain content and diagnostic metadata;
+server and sandbox filesystem roots remain private. Resolve requests accept only
+`content` and `baseRevisionId`; the registered candidate supplies its entry file.

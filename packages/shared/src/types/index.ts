@@ -1071,3 +1071,5 @@ export * from "./chat-github.js";
 export * from "./email.js";
 
 export type { AgentInstructionErrorCode, AgentInstructionErrorDetails, AgentInstructionSource, AgentInstructionRevision, AgentInstructionSnapshot, AgentInstructionCommitReceipt, AgentInstructionHistory, AgentInstructionDiff } from "./agent.js";
+
+export type { AgentInstructionCandidate } from "./agent.js";

@@ -296,3 +296,9 @@ export const updateAgentPermissionsSchema = z.object({
 });
 
 export type UpdateAgentPermissions = z.infer<typeof updateAgentPermissionsSchema>;
+
+export const resolveAgentInstructionCandidateSchema = z.object({
+  baseRevisionId: z.string().uuid().nullable(),
+  content: z.string().max(1024 * 1024),
+}).strict();
+export type ResolveAgentInstructionCandidate = z.infer<typeof resolveAgentInstructionCandidateSchema>;

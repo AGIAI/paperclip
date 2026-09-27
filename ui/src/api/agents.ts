@@ -6,6 +6,8 @@ import type {
   AgentDetail,
   AgentInstructionsBundle,
   AgentInstructionHistory,
+  AgentInstructionCandidate,
+  ResolveAgentInstructionCandidate,
   AgentInstructionDiff,
   AgentInstructionSnapshot,
   AgentInstructionsFileDetail,
@@ -173,6 +175,10 @@ export const agentsApi = {
     data: { path: string; content: string; baseRevisionId?: string | null; clearLegacyPromptTemplate?: boolean },
     companyId?: string,
   ) => api.put<AgentInstructionsFileDetail>(agentPath(id, companyId, "/instructions-bundle/file"), data),
+  instructionCandidates: (id: string, companyId?: string) =>
+    api.get<AgentInstructionCandidate[]>(agentPath(id, companyId, "/instructions-bundle/candidates")),
+  resolveInstructionCandidate: (id: string, runId: string, data: ResolveAgentInstructionCandidate, companyId?: string) =>
+    api.post<AgentInstructionsFileDetail>(agentPath(id, companyId, `/instructions-bundle/candidates/${runId}/resolve`), data),
   instructionHistory: (id: string, path: string, companyId?: string, cursor?: string) =>
     api.get<AgentInstructionHistory>(agentPath(id, companyId, `/instructions-bundle/history?path=${encodeURIComponent(path)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`)),
   instructionRevision: (id: string, path: string, revisionId: string, companyId?: string) =>

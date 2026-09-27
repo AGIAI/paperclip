@@ -1,7 +1,9 @@
+import type { AgentInstructionCommitReceipt } from "@paperclipai/shared";
 import { z } from "zod";
 import type { Db } from "@paperclipai/db";
 import { badRequest, notFound } from "../../errors.js";
 import { agentInstructionRevisionService } from "../agent-instruction-revisions.js";
+import { agentInstructionWorkingCopyService } from "../agent-instruction-working-copies.js";
 import { deriveBundleState } from "../agent-instructions.js";
 import { agentService } from "../agents.js";
 import type { AuthorizationActor } from "../authorization.js";
@@ -35,6 +37,15 @@ export async function executeAgentInstructionTool(input: {
     return result.data;
   };
   const scope = (targetAgentId?: string) => ({ companyId: input.binding.companyId, agentId: targetAgentId ?? input.binding.agentId });
+  const acknowledge = async (receipt: AgentInstructionCommitReceipt, targetAgentId?: string) => {
+    // The commit is already durable. A failed baseline refresh keeps the old CAS
+    // fence, so later cleanup preserves a conflict instead of overwriting it.
+    await agentInstructionWorkingCopyService(input.db).acknowledgeExplicitSave({
+      ...scope(targetAgentId), runId: input.binding.runId, entryFile: receipt.revision.entryFile,
+      revisionId: receipt.revision.id, contentHash: receipt.revision.contentHash,
+    }).catch(() => undefined);
+    return receipt;
+  };
   switch (input.tool) {
     case "read_agent_instructions": {
       const args = parse(schemas.read_agent_instructions);
@@ -49,7 +60,8 @@ export async function executeAgentInstructionTool(input: {
     }
     case "update_agent_instructions": {
       const args = parse(schemas.update_agent_instructions);
-      return service.commit({ ...scope(args.targetAgentId), entryFile: args.entryFile, content: args.content, baseRevisionId: args.baseRevisionId, source: "tool" }, actor);
+      const receipt = await service.commit({ ...scope(args.targetAgentId), entryFile: args.entryFile, content: args.content, baseRevisionId: args.baseRevisionId, source: "tool" }, actor);
+      return acknowledge(receipt, args.targetAgentId);
     }
     case "get_agent_instruction_history": {
       const args = parse(schemas.get_agent_instruction_history);
@@ -57,7 +69,8 @@ export async function executeAgentInstructionTool(input: {
     }
     case "restore_agent_instructions": {
       const args = parse(schemas.restore_agent_instructions);
-      return service.restore({ ...scope(args.targetAgentId), entryFile: args.entryFile, revisionId: args.revisionId, baseRevisionId: args.baseRevisionId }, actor);
+      const receipt = await service.restore({ ...scope(args.targetAgentId), entryFile: args.entryFile, revisionId: args.revisionId, baseRevisionId: args.baseRevisionId }, actor);
+      return acknowledge(receipt, args.targetAgentId);
     }
   }
 }
