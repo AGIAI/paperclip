@@ -390,11 +390,11 @@ export function TaskSidePanel({
   useEffect(() => {
     if (artifactsOpenRequestId === undefined || handledArtifactsRequestRef.current === artifactsOpenRequestId) return;
     handledArtifactsRequestRef.current = artifactsOpenRequestId;
-    setLauncherOpen(false);
-    controller.openTab(taskPanelArtifactsTab());
-    if (viewer.state || viewer.browse) viewer.close();
+    // Background outputs add a discoverable tab without interrupting the
+    // current document, file, or launcher. Opening the pane is a user action.
+    controller.openTab(taskPanelArtifactsTab(), false);
     onArtifactsOpened?.(artifactsOpenRequestId);
-  }, [artifactsOpenRequestId, controller.openTab, viewer.state, viewer.browse, viewer.close, onArtifactsOpened]);
+  }, [artifactsOpenRequestId, controller.openTab, onArtifactsOpened]);
 
   const recentFilesQuery = useQuery({
     queryKey: queryKeys.issues.fileResources(issue.id, {
