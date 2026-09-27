@@ -15,7 +15,7 @@ export const instructionPersistenceTask: RunnerTaskFixture = {
   expectedRunCount: 2, attemptTimeoutMs: { local: 20 * 60_000, daytona: 20 * 60_000 },
   expectedTerminalState: { issue: "done", run: "succeeded" },
   buildTitle: nonce => `Persist private instructions ${nonce}`,
-  buildVisibleMarker: nonce => `INSTRUCTIONS-VERIFIED-${nonce}`,
+  buildVisibleMarker: () => "INSTRUCTIONS-VERIFIED",
   buildPrompt: nonce => [
     "Edit your own registered writable agent instruction entry with ordinary filesystem tools. The runtime guidance gives its exact private path.",
     `Preserve its existing bytes and append exactly one newline followed by this line and a final newline: Instruction persistence nonce: ${nonce}`,
@@ -86,7 +86,7 @@ export async function runInstructionPersistenceFlow(input: {
   // A new server and a new issue cannot pass by retaining model conversation.
   await input.restart();
   expect((await api.get<Row>(filePath)).content).toBe(expectedContent);
-  await create(`Read persisted instructions ${nonce}`, [
+  await create("Read persisted instructions", [
     "Read your own loaded agent instruction entry (or its current registered private copy) using ordinary filesystem tools.",
     "Find the line beginning 'Instruction persistence nonce: '. Copy that entire line plus one final newline into instruction-proof.txt. Do not infer the value from this task title or other task history. Do not change your instructions.",
     "Upload instruction-proof.txt as a text/plain task attachment named instruction-proof.txt using the normal artifact workflow. A local file alone is insufficient.",
