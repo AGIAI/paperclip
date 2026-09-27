@@ -1,3 +1,4 @@
+import { createProviderStoppedBoundary } from "@paperclipai/adapter-utils/provider-stopped-boundary";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -186,6 +187,7 @@ async function buildKimiSkillsDir(
 }
 
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
+  const providerStop = createProviderStoppedBoundary(ctx.onProviderStopped);
   const engineSelection = await resolveKimiExecutionEngineForRun(ctx);
   if (engineSelection.unavailableReason) {
     return {
@@ -605,6 +607,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
     const eventForwarder = createKimiEventForwardingLog(onLog, onEvent);
     const proc = await runAdapterExecutionTargetProcess(runId, runtimeExecutionTarget, command, args, {
+      onProcessStopped: providerStop.beginInvocation(),
       cwd,
       env: invocationEnv,
       timeoutSec,
@@ -746,6 +749,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
     return toResult(initial);
   } finally {
+    await providerStop.collectBeforeRestore();
     await Promise.all([
       paperclipBridge?.stop(),
       restoreRemoteWorkspace?.(),
