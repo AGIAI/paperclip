@@ -162,3 +162,28 @@ conflicts/loss evidence, and arrange bounded recovery. They must not write share
 instruction caches or call the old filesystem `writeFile` for an entry.
 The next run should read the canonical snapshot and materialize it when disk is
 needed. Runtime cleanup parity is not established by these service/editor tests.
+
+## Dedicated native tools
+
+Ordinary native runs expose `read_agent_instructions`,
+`update_agent_instructions`, `get_agent_instruction_history`, and
+`restore_agent_instructions` by default. `targetAgentId` is optional and defaults
+to the calling agent; another target must be in the same company. Read and
+history are available in all task modes. Update and restore are available in
+standard and planning modes, subject to the canonical service's current
+responsible-user permissions, containment, and consent requirements.
+
+Read returns the configured `entryFile`, exact content, and current revision.
+Retain that entry filename and revision ID when preparing an update. Both writes
+require an explicit `baseRevisionId`; only update accepts null for a genuinely
+new entry. Restore requires the existing current revision ID.
+Historical reads take both `entryFile` and `revisionId`. History pages contain at
+most 100 entries and include a continuation cursor. Restore appends a new
+revision; it does not delete history. Tool JSON cannot supply company, caller,
+run, responsible user, or source attribution. The native authority binds those
+values from the active run, and the canonical service reloads authorization.
+
+A tool commit is immediately durable. If a run-local working copy still contains
+older content, cleanup must preserve its conflict candidate rather than replace
+the newer tool commit. A 409 response requires explicit conflict resolution;
+never silently retry an old candidate against the latest revision.
