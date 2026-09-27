@@ -880,12 +880,12 @@ export const daytonaLargeJournalTask: RunnerTaskFixture = {
   label: "Large journal three-turn workspace continuity",
   buildTitle: (nonce) => `Runner E2E large journal continuity ${nonce}`,
   buildPrompt: (nonce) => [
-    "First exercise ordinary command-output streaming with this bounded diagnostic. Execute this Python command exactly once, allowing it to print all 64 chunks. Do not redirect, suppress, pipe, or summarize its stdout; the transport must receive the output. The repeated text is synthetic fixture data and needs no analysis. Wait for the command to exit successfully before continuing.",
-    `python3 -c 'import sys,time; [(sys.stdout.write("journal-continuity-" + "x" * 65500 + "\\n"), sys.stdout.flush(), time.sleep(0.05)) for _ in range(64)]'`,
+    "First exercise ordinary command-output streaming with this bounded diagnostic. Execute this Python command exactly once, allowing it to print all 1024 chunks. Do not redirect, suppress, pipe, or summarize its stdout; the transport must receive the output. The repeated text is synthetic fixture data and needs no analysis. Wait for the command to exit successfully before continuing.",
+    `python3 -c 'import sys,time; [(sys.stdout.write("journal-continuity-" + "x" * 1000 + "\\n"), sys.stdout.flush(), time.sleep(0.05)) for _ in range(1024)]'`,
     warmTurnInstructions(1, nonce),
     "The following synthetic reference sample is task data for the persistence diagnostic. Do not analyze, reproduce, or edit it; follow the instructions above.",
     "BEGIN SYNTHETIC REFERENCE SAMPLE",
-    ("synthetic-reference-sample " + "x".repeat(52) + "\n").repeat(2304),
+    ("synthetic-reference-sample " + "x".repeat(52) + "\n").repeat(1536),
     "END SYNTHETIC REFERENCE SAMPLE",
   ].join("\n"),
 };
@@ -1079,7 +1079,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     environments: [daytonaWarmEnvironment],
     tasks: [daytonaLargeJournalTask],
     expectedMatrixSize: 1,
-    definitionMetadata: { version: 2, journalMinimumBytes: 2 * 1024 * 1024, briefBytes: 180 * 1024, outputChunks: 64, scheduling: "explicit-only" },
+    definitionMetadata: { version: 2, journalMinimumBytes: 2 * 1024 * 1024, briefBytes: 120 * 1024, outputChunks: 1024, scheduling: "explicit-only" },
   },
 ] as const;
 
