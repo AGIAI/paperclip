@@ -98,6 +98,7 @@ export async function runInstructionPersistenceFlow(input: {
   const final = await api.get<Row>(filePath);
   expect(final.revision.id).toBe(after.revision.id);
   const checks = gradeInstructionPersistence({ before, after, firstRunId, expectedContent, proof, expectedProof: instructionNonceLine(nonce) });
+  await input.evidence("api-state.json", { issue, runs, checks, canonicalInstructions: final, attachments });
   await input.evidence("instruction-persistence.json", { checks, before, after, final, issues: [runs[0]?.nativeIssueId, issue.id], runs, attachments });
   await expect(page.getByTestId("task-chat-agent-bubble").filter({ hasText: execution.task.buildVisibleMarker(nonce) }).last()).toBeVisible();
   await input.capture("final-state", "Fresh task downloaded the persisted instruction nonce", "final-state.png");
