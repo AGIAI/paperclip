@@ -883,6 +883,10 @@ export const daytonaLargeJournalTask: RunnerTaskFixture = {
     "First exercise ordinary command-output streaming with this bounded diagnostic. Execute this Python command exactly once, allowing it to print all 64 chunks. Do not redirect, suppress, pipe, or summarize its stdout; the transport must receive the output. The repeated text is synthetic fixture data and needs no analysis. Wait for the command to exit successfully before continuing.",
     `python3 -c 'import sys,time; [(sys.stdout.write("journal-continuity-" + "x" * 65500 + "\\n"), sys.stdout.flush(), time.sleep(0.05)) for _ in range(64)]'`,
     warmTurnInstructions(1, nonce),
+    "The following synthetic reference sample is task data for the persistence diagnostic. Do not analyze, reproduce, or edit it; follow the instructions above.",
+    "BEGIN SYNTHETIC REFERENCE SAMPLE",
+    "x".repeat(750 * 1024),
+    "END SYNTHETIC REFERENCE SAMPLE",
   ].join("\n"),
 };
 
@@ -1069,13 +1073,13 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     id: "daytona-journal-continuity",
     label: "Daytona Large Journal Continuity",
     manualOnly: true,
-    description: "Continue the same native session after real tool output grows its durable journal beyond 2 MiB.",
+    description: "Continue the same native session after a browser-submitted large brief and real tool output grow its durable journal beyond 2 MiB.",
     groups: ["daytona", "warm"],
     profiles: codexContinuityProfiles.filter((profile) => profile.id === "runner-codex"),
     environments: [daytonaWarmEnvironment],
     tasks: [daytonaLargeJournalTask],
     expectedMatrixSize: 1,
-    definitionMetadata: { version: 1, journalMinimumBytes: 2 * 1024 * 1024, outputChunks: 64, scheduling: "explicit-only" },
+    definitionMetadata: { version: 2, journalMinimumBytes: 2 * 1024 * 1024, briefBytes: 750 * 1024, outputChunks: 64, scheduling: "explicit-only" },
   },
 ] as const;
 
