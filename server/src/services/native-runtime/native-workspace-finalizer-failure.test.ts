@@ -25,7 +25,7 @@ function fixtureDb(): Db {
   const responses = [[{
     companyId: "company", runtimeMode: "native", issueId: "issue", resultId: "result",
     runnerProfileJson: { nativeWorkspaceSync: {}, nativeExecutionInput: { binding: {} } },
-  }], []];
+  }], [{ phase: "result_accepted", nextAttemptAt: null, resultId: "result" }], []];
   return { select: () => {
     const query = {
       from: () => query, innerJoin: () => query, where: () => query, orderBy: () => query,
