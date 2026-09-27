@@ -885,7 +885,7 @@ export const daytonaLargeJournalTask: RunnerTaskFixture = {
     warmTurnInstructions(1, nonce),
     "The following synthetic reference sample is task data for the persistence diagnostic. Do not analyze, reproduce, or edit it; follow the instructions above.",
     "BEGIN SYNTHETIC REFERENCE SAMPLE",
-    ("synthetic-reference-sample " + "x".repeat(52) + "\n").repeat(2816),
+    ("synthetic-reference-sample " + "x".repeat(52) + "\n").repeat(2304),
     "END SYNTHETIC REFERENCE SAMPLE",
   ].join("\n"),
 };
@@ -1079,7 +1079,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     environments: [daytonaWarmEnvironment],
     tasks: [daytonaLargeJournalTask],
     expectedMatrixSize: 1,
-    definitionMetadata: { version: 2, journalMinimumBytes: 2 * 1024 * 1024, briefBytes: 220 * 1024, outputChunks: 64, scheduling: "explicit-only" },
+    definitionMetadata: { version: 2, journalMinimumBytes: 2 * 1024 * 1024, briefBytes: 180 * 1024, outputChunks: 64, scheduling: "explicit-only" },
   },
 ] as const;
 
