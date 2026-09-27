@@ -128,7 +128,8 @@ for the same agent. The first edits only its registered private instruction file
 using ordinary filesystem tools; the oracle checks exact canonical bytes and a
 new cleanup revision bound to that run. The harness restarts Paperclip and creates
 a fresh task, which must upload a downloaded text attachment containing the saved
-nonce, which is absent from the second task's title and prompt. The browser then
+nonce. This value is independent of fixture names and absent from the second
+task's title and prompt. The browser then
 inspects history and restores the baseline as a new revision. A third task edits
 its private copy while a board API save changes the canonical revision. Cleanup
 must preserve the conflict. The browser compares the current content and explicitly

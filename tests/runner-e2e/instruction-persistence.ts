@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { expect, type Page } from "@playwright/test";
 import { pollUntil, type RunnerApi } from "./api.js";
 import { captureFirstTaskAttachments } from "./first-task-attachments.js";
@@ -43,10 +43,13 @@ export async function runInstructionPersistenceFlow(input: {
   evidence(name: string, data: unknown): Promise<void>;
 }) {
   const { page, api, fixtures, execution, nonce } = input;
+  // Fixture names contain the campaign nonce. Use an unrelated value that the
+  // fresh task can obtain only from the saved entry (or forbidden task history).
+  const persistedNonce = randomBytes(16).toString("hex");
   const filePath = `/api/agents/${fixtures.agent.id}/instructions-bundle/file?path=AGENTS.md`;
   const before = await api.get<Row>(filePath);
   if (typeof before.content !== "string" || !before.revision?.id) throw new Error("Managed instructions must expose a canonical baseline revision");
-  const expectedContent = `${before.content}\n${instructionNonceLine(nonce)}`;
+  const expectedContent = `${before.content}\n${instructionNonceLine(persistedNonce)}`;
   let issue: Row = {};
   let runs: Row[] = [];
   async function create(title: string, prompt: string) {
@@ -75,7 +78,7 @@ export async function runInstructionPersistenceFlow(input: {
     await page.reload();
     await expect(page.getByTestId("issue-detail-header").getByRole("button", { name: "Change status (current: Done)", exact: true })).toBeVisible();
   }
-  await create(execution.task.buildTitle(nonce), execution.task.buildPrompt(nonce));
+  await create(execution.task.buildTitle(nonce), execution.task.buildPrompt(persistedNonce));
   await settle(1);
   const firstRunId = runs[0]!.id;
   const after = await pollUntil({ label: "stopped instruction cleanup revision", deadlineAt: Math.min(input.deadlineAt, Date.now() + 30_000),
@@ -98,7 +101,7 @@ export async function runInstructionPersistenceFlow(input: {
   const proof = attachments.find(row => row.originalFilename === "instruction-proof.txt" || row.name === "instruction-proof.txt");
   const final = await api.get<Row>(filePath);
   expect(final.revision.id).toBe(after.revision.id);
-  const checks = gradeInstructionPersistence({ before, after, firstRunId, expectedContent, proof, expectedProof: instructionNonceLine(nonce) });
+  const checks = gradeInstructionPersistence({ before, after, firstRunId, expectedContent, proof, expectedProof: instructionNonceLine(persistedNonce) });
   await expect(page.getByTestId("task-chat-agent-bubble").filter({ hasText: execution.task.buildVisibleMarker(nonce) }).last()).toBeVisible();
   await input.capture("final-state", "Fresh task downloaded the persisted instruction nonce", "final-state.png");
   expect(checks.filter(check => !check.passed), "Independent instruction persistence checks").toEqual([]);
