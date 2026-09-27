@@ -1,3 +1,4 @@
+import { redactSensitiveText } from "../../redaction.js";
 import fs from "node:fs/promises";
 import { and, desc, eq } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
@@ -31,12 +32,20 @@ function readString(value: unknown) {
 
 function workspaceSyncFailure(
   code: NativeWorkspaceFailureCode,
+  error?: unknown,
 ) {
+  const cause = error instanceof Error ? error : null;
+  const causeCode = cause && "code" in cause && typeof cause.code === "string" && /^[A-Z0-9_]{1,64}$/.test(cause.code)
+    ? cause.code : null;
+  const diagnostic = cause ? {
+    message: redactSensitiveText(cause.message.slice(0, 8_000)).slice(0, 2_000),
+    ...(causeCode ? { code: causeCode } : {}),
+  } : null;
   return {
     status: "failed" as const,
     exitCode: 1,
     stderr: `${code}\n`,
-    metadata: { workspaceSync: { code } },
+    metadata: { workspaceSync: { code, ...(diagnostic ? { diagnostic } : {}) } },
   };
 }
 
@@ -191,7 +200,7 @@ export async function resumeNativeWorkspaceFinalization(input: {
           };
         } catch (error) {
           const { code } = classifyNativeWorkspaceFailure(error);
-          return workspaceSyncFailure(code);
+          return workspaceSyncFailure(code, error);
         }
       }
       if (!cwd) {

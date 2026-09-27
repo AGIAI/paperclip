@@ -33,6 +33,19 @@ function fixtureDb(): Db {
 
 describe("native workspace finalization failure classification", () => {
   beforeEach(() => sync.resume.mockReset());
+  it("keeps a bounded redacted cause alongside the stable workspace failure code", async () => {
+    sync.resume.mockRejectedValueOnce(Object.assign(new Error(
+      "tar listing stdout maxBuffer length exceeded; Authorization: Bearer fixture-secret-credential-0123456789\n" + "detail ".repeat(1000),
+    ), { code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" }));
+    const result = await resumeNativeWorkspaceFinalization({ db: fixtureDb(), runId: "run", environmentRuntime: {} as never });
+    expect(result).toMatchObject({ stderr: "workspace_sync_out_failed\n", metadata: { workspaceSync: {
+      code: "workspace_sync_out_failed", diagnostic: { code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" },
+    } } });
+    const diagnostic = (result as unknown as { metadata: { workspaceSync: { diagnostic: { message: string } } } }).metadata.workspaceSync.diagnostic;
+    expect(diagnostic.message).toContain("maxBuffer length exceeded");
+    expect(diagnostic.message.length).toBeLessThanOrEqual(2_000);
+    expect(JSON.stringify(result)).not.toContain("fixture-secret-credential");
+  });
   it.each([
     ["Daytona syncOut refusing tarball link whose target escapes the extraction dir: .worktrees/task/.tools/pnpm -> ../../../../../../usr/share/nodejs/corepack/dist/pnpm.js", "workspace_sync_out_unsafe_archive"],
     ["Daytona syncOut refusing tarball member that escapes the extraction dir: ../private", "workspace_sync_out_unsafe_archive"],
@@ -46,7 +59,7 @@ describe("native workspace finalization failure classification", () => {
       stderr: `${expectedCode}\n`, metadata: { workspaceSync: { code: expectedCode } },
     });
     expect(sync.resume).toHaveBeenCalledOnce();
-    expect(JSON.stringify(result)).not.toContain(".tools/pnpm");
+    expect((result as unknown as { stderr: string }).stderr).not.toContain(".tools/pnpm");
   });
 });
 
