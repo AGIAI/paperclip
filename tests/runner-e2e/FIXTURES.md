@@ -225,3 +225,12 @@ first provider turn intentionally omits task disposition, and their second turn
 must be an automatic, causally bound repair that records completion. They use
 public task comments/status APIs and run-detail evidence; no private runtime
 hooks or database mutations are used by the fixture.
+
+## Registered instruction persistence
+
+The `instruction_persistence` flow uses production managed instructions and the
+public versioned entry endpoint. It preserves the initial content, requires an
+ordinary private file edit to create a cleanup-source revision, restarts the server,
+and creates a fresh browser task. Its final oracle downloads and verifies the
+attachment bytes and SHA-256, rather than accepting a filename or model claim.
+Both tasks' runs count toward billing and teardown. The suite is explicit-only.
