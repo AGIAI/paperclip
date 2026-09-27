@@ -8764,7 +8764,7 @@ describe("runnerd provider runtime wiring", () => {
           core.queueCommand("turn.start", { text: "x".repeat(768 * 1024) }, `large-command-${index}`);
         }
         for (const command of core.store.state.commands) command.status = "completed";
-        core.store.save();
+        core.issueBootstrapTicket();
         expect(new DurablePrpControlPlane(options).store.state.commands).toHaveLength(commandCount);
         const controlPath = join(root, "control-plane", "control-plane-state.json");
         const controlBytes = await readFile(controlPath);
