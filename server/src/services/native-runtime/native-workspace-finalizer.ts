@@ -1,3 +1,4 @@
+import { withNativeWorkspaceFinalizationOwnership } from "./native-workspace-finalization-ownership.js";
 import fs from "node:fs/promises";
 import { and, desc, eq } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
@@ -72,6 +73,18 @@ export async function resumeNativeWorkspaceFinalization(input: {
     throw new Error("native_workspace_finalization_binding_missing");
   }
 
+  const owned = await withNativeWorkspaceFinalizationOwnership({
+    db: input.db, companyId: bound.companyId, runId: input.runId,
+  }, async (ownership) => {
+  const successful = await input.db.select().from(workspaceOperations).where(and(
+    eq(workspaceOperations.companyId, bound.companyId),
+    eq(workspaceOperations.heartbeatRunId, input.runId),
+    eq(workspaceOperations.issueId, bound.issueId),
+    eq(workspaceOperations.phase, "workspace_finalize"),
+    eq(workspaceOperations.status, "succeeded"),
+  )).orderBy(desc(workspaceOperations.createdAt)).limit(1).then((rows) => rows[0] ?? null);
+  // A stale failure from a pre-fencing controller cannot invalidate exported work.
+  if (successful) return successful;
   const previous = await input.db.select().from(workspaceOperations).where(and(
     eq(workspaceOperations.companyId, bound.companyId),
     eq(workspaceOperations.heartbeatRunId, input.runId),
@@ -117,6 +130,7 @@ export async function resumeNativeWorkspaceFinalization(input: {
         : "workspace_directory",
     },
     run: async () => {
+      await ownership.assertHeld();
       if (nativeWorkspaceSync) {
         if (!input.environmentRuntime) {
           return {
@@ -172,7 +186,9 @@ export async function resumeNativeWorkspaceFinalization(input: {
             db: input.db,
             runId: input.runId,
             target,
+            assertOwnership: ownership.assertHeld,
           });
+          await ownership.assertHeld();
           if (!restored) {
             return workspaceSyncFailure("workspace_sync_out_unrecoverable");
           }
@@ -190,6 +206,7 @@ export async function resumeNativeWorkspaceFinalization(input: {
             },
           };
         } catch (error) {
+          await ownership.assertHeld();
           const { code } = classifyNativeWorkspaceFailure(error);
           return workspaceSyncFailure(code);
         }
@@ -202,6 +219,7 @@ export async function resumeNativeWorkspaceFinalization(input: {
         };
       }
       const isDirectory = await fs.stat(cwd).then((stat) => stat.isDirectory()).catch(() => false);
+      await ownership.assertHeld();
       if (!isDirectory) {
         return {
           status: "failed",
@@ -237,4 +255,6 @@ export async function resumeNativeWorkspaceFinalization(input: {
       };
     },
   });
+  });
+  return owned.acquired ? owned.value : null;
 }
