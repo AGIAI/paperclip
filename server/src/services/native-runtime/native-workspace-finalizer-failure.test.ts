@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@paperclipai/db";
 
 const sync = vi.hoisted(() => ({ resume: vi.fn() }));
+vi.mock("./native-workspace-finalization-ownership.js", () => ({
+  withNativeWorkspaceFinalizationOwnership: async (_db: Db, _runId: string, action: (owner: unknown) => unknown) =>
+    action({ token: "fixture-owner", assertHeld: async () => {} }),
+}));
 vi.mock("./native-workspace-sync.js", () => ({
   readNativeWorkspaceSyncReference: () => ({ leaseId: "lease", providerLeaseId: "sandbox", workspaceId: "workspace" }),
   resumeNativeWorkspaceSync: sync.resume,
