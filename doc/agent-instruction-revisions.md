@@ -156,14 +156,50 @@ existing versioned content; their filesystem initialization helper fails closed.
 
 ## Runtime handoff boundary
 
-This foundation does not register run-local copies, change native or legacy
-staging, dispatch runner tools, collect stopped runs, or persist pending cleanup
-candidates. Those integrations must retain the baseline and server identity,
-collect the registered private file after stop, use this commit path, preserve
-conflicts/loss evidence, and arrange bounded recovery. They must not write shared
-instruction caches or call the old filesystem `writeFile` for an entry.
-The next run should read the canonical snapshot and materialize it when disk is
-needed. Runtime cleanup parity is not established by these service/editor tests.
+`agentInstructionWorkingCopyService` provides the registered-copy lifecycle.
+Migration 0286 stores each run's configured entry, original revision/hash,
+server-bound responsible user, private local/execution roots, captured candidate,
+attempt count, diagnostics, and save receipt. Preparation handles managed bundles
+with an existing entry only; external bundles are never imported. Collection
+reads only the registered entry, accepts normal atomic editor replacement, rejects
+symlinks/special files, and bounds valid UTF-8 to 1 MiB. Missing and empty files are
+distinct. A captured candidate is durable before authorization/CAS; duplicate
+callbacks and restarts can retry bytes without launching a provider. Failed
+permission/CAS saves preserve candidates, and public diagnostics omit filesystem
+paths. Explicit saves advance the baseline only when the registered copy currently
+matches the committed content; unrelated edits retain the original conflict fence.
+
+The native runner exposes a stopped-session observer only after its required
+owned close joins successfully. A terminal-turn change probe can retire the exact
+warm owner through the existing checkpoint/close path before collecting; unchanged
+warm sessions stay reusable. The optional working-copy context is separate from
+the immutable instruction bundle and its prompt digest.
+
+Heartbeat prepares the copy under the selected workspace's private
+`.paperclip-runtime/instruction-edits-<run>/instructions` directory, publishes its
+exact configured entry path to the provider, and collects it before workspace
+restoration or environment disposal. Git's local exclude file excludes the runtime
+directory from ordinary staging; workspace snapshots already exclude that directory.
+The run-to-workspace/environment binding cannot change during a same-run retry.
+Cloud API providers without access to the selected filesystem use the versioned
+instruction tools; they are not given an inaccessible editable file.
+
+Native execution waits for owned session close, or closes only a changed warm
+owner through the existing checkpoint path. Unchanged warm sessions keep their
+provider process and sandbox lease. Legacy CLI adapters collect after the final
+invocation's confirmed process exit; ACP waits for confirmed runtime close. A
+remote timeout, disconnect, or failed close is not stop evidence. The run log and
+result include the save receipt or diagnostic; no missing or unverified bytes are
+reported as saved.
+
+Recovery retries captured bytes without launching a model. An uncaptured local
+copy requires a durable stopped-process receipt; a later launch invalidates older
+stop evidence. Unconfirmed stops remain visible as pending collection. Lost remote
+environments produce explicit unavailable diagnostics, without restarting the
+provider to retrieve files. Conflicts, permission failures, and unavailable copies
+remain inspectable in the instruction editor. Real provider and Daytona proofs
+are recorded with the Product E2E instruction-persistence workflow; unit/service
+tests alone do not establish runtime parity.
 
 ## Dedicated native tools
 

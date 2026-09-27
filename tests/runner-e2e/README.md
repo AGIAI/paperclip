@@ -122,6 +122,18 @@ duplicating the final response. The second workflow restarts the isolated
 Paperclip server while the interaction is waiting, reloads that state, and
 then resumes it. The suite has no Daytona cells.
 
+`instruction-persistence` is an explicit-only three-cell workflow: legacy and
+native Codex locally, plus native Codex on Daytona. Each creates two browser tasks
+for the same agent. The first edits only its registered private instruction file
+using ordinary filesystem tools; the oracle checks exact canonical bytes and a
+new cleanup revision bound to that run. The harness restarts Paperclip and creates
+a fresh task, which must upload a downloaded text attachment containing the saved
+nonce. It rejects tool/API saves, stale revisions, missing downloads, and incorrect
+bytes. The deadline is twenty minutes per cell, with two expected provider runs;
+normal instance/Daytona cleanup, screenshots, evidence, and billing apply. Run with
+`pnpm test:e2e:runner -- --suite instruction-persistence`. The unchanged-provider
+warm lifecycle is independently covered by `daytona-warm-continuity`.
+
 `daytona-warm-continuity` (**Daytona Warm Continuity**) is exactly two paid
 cells: legacy Codex and Runner Codex against one reusable warm Daytona
 configuration. Each cell creates a real project with a primary local-path

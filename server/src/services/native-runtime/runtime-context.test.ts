@@ -90,6 +90,28 @@ afterEach(async () => {
 });
 
 describe("buildNativeRuntimeContext", () => {
+  it("keeps the pinned prompt immutable while exposing the registered editable instruction copy", async () => {
+    serviceMocks.exportFiles.mockResolvedValue({
+      entryFile: "instructions/CHARter.md",
+      files: { "instructions/CHARter.md": "Original instructions.\n" },
+    });
+    const workingRoot = path.join(temporaryRoots.at(-1)!, "private-run-copy");
+    await mkdir(path.join(workingRoot, "instructions"), { recursive: true });
+    await writeFile(path.join(workingRoot, "instructions/CHARter.md"), "Original instructions.\n");
+    const context = await buildNativeRuntimeContext({
+      db: {} as Db,
+      agent: { id: "agent-1", companyId: "company-1", name: "Reviewer", adapterType: "paperclip_runner", adapterConfig: {} },
+      runId: "run-1",
+      runtimeConfig: {},
+      runtimeSkillEntries: [],
+      instructionWorkingCopy: { rootPath: workingRoot, entryPath: "instructions/CHARter.md" },
+    });
+    expect(context.instructions.workingCopy).toEqual({ rootPath: workingRoot, entryPath: "instructions/CHARter.md" });
+    await writeFile(path.join(workingRoot, "instructions/CHARter.md"), "Persist this next time.\n");
+    expect(await readFile(path.join(context.instructions.bundle.rootPath, context.instructions.entryPath), "utf8"))
+      .toBe("Original instructions.\n");
+  });
+
   it.each(["disabled", "degraded"] as const)(
     "omits an unavailable native MCP connection when it is %s without aborting runtime context creation",
     async (unavailableState) => {

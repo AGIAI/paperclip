@@ -261,3 +261,8 @@ Continuation accounting has an explicit-only eight-cell Product E2E [baseline su
 The explicit-only Product E2E `api-response-reading` suite verifies retrieval of
 large saved API responses on local and Daytona native Codex runs. See the
 [Runner E2E guide](../tests/runner-e2e/README.md#bounded-api-response-reading).
+
+The explicit Product E2E `instruction-persistence` suite verifies private file
+edits, stopped-provider cleanup revisions, server restart, and a fresh task's
+downloaded proof on local native/legacy Codex and native Daytona. See the
+[Product E2E runbook](../tests/runner-e2e/README.md).
