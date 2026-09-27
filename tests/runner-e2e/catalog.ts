@@ -919,7 +919,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     environments: [localEnvironment, runnerEnvironments.find(environment => environment.id === "daytona")!], tasks: [instructionPersistenceTask],
     excludedExecutionIds: ["instruction-persistence.legacy-codex.daytona.private-copy-persists"],
     expectedMatrixSize: 3, manualOnly: true,
-    definitionMetadata: { version: 1, oracle: "canonical-revision-and-downloaded-attachment", providerTurns: 2, restart: "between-tasks", instructions: "production" },
+    definitionMetadata: { version: 2, oracle: "canonical-revision-blind-attachment-and-browser-conflict-resolution", providerTurns: 3, restart: "between-tasks", instructions: "production" },
   },
   {
     id: "continuation-accounting", label: "Continuation accounting baseline", manualOnly: true,
