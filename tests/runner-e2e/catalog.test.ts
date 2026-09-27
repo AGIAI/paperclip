@@ -193,7 +193,7 @@ describe("runner E2E catalog", () => {
     expect(suite.expectedMatrixSize).toBe(1);
     expect(suite.profiles.map((profile) => profile.id)).toEqual(["runner-codex"]);
     expect(daytonaLargeJournalTask.flow).toBe("warm_three_turn");
-    expect(daytonaLargeJournalTask.buildPrompt("nonce")).toContain("80 separate execution-tool calls");
+    expect(daytonaLargeJournalTask.buildPrompt("nonce")).toContain("240 separate execution-tool calls");
     expect(daytonaLargeJournalTask.buildFollowupMessages!("nonce")).toEqual(daytonaWarmContinuityTask.buildFollowupMessages!("nonce"));
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"]))
       .some((cell) => cell.suite.id === suite.id)).toBe(false);
