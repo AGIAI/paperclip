@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { gradeInstructionPersistence } from "./instruction-persistence.js";
+import { gradeInstructionPersistence, instructionPersistenceTask } from "./instruction-persistence.js";
 import { runnerMatrix } from "./catalog.js";
 const expectedContent = "original\nInstruction persistence nonce: fixture\n";
 const valid = () => ({ before: { revision: { id: "before" } },
@@ -9,6 +9,10 @@ const valid = () => ({ before: { revision: { id: "before" } },
   proof: { body: "Instruction persistence nonce: fixture\n", contentVerified: true },
   expectedProof: "Instruction persistence nonce: fixture\n" });
 describe("instruction persistence independent oracle", () => {
+  it("does not disclose the persisted nonce in the fresh-task marker", () => {
+    const nonce = "only-the-instruction-entry-reveals-this";
+    expect(instructionPersistenceTask.buildVisibleMarker(nonce)).not.toContain(nonce);
+  });
   it("accepts exact cleanup content and a verified downloaded fresh-task proof", () => {
     expect(gradeInstructionPersistence(valid()).every(row => row.passed)).toBe(true);
   });
