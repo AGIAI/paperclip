@@ -18,7 +18,8 @@ export const instructionPersistenceTask: RunnerTaskFixture = {
   buildVisibleMarker: () => "INSTRUCTIONS-VERIFIED",
   buildPrompt: nonce => [
     "Edit your own registered writable agent instruction entry with ordinary filesystem tools. The runtime guidance gives its exact private path.",
-    `Preserve its existing bytes and append exactly one newline followed by this line and a final newline: Instruction persistence nonce: ${nonce}`,
+    `Preserve its existing bytes and append exactly this UTF-8 suffix, represented as a JSON string: ${JSON.stringify(`\n${instructionNonceLine(nonce)}`)}`,
+    "Decode the JSON string once and append those bytes. Do not trim or normalize the existing file and do not add another blank line or separator.",
     "Do not use update_agent_instructions, restore_agent_instructions, or an instructions API to save it. Do not edit repository AGENTS.md or the read-only loaded bundle.",
     "Reply only Instruction copy edited without printing filesystem paths, then complete this task after the file edit. Paperclip will collect it after the provider stops; do not claim it has already persisted. Do not create further tasks.",
   ].join("\n"),
