@@ -1,0 +1,164 @@
+# Canonical agent instruction revisions
+
+Managed entry content has one database history. `agent_instruction_revisions`
+stores exact UTF-8 bytes as base64 text (including BOM, CRLF, trailing whitespace,
+and NUL), SHA-256, byte length, parent/base revision, restore origin, actor,
+responsible user, source run, source, and creation time. `agent_instruction_heads`
+selects one revision per company, agent, and relative entry filename. Composite
+foreign keys bind heads to their owner's content and agents to their company.
+Configuration snapshots in `agent_config_revisions` are not content history.
+Migration 0285 adds the tables; existing managed files are seeded lazily on the
+first authorized canonical read or commit, without changing their bytes.
+
+The configured `instructionsEntryFile` is authoritative. Legacy managed
+`instructionsFilePath` can select a nested filename. A missing configured entry
+never causes a scan to select some other AGENTS.md. Supporting bundle files keep
+the existing file API; only the configured entry participates in this history.
+
+## Service integration
+
+Import `agentInstructionRevisionService` from
+`server/src/services/agent-instruction-revisions.ts` and instantiate it with `db`.
+Use the server's authenticated actor, never an actor or responsible-user ID from
+request/tool arguments. `AuthorizationActor` is an internal server type.
+
+```ts
+const revisions = agentInstructionRevisionService(db);
+const target = { companyId, agentId: targetAgentId };
+const baseline = await revisions.readCurrent(target, serverActor);
+// null means no committed head and no existing managed entry.
+// For an existing head, retain its entryFile/id/hash in the server-owned mapping.
+const receipt = await revisions.commit({
+  ...target,
+  entryFile: baseline!.revision.entryFile,
+  baseRevisionId: baseline!.revision.id,
+  content: collectedBytes, // string or Uint8Array, at most 1 MiB of valid UTF-8
+  source: "cleanup",      // board | api | tool | cleanup
+}, serverActor);
+```
+
+For new entries, obtain the configured entry from `deriveBundleState(agent)` and
+pass `baseRevisionId: null`. Do not turn a conflict into a null base or silently
+retry with the latest head. `readInstructionBytes(root, entryFile)` from
+`agent-instruction-files.ts` validates a specifically registered file; it returns
+null for a missing file, rejects symlinks in the path, rejects special files, and
+bounds the read itself. The collector must distinguish a missing working file
+from a valid empty file and must stop the process before collecting it.
+
+Public operations:
+
+- `readCurrent(target, actor)` returns `AgentInstructionSnapshot | null` and seeds
+  existing managed bytes. Reads do not require content-edit permission.
+- `commit(input, actor)` returns `AgentInstructionCommitReceipt`.
+- `history({ ...target, entryFile, cursor?, limit? }, actor)` returns metadata and
+  `nextCursor`; pages are capped at 100 revisions (default 50).
+- `readRevision({ ...target, entryFile, revisionId }, actor)` returns exact content.
+- `diff({ ...target, entryFile, fromRevisionId, toRevisionId }, actor)` returns both
+  snapshots and an exact common-prefix/replacement/common-suffix diff in linear
+  time. It does not attempt an automatic merge.
+- `restore({ ...target, entryFile, revisionId, baseRevisionId }, actor)` uses the
+  same authorization and CAS path. It appends a revision with source `restore`
+  and `restoredFromRevisionId`. Identical content is a no-op.
+- `materializeCurrent(target)` is an **internal recovery operation**, not an
+  authorization API. It copies only the current committed head to the managed
+  path while holding the agent lock. Call before launching a run that reads disk
+  and after restarting following an interrupted materialization.
+
+A transaction locks the target agent, rechecks current authority, inserts a
+revision, moves the head, and inserts its activity record. A different current
+head yields 409. Identical content returns the existing receipt without another
+revision, including retries whose base has advanced to that same content.
+Materialization happens after commit under the same serialization lock, always
+from the latest head. It uses a temporary file and atomic rename. A later save
+cannot be overwritten by an older materializer. A crash or disk error leaves the
+database head recoverable. A receipt with `materialization: "pending"` means the
+revision is durable and the disk copy still needs repair; it does not mean the
+commit failed. GET bundle also attempts that repair and displays a warning if
+repair fails. A successful materializer may have copied a newer head than the
+receipt if another commit already completed.
+
+`authorizeInstructionCommit(connection, actor, target)` and
+`resolveInstructionActor(connection, actor)` are exported from
+`agent-instruction-authorization.ts`. The commit service calls them itself;
+callers must not treat an earlier authorization result as a reusable grant.
+Agent callers must supply the server-bound agent/company plus registered run or
+active API key. The service reloads responsible identity, accepted active run
+identity context, key scope/revocation, user existence, active company membership,
+current target edit permission, and agent restrictions. When capturing a baseline,
+retain the server-resolved `onBehalfOfUserId` so identity changes before cleanup
+fail closed instead of attributing the candidate to a different user.
+
+Ordinary standard agents inherit their responsible user's existing target
+`agents:configure` access for content only. They do not need their own blanket
+agent-admin grant. An explicit scoped configure grant or suggest-only grant still
+constrains them; suggest-only mutation consumes the existing accepted-change
+confirmation inside the commit transaction. Low-trust, task-bridge, and skill-test
+containment remains enforced. This path enforces the responsible-user ceiling even
+if the general responsible-user policy is configured in shadow mode.
+
+## HTTP and editor
+
+Existing company-scoped agent URLs now support:
+
+| Operation | Route |
+| --- | --- |
+| Current entry and revision metadata | `GET /api/agents/:id/instructions-bundle/file?path=...` |
+| Content save | `PUT /api/agents/:id/instructions-bundle/file` |
+| History | `GET /api/agents/:id/instructions-bundle/history?path=...&cursor=...` |
+| Revision content | `GET /api/agents/:id/instructions-bundle/revision/:revisionId?path=...` |
+| Diff | `GET /api/agents/:id/instructions-bundle/diff?path=...&from=...&to=...` |
+| Restore | `POST /api/agents/:id/instructions-bundle/restore` |
+
+Entry PUT requires `{ path, content, baseRevisionId }`. Restore requires
+`{ path, revisionId, baseRevisionId }`. Content requests reject unknown fields,
+including supplied responsible identity. Save/restore return the normal file
+detail plus `revision` and `receipt`. The existing editor pins a draft's base,
+retains edits on conflicts, shows history and exact revision content/differences,
+and restores against the currently displayed head. Save or discard local edits
+before restoring. Configuration changes (root, entry selection, legacy prompt
+removal) retain the configuration permission gate.
+
+`AgentInstructionSnapshot`, `AgentInstructionRevision`,
+`AgentInstructionCommitReceipt`, `AgentInstructionHistory`,
+`AgentInstructionDiff`, `AgentInstructionErrorCode`, and
+`AgentInstructionErrorDetails` are exported from `@paperclipai/shared`.
+Errors use `HttpError` and the existing HTTP error envelope. A conflict may
+return a null `currentRevisionId` when the existing disk file has not yet been
+seeded; read the current entry to obtain its durable initial revision:
+
+| Status | Detail code / action |
+| --- | --- |
+| 409 | `INSTRUCTION_REVISION_CONFLICT`: preserve candidate, read current head, explicitly resolve |
+| 409 | `INSTRUCTION_ENTRY_CHANGED`: configured entry changed; do not collect into the replacement entry |
+| 403 | `INSTRUCTION_IDENTITY_INVALID`, `RESPONSIBLE_USER_UNAVAILABLE`, `RESPONSIBLE_USER_UNAUTHORIZED`, or existing authorization/consent denial |
+| 422 | `INSTRUCTION_BASE_REQUIRED`: read first and provide the base |
+| 422 | `INSTRUCTION_CONTENT_INVALID`, `INSTRUCTION_PATH_INVALID`: reject candidate; preserve canonical bytes |
+| 422 | `INSTRUCTION_MANAGED_BUNDLE_REQUIRED`: instance administrator must explicitly migrate the external bundle |
+| 422 | `INSTRUCTION_REVISION_REQUIRED`: use canonical content commit instead of filesystem overwrite |
+| 404 | Target or revision is absent from the requested owner scope |
+
+External host bundles are never automatically seeded or written by this service.
+Their existing instance-admin read/configuration restrictions remain. Managed
+bootstrap/import/reset helpers now refuse to overwrite an existing entry with
+different content or any entry with revision history. Apply content changes through
+the canonical commit path; provisioning a new entry remains supported. These
+helpers do not provide an alternate content-history bypass. Supporting-file writes
+reload configuration under the same agent lock and refuse current or historical
+versioned entries, including when a route has a stale configuration snapshot.
+Board stock resets
+for built-in agents pass the authenticated actor through the same commit service.
+Automatic reconciliation preserves existing stock content when no responsible
+operator is present; the available update remains visible for an authorized reset.
+Generic import and plugin reset callers must use the canonical writer to replace
+existing versioned content; their filesystem initialization helper fails closed.
+
+## Runtime handoff boundary
+
+This foundation does not register run-local copies, change native or legacy
+staging, dispatch runner tools, collect stopped runs, or persist pending cleanup
+candidates. Those integrations must retain the baseline and server identity,
+collect the registered private file after stop, use this commit path, preserve
+conflicts/loss evidence, and arrange bounded recovery. They must not write shared
+instruction caches or call the old filesystem `writeFile` for an entry.
+The next run should read the canonical snapshot and materialize it when disk is
+needed. Runtime cleanup parity is not established by these service/editor tests.

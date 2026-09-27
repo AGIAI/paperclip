@@ -1,0 +1,469 @@
+import { createHash } from "node:crypto";
+import { and, desc, eq, getTableColumns, lt, or, sql } from "drizzle-orm";
+import {
+  activityLog,
+  agents,
+  agentInstructionHeads as heads,
+  agentInstructionRevisions as revisions,
+  type Db,
+} from "@paperclipai/db";
+import type {
+  AgentInstructionCommitReceipt,
+  AgentInstructionDiff,
+  AgentInstructionHistory,
+  AgentInstructionSnapshot,
+  AgentInstructionSource,
+} from "@paperclipai/shared";
+import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
+import {
+  agentInstructionsBundleMode,
+  deriveBundleState,
+  resolveManagedInstructionsRoot,
+} from "./agent-instructions.js";
+import {
+  instructionBytes,
+  instructionPath,
+  assertInstructionPathSafe,
+  readInstructionBytes,
+  materializeInstructionBytes,
+} from "./agent-instruction-files.js";
+import {
+  authorizeInstructionCommit,
+  resolveInstructionActor,
+} from "./agent-instruction-authorization.js";
+import {
+  authorizationService,
+  authorizationDeniedDetails,
+  type AuthorizationActor,
+} from "./authorization.js";
+
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+type Revision = typeof revisions.$inferSelect;
+const { contentBase64: _contentColumn, ...revisionMetadataColumns } =
+  getTableColumns(revisions);
+export type InstructionTarget = { companyId: string; agentId: string };
+export type InstructionCommitInput = InstructionTarget & {
+  entryFile: string;
+  content: string | Uint8Array;
+  baseRevisionId: string | null;
+  source: Exclude<AgentInstructionSource, "seed" | "restore">;
+};
+function metadata(row: Omit<Revision, "contentBase64">) {
+  const { createdAt, source, ...fields } = row;
+  return {
+    ...fields,
+    source: source as AgentInstructionSource,
+    createdAt: createdAt.toISOString(),
+  };
+}
+function snapshot(row: Revision): AgentInstructionSnapshot {
+  const { contentBase64, ...fields } = row;
+  return {
+    revision: metadata(fields),
+    content: Buffer.from(contentBase64, "base64").toString("utf8"),
+  };
+}
+function owner(target: InstructionTarget, entryFile: string) {
+  return and(
+    eq(revisions.companyId, target.companyId),
+    eq(revisions.agentId, target.agentId),
+    eq(revisions.entryFile, entryFile),
+  );
+}
+function headOwner(target: InstructionTarget, entryFile: string) {
+  return and(
+    eq(heads.companyId, target.companyId),
+    eq(heads.agentId, target.agentId),
+    eq(heads.entryFile, entryFile),
+  );
+}
+
+export function agentInstructionRevisionService(db: Db) {
+  async function lockTarget(
+    tx: Tx,
+    target: InstructionTarget,
+    actor?: AuthorizationActor,
+  ) {
+    if (actor?.type === "agent" && actor.companyId !== target.companyId)
+      throw notFound("Agent not found");
+    const [agent] = await tx
+      .select()
+      .from(agents)
+      .where(
+        and(
+          eq(agents.id, target.agentId),
+          eq(agents.companyId, target.companyId),
+        ),
+      )
+      .for("update");
+    if (!agent) throw notFound("Agent not found");
+    if (agentInstructionsBundleMode(agent) === "external") {
+      throw unprocessable(
+        "External host instructions do not support revision write-back. Ask an instance administrator to migrate this bundle to managed storage.",
+        { code: "INSTRUCTION_MANAGED_BUNDLE_REQUIRED" },
+      );
+    }
+    const state = deriveBundleState(agent);
+    const entryFile = instructionPath(state.entryFile);
+    return { agent, entryFile, root: resolveManagedInstructionsRoot(agent) };
+  }
+  async function authorizeRead(
+    tx: Tx,
+    actor: AuthorizationActor,
+    target: InstructionTarget,
+  ) {
+    const bound = await resolveInstructionActor(tx, actor);
+    const decision = await authorizationService(tx).decide({
+      actor: bound,
+      action: "agent:read",
+      resource: {
+        type: "agent",
+        companyId: target.companyId,
+        agentId: target.agentId,
+      },
+    });
+    if (!decision.allowed)
+      throw forbidden(
+        decision.explanation,
+        authorizationDeniedDetails(decision),
+      );
+    return bound;
+  }
+  async function head(tx: Tx, target: InstructionTarget, entryFile: string) {
+    const [result] = await tx
+      .select({ revision: revisions })
+      .from(heads)
+      .innerJoin(revisions, eq(revisions.id, heads.revisionId))
+      .where(headOwner(target, entryFile));
+    return result?.revision ?? null;
+  }
+  async function append(
+    tx: Tx,
+    target: InstructionTarget,
+    entryFile: string,
+    bytes: Buffer,
+    actor: AuthorizationActor,
+    source: AgentInstructionSource,
+    parentRevisionId: string | null,
+    baseRevisionId: string | null,
+    restoredFromRevisionId: string | null = null,
+  ) {
+    const [row] = await tx
+      .insert(revisions)
+      .values({
+        ...target,
+        entryFile,
+        contentBase64: bytes.toString("base64"),
+        contentHash: createHash("sha256").update(bytes).digest("hex"),
+        byteLength: bytes.length,
+        parentRevisionId,
+        baseRevisionId,
+        restoredFromRevisionId,
+        source,
+        actorAgentId: actor.type === "agent" ? actor.agentId : null,
+        actorUserId: actor.type === "board" ? actor.userId : null,
+        responsibleUserId:
+          actor.type === "board" ? actor.userId : actor.onBehalfOfUserId,
+        sourceRunId: actor.runId,
+      })
+      .returning();
+    await tx
+      .insert(heads)
+      .values({ ...target, entryFile, revisionId: row.id })
+      .onConflictDoUpdate({
+        target: [heads.companyId, heads.agentId, heads.entryFile],
+        set: { revisionId: row.id, updatedAt: new Date() },
+      });
+    await tx.insert(activityLog).values({
+      companyId: target.companyId,
+      actorType: actor.type === "board" ? "user" : "agent",
+      actorId: (actor.type === "board" ? actor.userId : actor.agentId)!,
+      agentId: actor.type === "agent" ? actor.agentId : null,
+      runId: actor.runId,
+      responsibleUserId: row.responsibleUserId,
+      action: "agent.instructions_revision_committed",
+      entityType: "agent",
+      entityId: target.agentId,
+      details: {
+        revisionId: row.id,
+        entryFile,
+        source,
+        parentRevisionId,
+        baseRevisionId,
+        contentHash: row.contentHash,
+        byteLength: row.byteLength,
+      },
+    });
+    return row;
+  }
+  async function seed(
+    tx: Tx,
+    target: InstructionTarget,
+    state: Awaited<ReturnType<typeof lockTarget>>,
+    actor: AuthorizationActor,
+  ) {
+    const current = await head(tx, target, state.entryFile);
+    if (current) return current;
+    const bytes = await readInstructionBytes(state.root, state.entryFile);
+    // Never scan for a fallback entry. An unconfigured legacy inline prompt is
+    // migrated only on an explicit content commit; reads preserve configured bytes.
+    if (!bytes) return null;
+    return append(
+      tx,
+      target,
+      state.entryFile,
+      bytes,
+      actor,
+      "seed",
+      null,
+      null,
+    );
+  }
+  async function getRevision(
+    tx: Tx,
+    target: InstructionTarget,
+    entryFile: string,
+    id: string,
+  ) {
+    const [row] = await tx
+      .select()
+      .from(revisions)
+      .where(and(owner(target, entryFile), eq(revisions.id, id)));
+    if (!row) throw notFound("Instruction revision not found");
+    return row;
+  }
+  async function readCurrent(
+    target: InstructionTarget,
+    actor: AuthorizationActor,
+  ): Promise<AgentInstructionSnapshot | null> {
+    return db.transaction(async (tx) => {
+      const state = await lockTarget(tx, target, actor);
+      const bound = await authorizeRead(tx, actor, target);
+      const row = await seed(tx, target, state, bound);
+      return row ? snapshot(row) : null;
+    });
+  }
+  /** Rebuild disk from the current committed head under the same lock as commits. Safe after restart. */
+  async function materializeCurrent(target: InstructionTarget): Promise<void> {
+    await db.transaction(async (tx) => {
+      const state = await lockTarget(tx, target);
+      const current = await head(tx, target, state.entryFile);
+      if (!current) throw notFound("Instruction head not found");
+      await materializeInstructionBytes(
+        state.root,
+        state.entryFile,
+        Buffer.from(current.contentBase64, "base64"),
+      );
+    });
+  }
+  async function commitInternal(
+    input:
+      | InstructionCommitInput
+      | (Omit<InstructionCommitInput, "content" | "source"> & {
+          restoreRevisionId: string;
+        }),
+    actor: AuthorizationActor,
+  ): Promise<AgentInstructionCommitReceipt> {
+    instructionPath(input.entryFile);
+    const bytes = "content" in input ? instructionBytes(input.content) : null;
+    const result = await db.transaction(async (tx) => {
+      const state = await lockTarget(tx, input, actor);
+      const bound = await authorizeInstructionCommit(tx, actor, state.agent);
+      if (state.entryFile !== input.entryFile)
+        throw conflict(
+          "Configured instruction entry changed; read the current entry and retry",
+          { code: "INSTRUCTION_ENTRY_CHANGED", entryFile: state.entryFile },
+        );
+      await assertInstructionPathSafe(state.root, state.entryFile);
+      const persistedHead = await head(tx, input, state.entryFile);
+      const current = persistedHead ?? (await seed(tx, input, state, bound));
+      const restored =
+        "restoreRevisionId" in input
+          ? await getRevision(
+              tx,
+              input,
+              input.entryFile,
+              input.restoreRevisionId,
+            )
+          : null;
+      const candidate = bytes ?? Buffer.from(restored!.contentBase64, "base64");
+      // An exact replay can safely return the durable receipt even after its base
+      // advanced. Restore also deduplicates identical content, preserving history.
+      if (current && current.contentBase64 === candidate.toString("base64"))
+        return { row: current, changed: false };
+      if ((current?.id ?? null) !== input.baseRevisionId) {
+        throw conflict(
+          "Instructions changed since the base revision. Read the current entry before saving.",
+          {
+            code: "INSTRUCTION_REVISION_CONFLICT",
+            baseRevisionId: input.baseRevisionId,
+            // A seed created in this transaction rolls back with the conflict.
+            currentRevisionId: persistedHead?.id ?? null,
+          },
+        );
+      }
+      const row = await append(
+        tx,
+        input,
+        input.entryFile,
+        candidate,
+        bound,
+        restored ? "restore" : (input as InstructionCommitInput).source,
+        current?.id ?? null,
+        input.baseRevisionId,
+        restored?.id ?? null,
+      );
+      if (
+        !state.agent.adapterConfig.instructionsRootPath ||
+        !state.agent.adapterConfig.instructionsBundleMode
+      ) {
+        await tx
+          .update(agents)
+          .set({
+            adapterConfig: {
+              ...state.agent.adapterConfig,
+              instructionsBundleMode: "managed",
+              instructionsRootPath: state.root,
+              instructionsEntryFile: state.entryFile,
+              instructionsFilePath: `${state.root}/${state.entryFile}`,
+            },
+            updatedAt: new Date(),
+          })
+          .where(eq(agents.id, state.agent.id));
+      }
+      return { row, changed: true };
+    });
+    let materialization: AgentInstructionCommitReceipt["materialization"] =
+      "current";
+    try {
+      await materializeCurrent(input);
+    } catch {
+      materialization = "pending";
+    }
+    return {
+      ...snapshot(result.row),
+      changed: result.changed,
+      materialization,
+    };
+  }
+  async function history(
+    target: InstructionTarget & {
+      entryFile: string;
+      cursor?: string;
+      limit?: number;
+    },
+    actor: AuthorizationActor,
+  ): Promise<AgentInstructionHistory> {
+    const limit = Math.max(1, Math.min(100, target.limit ?? 50));
+    return db.transaction(async (tx) => {
+      const state = await lockTarget(tx, target, actor);
+      const bound = await authorizeRead(tx, actor, target);
+      await seed(tx, target, state, bound);
+      instructionPath(target.entryFile);
+      const cursor = target.cursor
+        ? await getRevision(tx, target, target.entryFile, target.cursor)
+        : null;
+      // Keep PostgreSQL timestamp precision; JS Date truncates microseconds and
+      // would skip revisions in the cursor's fractional millisecond.
+      const cursorTime = cursor
+        ? sql`(select created_at from agent_instruction_revisions where id = ${cursor.id})`
+        : null;
+      const rows = await tx
+        .select(revisionMetadataColumns)
+        .from(revisions)
+        .where(
+          and(
+            owner(target, target.entryFile),
+            cursor && cursorTime
+              ? or(
+                  lt(revisions.createdAt, cursorTime),
+                  and(
+                    eq(revisions.createdAt, cursorTime),
+                    lt(revisions.id, cursor.id),
+                  ),
+                )
+              : undefined,
+          ),
+        )
+        .orderBy(desc(revisions.createdAt), desc(revisions.id))
+        .limit(limit + 1);
+      return {
+        revisions: rows.slice(0, limit).map(metadata),
+        nextCursor: rows.length > limit ? rows[limit - 1]!.id : null,
+      };
+    });
+  }
+  async function readRevision(
+    target: InstructionTarget & { entryFile: string; revisionId: string },
+    actor: AuthorizationActor,
+  ) {
+    return db.transaction(async (tx) => {
+      await lockTarget(tx, target, actor);
+      await authorizeRead(tx, actor, target);
+      return snapshot(
+        await getRevision(
+          tx,
+          target,
+          instructionPath(target.entryFile),
+          target.revisionId,
+        ),
+      );
+    });
+  }
+  async function diff(
+    target: InstructionTarget & {
+      entryFile: string;
+      fromRevisionId: string;
+      toRevisionId: string;
+    },
+    actor: AuthorizationActor,
+  ): Promise<AgentInstructionDiff> {
+    const from = await readRevision(
+      { ...target, revisionId: target.fromRevisionId },
+      actor,
+    );
+    const to = await readRevision(
+      { ...target, revisionId: target.toRevisionId },
+      actor,
+    );
+    // Linear, bounded exact replacement diff. Code points keep surrogate pairs intact.
+    const a = Array.from(from.content),
+      b = Array.from(to.content);
+    let start = 0,
+      end = 0;
+    while (start < a.length && start < b.length && a[start] === b[start])
+      start++;
+    while (
+      end < a.length - start &&
+      end < b.length - start &&
+      a[a.length - end - 1] === b[b.length - end - 1]
+    )
+      end++;
+    return {
+      from,
+      to,
+      prefix: a.slice(0, start).join(""),
+      removed: a.slice(start, a.length - end).join(""),
+      added: b.slice(start, b.length - end).join(""),
+      suffix: end ? a.slice(-end).join("") : "",
+    };
+  }
+  return {
+    readCurrent,
+    readRevision,
+    history,
+    diff,
+    materializeCurrent,
+    commit: (input: InstructionCommitInput, actor: AuthorizationActor) =>
+      commitInternal(input, actor),
+    restore: (
+      input: InstructionTarget & {
+        entryFile: string;
+        baseRevisionId: string;
+        revisionId: string;
+      },
+      actor: AuthorizationActor,
+    ) =>
+      commitInternal({ ...input, restoreRevisionId: input.revisionId }, actor),
+  };
+}

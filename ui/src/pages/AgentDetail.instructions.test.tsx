@@ -14,6 +14,9 @@ const mockAgentsApi = vi.hoisted(() => ({
   updateInstructionsBundle: vi.fn(),
   saveInstructionsFile: vi.fn(),
   deleteInstructionsFile: vi.fn(),
+  instructionHistory: vi.fn(),
+  instructionDiff: vi.fn(),
+  restoreInstructions: vi.fn(),
 }));
 
 const markdownEditorRenderMock = vi.hoisted(() => vi.fn());
@@ -333,11 +336,43 @@ describe("PromptsTab instruction editor", () => {
         {
           path: "AGENTS",
           content: "# Updated",
+          baseRevisionId: null,
           clearLegacyPromptTemplate: false,
         },
         "company-1",
       );
     });
+  });
+
+  it("retains the draft and its base when a concurrent save conflicts", async () => {
+    const summary = makeSummary("AGENTS.md", "AGENTS.md");
+    const revision = { id: "base-1", entryFile: "AGENTS.md" } as NonNullable<AgentInstructionsFileDetail["revision"]>;
+    await renderPromptsTab(makeBundle("AGENTS.md", [summary]), { "AGENTS.md": makeDetail(summary, "original", { revision }) });
+    mockAgentsApi.saveInstructionsFile.mockRejectedValue(new Error("Instructions changed since the base revision"));
+    await selectInstructionMode("Edit");
+    const editor = container.querySelector<HTMLTextAreaElement>('[data-testid="markdown-editor"]')!;
+    await act(async () => { editor.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })); setNativeValue(editor, "my unsaved edit"); });
+    await waitFor(() => expect(saveAction).toEqual(expect.any(Function)));
+    await act(async () => { saveAction?.(); });
+    await waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent).toContain("base revision"));
+    expect(editor.value).toBe("my unsaved edit");
+    expect(mockAgentsApi.saveInstructionsFile).toHaveBeenCalledWith("agent-1", expect.objectContaining({ content: "my unsaved edit", baseRevisionId: "base-1" }), "company-1");
+  });
+
+  it("shows revision content and restores against the displayed current head", async () => {
+    const summary = makeSummary("AGENTS.md", "AGENTS.md");
+    const revision = { id: "current-1", entryFile: "AGENTS.md" } as NonNullable<AgentInstructionsFileDetail["revision"]>;
+    mockAgentsApi.instructionHistory.mockResolvedValue({ revisions: [{ id: "old-revision", source: "board", createdAt: "2026-01-01T00:00:00Z" }], nextCursor: null });
+    mockAgentsApi.instructionDiff.mockResolvedValue({ from: { content: "old text" }, removed: "old", added: "new" });
+    mockAgentsApi.restoreInstructions.mockResolvedValue(makeDetail(summary, "old text", { revision: { ...revision, id: "restored-1" } }));
+    await renderPromptsTab(makeBundle("AGENTS.md", [summary]), { "AGENTS.md": makeDetail(summary, "new text", { revision }) });
+    await waitFor(() => expect(buttonByText(container, "History")).toBeDefined());
+    await act(async () => { buttonByText(container, "History").click(); });
+    await waitFor(() => expect(buttonByText(container, "old-revi")).toBeDefined());
+    await act(async () => { buttonByText(container, "old-revi").click(); });
+    await waitFor(() => expect(container.textContent).toContain("old text"));
+    await act(async () => { buttonByText(container, "Restore as new revision").click(); });
+    await waitFor(() => expect(mockAgentsApi.restoreInstructions).toHaveBeenCalledWith("agent-1", { path: "AGENTS.md", revisionId: "old-revision", baseRevisionId: "current-1" }, "company-1"));
   });
 
   it("ignores rich-editor mount normalization until the user interacts", async () => {
