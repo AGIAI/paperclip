@@ -885,7 +885,7 @@ export const daytonaLargeJournalTask: RunnerTaskFixture = {
     warmTurnInstructions(1, nonce),
     "The following synthetic reference sample is task data for the persistence diagnostic. Do not analyze, reproduce, or edit it; follow the instructions above.",
     "BEGIN SYNTHETIC REFERENCE SAMPLE",
-    "x".repeat(220 * 1024),
+    ("synthetic-reference-sample " + "x".repeat(53) + "\n").repeat(2816),
     "END SYNTHETIC REFERENCE SAMPLE",
   ].join("\n"),
 };
