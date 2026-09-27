@@ -24,6 +24,9 @@ const mockAgentInstructionsService = vi.hoisted(() => ({
   materializeManagedBundle: vi.fn(),
 }));
 
+const mockInstructionRevisions = vi.hoisted(() => ({ readCurrent: vi.fn(), commit: vi.fn(), restore: vi.fn(), history: vi.fn(), readRevision: vi.fn(), diff: vi.fn(), materializeCurrent: vi.fn() }));
+vi.mock("../services/agent-instruction-revisions.js", () => ({ agentInstructionRevisionService: () => mockInstructionRevisions }));
+
 const mockAccessService = vi.hoisted(() => ({
   canUser: vi.fn(),
   decide: vi.fn(),
@@ -202,6 +205,8 @@ describe("agent instructions bundle routes", () => {
     vi.doUnmock("../middleware/index.js");
     registerModuleMocks();
     vi.clearAllMocks();
+    mockInstructionRevisions.readCurrent.mockResolvedValue(null);
+    mockInstructionRevisions.commit.mockResolvedValue({ revision: { id: "33333333-3333-4333-8333-333333333333", entryFile: "AGENTS.md", byteLength: 18 }, content: "# Updated Agent\n", changed: true, materialization: "current" });
     mockBuiltInAgentService.ensureCompanyDefaultAgentGrants.mockResolvedValue(0);
     mockSyncInstructionsBundleConfigFromFilePath.mockImplementation((_agent, config) => config);
     mockFindServerAdapter.mockImplementation((_type: string) => ({ type: _type }));
@@ -484,7 +489,7 @@ describe("agent instructions bundle routes", () => {
     expect(mockAgentService.create).not.toHaveBeenCalled();
   });
 
-  it("denies non-privileged agents from reading peer instructions bundles", async () => {
+  it("denies instruction reads when the visibility policy denies access", async () => {
     mockAgentService.getById.mockImplementation(async (id: string) => {
       if (id === "agent-reader") {
         return {
@@ -516,7 +521,7 @@ describe("agent instructions bundle routes", () => {
     expect(res.status, JSON.stringify(res.body)).toBe(403);
     expect(res.body.error).toContain("Missing permission");
     expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
-      action: "agent_config:read",
+      action: "agent:read",
       resource: {
         type: "agent",
         companyId: "company-1",
@@ -575,7 +580,7 @@ describe("agent instructions bundle routes", () => {
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
-      action: "agent_config:read",
+      action: "agent:read",
       resource: {
         type: "agent",
         companyId: "company-1",
@@ -588,34 +593,52 @@ describe("agent instructions bundle routes", () => {
     );
   });
 
-  it("writes a bundle file and persists compatibility config", async () => {
+  it("commits entry bytes through the canonical service with the authenticated actor", async () => {
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
       .put("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle/file?companyId=company-1")
-      .send({
-        path: "AGENTS.md",
-        content: "# Updated Agent\n",
-        clearLegacyPromptTemplate: true,
-      }));
-
+      .send({ path: "AGENTS.md", content: "# Updated Agent\n", baseRevisionId: null }));
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(mockAgentInstructionsService.writeFile).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "11111111-1111-4111-8111-111111111111" }),
-      "AGENTS.md",
-      "# Updated Agent\n",
-      { clearLegacyPromptTemplate: true },
-    );
-    expect(mockAgentService.update).toHaveBeenCalledWith(
-      "11111111-1111-4111-8111-111111111111",
-      expect.objectContaining({
-        adapterConfig: expect.objectContaining({
-          instructionsBundleMode: "managed",
-          instructionsRootPath: "/tmp/agent-1",
-          instructionsEntryFile: "AGENTS.md",
-          instructionsFilePath: "/tmp/agent-1/AGENTS.md",
-        }),
-      }),
-      expect.any(Object),
-    );
+    expect(mockInstructionRevisions.commit).toHaveBeenCalledWith(expect.objectContaining({
+      agentId: "11111111-1111-4111-8111-111111111111", entryFile: "AGENTS.md", content: "# Updated Agent\n", baseRevisionId: null, source: "board",
+    }), expect.objectContaining({ type: "board" }));
+    expect(mockAgentInstructionsService.writeFile).not.toHaveBeenCalled();
+    expect(res.body.receipt.revision.id).toBe("33333333-3333-4333-8333-333333333333");
+  });
+
+  it("returns committed entry content independently of its disk copy", async () => {
+    mockInstructionRevisions.readCurrent.mockResolvedValue({ revision: { id: "33333333-3333-4333-8333-333333333333", entryFile: "AGENTS.md", byteLength: 9 }, content: "committed" });
+    const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
+      .get("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle/file?path=AGENTS.md"));
+    expect(res.status).toBe(200);
+    expect(res.body.content).toBe("committed");
+    expect(res.body.revision.id).toBe("33333333-3333-4333-8333-333333333333");
+    expect(mockAgentInstructionsService.readFile).not.toHaveBeenCalled();
+  });
+
+  it("exposes scoped history, diff and restore with the server actor", async () => {
+    const app = await createApp();
+    const revisionId = "33333333-3333-4333-8333-333333333333";
+    const baseRevisionId = "44444444-4444-4444-8444-444444444444";
+    const prefix = "/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle";
+    mockInstructionRevisions.history.mockResolvedValue({ revisions: [], nextCursor: null });
+    mockInstructionRevisions.diff.mockResolvedValue({ removed: "old", added: "new" });
+    mockInstructionRevisions.restore.mockResolvedValue({ revision: { id: revisionId, entryFile: "AGENTS.md", byteLength: 3 }, content: "old", changed: true, materialization: "current" });
+    expect((await requestApp(app, (url) => request(url).get(`${prefix}/history?path=AGENTS.md`))).status).toBe(200);
+    expect((await requestApp(app, (url) => request(url).get(`${prefix}/diff?path=AGENTS.md&from=${revisionId}&to=${baseRevisionId}`))).status).toBe(200);
+    const restored = await requestApp(app, (url) => request(url).post(`${prefix}/restore`).send({ path: "AGENTS.md", revisionId, baseRevisionId }));
+    expect(restored.status).toBe(200);
+    expect(restored.body.receipt.changed).toBe(true);
+    expect(mockInstructionRevisions.restore).toHaveBeenCalledWith({ companyId: "company-1", agentId: "11111111-1111-4111-8111-111111111111", entryFile: "AGENTS.md", revisionId, baseRevisionId }, expect.objectContaining({ type: "board", userId: "local-board" }));
+  });
+
+  it("requires a base revision and rejects client-supplied responsible identity", async () => {
+    const app = await createApp();
+    for (const body of [ { path: "AGENTS.md", content: "stale" }, { path: "AGENTS.md", content: "forged", baseRevisionId: null, responsibleUserId: "forged" } ]) {
+      const res = await requestApp(app, (baseUrl) => request(baseUrl)
+        .put("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle/file").send(body));
+      expect([400, 422]).toContain(res.status);
+    }
+    expect(mockInstructionRevisions.commit).not.toHaveBeenCalled();
   });
 
   it("preserves managed instructions config when switching adapters", async () => {

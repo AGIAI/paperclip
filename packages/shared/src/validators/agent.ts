@@ -34,10 +34,17 @@ export const updateAgentInstructionsBundleSchema = z.object({
 export type UpdateAgentInstructionsBundle = z.infer<typeof updateAgentInstructionsBundleSchema>;
 
 export const upsertAgentInstructionsFileSchema = z.object({
-  path: z.string().trim().min(1),
-  content: z.string(),
+  path: z.string().min(1).max(512),
+  content: z.string().max(1024 * 1024),
+  baseRevisionId: z.string().uuid().nullable().optional(),
   clearLegacyPromptTemplate: z.boolean().optional().default(false),
-});
+}).strict();
+
+export const restoreAgentInstructionSchema = z.object({
+  path: z.string().min(1).max(512),
+  revisionId: z.string().uuid(),
+  baseRevisionId: z.string().uuid(),
+}).strict();
 
 export type UpsertAgentInstructionsFile = z.infer<typeof upsertAgentInstructionsFileSchema>;
 
