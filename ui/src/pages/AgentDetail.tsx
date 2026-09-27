@@ -1,3 +1,4 @@
+import type { AgentInstructionCandidate } from "@paperclipai/shared";
 import { InstructionHistory } from "../components/InstructionHistory";
 import { AgentCharacter } from "../components/AgentCharacter";
 import { characterStateForAgent } from "@paperclipai/shared";
@@ -2199,6 +2200,9 @@ export function PromptsTab({
   const [showFilePanel, setShowFilePanel] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
   const draftBaseRevisionRef = useRef<string | null | undefined>(undefined);
+  const [candidateRunId, setCandidateRunId] = useState<string | null>(null);
+  const candidateAgentRef = useRef(agent.id);
+  candidateAgentRef.current = agent.id;
   const [bundleDraft, setBundleDraft] = useState<{
     mode: "managed" | "external";
     rootPath: string;
@@ -2228,6 +2232,7 @@ export function PromptsTab({
   const setSelectedFile = useCallback((filePath: string) => {
     editorInteractedRef.current = false;
     draftBaseRevisionRef.current = undefined;
+    setCandidateRunId(null);
     setSelectedFileState(filePath);
   }, []);
 
@@ -2291,6 +2296,59 @@ export function PromptsTab({
     queryKey: queryKeys.agents.instructionsFile(agent.id, selectedOrEntryFile),
     queryFn: () => agentsApi.instructionsFile(agent.id, selectedOrEntryFile, companyId),
     enabled: Boolean(companyId && isLocal && selectedFileExists),
+  });
+
+  const candidates = useQuery({
+    queryKey: queryKeys.agents.instructionCandidates(agent.id),
+    queryFn: () => agentsApi.instructionCandidates(agent.id, companyId),
+    enabled: Boolean(companyId && isLocal && currentMode === "managed"),
+  });
+  const loadCandidate = useMutation({
+    mutationFn: async (candidate: AgentInstructionCandidate) => {
+      if (candidate.content === null) throw new Error("These instruction edits have not been retrieved yet.");
+      const file = await agentsApi.instructionsFile(agent.id, candidate.entryFile, companyId).catch((error) => {
+        if (error instanceof ApiError && error.status === 404 && candidate.baseRevisionId === null) return null;
+        throw error;
+      });
+      return { candidate, file, agentId: agent.id };
+    },
+    onSuccess: ({ candidate, file, agentId: requestedAgentId }) => {
+      if (candidateAgentRef.current !== requestedAgentId) return;
+      setSelectedFile(candidate.entryFile);
+      if (file) queryClient.setQueryData(queryKeys.agents.instructionsFile(agent.id, candidate.entryFile), file);
+      draftBaseRevisionRef.current = file?.revision?.id ?? null;
+      setCandidateRunId(candidate.runId);
+      setDraft(candidate.content);
+      setInstructionMode("edit");
+    },
+  });
+  const resolveCandidate = useMutation({
+    mutationFn: async (data: { runId: string; content: string; baseRevisionId: string | null }) => ({
+      file: await agentsApi.resolveInstructionCandidate(agent.id, data.runId, { content: data.content, baseRevisionId: data.baseRevisionId }, companyId),
+      agentId: agent.id,
+    }),
+    onSuccess: ({ file, agentId: requestedAgentId }) => {
+      if (candidateAgentRef.current !== requestedAgentId) return;
+      setDraft(null);
+      setCandidateRunId(null);
+      draftBaseRevisionRef.current = undefined;
+      queryClient.setQueryData(queryKeys.agents.instructionsFile(agent.id, file.path), file);
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.instructionsBundle(agent.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents.instructionCandidates(agent.id) });
+    },
+  });
+
+  const refreshCandidateBase = useMutation({
+    mutationFn: async () => ({
+      file: await agentsApi.instructionsFile(agent.id, selectedOrEntryFile, companyId),
+      agentId: agent.id, runId: candidateRunId,
+    }),
+    onSuccess: ({ file, agentId: requestedAgentId, runId }) => {
+      if (candidateAgentRef.current !== requestedAgentId || candidateRunId !== runId) return;
+      draftBaseRevisionRef.current = file.revision?.id ?? null;
+      queryClient.setQueryData(queryKeys.agents.instructionsFile(agent.id, file.path), file);
+      resolveCandidate.reset();
+    },
   });
 
   const updateBundle = useMutation({
@@ -2457,8 +2515,8 @@ export function PromptsTab({
       ),
   );
   const fileDirty = draft !== null && draft !== currentContent;
-  const isDirty = bundleDirty || fileDirty;
-  const isSaving = updateBundle.isPending || saveFile.isPending || deleteFile.isPending || awaitingRefresh;
+  const isDirty = bundleDirty || fileDirty || candidateRunId !== null;
+  const isSaving = updateBundle.isPending || saveFile.isPending || resolveCandidate.isPending || loadCandidate.isPending || refreshCandidateBase.isPending || deleteFile.isPending || awaitingRefresh;
 
   useEffect(() => { onSavingChange(isSaving); }, [onSavingChange, isSaving]);
   useEffect(() => { onDirtyChange(isDirty); }, [onDirtyChange, isDirty]);
@@ -2482,7 +2540,10 @@ export function PromptsTab({
             entryFile: bundleDraft.entryFile,
           });
         }
-        if (fileDirty) {
+        if (candidateRunId) {
+          await resolveCandidate.mutateAsync({ runId: candidateRunId, content: displayValue,
+            baseRevisionId: draftBaseRevisionRef.current ?? null });
+        } else if (fileDirty) {
           await saveFile.mutateAsync({
             path: selectedOrEntryFile,
             content: displayValue,
@@ -2497,6 +2558,8 @@ export function PromptsTab({
     bundle,
     bundleDirty,
     bundleDraft,
+    candidateRunId,
+    resolveCandidate,
     displayValue,
     fileDirty,
     isDirty,
@@ -2512,6 +2575,8 @@ export function PromptsTab({
   useEffect(() => {
     onCancelActionChange(isDirty ? () => {
       draftBaseRevisionRef.current = undefined;
+      setCandidateRunId(null);
+      resolveCandidate.reset();
       setDraft(null);
       if (bundle) {
         setBundleDraft({
@@ -2521,7 +2586,7 @@ export function PromptsTab({
         });
       }
     } : null);
-  }, [bundle, isDirty, onCancelActionChange, persistedMode, persistedRootPath]);
+  }, [bundle, isDirty, onCancelActionChange, persistedMode, persistedRootPath, resolveCandidate]);
 
   const handleSeparatorDrag = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
@@ -2948,6 +3013,32 @@ export function PromptsTab({
             </div>
           </div>
 
+          {currentMode === "managed" && (candidates.data?.length ?? 0) > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Preserved instruction edits</p>
+              <p className="text-sm text-muted-foreground">Review edits from a stopped run before saving them against the current instructions.</p>
+              {candidates.data?.map((candidate) => (
+                <div key={candidate.runId} className="flex flex-wrap items-center gap-3">
+                  <span className="font-mono text-xs text-muted-foreground">{candidate.runId.slice(0, 8)}</span>
+                  <span className="text-sm text-muted-foreground">{candidate.entryFile} · {formatDate(candidate.createdAt)}</span>
+                  <Button type="button" variant="outline" size="sm"
+                    disabled={isDirty || isSaving || candidate.content === null || candidate.entryFile !== currentEntryFile}
+                    onClick={() => loadCandidate.mutate(candidate)}>Review preserved edits</Button>
+                  {candidate.errorMessage && <p className="text-sm text-muted-foreground">{candidate.errorMessage}</p>}
+                  {candidate.entryFile !== currentEntryFile && <p className="text-sm text-muted-foreground">The instruction entry changed. These edits remain preserved for the original file.</p>}
+                </div>
+              ))}
+            </div>
+          )}
+          {candidateRunId && <div role="status" className="space-y-3">
+            <p className="text-sm text-muted-foreground">Reviewing preserved edits. Save to apply your resolved draft and close this preserved edit.</p>
+            <details><summary className="cursor-pointer text-sm text-muted-foreground">Compare current instructions</summary>
+              <pre className="whitespace-pre-wrap break-words rounded-md border border-border p-3 font-mono text-sm">{currentContent}</pre>
+            </details>
+            {draftBaseRevisionRef.current !== (selectedFileDetail?.revision?.id ?? null) && <p className="text-sm text-destructive">The current instructions changed after this draft was loaded. Refresh the current revision, compare the instructions, and save your resolved draft again.</p>}
+            {(resolveCandidate.error || draftBaseRevisionRef.current !== (selectedFileDetail?.revision?.id ?? null)) && <Button type="button" variant="outline" size="sm" disabled={isSaving} onClick={() => refreshCandidateBase.mutate()}>Refresh current revision</Button>}
+          </div>}
+          {(candidates.error || loadCandidate.error || resolveCandidate.error || refreshCandidateBase.error) && <p role="alert" className="text-sm text-destructive">{(candidates.error ?? loadCandidate.error ?? resolveCandidate.error ?? refreshCandidateBase.error)?.message} Your preserved edits remain available.</p>}
           {(saveFile.error || fileError || updateBundle.error) && <p role="alert" className="text-sm text-destructive">{(saveFile.error ?? fileError ?? updateBundle.error)?.message} Your unsaved edits are retained.</p>}
           {selectedFileDetail?.receipt?.materialization === "pending" && <p role="status" className="text-sm text-muted-foreground">Revision saved. The instruction file still needs to be rebuilt from the saved revision.</p>}
           {selectedFileDetail?.revision && currentMode === "managed" && <InstructionHistory

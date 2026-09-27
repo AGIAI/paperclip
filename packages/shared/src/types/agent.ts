@@ -396,3 +396,18 @@ export interface AgentInstructionErrorDetails {
   entryFile?: string;
   reason?: string;
 }
+
+/** Preserved instruction edits; filesystem locations and responsible identity stay server-side. */
+export interface AgentInstructionCandidate {
+  runId: string;
+  entryFile: string;
+  baseRevisionId: string | null;
+  baseHash: string;
+  state: "conflict" | "pending_collection" | "pending_commit" | "unavailable";
+  candidateHash: string | null;
+  content: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
