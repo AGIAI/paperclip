@@ -12,7 +12,7 @@ export const instructionNonceLine = (nonce: string) => `Instruction persistence 
 export const instructionPersistenceTask: RunnerTaskFixture = {
   id: "private-copy-persists", label: "Private instruction edit survives a fresh task",
   groups: [], workMode: "standard", flow: "instruction_persistence",
-  expectedRunCount: 2, attemptTimeoutMs: { local: 20 * 60_000, daytona: 20 * 60_000 },
+  expectedRunCount: 3, attemptTimeoutMs: { local: 20 * 60_000, daytona: 20 * 60_000 },
   expectedTerminalState: { issue: "done", run: "succeeded" },
   buildTitle: nonce => `Persist private instructions ${nonce}`,
   buildVisibleMarker: () => "INSTRUCTIONS-VERIFIED",
@@ -99,10 +99,66 @@ export async function runInstructionPersistenceFlow(input: {
   const final = await api.get<Row>(filePath);
   expect(final.revision.id).toBe(after.revision.id);
   const checks = gradeInstructionPersistence({ before, after, firstRunId, expectedContent, proof, expectedProof: instructionNonceLine(nonce) });
-  await input.evidence("api-state.json", { issue, runs, checks, canonicalInstructions: final, attachments });
-  await input.evidence("instruction-persistence.json", { checks, before, after, final, issues: [runs[0]?.nativeIssueId, issue.id], runs, attachments });
   await expect(page.getByTestId("task-chat-agent-bubble").filter({ hasText: execution.task.buildVisibleMarker(nonce) }).last()).toBeVisible();
   await input.capture("final-state", "Fresh task downloaded the persisted instruction nonce", "final-state.png");
   expect(checks.filter(check => !check.passed), "Independent instruction persistence checks").toEqual([]);
+
+  const instructionsUrl = `/${fixtures.company.issuePrefix}/agents/${fixtures.agent.id}/instructions`;
+  await page.goto(instructionsUrl);
+  await page.getByRole("button", { name: "History", exact: true }).click();
+  await page.getByRole("button", { name: before.revision.id.slice(0, 8), exact: true }).click();
+  await expect(page.getByText("Changes from selected revision to current", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Restore as new revision", exact: true }).click();
+  const restored = await pollUntil({ label: "browser restored instruction revision", deadlineAt: Math.min(input.deadlineAt, Date.now() + 30_000),
+    load: () => api.get<Row>(filePath), accept: row => row.content === before.content && row.revision?.source === "restore" && row.revision?.restoredFromRevisionId === before.revision.id });
+  expect(restored.revision.parentRevisionId).toBe(after.revision.id);
+  checks.push({ id: "browser-history-and-restore", passed: true, detail: "Browser inspected history and restored exact baseline bytes as a new revision" });
+
+  // The provider publishes an ordinary attachment before a bounded command wait.
+  // A board edit during that run creates a real CAS conflict at stopped cleanup.
+  const conflictSuffix = `\nPreserved instruction candidate: ${nonce}\n`;
+  const expectedCandidate = `${restored.content}${conflictSuffix}`;
+  await create("Preserve a concurrent instruction edit", [
+    `Append exactly this UTF-8 suffix to your current registered writable instruction entry, represented as a JSON string: ${JSON.stringify(conflictSuffix)}`,
+    "Decode the JSON string once. Preserve all existing bytes. Do not use an instruction revision tool or instructions API.",
+    "After the file edit, upload a text/plain task attachment named instruction-candidate-ready.txt with the text ready. Use the ordinary artifact workflow.",
+    "Then execute the ordinary shell command sleep 45 and wait for it to finish. This gives the board time to edit the canonical instructions concurrently. Do not complete the task before that command finishes.",
+    "After the wait completes, reply Candidate edit ready and complete the task. Do not change the instructions again or claim that they saved.",
+  ].join("\n"));
+  await pollUntil({ label: "provider staged concurrent instruction edit", deadlineAt: input.deadlineAt,
+    load: () => api.get<Row[]>(`/api/issues/${issue.id}/attachments`),
+    accept: rows => rows.some(row => row.originalFilename === "instruction-candidate-ready.txt" || row.name === "instruction-candidate-ready.txt") });
+  const active = await api.get<Row[]>(`/api/issues/${issue.id}/runs`);
+  expect(active.some(row => row.status === "running")).toBe(true);
+  const boardContent = `${restored.content}\nConcurrent board instruction edit.\n`;
+  const boardResponse = await api.request.put(`/api/agents/${fixtures.agent.id}/instructions-bundle/file`, {
+    data: { path: "AGENTS.md", content: boardContent, baseRevisionId: restored.revision.id },
+  });
+  expect(boardResponse.ok()).toBe(true);
+  const board = await boardResponse.json() as Row;
+  await settle(3);
+  const conflictRunId = runs[2]!.id;
+  const candidatePath = `/api/agents/${fixtures.agent.id}/instructions-bundle/candidates`;
+  const candidates = await pollUntil({ label: "preserved instruction conflict", deadlineAt: Math.min(input.deadlineAt, Date.now() + 30_000),
+    load: () => api.get<Row[]>(candidatePath), accept: rows => rows.some(row => row.runId === conflictRunId && row.state === "conflict") });
+  const candidate = candidates.find(row => row.runId === conflictRunId)!;
+  expect(candidate.content).toBe(expectedCandidate);
+  expect(candidate.baseRevisionId).toBe(restored.revision.id);
+  expect((await api.get<Row>(filePath)).content).toBe(boardContent);
+  await page.goto(instructionsUrl);
+  await page.getByRole("button", { name: "Review preserved edits", exact: true }).click();
+  await page.getByText("Compare current instructions", { exact: true }).click();
+  await expect(page.locator("details pre")).toHaveText(boardContent);
+  // Explicitly choose the preserved candidate after reviewing the board edit.
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  const resolved = await pollUntil({ label: "browser resolved preserved instruction candidate", deadlineAt: Math.min(input.deadlineAt, Date.now() + 30_000),
+    load: () => api.get<Row>(filePath), accept: row => row.content === expectedCandidate && row.revision?.parentRevisionId === board.revision.id && row.revision?.source === "api" });
+  await expect(page.getByRole("button", { name: "Review preserved edits", exact: true })).toHaveCount(0);
+  expect((await api.get<Row[]>(candidatePath)).some(row => row.runId === conflictRunId)).toBe(false);
+  checks.push({ id: "browser-preserved-conflict-resolution", passed: true, detail: "Concurrent canonical edit survived cleanup; browser review and explicit save resolved the preserved candidate" });
+  await input.evidence("api-state.json", { issue, runs, checks, canonicalInstructions: resolved, attachments });
+  await input.evidence("instruction-persistence.json", { checks, before, after, final, restored, board, candidate, resolved, runs, attachments });
+  await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
+  await input.capture("conflict-resolved", "Stopped run preserved its concurrent instruction edit for explicit review", "conflict-resolved.png");
   return { issue, runs, checks };
 }
