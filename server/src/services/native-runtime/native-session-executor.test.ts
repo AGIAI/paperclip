@@ -38,6 +38,8 @@ import { DatabaseSync } from "node:sqlite";
 import { nativeSha256 } from "./canonical.js";
 import * as noLaunchProofModule from "./native-maintenance-no-launch.js";
 import {
+  DurablePrpControlPlane,
+  DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES,
   NativeSessionCleanupQuarantinedError,
   NativeProviderTerminalFailure,
   NativeSessionProtocolIntegrityError,
@@ -8704,6 +8706,108 @@ describe("runnerd provider runtime wiring", () => {
     },
   );
 
+  it.each([
+    { commandCount: 4, fault: null },
+    { commandCount: 24, fault: null },
+    { commandCount: 4, fault: "oversized" },
+    { commandCount: 4, fault: "wrong identity" },
+  ])(
+    "admits a valid large control-plane journal while preserving bounds and identity ($commandCount commands, $fault)",
+    async ({ commandCount, fault }) => {
+      const stateBase = await mkdtemp(join(tmpdir(), "paperclip-large-prp-journal-"));
+      const previousStateDirectory = process.env.PAPERCLIP_RUNNER_STATE_DIR;
+      process.env.PAPERCLIP_RUNNER_STATE_DIR = stateBase;
+      const prior = {
+        ...execution,
+        binding: { ...execution.binding, runId: "large-journal-prior" },
+      } as NativeExecutionInputV1;
+      const current = {
+        ...prior,
+        binding: { ...prior.binding, runId: "large-journal-next" },
+      } as NativeExecutionInputV1;
+      const identity = {
+        runId: prior.binding.runId,
+        normalizedSessionId: prior.session.normalizedSessionId!,
+        runnerInstanceId: "large-journal-runner",
+        environmentLeaseId: "large-journal-lease",
+        turnId: "large-journal-turn",
+        itemId: "large-journal-item",
+      };
+      const remoteTarget = {
+        kind: "remote", transport: "sandbox", providerKey: "daytona",
+        leaseId: identity.environmentLeaseId,
+        remoteCwd: "/home/daytona/paperclip-workspace",
+        runner: { execute: vi.fn() },
+      } as never;
+      const priorRunDb = {
+        select: () => ({ from: () => ({ where: () => ({ limit: () => Promise.resolve([{
+          status: "succeeded", runnerProfileJson: { nativeExecutionInput: prior },
+        }]) }) }) }),
+      } as unknown as Db;
+      try {
+        state.createBackend.mockClear();
+        state.createTransport.mockClear();
+        await createRunnerdBackend({
+          db: leaseDb(prior), execution: prior,
+          runnerInstanceId: identity.runnerInstanceId, runnerExecutionTarget: remoteTarget,
+        });
+        state.createBackend.mock.calls[0]![1].codexTransportFactory!();
+        const root = state.createTransport.mock.calls[0]![0].stateDirectory!;
+        const options = {
+          stateDirectory: join(root, "control-plane"), identity,
+          expectedRunnerVersion: "0.3.0", expectedRunnerDigest: `sha256:${"a".repeat(64)}`,
+        };
+        // The real writer accepts and reloads these individually bounded commands.
+        // Accumulated history must not invalidate an otherwise identical session.
+        const core = new DurablePrpControlPlane(options);
+        for (let index = 0; index < commandCount; index += 1) {
+          core.queueCommand("turn.start", { text: "x".repeat(768 * 1024) }, `large-command-${index}`);
+        }
+        for (const command of core.store.state.commands) command.status = "completed";
+        core.store.save();
+        expect(new DurablePrpControlPlane(options).store.state.commands).toHaveLength(commandCount);
+        const controlPath = join(root, "control-plane", "control-plane-state.json");
+        const controlBytes = await readFile(controlPath);
+        expect(controlBytes.byteLength).toBeGreaterThan((commandCount === 4 ? 2 : 16) * 1024 * 1024);
+        await mkdir(join(root, "runner"), { recursive: true });
+        await writeFile(join(root, "runner", "runner-state.json"), JSON.stringify(durableRunnerState(identity, "suspended")));
+        if (fault === "oversized") {
+          await truncate(controlPath, DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES + 1);
+        } else if (fault === "wrong identity") {
+          await writeFile(controlPath, JSON.stringify({
+            ...core.store.state,
+            identity: { ...identity, normalizedSessionId: "unrelated-session" },
+          }));
+        }
+        state.createBackend.mockClear();
+        state.createTransport.mockClear();
+        const continuation = createRunnerdBackend({
+          db: priorRunDb, execution: current, runnerInstanceId: "new-heartbeat-runner",
+          runnerExecutionTarget: remoteTarget,
+        });
+        if (fault !== null) {
+          await expect(continuation).rejects.toThrow("runner_state_identity_mismatch");
+          expect(state.createBackend).not.toHaveBeenCalled();
+          expect(state.createTransport).not.toHaveBeenCalled();
+          return;
+        }
+        await expect(continuation).resolves.toBeDefined();
+        state.createBackend.mock.calls[0]![1].codexTransportFactory!();
+        expect(state.createTransport.mock.calls[0]![0].prpIdentity).toMatchObject({
+          runId: current.binding.runId,
+          runnerInstanceId: identity.runnerInstanceId,
+          environmentLeaseId: identity.environmentLeaseId,
+        });
+        expect((await readFile(controlPath)).equals(controlBytes)).toBe(true);
+        await expect(access(join(stateBase, "quarantine"))).rejects.toThrow();
+      } finally {
+        if (previousStateDirectory === undefined) delete process.env.PAPERCLIP_RUNNER_STATE_DIR;
+        else process.env.PAPERCLIP_RUNNER_STATE_DIR = previousStateDirectory;
+        await rm(stateBase, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("quarantines legacy prior-run state only after the database proves a terminal owner in the same full scope", async () => {
     const stateBase = await mkdtemp(
       join(tmpdir(), "paperclip-legacy-terminal-unsuspended-state-"),
@@ -8901,6 +9005,7 @@ describe("runnerd provider runtime wiring", () => {
     "quarantined",
     "empty retry shell",
     "unsuspended current",
+    "large control journal",
     "live runner",
     "live group",
     "missing process identity",
@@ -9089,13 +9194,17 @@ describe("runnerd provider runtime wiring", () => {
             join(root, "control-plane", "control-plane-state.json"),
             JSON.stringify({
               ...durableControlPlaneState(identity),
-              commands: [
-                {
+              commands: Array.from(
+                { length: scenario === "large control journal" ? 24 : 1 },
+                () => ({
                   type: "turn.start",
+                  payload: scenario === "large control journal"
+                    ? { text: "x".repeat(768 * 1024) }
+                    : {},
                   status:
                     scenario === "pending command" ? "pending" : "completed",
-                },
-              ],
+                }),
+              ),
               committedEvents: [
                 { eventType: "run.terminal", envelope: identity },
               ],
@@ -9138,6 +9247,7 @@ describe("runnerd provider runtime wiring", () => {
           "quarantined",
           "empty retry shell",
           "unsuspended current",
+          "large control journal",
           "active goal",
         ].includes(scenario);
         if (shouldRecover) {

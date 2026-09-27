@@ -63,6 +63,7 @@ import type {
   PrpStructuredRunResult,
 } from "../../vendor/paperclip-runner/index.js";
 import {
+  DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES,
   NativeProviderTerminalFailure,
   NativeSessionCleanupQuarantinedError,
   NativeSessionProtocolIntegrityError,
@@ -276,7 +277,6 @@ export async function detachNativeSessionsForRestart(
 const MAX_REMOTE_CHECKPOINT_ARCHIVE_BYTES = 64 * 1024 * 1024;
 const MAX_REMOTE_CHECKPOINT_EXPANDED_BYTES = 64 * 1024 * 1024;
 const MAX_REMOTE_CHECKPOINT_ENTRIES = 20_000;
-const NATIVE_DURABLE_IDENTITY_MAX_BYTES = 2 * 1024 * 1024;
 const NATIVE_RUNNER_STATE_MAX_BYTES = 16 * 1024 * 1024;
 const NATIVE_WARM_CHECKPOINT_MAX_BYTES = 8 * 1024 * 1024;
 const CODEX_HOME_NON_PERSISTENT_ENTRIES = [
@@ -1775,6 +1775,12 @@ const CLEANUP_CANONICAL_FILES = [
 ] as const;
 const CLEANUP_ACTIVATION_FILE = "cleanup-activation.json";
 
+function nativeStateFileMaxBytes(relativePath: string): number {
+  return relativePath === "control-plane/control-plane-state.json"
+    ? DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES
+    : NATIVE_RUNNER_STATE_MAX_BYTES;
+}
+
 function cleanupStateSnapshot(root: string, providerFile = "codex-provider-state.json") {
   if (
     ![root, resolve(root, "runner"), resolve(root, "control-plane")].every(
@@ -1787,7 +1793,7 @@ function cleanupStateSnapshot(root: string, providerFile = "codex-provider-state
   const bytes = files.map((file) =>
     readBoundedNativeFile(
       resolve(root, file),
-      NATIVE_RUNNER_STATE_MAX_BYTES,
+      nativeStateFileMaxBytes(file),
       "native_cleanup_maintenance_unproven",
     ),
   );
@@ -4060,7 +4066,7 @@ function hasRetainedWarmTransitionEvidence(root: string): boolean {
     [
       "control-plane",
       "control-plane-state.json",
-      NATIVE_DURABLE_IDENTITY_MAX_BYTES,
+      DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES,
     ],
     ["runner", "runner-state.json", NATIVE_RUNNER_STATE_MAX_BYTES],
   ] as const) {
@@ -4117,7 +4123,7 @@ function readWarmTransitionSnapshot(root: string) {
   }
   const core = readBoundedNativeFile(
     resolve(root, "control-plane", "control-plane-state.json"),
-    NATIVE_DURABLE_IDENTITY_MAX_BYTES,
+    DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES,
     "native_runner_warm_transition_recovery_unproven",
   );
   const runner = readBoundedNativeFile(
@@ -4718,7 +4724,7 @@ async function recoverQuiescentRunnerdState(input: {
           throw new Error("unsafe_recovery_state");
         return readBoundedNativeFile(
           resolve(root, directory, name),
-          NATIVE_RUNNER_STATE_MAX_BYTES,
+          nativeStateFileMaxBytes(`${directory}/${name}`),
           "recovery_state_too_large",
         ).toString("utf8");
       };
@@ -4895,7 +4901,7 @@ async function recoverQuiescentRunnerdState(input: {
     if (
       readBoundedNativeFile(
         resolve(candidate.root, relativePath!),
-        NATIVE_RUNNER_STATE_MAX_BYTES,
+        nativeStateFileMaxBytes(relativePath!),
         "recovery_state_too_large",
       ).toString("utf8") !== expected
     ) {
@@ -4958,7 +4964,7 @@ export function runnerdStateProvesIncompleteBootstrap(root: string): boolean {
       JSON.parse(
         readBoundedNativeFile(
           statePath,
-          NATIVE_DURABLE_IDENTITY_MAX_BYTES,
+          DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES,
           "runner_durable_identity_too_large",
         ).toString("utf8"),
       ),
@@ -5011,7 +5017,7 @@ function readRunnerdDurableIdentity(
       JSON.parse(
         readBoundedNativeFile(
           statePath,
-          NATIVE_DURABLE_IDENTITY_MAX_BYTES,
+          DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES,
           "runner_durable_identity_too_large",
         ).toString("utf8"),
       ),
