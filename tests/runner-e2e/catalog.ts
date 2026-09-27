@@ -880,13 +880,10 @@ export const daytonaLargeJournalTask: RunnerTaskFixture = {
   label: "Large journal three-turn workspace continuity",
   buildTitle: (nonce) => `Runner E2E large journal continuity ${nonce}`,
   buildPrompt: (nonce) => [
-    "First exercise ordinary command-output streaming with this bounded diagnostic. Execute this Python command exactly once, allowing it to print all 1024 chunks. Do not redirect, suppress, pipe, or summarize its stdout; the transport must receive the output. The repeated text is synthetic fixture data and needs no analysis. Wait for the command to exit successfully before continuing.",
-    `python3 -c 'import sys,time; [(sys.stdout.write("journal-continuity-" + "x" * 1000 + "\\n"), sys.stdout.flush(), time.sleep(0.05)) for _ in range(1024)]'`,
+    "First exercise ordinary execution history with 16 separate execution-tool calls. In each call, run the Python command below exactly once. Issue the calls one by one. Do not combine them into a shell loop, script, parallel wrapper, or a single tool call: each command must be a separate ordinary execution-tool invocation. Keep a count from 1 through 16. The output is synthetic fixture data and needs no analysis.",
+    `python3 -c 'print("journal-continuity-" + "x" * 65000)'`,
+    "Wait for all 16 execution-tool calls to exit successfully. Do not redirect, suppress, or pipe their stdout. Then do the workspace task below and submit its completion report.",
     warmTurnInstructions(1, nonce),
-    "The following synthetic reference sample is task data for the persistence diagnostic. Do not analyze, reproduce, or edit it; follow the instructions above.",
-    "BEGIN SYNTHETIC REFERENCE SAMPLE",
-    ("synthetic-reference-sample " + "x".repeat(52) + "\n").repeat(640),
-    "END SYNTHETIC REFERENCE SAMPLE",
   ].join("\n"),
 };
 
@@ -1073,13 +1070,13 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     id: "daytona-journal-continuity",
     label: "Daytona Large Journal Continuity",
     manualOnly: true,
-    description: "Continue the same native session after a browser-submitted large brief and real tool output grow its durable journal beyond 2 MiB.",
+    description: "Continue the same native session after a separate ordinary tool invocations and their output grow its durable journal beyond 2 MiB.",
     groups: ["daytona", "warm"],
     profiles: codexContinuityProfiles.filter((profile) => profile.id === "runner-codex"),
     environments: [daytonaWarmEnvironment],
     tasks: [daytonaLargeJournalTask],
     expectedMatrixSize: 1,
-    definitionMetadata: { version: 2, journalMinimumBytes: 2 * 1024 * 1024, briefBytes: 50 * 1024, outputChunks: 1024, scheduling: "explicit-only" },
+    definitionMetadata: { version: 3, journalMinimumBytes: 2 * 1024 * 1024, toolInvocations: 16, outputBytesPerInvocation: 65019, scheduling: "explicit-only" },
   },
 ] as const;
 

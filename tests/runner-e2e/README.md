@@ -136,8 +136,8 @@ sandbox rather than waiting for Daytona's idle timeout.
 
 `daytona-journal-continuity` is one explicit-only native Codex cell. Select
 `daytona-journal-continuity.runner-codex.daytona.large-journal-three-turn`.
-It reuses the three-turn warm workflow with a browser-submitted 50 KiB
-synthetic brief and 1024 paced KiB-sized chunks of command output through the real provider. Before the first browser follow-up,
+It reuses the three-turn warm workflow with 16 separate ordinary execution-tool calls, each printing a bounded 65 KB
+synthetic sample through the real provider. Before the first browser follow-up,
 a read-only controller journal oracle requires the exact completed run's journal
 to exceed two MiB. Only byte counts enter evidence. No runner state or database
 is injected or modified. The usual workspace, sandbox, provider, process,
