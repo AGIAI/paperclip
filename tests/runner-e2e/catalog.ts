@@ -874,6 +874,18 @@ export const daytonaWarmContinuityTask: RunnerTaskFixture = {
   },
 };
 
+export const daytonaLargeJournalTask: RunnerTaskFixture = {
+  ...daytonaWarmContinuityTask,
+  id: "large-journal-three-turn",
+  label: "Large journal three-turn workspace continuity",
+  buildTitle: (nonce) => `Runner E2E large journal continuity ${nonce}`,
+  buildPrompt: (nonce) => [
+    "First exercise ordinary command-output streaming with this bounded diagnostic. Execute this Python command exactly once, allowing it to print all 64 chunks. Do not redirect, suppress, pipe, or summarize its stdout; the transport must receive the output. The repeated text is synthetic fixture data and needs no analysis. Wait for the command to exit successfully before continuing.",
+    `python3 -c 'import sys,time; [(sys.stdout.write("journal-continuity-" + "x" * 65500 + "\\n"), sys.stdout.flush(), time.sleep(0.05)) for _ in range(64)]'`,
+    warmTurnInstructions(1, nonce),
+  ].join("\n"),
+};
+
 const codexContinuityProfiles = runnerProfiles.filter((profile) =>
   ["legacy-codex", "runner-codex"].includes(profile.id),
 );
@@ -1053,6 +1065,18 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     tasks: [daytonaWarmContinuityTask],
     expectedMatrixSize: 2,
   },
+  {
+    id: "daytona-journal-continuity",
+    label: "Daytona Large Journal Continuity",
+    manualOnly: true,
+    description: "Continue the same native session after real tool output grows its durable journal beyond 2 MiB.",
+    groups: ["daytona", "warm"],
+    profiles: codexContinuityProfiles.filter((profile) => profile.id === "runner-codex"),
+    environments: [daytonaWarmEnvironment],
+    tasks: [daytonaLargeJournalTask],
+    expectedMatrixSize: 1,
+    definitionMetadata: { version: 1, journalMinimumBytes: 2 * 1024 * 1024, outputChunks: 64, scheduling: "explicit-only" },
+  },
 ] as const;
 
 export function suiteDefinitionHash(suite: RunnerSuiteFixture) {
@@ -1169,6 +1193,7 @@ export function validateRunnerCatalog(): MatrixExecution[] {
     ...localIntegrityTasks,
     ...openRouterBreadthTasks,
     daytonaWarmContinuityTask,
+    daytonaLargeJournalTask,
   ];
   for (const [label, values] of [
     ["suite", runnerSuites],
