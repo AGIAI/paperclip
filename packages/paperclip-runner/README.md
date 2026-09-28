@@ -109,6 +109,14 @@ not implicit approval. Company access checks still run for each Paperclip tool.
 Provider death expires pending promises; approvals are never replayed into a
 replacement process.
 
+Automatic Paperclip/read allowances currently require the Claude SDK dispatch
+boundary. Grok preserves these restricted settings, but its ACP requests lack
+independently bound tool authority. Those operations require a supported operator
+permission decision; a missing interactive responder stops with
+`approval_required`. An explicitly selected `approve-all` policy permits unattended
+Grok work in an assigned sandbox. Paperclip authorization and governed approvals
+still apply.
+
 Runnerd selects only qualified provider profiles. Claude Managed and AWS
 AgentCore receive immutable company-profile snapshots with explicit retention,
 spend, and invocation limits. No provider process receives a Paperclip API

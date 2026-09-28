@@ -207,12 +207,6 @@ try {
   );
   writePortableExecutableShim("node", "node/bin/node");
   writePortableExecutableShim("opencode", "opencode-ai/bin/opencode.exe");
-  const grokPackage = dirname(packRequire.resolve("@paperclipai/grok-acp/package.json"));
-  const grokInstall = spawnSync(process.execPath, [join(grokPackage, "install.mjs")], { stdio: "inherit" });
-  if (grokInstall.status !== 0) throw new Error("Pinned Grok installation failed");
-  // Native ACP launches the verified absolute package path. Do not expose a
-  // generic grok shim: the legacy adapter owns that command and its version.
-  writePortableNodeShim("paperclip-grok-acp", "@paperclipai/grok-acp/launcher.cjs");
   writePortableNodeShim("acpx", "acpx/dist/cli.js");
   writePortableNodeShim(
     "claude-agent-acp",
@@ -341,9 +335,9 @@ try {
     },
     ...(candidates.length ? { candidateProviders } : {}),
     artifacts: {
-      grokExecutable: {
-        path: "node_modules/@paperclipai/grok-acp/bin/grok",
-        sha256: sha256File(join(grokPackage, "bin/grok")),
+      grokLauncher: {
+        path: "dist/providers/grok/launcher.cjs",
+        sha256: sha256File(join(temporaryRoot, "dist/providers/grok/launcher.cjs")),
       },
       nodeCommand: {
         path: nodeCommand,

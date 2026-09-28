@@ -14,6 +14,7 @@ export interface QualifiedAcpxProfile {
   readonly agentProfileVersion: 1 | 2;
   readonly qualificationStatus?: "pending";
   readonly modelPolicy?: "explicit-provider-verified";
+  /** Wire identity: an npm package name or a runner-owned builtin: identifier. */
   readonly agentServerPackage: string;
   readonly agentServerVersion: string;
   readonly agentRuntimePackage: string | null;
@@ -36,8 +37,8 @@ export const QUALIFIED_ACPX_PROFILES: Readonly<
   grok: {
     driverKind: ACPX_DRIVER_KIND, protocolVersion: ACPX_DRIVER_PROTOCOL_VERSION,
     acpxVersion: QUALIFIED_ACPX_VERSION, agent: "grok", agentProfileVersion: 1,
-    agentServerPackage: "@paperclipai/grok-acp", agentServerVersion: "1.0.13",
-    agentRuntimePackage: "@paperclipai/grok-acp", agentRuntimeVersion: "1.0.13",
+    agentServerPackage: "builtin:grok-acp", agentServerVersion: "1",
+    agentRuntimePackage: "native:grok", agentRuntimeVersion: "1.0.13",
     commandDigest: "sha256:f0b698395a3704ed2ffaf84ea19bdb20c36c8a0a70b7c629c7b6ffe144e59e55",
     qualificationModel: "grok-4.7", reportedModelId: "grok-4.7", permissionPolicy: "interactive",
   },
