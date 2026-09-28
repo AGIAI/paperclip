@@ -4763,20 +4763,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
           ? {}
           : { providerIdentity: structuredClone(this.#providerIdentity) }),
         model: params.model,
-        modelProvider:
-          provider === "opencode" && typeof params.model === "string"
-            ? params.model.split("/", 1)[0]
-            : provider === "claude_managed"
-              ? "anthropic"
-              : provider === "aws_agentcore"
-                ? "aws"
-                : provider === "acpx"
-                  ? acpxAgent === "pi"
-                    ? "openrouter"
-                    : acpxAgent === "claude"
-                      ? "anthropic"
-                      : "openai"
-                  : "openai",
+        modelProvider: openedThreadModelProvider(provider, acpxAgent, params.model),
       },
     };
   }
@@ -6673,7 +6660,26 @@ export function createCapabilityRunnerdCodexTransport(
 export const createRunnerdCodexTransport =
   createCapabilityRunnerdCodexTransport;
 
+/** The transport provider identifies the biller, independently of model family. */
+function openedThreadModelProvider(
+  provider: CapabilityRunnerdCodexTransportOptions["provider"],
+  acpxAgent: QualifiedAcpxAgent,
+  model: unknown,
+): string {
+  if (provider === "opencode" && typeof model === "string") return model.split("/", 1)[0]!;
+  if (provider === "claude_managed") return "anthropic";
+  if (provider === "aws_agentcore") return "aws";
+  if (provider === "acpx") {
+    if (acpxAgent === "pi") return "openrouter";
+    if (acpxAgent === "claude") return "anthropic";
+    if (acpxAgent === "cursor") return "cursor";
+    if (acpxAgent === "copilot") return "github";
+  }
+  return "openai";
+}
+
 export const runnerdLaunchProfileInternals = Object.freeze({
+  openedThreadModelProvider,
   acpxProviderPackageAuthority,
   acpxRunnerLaunchProfile,
   resolveBuildOwnedCliArtifact,

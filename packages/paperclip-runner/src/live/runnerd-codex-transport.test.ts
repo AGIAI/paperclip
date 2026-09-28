@@ -95,6 +95,20 @@ const defaultCapabilityRunnerdBinary = () =>
   process.env.PAPERCLIP_ATTACH_TRANSITION_RUNNER ??
   qualifiedCapabilityRunnerdBinary();
 
+it("attributes opened candidate sessions to the harness biller instead of the model vendor", () => {
+  const provider = runnerdLaunchProfileInternals.openedThreadModelProvider;
+  for (const model of ["gpt-5.6-luna[context=272k,reasoning=medium,fast=false]", "claude-sonnet-5"]) {
+    expect(provider("acpx", "cursor", model)).toBe("cursor");
+    expect(provider("acpx", "copilot", model)).toBe("github");
+  }
+  expect(provider("acpx", "pi", "openrouter/deepseek/deepseek-v4-flash-0731")).toBe("openrouter");
+  expect(provider("acpx", "claude", "claude-sonnet-5")).toBe("anthropic");
+  expect(provider("acpx", "codex", "gpt-5.6-sol")).toBe("openai");
+  expect(provider("opencode", "codex", "openrouter/openai/gpt-6-astra")).toBe("openrouter");
+  expect(provider("claude_managed", "codex", "claude-sonnet-5")).toBe("anthropic");
+  expect(provider("aws_agentcore", "codex", "global.anthropic.claude-sonnet-4-6")).toBe("aws");
+});
+
 async function expectTurnStarted(
   notifications: AsyncIterator<{ method: string }>,
 ) {
