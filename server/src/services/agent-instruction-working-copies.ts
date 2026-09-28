@@ -110,6 +110,14 @@ export function agentInstructionWorkingCopyService(db: Db) {
         // Refresh only bytes whose previous lifecycle is complete. A changed
         // private file must keep its old CAS fence; never silently rebase edits.
         refreshStoppedCopy = privateBytes === null || hash(privateBytes) === (existing.candidateHash ?? existing.baseHash);
+        if (!refreshStoppedCopy && privateBytes !== null) {
+          // A failed staging attempt can already have replaced the file before
+          // the completed row advances. Exact current canonical bytes are also
+          // accounted for; any other private edit still keeps its old fence.
+          const current = await revisions.readCommittedForRuntime({ companyId: input.companyId, agentId: input.agentId });
+          refreshStoppedCopy = current?.revision.entryFile === existing.entryFile
+            && current.revision.contentHash === hash(privateBytes);
+        }
       }
       if (!refreshStoppedCopy) {
         if (completed.has(existing.state) || existing.state === "unchanged_turn") {
@@ -144,12 +152,7 @@ export function agentInstructionWorkingCopyService(db: Db) {
         localRoot, executionRoot, location, state: "preparing",
       });
     }
-    let row = (await get(input.companyId, input.runId))!;
-    if (refreshStoppedCopy) {
-      row = await patch(row, { state: "preparing", entryFile, baseRevisionId: baseline.revision.id,
-        baseHash: hash(content), candidateBase64: null, candidateHash: null, receipt: null,
-        processStoppedAt: null, attempts: 0, nextAttemptAt: null, errorCode: null, errorMessage: null });
-    }
+    const row = (await get(input.companyId, input.runId))!;
     await assertInstructionPathSafe(localRoot, entryFile);
     await execFile(process.execPath, ["-e", instructionGitExcludeProgram, workspace], { timeout: 15_000 });
     await fs.mkdir(localRoot, { recursive: true, mode: 0o700 });
@@ -173,7 +176,14 @@ export function agentInstructionWorkingCopyService(db: Db) {
         `node -e ${quote(instructionGitExcludeProgram)} ${quote(target.remoteCwd)}`, { cwd: target.remoteCwd, env: {}, timeoutSec: 15 });
       if (excluded.exitCode !== 0 || excluded.timedOut) throw new Error("Could not exclude private instructions from Git staging");
     }
-    const prepared = await patch(row, { state: "prepared" });
+    // A refresh does not supersede the completed turn until every local and
+    // remote staging step succeeds. Keep its receipt and stop evidence intact
+    // if preparation throws or the controller stops midway through staging.
+    const prepared = await patch(row, { state: "prepared", ...(refreshStoppedCopy ? {
+      entryFile, baseRevisionId: baseline.revision.id, baseHash: hash(content),
+      candidateBase64: null, candidateHash: null, receipt: null, processStoppedAt: null,
+      attempts: 0, nextAttemptAt: null, errorCode: null, errorMessage: null,
+    } : {}) });
     if (input.target) liveTargets.set(targetKey(input.companyId, input.runId), input.target);
     return prepared;
   }
