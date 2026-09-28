@@ -292,7 +292,7 @@ async function handleServerRequestBody(
       prompt: runtimeRequestPrompt(requestKind, request.params),
       details: record(redactCodexValue(boundedCodexValue(request.params))),
       ...(input !== null ? { input } : {}),
-      origin: request.method === "elicitation/create" ? {
+      origin: request.method === "elicitation/create" || request.method === "session/request_permission" ? {
         adapter: "acpx-runtime-sidecar",
         provider: text(record(request.params.origin).provider, "acpx"),
         method: request.method,

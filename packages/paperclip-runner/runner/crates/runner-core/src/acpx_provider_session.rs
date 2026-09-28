@@ -561,9 +561,16 @@ impl AcpxProviderSession {
                     );
                 }
                 AcpxProviderStateEvent::PermissionRequest { .. } => {
-                    return Err(self.fail_closed(LocalRunnerError::invalid(
-                        "ACPX permission request violated the pinned runner policy",
-                    )));
+                    if self.config.agent == "codex"
+                        || matches!(
+                            self.config.permission_mode,
+                            AcpxPermissionMode::ApproveAll | AcpxPermissionMode::DenyAll
+                        )
+                    {
+                        return Err(self.fail_closed(LocalRunnerError::invalid(
+                            "ACPX permission request violated the pinned runner policy",
+                        )));
+                    }
                 }
                 _ => {}
             }
@@ -625,6 +632,52 @@ impl AcpxProviderSession {
         self.state = next_state;
         self.tool_bridge = next_bridge;
         self.reserved_tool_bridge = next_reserved_bridge;
+        Ok(())
+    }
+
+    pub fn resolve_permission(
+        &mut self,
+        request_id: &str,
+        turn_id: &str,
+        resolution: &Value,
+    ) -> Result<(), LocalRunnerError> {
+        self.ensure_bound_turn(turn_id)?;
+        let details = self.state.pending_permission(request_id).ok_or_else(|| {
+            LocalRunnerError::invalid("ACPX permission request is stale or unknown")
+        })?;
+        let object = resolution.as_object().ok_or_else(|| {
+            LocalRunnerError::invalid("ACPX permission resolution must be an object")
+        })?;
+        let action = object.get("action").and_then(Value::as_str).unwrap_or("");
+        if object.len() != 1
+            || !matches!(
+                action,
+                "accept" | "accept_for_session" | "decline" | "cancel"
+            )
+            || !details
+                .get("choices")
+                .and_then(Value::as_array)
+                .is_some_and(|choices| {
+                    choices
+                        .iter()
+                        .any(|choice| choice.get("key").and_then(Value::as_str) == Some(action))
+                })
+        {
+            return Err(LocalRunnerError::invalid(
+                "ACPX permission resolution is not an offered choice",
+            ));
+        }
+        let mut next_state = self.state.clone();
+        next_state.complete_permission(request_id)?;
+        let response = match self.transport.request(
+            GeneratedAcpxSidecarCommand::PermissionResolve,
+            json!({"requestId":request_id,"turnId":turn_id,"resolution":resolution}),
+        ) {
+            Ok(response) => response,
+            Err(error) => return Err(self.fail_closed(error)),
+        };
+        self.verify_resolution(&response, "permission")?;
+        self.state = next_state;
         Ok(())
     }
 

@@ -204,6 +204,7 @@ export function safeCodexRequestResponse(
   method: string,
   action: "decline" | "cancel" = "decline",
 ): Record<string, unknown> {
+  if (method === "session/request_permission") return { action: "cancel" };
   if (method === "item/permissions/requestApproval") {
     return { permissions: {}, scope: "turn" };
   }

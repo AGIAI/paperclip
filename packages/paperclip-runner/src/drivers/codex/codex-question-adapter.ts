@@ -70,7 +70,7 @@ export function runtimeRequestKind(method: string): HarnessRuntimeRequestKind | 
   ) {
     return "file_approval";
   }
-  if (method === "item/permissions/requestApproval")
+  if (method === "item/permissions/requestApproval" || method === "session/request_permission")
     return "permission_approval";
   if (
     method === "item/tool/requestUserInput" ||
@@ -447,6 +447,9 @@ export function normalizeCodexQuestionSet(
 }
 
 export function runtimeRequestProtocolPayload(request: HarnessRuntimeRequest): Record<string, unknown> {
+  if (request.method === "session/request_permission") {
+    return { ...request, schema: PAPERCLIP_RUNTIME_REQUEST_SCHEMA_V2, type: "permission", choices: request.details.choices };
+  }
   if (request.input !== undefined) {
     return {
       schema: PAPERCLIP_RUNTIME_REQUEST_SCHEMA_V2,
@@ -554,7 +557,7 @@ export function runtimeRequestResponse(
 ): Record<string, unknown> {
   // The durable transport sends this canonical resolution to the ACPX sidecar,
   // which owns conversion back to the original provider form values.
-  if (request.method === "elicitation/create") return structuredClone(resolution);
+  if (request.method === "elicitation/create" || request.method === "session/request_permission") return structuredClone(resolution);
   if (
     request.requestKind === "command_approval" ||
     request.requestKind === "file_approval"

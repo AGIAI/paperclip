@@ -4,6 +4,7 @@ import { nativeMcpLaunchBinding } from "../native-mcp.js";
 
 import type {
   AcpElicitationHandler,
+  AcpRuntimeOptions,
   AcpRuntimeEvent,
   AcpRuntimeTurnResult,
 } from "acpx/runtime";
@@ -99,6 +100,7 @@ export interface AcpxRuntimeTurnInput {
   requestId: string;
   signal?: AbortSignal;
   onElicitation?: AcpElicitationHandler;
+  onPermissionRequest?: AcpRuntimeOptions["onPermissionRequest"];
 }
 
 export interface AcpxRuntimeTurn {
@@ -660,6 +662,7 @@ export class AcpxRuntimeHost {
       requestId,
       ...(input.signal ? { signal: input.signal } : {}),
       ...(input.onElicitation ? { onElicitation: input.onElicitation } : {}),
+      ...(input.onPermissionRequest ? { onPermissionRequest: input.onPermissionRequest } : {}),
     });
     this.#activeTurn = turn;
     void turn.result

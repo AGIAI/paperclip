@@ -1459,6 +1459,40 @@ describe("Codex ACPX harness driver", () => {
     });
   });
 
+  it("delivers only offered permission choices and rejects stale or duplicate answers", async () => {
+    const fixture = driverFixture({ agent: "claude", model: "claude-sonnet-5" });
+    const session = await fixture.driver.openSession({
+      runId: "run-permission", normalizedSessionId: "session-1", workingDirectory: "/workspace",
+    });
+    const created = collectUntil(session.events(), "runtime_request.created");
+    const { turnId } = await session.startTurn({ message: { role: "user", text: "Run validation." } });
+    const callback = fixture.host.startTurn.mock.calls[0]![0].onPermissionRequest!;
+    const response = callback({
+      inferredKind: "execute", raw: {
+        sessionId: "agent-session-1", toolCall: { toolCallId: "tool-permission", title: "Run validation" },
+        options: [{ optionId: "once", kind: "allow_once", name: "Allow once" }],
+      },
+    } as Parameters<typeof callback>[0], { signal: new AbortController().signal });
+    const events = await created;
+    const request = session.pendingRuntimeRequests!()[0]!;
+    expect(events.at(-1)?.payload).toMatchObject({ request: {
+      type: "permission", choices: [{ key: "accept" }, { key: "cancel" }],
+      origin: { method: "session/request_permission" },
+    } });
+    await expect(session.resolveRuntimeRequest!({ requestId: request.requestId, turnId: "old-turn",
+      resolution: { action: "accept" } })).rejects.toThrow();
+    await expect(session.resolveRuntimeRequest!({ requestId: request.requestId, turnId,
+      resolution: { action: "accept_for_session" } })).rejects.toThrow("offered choice");
+    expect(session.pendingRuntimeRequests!()).toHaveLength(1);
+    await session.resolveRuntimeRequest!({ requestId: request.requestId, turnId, resolution: { action: "accept" } });
+    await expect(response).resolves.toEqual({ outcome: "allow_once" });
+    await expect(session.resolveRuntimeRequest!({ requestId: request.requestId, turnId,
+      resolution: { action: "accept" } })).rejects.toThrow("no longer pending");
+    fixture.finishTurn({ status: "completed", stopReason: "end_turn" });
+    await collectUntil(session.events(), "turn.completed");
+    await session.close({ reason: "permission verified" });
+  });
+
   it("round-trips a provider-neutral ACP form through the runtime request boundary", async () => {
     const fixture = driverFixture();
     const session = await fixture.driver.openSession({

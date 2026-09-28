@@ -195,9 +195,47 @@ pub fn project_acpx_state_event(
         AcpxProviderStateEvent::ToolResult(result) => {
             Ok(vec![project_acpx_tool_result(context, result)?])
         }
-        AcpxProviderStateEvent::PermissionRequest { .. } => Err(LocalRunnerError::invalid(
-            "ACPX permission request reached projection outside the pinned runner policy",
-        )),
+        AcpxProviderStateEvent::PermissionRequest {
+            request_id,
+            title,
+            details,
+            ..
+        } => {
+            validate_projection_identity(request_id, "permission request", SHORT_STABLE_ID_CHARS)?;
+            let choices = details
+                .get("choices")
+                .and_then(Value::as_array)
+                .filter(|choices| !choices.is_empty() && choices.len() <= 4)
+                .ok_or_else(|| {
+                    LocalRunnerError::invalid("ACPX permission request omitted its choices")
+                })?;
+            let mut seen = std::collections::HashSet::new();
+            for choice in choices {
+                let key = choice.get("key").and_then(Value::as_str).unwrap_or("");
+                if !matches!(key, "accept" | "accept_for_session" | "decline" | "cancel")
+                    || !seen.insert(key)
+                    || choice
+                        .get("label")
+                        .and_then(Value::as_str)
+                        .is_none_or(|label| label.is_empty() || label.len() > 500)
+                {
+                    return Err(LocalRunnerError::invalid(
+                        "ACPX permission request contains invalid choices",
+                    ));
+                }
+            }
+            one(
+                "runtime_request.created",
+                EventPriority::P0,
+                json!({"request": {
+                    "schema":"paperclip.runtime_request.v2", "requestKind":"permission_approval",
+                    "requestId":request_id, "turnId":context.turn_id, "itemId":context.item_id,
+                    "type":"permission", "status":"pending", "prompt":title, "choices":choices,
+                    "details":details,
+                    "origin":{"adapter":"acpx-runtime-sidecar","provider":"acpx","method":"session/request_permission"},
+                }}),
+            )
+        }
         AcpxProviderStateEvent::InputRequest {
             request_id,
             question_set,

@@ -101,7 +101,7 @@ pub struct AcpxProviderState {
     assistant_message_id: Option<String>,
     pending_tools: BTreeMap<String, AcpxPendingTool>,
     pending_tool_input_bytes: usize,
-    pending_permissions: BTreeMap<String, usize>,
+    pending_permissions: BTreeMap<String, (usize, Value)>,
     pending_inputs: BTreeMap<String, PendingInput>,
     pending_runtime_request_bytes: usize,
     semantic_result: Option<AcpxSemanticResult>,
@@ -224,7 +224,7 @@ impl AcpxProviderState {
                     ));
                 }
                 self.pending_permissions
-                    .insert(request_id.clone(), value_bytes);
+                    .insert(request_id.clone(), (value_bytes, details.clone()));
                 self.pending_runtime_request_bytes += value_bytes;
                 Ok(vec![AcpxProviderStateEvent::PermissionRequest {
                     request_id,
@@ -379,13 +379,19 @@ impl AcpxProviderState {
     }
 
     pub fn complete_permission(&mut self, request_id: &str) -> Result<(), LocalRunnerError> {
-        let value_bytes = self.pending_permissions.remove(request_id).ok_or_else(|| {
+        let (value_bytes, _) = self.pending_permissions.remove(request_id).ok_or_else(|| {
             LocalRunnerError::invalid("ACPX permission result has no pending request")
         })?;
         self.pending_runtime_request_bytes = self
             .pending_runtime_request_bytes
             .saturating_sub(value_bytes);
         Ok(())
+    }
+
+    pub fn pending_permission(&self, request_id: &str) -> Option<&Value> {
+        self.pending_permissions
+            .get(request_id)
+            .map(|(_, details)| details)
     }
 
     pub fn complete_input(&mut self, request_id: &str) -> Result<(), LocalRunnerError> {

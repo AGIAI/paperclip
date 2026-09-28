@@ -5,6 +5,8 @@ import type {
   AcpElicitationRequest,
   AcpElicitationResponse,
   AcpRuntimeEvent,
+  AcpPermissionRequest,
+  AcpPermissionDecision,
 } from "acpx/runtime";
 
 import {
@@ -51,6 +53,7 @@ import {
   DEFAULT_CODEX_ACPX_RUNTIME_SHUTDOWN_BOUND_MS,
   openCodexAcpxRuntime,
 } from "./codex-runtime-adapter.js";
+import { normalizeAcpxPermission } from "./acp-permission-adapter.js";
 import {
   normalizeAcpFormElicitation,
   type NormalizedAcpForm,
@@ -108,8 +111,8 @@ const QUARANTINED_HOST_ADMISSION_GRACE_MS =
 
 interface PendingAcpxRuntimeRequest {
   request: HarnessRuntimeRequest;
-  normalized: NormalizedAcpForm;
-  settle(response: AcpElicitationResponse): void;
+  prepareResolution(resolution: HarnessRuntimeRequestResolution): () => void;
+  cancel(): void;
   cleanup(): void;
   settling: boolean;
 }
@@ -860,6 +863,8 @@ class CodexAcpxSession implements HarnessSession {
       turn = this.#host.startTurn({
         text: input.message.text,
         requestId: `${safeId(this.#input.runId, "run")}:${turnId}`,
+        onPermissionRequest: (request, context) =>
+          this.#handlePermission(turnId, request, context.signal),
         onElicitation: (request, context) =>
           this.#handleElicitation(turnId, request, context),
       });
@@ -940,10 +945,7 @@ class CodexAcpxSession implements HarnessSession {
         input.resolution,
         pending.request.input,
       );
-      const providerResponse = acpElicitationResponse(
-        pending.normalized,
-        resolution,
-      );
+      const deliver = pending.prepareResolution(resolution);
       if (!this.#pendingRuntimeRequests.delete(input.requestId)) return;
       pending.cleanup();
       this.#emit(
@@ -956,7 +958,7 @@ class CodexAcpxSession implements HarnessSession {
         }),
         { turnId: input.turnId, itemId: pending.request.itemId },
       );
-      pending.settle(providerResponse);
+      deliver();
     } catch (error) {
       pending.settling = false;
       throw error;
@@ -1000,7 +1002,7 @@ class CodexAcpxSession implements HarnessSession {
       );
     }
     pending.cleanup();
-    pending.settle({ action: "cancel" });
+    pending.cancel();
     const cleanup = Promise.resolve()
       .then(() =>
         this.#host.interruptActiveTurn(
@@ -1579,6 +1581,53 @@ class CodexAcpxSession implements HarnessSession {
     }
   }
 
+  async #handlePermission(
+    turnId: string,
+    request: AcpPermissionRequest,
+    signal: AbortSignal,
+  ): Promise<AcpPermissionDecision> {
+    if (this.#closed || this.#activeTurnId !== turnId || signal.aborted
+      || this.#pendingRuntimeRequests.size >= MAX_PENDING_RUNTIME_REQUESTS) {
+      return { outcome: "cancel" };
+    }
+    const normalized = normalizeAcpxPermission(request);
+    const requestId = stableId("acpx-permission", `${turnId}:${++this.#runtimeRequestSequence}:${normalized.toolCallId}`);
+    const runtimeRequest: HarnessRuntimeRequest = {
+      requestId, requestKind: "permission_approval", method: "session/request_permission",
+      turnId, itemId: requestId, status: "pending", prompt: normalized.title,
+      details: { choices: normalized.choices, toolCallId: normalized.toolCallId, kind: normalized.kind },
+      origin: { adapter: "acpx-runtime", provider: this.#agent, method: "session/request_permission" },
+    };
+    return await new Promise<AcpPermissionDecision>((settle) => {
+      const cancel = () => {
+        const pending = this.#pendingRuntimeRequests.get(requestId);
+        if (!pending || pending.settling || !this.#pendingRuntimeRequests.delete(requestId)) return;
+        pending.cleanup();
+        this.#emit("runtime_request.cancelled", harnessRuntimeRequestOutcome(runtimeRequest, {
+          action: "cancel", reason: "provider request aborted",
+        }), { turnId, itemId: requestId });
+        settle({ outcome: "cancel" });
+      };
+      this.#pendingRuntimeRequests.set(requestId, {
+        request: runtimeRequest,
+        prepareResolution: (resolution) => {
+          const response = normalized.resolve(resolution);
+          return () => settle(response);
+        },
+        cancel: () => settle({ outcome: "cancel" }),
+        cleanup: () => signal.removeEventListener("abort", cancel),
+        settling: false,
+      });
+      signal.addEventListener("abort", cancel, { once: true });
+      if (!this.#emit("runtime_request.created", { request: {
+        schema: PAPERCLIP_RUNTIME_REQUEST_SCHEMA_V2, requestKind: "permission_approval",
+        requestId, type: "permission", status: "pending", prompt: normalized.title,
+        choices: normalized.choices, details: runtimeRequest.details,
+        origin: runtimeRequest.origin, turnId, itemId: requestId,
+      } }, { turnId, itemId: requestId }) || signal.aborted) cancel();
+    });
+  }
+
   async #handleElicitation(
     turnId: string,
     request: AcpElicitationRequest,
@@ -1700,8 +1749,11 @@ class CodexAcpxSession implements HarnessSession {
       context.signal.addEventListener("abort", cancel, { once: true });
       this.#pendingRuntimeRequests.set(requestId, {
         request: runtimeRequest,
-        normalized,
-        settle,
+        prepareResolution: (resolution) => {
+          const response = acpElicitationResponse(normalized, resolution);
+          return () => settle(response);
+        },
+        cancel: () => settle({ action: "cancel" }),
         cleanup: () => context.signal.removeEventListener("abort", cancel),
         settling: false,
       });
@@ -1725,7 +1777,7 @@ class CodexAcpxSession implements HarnessSession {
           itemId: pending.request.itemId,
         },
       );
-      pending.settle({ action: "cancel" });
+      pending.cancel();
     }
   }
 

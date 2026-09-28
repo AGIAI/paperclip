@@ -3344,7 +3344,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
   readonly #traceFrameIndex = new RunnerdTraceFrameIndex();
   #pendingTraceRehydrations: PendingTraceRehydration[] = [];
   #pendingDriverTraceInterpretations: PendingDriverTraceInterpretation[] = [];
-  readonly #bridgedRuntimeInputs = new Map<string, { durableTurnId: string }>();
+  readonly #bridgedRuntimeInputs = new Map<string, { durableTurnId: string; permission?: boolean }>();
 
   constructor(readonly options: CapabilityRunnerdCodexTransportOptions) {
     if (options.adoptExistingRunner && !options.stateDirectory?.trim()) {
@@ -3872,7 +3872,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       throw new Error(
         `PRP runtime request ${input.requestId} is no longer pending`,
       );
-    if (!("response" in input.resolution)) {
+    if (!pending.permission && !("response" in input.resolution) && input.resolution.action !== "cancel" && input.resolution.action !== "decline") {
       throw new Error(
         "runnerd-native runtime requests require a canonical question response",
       );
@@ -3886,7 +3886,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       {
         requestId: input.requestId,
         turnId: pending.durableTurnId,
-        response: input.resolution.response,
+        ...("response" in input.resolution ? { response: input.resolution.response } : { resolution: input.resolution }),
       },
       commandId,
     );
@@ -5907,7 +5907,13 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
             : "";
         const origin = record(normalizedRequest.origin);
         const method = typeof origin.method === "string" ? origin.method : "";
-        const params = bridgedCodexQuestionParams(
+        const permission = normalizedRequest.type === "permission" && normalizedRequest.requestKind === "permission_approval"
+          && method === "session/request_permission";
+        const params = permission ? {
+          threadId: this.#threadId, turnId: this.#turnId,
+          itemId: normalizedRequest.itemId, reason: normalizedRequest.prompt,
+          choices: normalizedRequest.choices, origin,
+        } : bridgedCodexQuestionParams(
           normalizedRequest,
           method,
           this.#threadId,
@@ -5919,10 +5925,11 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
           (method === "item/tool/requestUserInput" ||
             method === "tool/requestUserInput" ||
             method === "mcpServer/elicitation/request" ||
-            method === "elicitation/create") &&
+            method === "elicitation/create" || permission) &&
           !this.#bridgedRuntimeInputs.has(requestId)
         ) {
           this.#bridgedRuntimeInputs.set(requestId, {
+            permission,
             durableTurnId:
               typeof event.envelope.turnId === "string"
                 ? event.envelope.turnId

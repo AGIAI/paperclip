@@ -7,6 +7,8 @@ import type {
   AcpElicitationRequest,
   AcpElicitationResponse,
   AcpRuntimeEvent,
+  AcpPermissionRequest,
+  AcpPermissionDecision,
 } from "acpx/runtime";
 
 import { createAcpxToolEventNormalizer } from "../provider-events.js";
@@ -25,6 +27,7 @@ import {
 } from "../drivers/acpx/acp-question-adapter.js";
 import { openCodexAcpxRuntime } from "../drivers/acpx/codex-runtime-adapter.js";
 import { AcpxApprovalRequiredError } from "../drivers/acpx/permission-policy.js";
+import { normalizeAcpxPermission, type NormalizedAcpxPermission } from "../drivers/acpx/acp-permission-adapter.js";
 import { acpxGoalProjection } from "../drivers/acpx/session-goals.js";
 import { acpxProviderSessionIdentity } from "../drivers/acpx/recovery-identity.js";
 import {
@@ -119,6 +122,13 @@ interface PendingInput {
   cleanup(): void;
 }
 
+interface PendingPermission {
+  turnId: string;
+  normalized: NormalizedAcpxPermission;
+  settle(response: AcpPermissionDecision): void;
+  cleanup(): void;
+}
+
 let host: AcpxRuntimeHost | null = null;
 let activeHostCleanup: Promise<void> | null = null;
 let failedAdmissionCleanup: Promise<void> | null = null;
@@ -136,6 +146,7 @@ let initializedModel: string | null = null;
 let inputClosed = false;
 const tools = new Map<string, PendingTool>();
 const inputs = new Map<string, PendingInput>();
+const permissions = new Map<string, PendingPermission>();
 
 const lines = createInterface({
   input: process.stdin,
@@ -339,6 +350,8 @@ async function dispatch(
         text: boundedText(request.params.message, "message", 1024 * 1024),
         onElicitation: (providerRequest, context) =>
           waitForInput(currentTurnId, providerRequest, context),
+        onPermissionRequest: (providerRequest, context) =>
+          waitForPermission(currentTurnId, providerRequest, context.signal),
       });
     } catch (error) {
       turnId = null;
@@ -360,9 +373,18 @@ async function dispatch(
     return { cancelled: true };
   }
   if (request.command === "permission.resolve") {
-    throw new Error(
-      "ACPX permissions are resolved by the admitted runner policy",
-    );
+    const requestId = boundedIdentity(request.params.requestId, "requestId");
+    const expectedTurnId = boundedIdentity(request.params.turnId, "turnId");
+    const pending = permissions.get(requestId);
+    if (!pending || pending.turnId !== expectedTurnId || turnId !== expectedTurnId) {
+      throw new Error("permission request is stale or unknown");
+    }
+    const resolution = parseHarnessRuntimeRequestResolution("permission_approval", request.params.resolution);
+    const decision = pending.normalized.resolve(resolution);
+    if (!permissions.delete(requestId)) throw new Error("permission request lost its settlement race");
+    pending.cleanup();
+    pending.settle(decision);
+    return { resolved: true };
   }
   if (request.command === "input.resolve") {
     const requestId = boundedIdentity(request.params.requestId, "requestId");
@@ -668,6 +690,35 @@ async function waitForTool(call: RunnerToolCall): Promise<unknown> {
   });
 }
 
+async function waitForPermission(
+  activeTurnId: string,
+  request: AcpPermissionRequest,
+  signal: AbortSignal,
+): Promise<AcpPermissionDecision> {
+  if (turnId !== activeTurnId || signal.aborted || permissions.size >= MAX_PENDING_INPUTS) {
+    return { outcome: "cancel" };
+  }
+  const normalized = normalizeAcpxPermission(request);
+  const requestId = stableRequestId(activeTurnId, ++requestSequence, normalized.toolCallId);
+  return await new Promise((settle) => {
+    const abort = () => {
+      if (!permissions.delete(requestId)) return;
+      signal.removeEventListener("abort", abort);
+      settle({ outcome: "cancel" });
+    };
+    permissions.set(requestId, {
+      turnId: activeTurnId, normalized, settle,
+      cleanup: () => signal.removeEventListener("abort", abort),
+    });
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) { abort(); return; }
+    emit("runtime.permission_requested", {
+      requestId, kind: normalized.kind, title: normalized.title,
+      toolCallId: normalized.toolCallId, choices: normalized.choices,
+    }, activeTurnId);
+  });
+}
+
 async function waitForInput(
   activeTurnId: string,
   request: AcpElicitationRequest,
@@ -761,6 +812,11 @@ function elicitationResponse(
 }
 
 function rejectTurnWaiters(terminalTurnId: string, message: string): void {
+  for (const [requestId, pending] of permissions) {
+    if (pending.turnId !== terminalTurnId || !permissions.delete(requestId)) continue;
+    pending.cleanup();
+    pending.settle({ outcome: "cancel" });
+  }
   for (const [callId, pending] of tools) {
     if (pending.turnId !== terminalTurnId || !tools.delete(callId)) continue;
     pending.cleanup();

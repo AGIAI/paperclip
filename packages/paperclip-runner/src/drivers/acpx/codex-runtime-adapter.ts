@@ -245,7 +245,10 @@ export async function openQualifiedAcpxRuntime(
       .filter((server) => server.runnerOwned)
       .map((server) => server.name),
   );
-  const permissionBoundary: { active: AbortController | null } = { active: null };
+  const permissionBoundary: {
+    active: AbortController | null;
+    handler?: AcpRuntimeOptions["onPermissionRequest"];
+  } = { active: null };
   const goalState: AcpxRuntimeGoalState = {
     capability: null,
     snapshot: null,
@@ -301,7 +304,7 @@ export async function openQualifiedAcpxRuntime(
         { name: "Authorization", value: `Bearer ${server.bearerToken}` },
       ],
     })),
-    onPermissionRequest: async (request) => {
+    onPermissionRequest: async (request, context) => {
       const disposition = decideAcpxPermission(
         options.profile.agent,
         options.permissionMode,
@@ -314,6 +317,19 @@ export async function openQualifiedAcpxRuntime(
         },
       );
       if (disposition === "delegate") {
+        const active = permissionBoundary.active;
+        const handler = permissionBoundary.handler;
+        if (active && handler && !active.signal.aborted && !context.signal.aborted) {
+          // Capture this turn's callback before awaiting. A session-lifetime
+          // callback must never acquire the next turn's approval authority.
+          const decision = await handler(request, {
+            signal: AbortSignal.any([active.signal, context.signal]),
+          });
+          if (permissionBoundary.active !== active || active.signal.aborted || context.signal.aborted) {
+            return { outcome: "cancel" };
+          }
+          return decision ?? { outcome: "cancel" };
+        }
         // This runtime has no interactive approval bridge. Stop the active
         // turn instead of asking the model to recover from an unexplained
         // denial or wait for an approval that nobody can answer.
@@ -881,7 +897,7 @@ function runtimePort(
   runtimeCloseTimeoutMs: number,
   goalState: AcpxRuntimeGoalState,
   commandLaunches: { count: number; refreshConsumedCommand?: () => Promise<void> },
-  permissionBoundary: { active: AbortController | null },
+  permissionBoundary: { active: AbortController | null; handler?: AcpRuntimeOptions["onPermissionRequest"] },
 ): AcpxRuntimePort {
   type RuntimeCloseAttempt = {
     readonly outcome: Promise<unknown | null>;
@@ -1207,6 +1223,7 @@ function runtimePort(
     startTurn(input) {
       const approval = new AbortController();
       permissionBoundary.active = approval;
+      permissionBoundary.handler = input.onPermissionRequest;
       const finishOwnershipAdmission =
         children.beginLifetimeOwnershipAdmission();
       let turn: AcpxRuntimeTurn;
@@ -1224,7 +1241,7 @@ function runtimePort(
             : {}),
         });
       } catch (error) {
-        if (permissionBoundary.active === approval) permissionBoundary.active = null;
+        if (permissionBoundary.active === approval) { permissionBoundary.active = null; permissionBoundary.handler = undefined; }
         void finishOwnershipAdmission().catch(() => undefined);
         throw error;
       }
@@ -1233,7 +1250,7 @@ function runtimePort(
         (value) => { approval.signal.throwIfAborted(); return value; },
         (error: unknown) => { approval.signal.throwIfAborted(); throw error; },
       ).finally(() => {
-        if (permissionBoundary.active === approval) permissionBoundary.active = null;
+        if (permissionBoundary.active === approval) { permissionBoundary.active = null; permissionBoundary.handler = undefined; approval.abort(); }
       });
       void result.catch(() => undefined);
       return {

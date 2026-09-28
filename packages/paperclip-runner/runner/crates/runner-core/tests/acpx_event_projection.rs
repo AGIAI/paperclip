@@ -366,7 +366,29 @@ fn projects_assistant_terminal_and_diagnostic_events_fail_closed() {
     assert!(project_acpx_state_event(&context(), &permission)
         .unwrap_err()
         .to_string()
-        .contains("pinned runner policy"));
+        .contains("omitted its choices"));
+}
+
+#[test]
+fn projects_only_the_permission_choices_offered_by_the_provider() {
+    let events = project(AcpxProviderStateEvent::PermissionRequest {
+        request_id: "permission-1".to_owned(),
+        kind: "write".to_owned(),
+        title: "Edit source".to_owned(),
+        details: json!({"choices":[{"key":"accept","label":"Allow once"},{"key":"cancel","label":"Cancel"}]}),
+    });
+    assert_eq!(events[0].event_type, "runtime_request.created");
+    assert_eq!(
+        events[0].payload["request"]["requestKind"],
+        "permission_approval"
+    );
+    assert_eq!(
+        events[0].payload["request"]["choices"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
 }
 
 #[test]

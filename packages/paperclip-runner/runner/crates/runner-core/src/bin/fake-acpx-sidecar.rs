@@ -226,6 +226,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             | "turns-mismatched-reserved-result-terminal"
             | "turns-unauthorized-tool"
             | "turns-permission"
+            | "permissions-interactive"
+            | "permissions-wrong-ack"
             | "resolutions"
             | "resolutions-error-redaction"
             | "resolutions-projected-id"
@@ -387,7 +389,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     )?;
                     next_sequence += 1;
                 }
-                if command == "turn.start" && mode == "turns-permission" {
+                if command == "turn.start"
+                    && matches!(
+                        mode,
+                        "turns-permission" | "permissions-interactive" | "permissions-wrong-ack"
+                    )
+                {
                     write_turn_event(
                         &mut stdout,
                         next_sequence,
@@ -398,6 +405,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                             "requestId":"permission-1",
                             "kind":"execute",
                             "title":"Run a command?",
+                            "choices":[{"key":"accept","label":"Allow once"},{"key":"cancel","label":"Cancel"}],
                         }),
                     )?;
                     next_sequence += 1;
@@ -671,6 +679,9 @@ fn bootstrap_success(
     profile_digest: &str,
 ) -> Value {
     if command == "permission.resolve" {
+        if mode.starts_with("permissions-") {
+            return json!({"protocolVersion": GENERATED_ACPX_SIDECAR_PROTOCOL_VERSION, "id": id, "ok":true, "result":{"resolved": mode != "permissions-wrong-ack"}});
+        }
         return json!({
             "protocolVersion": GENERATED_ACPX_SIDECAR_PROTOCOL_VERSION,
             "id": id,

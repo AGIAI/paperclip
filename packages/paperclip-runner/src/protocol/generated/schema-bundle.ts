@@ -2625,7 +2625,7 @@ export const questionSetSchema = {
     },
     "description": {
       "type": "string",
-      "maxLength": 4000
+      "maxLength": 100000
     },
     "submitLabel": {
       "type": "string",

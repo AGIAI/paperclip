@@ -1204,31 +1204,52 @@ impl AcpxCommandExecutor {
             .get("requestId")
             .and_then(Value::as_str)
             .ok_or_else(|| DurableRunnerError::invalid("request.resolve requires requestId"))?;
-        let response = payload
-            .get("response")
-            .ok_or_else(|| DurableRunnerError::invalid("request.resolve requires response"))?;
         let turn_id = self
             .state
             .as_ref()
             .and_then(|state| state.active_turn_id.clone())
             .ok_or_else(|| DurableRunnerError::invalid("ACPX provider has no active turn"))?;
-        self.session
+        if payload
+            .get("turnId")
+            .and_then(Value::as_str)
+            .is_some_and(|id| id != self.context.turn_id)
+        {
+            return Err(DurableRunnerError::invalid(
+                "ACPX runtime response belongs to a stale turn",
+            ));
+        }
+        let session = self
+            .session
             .as_mut()
-            .ok_or_else(|| DurableRunnerError::invalid("ACPX session is unavailable"))?
-            .resolve_input(
-                request_id,
-                &turn_id,
-                &json!({"action": "submit", "response": response}),
-            )
-            .map_err(|error| {
-                DurableRunnerError::invalid(format!("ACPX runtime response failed: {error}"))
+            .ok_or_else(|| DurableRunnerError::invalid("ACPX session is unavailable"))?;
+        let resolution = payload
+            .get("resolution")
+            .cloned()
+            .or_else(|| {
+                payload
+                    .get("response")
+                    .map(|response| json!({"action":"submit","response":response}))
+            })
+            .ok_or_else(|| {
+                DurableRunnerError::invalid("request.resolve requires resolution or response")
             })?;
+        let permission = session.state().pending_permission(request_id).is_some();
+        (if permission {
+            session.resolve_permission(request_id, &turn_id, &resolution)
+        } else {
+            session.resolve_input(request_id, &turn_id, &resolution)
+        })
+        .map_err(|error| {
+            DurableRunnerError::invalid(format!("ACPX runtime response failed: {error}"))
+        })?;
         Ok(CommandExecution {
             result: json!({"status": "delivered", "requestId": request_id}),
             events: vec![(
                 "runtime_request.resolved".to_owned(),
                 EventPriority::P0,
-                json!({"provider": "acpx", "requestId": request_id, "status": "delivered"}),
+                json!({"provider": "acpx", "requestId": request_id, "status": "delivered",
+                    "requestKind": if permission {"permission_approval"} else {"runtime"},
+                    "turnId":self.context.turn_id,"itemId":self.context.item_id,"action":resolution.get("action")}),
             )],
         })
     }
