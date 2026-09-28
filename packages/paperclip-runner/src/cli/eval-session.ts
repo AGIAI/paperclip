@@ -30,6 +30,7 @@ import {
   expectedEvalSessionDriver,
   parseEvalSessionRequest,
   type EvalSessionRequest,
+  type EvalCandidateProfile,
   type EvalSessionUsage,
 } from "./eval-session-contract.js";
 import { evalProviderTransportOptions } from "./eval-provider-runtime.js";
@@ -37,6 +38,7 @@ import { evalProviderTransportOptions } from "./eval-provider-runtime.js";
 interface EvalSessionCliOptions {
   requestPath: string;
   outputPath: string;
+  candidateProfile?: EvalCandidateProfile;
 }
 
 function argument(args: string[], name: string): string {
@@ -47,14 +49,23 @@ function argument(args: string[], name: string): string {
 }
 
 export function parseEvalSessionCliArgs(args: string[]): EvalSessionCliOptions {
-  const allowed = new Set(["--request", "--output"]);
+  const allowed = new Set(["--request", "--output", "--candidate-profile"]);
+  const seen = new Set<string>();
   for (let index = 0; index < args.length; index += 2) {
     if (!allowed.has(args[index] ?? "")) {
       throw new Error(`unknown argument: ${args[index] ?? ""}`);
     }
-    if (args[index + 1] === undefined) throw new Error(`missing ${args[index]}`);
+    if (seen.has(args[index]!)) throw new Error(`duplicate argument: ${args[index]}`);
+    seen.add(args[index]!);
+    if (args[index + 1] === undefined || args[index + 1]!.startsWith("--")) throw new Error(`missing ${args[index]}`);
+  }
+  const candidateIndex = args.indexOf("--candidate-profile");
+  const candidateProfile = candidateIndex < 0 ? undefined : args[candidateIndex + 1];
+  if (candidateProfile !== undefined && candidateProfile !== "pi" && candidateProfile !== "cursor" && candidateProfile !== "copilot") {
+    throw new Error("--candidate-profile must be pi, cursor, or copilot");
   }
   return {
+    ...(candidateProfile === undefined ? {} : { candidateProfile }),
     requestPath: argument(args, "--request"),
     outputPath: argument(args, "--output"),
   };
@@ -276,6 +287,7 @@ export async function runEvalSessionCli(
   const cli = parseEvalSessionCliArgs(args);
   const request = parseEvalSessionRequest(
     JSON.parse(await readFile(cli.requestPath, "utf8")),
+    { candidateProfile: cli.candidateProfile },
   );
   const runnerdPath = resolve(request.runnerd.path);
   const actualDigest = await sha256(runnerdPath);
@@ -299,6 +311,7 @@ export async function runEvalSessionCli(
       transportOptions: {
         ...evalProviderTransportOptions(requestedProvider, request.limits.turnTimeoutMs),
         runnerBinary: runnerdPath,
+        ...(cli.candidateProfile === undefined ? {} : { acpxCandidateProfile: cli.candidateProfile }),
         runtimeContext,
         baseInstructions: evalRuntimeSystemInstructions(runtimeContext),
         // The transport performs the provider-specific allowlisting. Supplying
@@ -351,6 +364,7 @@ export async function runEvalSessionCli(
       build: PAPERCLIP_RUNNER_BUILD_METADATA,
       runnerd: { path: "[withheld]", sha256: `sha256:${actualDigest}` },
       requestedModel: request.model,
+      ...(cli.candidateProfile === undefined ? {} : { diagnosticCandidateProfile: cli.candidateProfile }),
       provider: requestedProvider,
       driver: requestedDriver,
       providerVersion: requestedProviderVersion,
@@ -424,6 +438,7 @@ export async function runEvalSessionCli(
       build: PAPERCLIP_RUNNER_BUILD_METADATA,
       runnerd: { path: "[withheld]", sha256: `sha256:${actualDigest}` },
       requestedModel: request.model,
+      ...(cli.candidateProfile === undefined ? {} : { diagnosticCandidateProfile: cli.candidateProfile }),
       provider: requestedProvider,
       driver: requestedDriver,
       providerVersion: requestedProviderVersion,

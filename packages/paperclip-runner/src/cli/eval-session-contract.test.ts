@@ -15,6 +15,7 @@ import {
   evalRuntimeSystemInstructions,
   evalSessionProviderVersion,
   prepareEvalRuntimeContext,
+  parseEvalSessionCliArgs,
 } from "./eval-session.js";
 
 function request(overrides: Record<string, unknown> = {}): unknown {
@@ -62,6 +63,25 @@ function agentCoreProfile(overrides: Record<string, unknown> = {}) {
 }
 
 describe("eval-session request contract", () => {
+  it.each(["pi", "cursor", "copilot"] as const)("admits %s only with the matching CLI diagnostic opt-in", (agent) => {
+    const value = request({ provider: "acpx", acpxAgent: agent, model: "explicit-provider-model" });
+    expect(() => parseEvalSessionRequest(value)).toThrow("--candidate-profile");
+    expect(parseEvalSessionRequest(value, { candidateProfile: agent })).toMatchObject({ acpxAgent: agent, model: "explicit-provider-model" });
+    expect(() => parseEvalSessionRequest(value, { candidateProfile: agent === "pi" ? "cursor" : "pi" })).toThrow("must match");
+    expect(() => parseEvalSessionRequest(request({ provider: "acpx", acpxAgent: agent, model: "" }), { candidateProfile: agent })).toThrow("request.model");
+    expect(() => parseEvalSessionRequest(request({ provider: "acpx", acpxAgent: "codex", session: { acpxAgent: agent } }))).toThrow("session.acpxAgent must match");
+    expect(() => parseEvalSessionRequest(request({ provider: "acpx", acpxAgent: agent, candidateProfile: agent }))).toThrow("--candidate-profile");
+  });
+
+  it("accepts only known diagnostic flags and rejects ambiguous repeated arguments", () => {
+    const args = ["--request", "/tmp/request.json", "--output", "/tmp/result.json"];
+    expect(parseEvalSessionCliArgs([...args, "--candidate-profile", "pi"])).toMatchObject({ candidateProfile: "pi" });
+    expect(() => parseEvalSessionCliArgs([...args, "--candidate-profile", "codex"])).toThrow("must be pi, cursor, or copilot");
+    expect(() => parseEvalSessionCliArgs([...args, "--candidate-profile"])).toThrow("missing");
+    expect(() => parseEvalSessionCliArgs([...args, "--request", "/tmp/other.json"])).toThrow("duplicate");
+    expect(() => parseEvalSessionRequest(request(), { candidateProfile: "pi" })).toThrow("must match");
+  });
+
   it("materializes a production-v3 runtime context for direct live providers", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "paperclip-eval-context-"));
     let instructionRoot: string | null = null;
@@ -145,11 +165,11 @@ describe("eval-session request contract", () => {
     })))).toBe("17");
   });
 
-  it("rejects Pi and accepts both qualified remote provider profiles", () => {
+  it("requires explicit Pi diagnosis and accepts both qualified remote provider profiles", () => {
     expect(() => parseEvalSessionRequest(request({
       provider: "acpx",
       acpxAgent: "pi",
-    }))).toThrow("Pi ACPX profile is not available");
+    }))).toThrow("--candidate-profile");
     expect(parseEvalSessionRequest(request({
       provider: "aws_agentcore",
       driver: "aws_agentcore_harness_api",

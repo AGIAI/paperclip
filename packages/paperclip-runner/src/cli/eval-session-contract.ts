@@ -58,6 +58,8 @@ export interface EvalSessionAgentCoreProfile {
   timeoutSeconds: number;
 }
 
+export type EvalCandidateProfile = "pi" | "cursor" | "copilot";
+
 export interface EvalSessionRequest {
   schema: typeof EVAL_SESSION_REQUEST_SCHEMA;
   attemptId: string;
@@ -66,7 +68,7 @@ export interface EvalSessionRequest {
   provider?: EvalSessionProvider;
   driver?: EvalSessionDriver;
   opencodeVersion?: string;
-  acpxAgent?: Exclude<QualifiedAcpxAgent, "pi">;
+  acpxAgent?: QualifiedAcpxAgent;
   managedProfile?: EvalSessionManagedProfile;
   agentCoreProfile?: EvalSessionAgentCoreProfile;
   runnerd: { path: string; sha256: string };
@@ -211,7 +213,10 @@ function parseAgentCoreProfile(value: unknown): EvalSessionAgentCoreProfile {
 }
 
 /** Fail-closed validation for the executable boundary. */
-export function parseEvalSessionRequest(value: unknown): EvalSessionRequest {
+export function parseEvalSessionRequest(
+  value: unknown,
+  options: { candidateProfile?: EvalCandidateProfile } = {},
+): EvalSessionRequest {
   const input = object(value, "request");
   if (input.schema !== EVAL_SESSION_REQUEST_SCHEMA) {
     throw new Error("unsupported request schema");
@@ -237,16 +242,23 @@ export function parseEvalSessionRequest(value: unknown): EvalSessionRequest {
   // options as JSON null. Preserve compatibility with those immutable request
   // artifacts while continuing to reject non-null values for the wrong lane.
   const acpxAgent = input.acpxAgent === null ? undefined : input.acpxAgent;
-  if (acpxAgent === "pi") throw new Error("The Pi ACPX profile is not available");
   if (
     acpxAgent !== undefined &&
     acpxAgent !== "codex" &&
-    acpxAgent !== "claude"
+    acpxAgent !== "claude" &&
+    acpxAgent !== "pi" && acpxAgent !== "cursor" && acpxAgent !== "copilot"
   ) {
-    throw new Error("eval-session acpxAgent must be codex or claude");
+    throw new Error("eval-session acpxAgent must be a registered ACPX profile");
   }
   if (provider !== "acpx" && acpxAgent !== undefined) {
     throw new Error("eval-session acpxAgent requires provider acpx");
+  }
+  const candidate = acpxAgent === "pi" || acpxAgent === "cursor" || acpxAgent === "copilot";
+  if (options.candidateProfile !== undefined && (provider !== "acpx" || acpxAgent !== options.candidateProfile || !candidate)) {
+    throw new Error("--candidate-profile must match the request's registered candidate ACPX agent");
+  }
+  if (candidate && options.candidateProfile !== acpxAgent) {
+    throw new Error("Candidate ACPX profiles require an explicit matching --candidate-profile diagnostic flag");
   }
   const managedProfileInput = input.managedProfile === null
     ? undefined
@@ -306,8 +318,8 @@ export function parseEvalSessionRequest(value: unknown): EvalSessionRequest {
   ) {
     throw new Error("request.session.requestedModel must match request.model");
   }
-  if (session.acpxAgent === "pi") {
-    throw new Error("The Pi ACPX profile is not available");
+  if (session.acpxAgent !== undefined && session.acpxAgent !== acpxAgent) {
+    throw new Error("request.session.acpxAgent must match request.acpxAgent");
   }
 
   return {
