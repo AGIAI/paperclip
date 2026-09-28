@@ -247,6 +247,101 @@
         "conservativeListCostUpperBoundUsd": 0.06,
         "listCostBoundBasis": "At most 42,000 rounded-display tokens at the maximum listed $1.20 per million token rate, rounded up to $0.06; not a billing receipt."
       }
+    },
+    {
+      "id": "cursor-product-file-edit-20260928",
+      "family": "product-e2e",
+      "case": "extended-harnesses.runner-acpx-cursor.local.file-edit-validate",
+      "runnerSourceRevision": "fe132224c2b30a8d9ce7b46cea38b8760af233fc",
+      "suiteDefinitionHash": "e75cb2222d2f52ec3a2a425211d195d36b95882de2cb9ed0ad93231b7c42768a",
+      "runnerdSha256": "986060810ba7377c6ddd64a5d89e322d0a434e1a9c80400e6d4acf5934bfc421",
+      "requestedModel": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+      "startedAt": "2026-09-28T19:44:43.582Z",
+      "finishedAt": "2026-09-28T19:45:24.406Z",
+      "durationMs": 40824,
+      "providerStartedAt": "2026-09-28T19:44:48.263Z",
+      "providerFinishedAt": "2026-09-28T19:45:20.690Z",
+      "providerTimeoutSec": 120,
+      "timeoutFired": false,
+      "result": "passed",
+      "automaticRetries": 0,
+      "submittedPrompts": 1,
+      "providerRuns": 1,
+      "matchers": [
+        {
+          "kind": "message_exact",
+          "passed": true
+        },
+        {
+          "kind": "message_occurrences",
+          "passed": true
+        },
+        {
+          "kind": "issue_status",
+          "passed": true
+        },
+        {
+          "kind": "run_status",
+          "passed": true
+        },
+        {
+          "kind": "runtime_mode",
+          "passed": true
+        },
+        {
+          "kind": "environment",
+          "passed": true
+        },
+        {
+          "kind": "file_exact",
+          "passed": true
+        }
+      ],
+      "invariantFailures": [],
+      "taskStatus": "done",
+      "runStatus": "succeeded",
+      "cleanup": "passed",
+      "resultSha256": "2554fd5709ce35712a3f23405fe7550d169b9f3a0cde2a9906c18e4f7ba4ae86",
+      "screenshot": {
+        "id": "final-state",
+        "sha256": "712a1b2105ff54530db9d2a7ff3764c53ad9cbf2bbe047e90010e8f44563972c",
+        "visuallyInspected": true,
+        "observed": "Task Done; Cursor assignee; 24-byte text file and downloadable artifact card; Used tools, edited files; one completion marker."
+      },
+      "fileEvidence": {
+        "exactFinalBytesMatched": true,
+        "sizeBytes": 24,
+        "sha256": "a6a152b61f60708dc2982f1a0c06cb8dd7ba6339d26018a0f00a072534fd8c18",
+        "commandValidation": "Python compared actual bytes to the expected bytes and exited successfully.",
+        "workspaceArtifactPresented": true,
+        "providerDiffProjectionQualified": false
+      },
+      "observedEventGap": {
+        "field": "native command rawOutput.exitCode",
+        "nativeValue": 0,
+        "canonicalExitCode": null,
+        "preservedAs": "serialized rawOutput text",
+        "followUp": "P2: validated numeric command result projection; do not infer from arbitrary output text."
+      },
+      "usage": {
+        "nativeReceipt": null,
+        "tokenUsage": null,
+        "costUsd": null,
+        "coverage": "provider usage unavailable; dashboard row attributed"
+      },
+      "scope": "Real local create/edit/command-validation plus independent byte matcher and visible workspace artifact. Does not qualify provider-native diff projection, restrictive denial, native input, recovery, or Daytona.",
+      "billing": {
+        "source": "parent-observed account Usage row after bounded attempt",
+        "observedRequestAt": "2026-09-28T19:44:59Z",
+        "modelLabel": "gpt-5.6-luna-medium",
+        "tokensDisplay": "84.1K",
+        "usageType": "Included in Pro Plus",
+        "chargeDisplay": "Included",
+        "incrementalCashChargeUsd": 0,
+        "meteredCostUsd": null,
+        "conservativeListCostUpperBoundUsd": 0.102,
+        "listCostBoundBasis": "Rounded dashboard token count bounded conservatively at the maximum listed $1.20 per million token rate; not a billing receipt."
+      }
     }
   ],
   "newAccountDiscovery": {
