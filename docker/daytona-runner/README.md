@@ -90,6 +90,10 @@ A pack with candidate assets does not qualify or enable that provider.
 
 For an isolated Linux x64 Daytona qualification image, pass
 `--build-arg PAPERCLIP_RUNNER_CANDIDATE_PROVIDERS=cursor` with the normal build arguments.
+Compute its content ID with the same selection:
+`pnpm --silent test:e2e:runner:image-id --candidate-providers=cursor`.
+Candidate assets and the default pack have distinct image identities. Never reuse
+the default image's content ID for a candidate build.
 Use each provider branch's recorded version and explicit model. Keep credentials
 out of images. Paid qualification requires bound provider and Daytona credentials,
 inspectable spend, and the shared $100 ceiling recorded in the capability report.

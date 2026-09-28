@@ -166,6 +166,7 @@ describe("runner E2E Daytona image contract", () => {
       "patches",
       "packages/paperclip-eval-kernel/src",
       "packages/paperclip-runner/package.json",
+      "packages/paperclip-runner/scripts/candidate-provider-pack.mjs",
       "packages/paperclip-runner/runner/crates",
       "packages/paperclip-runner/src",
     ]) {
@@ -242,6 +243,14 @@ describe("runner E2E Daytona image contract", () => {
         'pub const VERSION: &str = "one";\n',
       );
       const baseline = await computeDaytonaImageContentId(options);
+      const candidate = await computeDaytonaImageContentId({ ...options, candidateProviders: ["pi"] });
+      expect(candidate).not.toBe(baseline);
+      expect(await computeDaytonaImageContentId({ ...options, candidateProviders: ["copilot", "pi"] }))
+        .toBe(await computeDaytonaImageContentId({ ...options, candidateProviders: ["pi", "copilot"] }));
+      await expect(computeDaytonaImageContentId({ ...options, candidateProviders: ["pi", "pi"] }))
+        .rejects.toThrow("distinct known");
+      await expect(computeDaytonaImageContentId({ ...options, candidateProviders: ["unknown"] }))
+        .rejects.toThrow("distinct known");
       expect(
         await computeDaytonaImageContentId({
           ...options,
