@@ -331,7 +331,7 @@ describe("registered run instruction copies", () => {
       }
     }
     const files = await captureDirectorySnapshot(workspace, { exclude: [".git", ".paperclip-runtime"] });
-    expect([...files.entries.keys()]).toEqual(["deliverable.txt"]);
+    expect([...files.entries].map(([relative]) => relative)).toEqual(["deliverable.txt"]);
     await expect(copies.prepare({ ...target(), runId, cwd: home })).rejects.toThrow("different run workspace");
   });
 
