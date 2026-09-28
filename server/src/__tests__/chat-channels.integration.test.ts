@@ -72375,6 +72375,11 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     expect(f.wakeup).toHaveBeenCalledTimes(3);
     await f.drain();
     expect(f.wakeup).toHaveBeenCalledTimes(3);
+    await db.update(chatActions).set({ createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) }).where(and(eq(chatActions.endpointId, f.endpoint.id), eq(chatActions.providerActionId, "x-post:603")));
+    await f.drain();
+    const [expired] = await db.select().from(chatActions).where(and(eq(chatActions.endpointId, f.endpoint.id), eq(chatActions.providerActionId, "x-post:603")));
+    expect(expired).toMatchObject({ status: "processed", result: { disposition: "ignored", reason: "X reply parent was not recorded within 24 hours" } });
+    expect(f.wakeup).toHaveBeenCalledTimes(3);
   }, 60_000);
 
   it("X concurrent reply intents and workers preserve each branch's exact target after restart", async () => {

@@ -270,6 +270,7 @@ export function xChannelService(db: Db, hooks: XHooks, fetchImpl = fetch) {
       : null;
   }
   async function processIngress(limit = 25) {
+    const unmatchedBefore = new Date(Date.now() - 24 * 60 * 60 * 1000);
     // Unmatched direct replies stay durable without occupying the ready queue.
     // Once the exact parent link exists, any process can continue the task.
     const awaitingParentReady = and(
@@ -279,6 +280,10 @@ export function xChannelService(db: Db, hooks: XHooks, fetchImpl = fetch) {
         and(
           sql`${chatActions.payload}->'event'->>'event_type' = 'post.mention.create'`,
           sql`not exists (select 1 from chat_publications publication where publication.endpoint_id = ${chatActions.endpointId} and publication.state = 'streaming' and publication.payload->'xReply' is not null)`,
+        ),
+        and(
+          sql`${chatActions.payload}->'event'->>'event_type' = 'post.reply.create'`,
+          lte(chatActions.createdAt, unmatchedBefore),
         ),
       ),
     );
@@ -339,10 +344,20 @@ export function xChannelService(db: Db, hooks: XHooks, fetchImpl = fetch) {
               ? event.payload.paperclipThreadId
               : await resolveThread(endpoint, event);
           if (!threadId && xParent(event.payload)) {
+            const expired =
+              event.event_type === "post.reply.create" &&
+              claimed.createdAt <= unmatchedBefore;
             await db
               .update(chatActions)
               .set({
-                status: "awaiting_parent",
+                status: expired ? "processed" : "awaiting_parent",
+                result: expired
+                  ? {
+                      claim,
+                      disposition: "ignored",
+                      reason: "X reply parent was not recorded within 24 hours",
+                    }
+                  : { claim },
                 payload: {
                   ...claimed.payload,
                   parentPostId: xParent(event.payload),

@@ -80,7 +80,8 @@ runtime using persisted activation roots. Its automatic `postMessage` path is
 disabled. Reply targets never depend on the adapter's in-memory latest post.
 Follow-ups that arrive before their bot-parent link is committed remain in the
 intake ledger and resume when that exact link becomes available, including
-after a restart. Unrelated replies cannot start tasks.
+after a restart. Unrelated replies cannot start tasks. Unmatched replies close
+after 24 hours with an ignored disposition; their audit receipt is retained.
 
 The publication ledger saves exact text and target before any provider request.
 The same key and payload return the original intent. Reusing a key with a
