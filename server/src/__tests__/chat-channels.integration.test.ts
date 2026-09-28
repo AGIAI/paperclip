@@ -72246,6 +72246,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const botId = String(Date.now());
     const sends: Array<Record<string, unknown>> = [];
     let sendFailure = false;
+    let beforeSendResponse: (() => Promise<void>) | null = null;
     const providerFetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       if (String(url).endsWith("/2/oauth2/token")) {
         const params = new URLSearchParams(String(init?.body));
@@ -72256,6 +72257,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       if (String(url).endsWith("/2/tweets")) {
         sends.push(JSON.parse(String(init?.body)));
         if (sendFailure) throw new Error("connection closed after acceptance");
+        await beforeSendResponse?.();
         return Response.json({ data: { id: String(900000 + sends.length) } });
       }
       return new Response(null, { status: 404 });
@@ -72274,10 +72276,12 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       const body = JSON.stringify({ data });
       return service.handleWebhook(endpoint.publicId, "x", new Request(`https://paperclip.example/api/chat-webhooks/${endpoint.publicId}/x`, { method: "POST", body, headers: { "content-type": "application/json", "x-twitter-webhooks-signature-oauth2": xSignature(body, valid ? "x-client-secret" : "wrong") } }));
     }
-    async function drain() { for (let i = 0; i < 3; i++) await service.processPendingDeliveries();
+    async function drain() {
+      for (let i = 0; i < 3; i++) await service.processPendingDeliveries();
     }
     async function binding(id: string, responsibleUserId: string | null = "owner-user") {
       const [link] = await db.select().from(chatMessageLinks).where(and(eq(chatMessageLinks.endpointId, endpoint.id), eq(chatMessageLinks.providerMessageId, id)));
+      expect(link, `X post ${id} must have a durable task binding`).toBeDefined();
       const [conversation] = await db.select().from(chatConversations).where(eq(chatConversations.id, link.conversationId));
       const [action] = await db.select().from(chatActions).where(and(eq(chatActions.deliveryId, link.deliveryId!), eq(chatActions.kind, "inbound_wakeup")));
       const runId = randomUUID();
@@ -72287,6 +72291,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     }
     return { ...fixture, endpoint, botId, sends, event, deliver, drain, binding, wakeup, principal, providerFetch, service: () => service,
       failSend: () => { sendFailure = true; },
+      beforeSendResponse: (hook: () => Promise<void>) => { beforeSendResponse = hook; },
       restart: async () => { await service.shutdown(); service = chatChannelService(db, options); fixtureServices.add(service); },
     };
   }
@@ -72323,6 +72328,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const result = await native.execute({ tool: "x_reply", callId: randomUUID(), arguments: request }) as { publicationId: string; status: string };
     expect(result.status).toBe("pending");
     expect(await executeConnectorTool(db, binding, "x_reply", request)).toEqual(result);
+    await expect(executeConnectorTool(db, binding, "x_reply", { ...request, text: "Different intent" })).rejects.toThrow("different X reply");
     await expect(executeConnectorTool(db, binding, "x_reply", { ...request, idempotencyKey: randomUUID() })).rejects.toThrow("already has a reply");
     await issueService(db).addComment(binding.issueId, "Internal final response", { agentId: binding.agentId }, { authorType: "agent" });
     await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, binding.runId));
@@ -72337,7 +72343,37 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     const links = await db.select().from(chatMessageLinks).where(eq(chatMessageLinks.endpointId, f.endpoint.id));
     expect(links.find(l => l.providerMessageId === "202")?.conversationId).toBe(links.find(l => l.providerMessageId === "200")?.conversationId);
     expect(links.find(l => l.providerMessageId === "203")?.conversationId).not.toBe(links.find(l => l.providerMessageId === "200")?.conversationId);
+    const followup = await f.binding("202");
+    await expect(executeConnectorTool(db, followup, "x_reply", { ...request, replyToPostId: "202" })).rejects.toThrow("different X reply");
     expect(f.sends).toHaveLength(1);
+  }, 60_000);
+
+  it("X retains early follow-ups until their outbound parent link commits", async () => {
+    const f = await configuredXEndpoint();
+    const { executeConnectorTool } = await import("../services/connector-runtime.js");
+    await f.deliver(f.event("600")); await f.drain();
+    const binding = await f.binding("600");
+    await executeConnectorTool(db, binding, "x_reply", { replyToPostId: "600", text: "Reply accepted by X", idempotencyKey: randomUUID() });
+    f.beforeSendResponse(async () => {
+      // X knows the bot's post ID, but the send response has not reached us.
+      await f.deliver(f.event("601", { in_reply_to_tweet_id: "900001" }, "post.reply.create"));
+      await f.deliver(f.event("602", { in_reply_to_tweet_id: "900001" }));
+      await f.deliver(f.event("603", { in_reply_to_tweet_id: "123456" }, "post.reply.create"));
+      await f.drain();
+      expect(f.wakeup).toHaveBeenCalledOnce();
+      const waiting = await db.select().from(chatActions).where(and(eq(chatActions.endpointId, f.endpoint.id), eq(chatActions.kind, "x_webhook_ingress"), eq(chatActions.status, "awaiting_parent")));
+      expect(waiting).toHaveLength(3);
+    });
+    await f.service().processPendingPublications();
+    await f.restart(); await f.drain();
+    const links = await db.select().from(chatMessageLinks).where(eq(chatMessageLinks.endpointId, f.endpoint.id));
+    const root = links.find(link => link.providerMessageId === "600")!;
+    expect(links.find(link => link.providerMessageId === "601")?.conversationId).toBe(root.conversationId);
+    expect(links.find(link => link.providerMessageId === "602")?.conversationId).toBe(root.conversationId);
+    expect(links.some(link => link.providerMessageId === "603")).toBe(false);
+    expect(f.wakeup).toHaveBeenCalledTimes(3);
+    await f.drain();
+    expect(f.wakeup).toHaveBeenCalledTimes(3);
   }, 60_000);
 
   it("X concurrent reply intents and workers preserve each branch's exact target after restart", async () => {
@@ -72362,6 +72398,26 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       { text: "First branch", reply: { in_reply_to_tweet_id: "210" } },
       { text: "Second branch", reply: { in_reply_to_tweet_id: "211" } },
     ]));
+  }, 60_000);
+
+  it("X restart recovery passes retained receipts from paused and attention endpoints", async () => {
+    const f = await configuredXEndpoint();
+    for (const status of ["paused", "attention"] as const) {
+      const other = await f.service().create(f.companyId, { provider: "x", assignedAgentId: f.assignedAgentId }, "owner-user");
+      await db.update(chatEndpoints).set({ status }).where(eq(chatEndpoints.id, other.id));
+      await db.insert(chatDeliveries).values(Array.from({ length: 25 }, (_, index) => ({
+        companyId: f.companyId, endpointId: other.id,
+        providerEventId: `${status}-${index}`, deduplicationKey: `${status}-${index}`,
+        eventKind: "message" as const, normalizedEvent: { conversation: { externalThreadId: `retained-${index}` } },
+        state: "received" as const, receivedAt: new Date("2026-01-01T00:00:00Z"),
+      })));
+    }
+    await f.deliver(f.event("700"));
+    await f.restart(); await f.drain();
+    expect(f.wakeup).toHaveBeenCalledOnce();
+    await f.binding("700");
+    const retained = await db.select().from(chatDeliveries).where(and(eq(chatDeliveries.companyId, f.companyId), eq(chatDeliveries.state, "received")));
+    expect(retained).toHaveLength(50);
   }, 60_000);
 
   it("X opt-out and current authority stop work and sends; uncertain sends never retry", async () => {

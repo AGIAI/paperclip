@@ -248,6 +248,20 @@ export function xChannelService(db: Db, hooks: XHooks, fetchImpl = fetch) {
         )
         .limit(1);
       if (parent) return parent.thread;
+      // X can deliver a follow-up before the send response and outbound link
+      // commit. Do not activate a second branch during that publication window.
+      const [sending] = await db
+        .select({ id: chatPublications.id })
+        .from(chatPublications)
+        .where(
+          and(
+            eq(chatPublications.endpointId, endpoint.id),
+            eq(chatPublications.state, "streaming"),
+            sql`${chatPublications.payload}->'xReply' is not null`,
+          ),
+        )
+        .limit(1);
+      if (sending) return null;
     }
     // An explicit new invocation branches at this post, regardless of the
     // original X conversation. Unrelated replies are never wakeups.
@@ -256,6 +270,18 @@ export function xChannelService(db: Db, hooks: XHooks, fetchImpl = fetch) {
       : null;
   }
   async function processIngress(limit = 25) {
+    // Unmatched direct replies stay durable without occupying the ready queue.
+    // Once the exact parent link exists, any process can continue the task.
+    const awaitingParentReady = and(
+      eq(chatActions.status, "awaiting_parent"),
+      or(
+        sql`exists (select 1 from chat_message_links link where link.endpoint_id = ${chatActions.endpointId} and link.direction = 'outbound' and link.provider_message_id = ${chatActions.payload}->>'parentPostId')`,
+        and(
+          sql`${chatActions.payload}->'event'->>'event_type' = 'post.mention.create'`,
+          sql`not exists (select 1 from chat_publications publication where publication.endpoint_id = ${chatActions.endpointId} and publication.state = 'streaming' and publication.payload->'xReply' is not null)`,
+        ),
+      ),
+    );
     const rows = await db
       .select()
       .from(chatActions)
@@ -264,6 +290,7 @@ export function xChannelService(db: Db, hooks: XHooks, fetchImpl = fetch) {
           eq(chatActions.kind, "x_webhook_ingress"),
           or(
             eq(chatActions.status, "received"),
+            awaitingParentReady,
             and(
               eq(chatActions.status, "processing"),
               lte(chatActions.updatedAt, new Date(Date.now() - 120_000)),
@@ -283,6 +310,7 @@ export function xChannelService(db: Db, hooks: XHooks, fetchImpl = fetch) {
             eq(chatActions.id, action.id),
             or(
               eq(chatActions.status, "received"),
+              awaitingParentReady,
               and(
                 eq(chatActions.status, "processing"),
                 lte(chatActions.updatedAt, new Date(Date.now() - 120_000)),
@@ -310,6 +338,25 @@ export function xChannelService(db: Db, hooks: XHooks, fetchImpl = fetch) {
             typeof event.payload.paperclipThreadId === "string"
               ? event.payload.paperclipThreadId
               : await resolveThread(endpoint, event);
+          if (!threadId && xParent(event.payload)) {
+            await db
+              .update(chatActions)
+              .set({
+                status: "awaiting_parent",
+                payload: {
+                  ...claimed.payload,
+                  parentPostId: xParent(event.payload),
+                },
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(chatActions.id, action.id),
+                  sql`${chatActions.result}->>'claim' = ${claim}`,
+                ),
+              );
+            continue;
+          }
           if (threadId) {
             const context =
               event.payload.paperclipContext ??
@@ -444,7 +491,18 @@ export function xChannelService(db: Db, hooks: XHooks, fetchImpl = fetch) {
             eq(chatPublications.idempotencyKey, key),
           ),
         );
-      if (existing) return existing;
+      if (existing) {
+        if (
+          existing.payload.xReply?.replyToPostId !== request.replyToPostId ||
+          existing.payload.text !== request.text
+        ) {
+          throw conflict(
+            "This idempotency key belongs to a different X reply; use a new key for a new interaction",
+            { publicationId: existing.id },
+          );
+        }
+        return existing;
+      }
       const [interaction] = await tx
         .select()
         .from(chatPublications)

@@ -27849,7 +27849,9 @@ export function chatChannelService(db: Db, options: ChatChannelServiceOptions) {
         .from(chatDeliveries)
         .where(
           and(
-            sql`not exists (select 1 from chat_endpoints e where e.id = ${chatDeliveries.endpointId} and e.provider = 'agentmail')`,
+            // These endpoints cannot drain. Keep their receipts durable, but
+            // do not let an old paused backlog starve active connections.
+            sql`not exists (select 1 from chat_endpoints e where e.id = ${chatDeliveries.endpointId} and (e.provider = 'agentmail' or e.status in ('paused', 'attention')))`,
             onlyDeliveryId ? eq(chatDeliveries.id, onlyDeliveryId) : undefined,
             notInArray(chatDeliveries.eventKind, [
               "reaction_added",

@@ -78,10 +78,14 @@ Signed events enter a durable intake ledger before acknowledgement. The patched
 `@chat-adapter/x@4.39.0` normalizes mention and reply events into the shared chat
 runtime using persisted activation roots. Its automatic `postMessage` path is
 disabled. Reply targets never depend on the adapter's in-memory latest post.
+Follow-ups that arrive before their bot-parent link is committed remain in the
+intake ledger and resume when that exact link becomes available, including
+after a restart. Unrelated replies cannot start tasks.
 
 The publication ledger saves exact text and target before any provider request.
-The same key returns the original intent, and the same interaction cannot gain a
-second intent. A worker crash or ambiguous network error becomes
+The same key and payload return the original intent. Reusing a key with a
+different target or text returns a conflict, and the same interaction cannot
+gain a second intent. A worker crash or ambiguous network error becomes
 `delivery_unknown`; it is never automatically replayed. Inspect X and Activity,
 then mark delivered or cancel. Marking delivered does not invent a missing post
 ID or restore follow-up routing to an unknown post. Definite rejections, expired
