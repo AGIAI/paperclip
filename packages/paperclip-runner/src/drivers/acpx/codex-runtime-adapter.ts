@@ -84,6 +84,7 @@ interface AcpxRuntimeGoalState {
 
 interface AcpxRuntimeExtensionTurn {
   requestId: string;
+  sessionId: string;
   controller: AbortController;
   signal: AbortSignal;
   promptStarted: Promise<void>;
@@ -320,7 +321,10 @@ export async function openQualifiedAcpxRuntime(
         throw new Error("ACPX extension request does not own an admitted active turn");
       }
       const signal = AbortSignal.any([active.signal, context.signal]);
-      const response = await abortableExtensionResult(active.onRequest(method, params, { requestId: context.requestId, signal }), signal);
+      // Cursor's native extensions omit sessionId. Only after admission may
+      // that omission inherit this exact prompt's ACP wire session identity.
+      const boundParams = params.sessionId === undefined ? { ...params, sessionId: active.sessionId } : params;
+      const response = await abortableExtensionResult(active.onRequest(method, boundParams, { requestId: context.requestId, signal }), signal);
       signal.throwIfAborted();
       if (!ownsExtensionTurn(active, params)) throw new Error("ACPX extension request turn expired");
       return response;
@@ -328,7 +332,7 @@ export async function openQualifiedAcpxRuntime(
     onExtensionNotification: (method, params) => {
       const active = extensionBoundary.active;
       if (!extensionNotifications.has(method) || !active?.onNotification || !ownsExtensionTurn(active, params)) return;
-      active.onNotification(method, params);
+      active.onNotification(method, params.sessionId === undefined ? { ...params, sessionId: active.sessionId } : params);
     },
     nonInteractivePermissions: "fail",
     permissionPolicy: {
@@ -1316,7 +1320,7 @@ function runtimePort(
       const approval = new AbortController();
       const controller = new AbortController();
       const extensionTurn: AcpxRuntimeExtensionTurn = {
-        requestId: input.requestId, controller,
+        requestId: input.requestId, sessionId: identity.backendSessionId, controller,
         signal: input.signal ? AbortSignal.any([controller.signal, input.signal, approval.signal]) : AbortSignal.any([controller.signal, approval.signal]),
         promptStarted: Promise.resolve(),
         onRequest: input.onExtensionRequest, onNotification: input.onExtensionNotification,
