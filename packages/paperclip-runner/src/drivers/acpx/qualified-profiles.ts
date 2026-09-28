@@ -11,7 +11,7 @@ export interface QualifiedAcpxProfile {
   readonly protocolVersion: typeof ACPX_DRIVER_PROTOCOL_VERSION;
   readonly acpxVersion: typeof QUALIFIED_ACPX_VERSION;
   readonly agent: QualifiedAcpxAgent;
-  readonly agentProfileVersion: 1 | 2 | 3 | 4;
+  readonly agentProfileVersion: 1 | 2 | 3 | 4 | 5;
   readonly qualificationStatus?: "pending";
   readonly modelPolicy?: "explicit-provider-verified";
   /** Wire identity: an npm package name or a runner-owned builtin: identifier. */
