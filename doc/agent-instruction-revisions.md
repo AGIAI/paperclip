@@ -63,6 +63,9 @@ Public operations:
   authorization API. It copies only the current committed head to the managed
   path while holding the agent lock. Call before launching a run that reads disk
   and after restarting following an interrupted materialization.
+- `readCommittedForRuntime(target)` is an internal, company-scoped snapshot read.
+  It neither seeds a head nor writes a disk file. Native bundle construction uses
+  its exact committed bytes so a pending disk projection cannot load old content.
 
 A transaction locks the target agent, rechecks current authority, inserts a
 revision, moves the head, and inserts its activity record. A different current
@@ -153,6 +156,11 @@ Automatic reconciliation preserves existing stock content when no responsible
 operator is present; the available update remains visible for an authorized reset.
 Generic import and plugin reset callers must use the canonical writer to replace
 existing versioned content; their filesystem initialization helper fails closed.
+The managed plugin reset path uses a host-bound plugin principal, not a synthetic
+board actor. Under the agent lock it validates the installed `agents.managed`
+capability, declared agent key, company/resource binding, and ownership marker.
+Reset checks both the observed configured entry and the declared entry's head,
+preserves previous entry history, and records the plugin as its audit actor.
 
 ## Runtime handoff boundary
 
@@ -168,6 +176,12 @@ callbacks and restarts can retry bytes without launching a provider. Failed
 permission/CAS saves preserve candidates, and public diagnostics omit filesystem
 paths. Explicit saves advance the baseline only when the registered copy currently
 matches the committed content; unrelated edits retain the original conflict fence.
+For a same-run retry, a verified stopped copy can refresh from the current head
+only when its bytes are already accounted for by the completed receipt or current
+canonical entry. Staging must succeed before the previous receipt and stop evidence
+are cleared. An interrupted refresh retains that completed record. Uncollected
+private edits keep their old base. An unchanged warm turn retains its live provider
+owner, so an external edit does not silently rebase or rewrite that private copy.
 
 The native runner exposes a stopped-session observer only after its required
 owned close joins successfully. A terminal-turn change probe can retire the exact
@@ -233,3 +247,6 @@ through the same permission and CAS checks. Conflicts retain both the draft and
 its original base. Candidate API responses contain content and diagnostic metadata;
 server and sandbox filesystem roots remain private. Resolve requests accept only
 `content` and `baseRevisionId`; the registered candidate supplies its entry file.
+If the configured entry changed, the editor offers a read-only view and exact copy
+of the old candidate. It cannot implicitly save those bytes into the new entry.
+The operator can explicitly edit the current entry and paste the recovered text.
