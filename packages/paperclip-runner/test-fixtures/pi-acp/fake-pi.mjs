@@ -32,6 +32,16 @@ createInterface({ input: process.stdin }).on("line", (line) => {
   if (request.type === "abort") { response(); if (active) { active = false; output({ type: "agent_settled" }); } return; }
   if (request.type === "prompt") {
     response({ disposition: "started" }); active = true; output({ type: "agent_start" });
+    if (request.message.startsWith("bash-")) {
+      const failure = request.message === "bash-failure";
+      const oversized = request.message === "bash-oversized";
+      const args = { command: failure ? "printf failure >&2; exit 7" : "printf done", timeout: 3 };
+      const result = { content: [{ type: "text", text: oversized ? "x".repeat(65536) : failure ? "failure\n" : "done\n" }], details: { exitCode: failure ? 7 : 0, truncated: false } };
+      output({ type: "tool_execution_start", toolCallId: "bash-fixture", toolName: "bash", args });
+      output({ type: "tool_execution_update", toolCallId: "bash-fixture", toolName: "bash", partialResult: { content: [{ type: "text", text: "partial" }] } });
+      output({ type: "tool_execution_end", toolCallId: "bash-fixture", toolName: "bash", result, isError: failure });
+      finish("bash completed"); return;
+    }
     if (request.message === "die") { process.exit(4); }
     if (request.message === "long") return;
     if (["retry-success", "retry-failure", "retry-unknown"].includes(request.message)) {

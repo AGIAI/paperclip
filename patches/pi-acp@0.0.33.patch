@@ -174,7 +174,22 @@
    );
  }
 
-@@ -714,6 +719,7 @@
+@@ -534,6 +539,14 @@
+   const record = value;
+   const command = record?.command ?? record?.cmd ?? record?.args?.command ?? record?.args?.cmd ?? record?.input?.command ?? record?.input?.cmd ?? record?.rawInput?.command ?? record?.rawInput?.cmd ?? record?.toolInput?.command ?? record?.toolInput?.cmd ?? record?.details?.command ?? record?.details?.cmd;
+   return typeof command === "string" && command.trim() ? command : void 0;
++}
++// Standard ACP data survives clients that do not consume terminal metadata.
++// Keep each structured native value whole or explicitly omit it at a byte bound.
++function boundedBashValue(value) {
++  const encoded = JSON.stringify(value);
++  if (encoded === void 0) return void 0;
++  const bytes = Buffer.byteLength(encoded);
++  return bytes <= 65536 ? value : { _meta: { paperclipPi: { omitted: "tool value exceeds 65536 bytes", originalBytes: bytes } } };
+ }
+ function bashResultText(result) {
+   const record = result;
+@@ -714,6 +727,7 @@
      try {
        proc = await PiRpcProcess.spawn({
          cwd: params.cwd,
@@ -182,7 +197,7 @@
          piCommand: params.piCommand
        });
      } catch (e) {
-@@ -808,6 +814,9 @@
+@@ -808,6 +822,9 @@
      this.proc = opts.proc;
      this.conn = opts.conn;
      this.fileCommands = opts.fileCommands ?? [];
@@ -192,7 +207,7 @@
      this.proc.onEvent((ev) => this.handlePiEvent(ev));
    }
    setStartupInfo(text) {
-@@ -852,6 +861,7 @@
+@@ -852,6 +869,7 @@
    }
    async cancel() {
      this.cancelRequested = true;
@@ -200,7 +215,23 @@
      if (this.turnQueue.length) {
        const queued = this.turnQueue.splice(0, this.turnQueue.length);
        for (const t of queued) t.resolve("cancelled");
-@@ -920,12 +930,16 @@
+@@ -890,6 +908,7 @@
+       kind: "execute",
+       status: params.status,
+       locations: params.locations,
++      rawInput: boundedBashValue(params.args),
+       ...params.includeTerminal ? { content: bashTerminalContent(params.toolCallId) } : {},
+       ...params.includeTerminal ? { _meta: bashTerminalInfoMeta(params.toolCallId, this.cwd) } : {}
+     });
+@@ -903,6 +922,7 @@
+       sessionUpdate: "tool_call_update",
+       toolCallId: params.toolCallId,
+       status: params.status,
++      rawOutput: boundedBashValue(params.result),
+       _meta: {
+         ...delta ? bashTerminalOutputMeta(params.toolCallId, delta) : {},
+         ...params.status === "completed" || params.status === "failed" ? bashTerminalExitMeta(params.toolCallId, bashExitCode(params.result, Boolean(params.isError))) : {}
+@@ -920,12 +940,16 @@
      this.cancelRequested = false;
      this.inAgentLoop = false;
      this.pendingTurn = { resolve: t.resolve, reject: t.reject };
@@ -217,7 +248,7 @@
          const authErr = maybeAuthRequiredError(err);
          if (authErr) {
            this.pendingTurn?.reject(authErr);
-@@ -946,6 +960,23 @@
+@@ -946,6 +970,23 @@
    handlePiEvent(ev) {
      const type = String(ev.type ?? "");
      switch (type) {
@@ -241,7 +272,7 @@
        case "message_update": {
          const ame = ev.assistantMessageEvent;
          if (ame?.type === "text_delta" && typeof ame.delta === "string") {
-@@ -1047,7 +1078,7 @@
+@@ -1047,7 +1088,7 @@
            if (p) {
              try {
                const abs = isAbsolute(p) ? p : resolvePath(this.cwd, p);
@@ -250,7 +281,7 @@
                this.fileSnapshots.set(toolCallId, { path: p, oldText: snapshotOldText });
                if (toolName === "edit") {
                  for (const needle of getEditOldTexts(args)) {
-@@ -1125,7 +1156,7 @@
+@@ -1125,7 +1166,7 @@
          if (!isError && snapshot) {
            try {
              const abs = isAbsolute(snapshot.path) ? snapshot.path : resolvePath(this.cwd, snapshot.path);
@@ -259,7 +290,7 @@
              if (snapshot.oldText === null || newText !== snapshot.oldText) {
                hasStructuredDiff = true;
                content = [
-@@ -1154,14 +1185,11 @@
+@@ -1154,14 +1195,11 @@
          break;
        }
        case "extension_ui_request": {
@@ -278,7 +309,7 @@
          break;
        }
        case "auto_retry_start": {
-@@ -1174,28 +1202,31 @@
+@@ -1174,28 +1212,31 @@
        case "auto_retry_end": {
          this.emit({
            sessionUpdate: "agent_message_chunk",
@@ -326,7 +357,7 @@
          break;
        }
        case "agent_start": {
-@@ -1210,9 +1241,12 @@
+@@ -1210,9 +1251,12 @@
          break;
        }
        case "agent_settled": {
@@ -340,7 +371,7 @@
            this.pendingTurn = null;
            this.inAgentLoop = false;
            const next = this.turnQueue.shift();
-@@ -1725,6 +1759,7 @@
+@@ -1725,6 +1769,7 @@
    return process.env.PI_CODING_AGENT_DIR ? resolve3(process.env.PI_CODING_AGENT_DIR) : join4(homedir4(), ".pi", "agent");
  }
  function getEnableSkillCommands(cwd) {
@@ -348,7 +379,7 @@
    const merged = getMergedSettings(cwd);
    const direct = merged.enableSkillCommands;
    if (typeof direct === "boolean") return direct;
-@@ -1733,6 +1768,7 @@
+@@ -1733,6 +1778,7 @@
    return true;
  }
  function getQuietStartup(cwd) {
@@ -356,7 +387,7 @@
    const merged = getMergedSettings(cwd);
    const direct = merged.quietStartup;
    if (typeof direct === "boolean") return direct;
-@@ -1824,6 +1860,7 @@
+@@ -1824,6 +1870,7 @@
    const out = [];
    const seen = /* @__PURE__ */ new Set();
    for (const c of [...a, ...b]) {
@@ -364,7 +395,7 @@
      if (seen.has(c.name)) continue;
      seen.add(c.name);
      out.push(c);
-@@ -1884,11 +1921,13 @@
+@@ -1884,11 +1931,13 @@
          throw RequestError3.invalidParams(`Unknown sessionId: ${sessionId}`);
        }
        const cwd = opts?.cwd ?? stored.cwd;
@@ -378,7 +409,7 @@
            piCommand: process.env.PI_ACP_PI_COMMAND
          });
        } catch (e) {
-@@ -1897,7 +1936,7 @@
+@@ -1897,7 +1946,7 @@
          }
          throw e;
        }
@@ -387,7 +418,7 @@
        const session = this.sessions.getOrCreate(sessionId, {
          cwd,
          mcpServers: opts?.mcpServers ?? [],
-@@ -1917,6 +1956,7 @@
+@@ -1917,6 +1966,7 @@
      }
    }
    async initialize(params) {
@@ -395,7 +426,7 @@
      const supportedVersion = 1;
      const requested = params.protocolVersion;
      return {
-@@ -1933,7 +1973,8 @@
+@@ -1933,7 +1983,8 @@
        }),
        agentCapabilities: {
          loadSession: true,
@@ -405,7 +436,7 @@
          promptCapabilities: {
            image: true,
            audio: false,
-@@ -1942,8 +1983,7 @@
+@@ -1942,8 +1993,7 @@
          sessionCapabilities: {
            // **UNSTABLE** ACP capability used by Zed's codex-acp adapter.
            // Enables a native session picker in clients that support it.
@@ -415,7 +446,7 @@
          }
        }
      };
-@@ -1953,7 +1993,7 @@
+@@ -1953,7 +2003,7 @@
        throw RequestError3.invalidParams(`cwd must be an absolute path: ${params.cwd}`);
      }
      this.lastSessionCwd = params.cwd;
@@ -424,7 +455,7 @@
      const enableSkillCommands = getEnableSkillCommands(params.cwd);
      const session = await this.sessions.create({
        cwd: params.cwd,
-@@ -1994,14 +2034,14 @@
+@@ -1994,14 +2044,14 @@
        this.cleanupFailedNewSession(session.sessionId, state);
        throw RequestError3.authRequired(
          { authMethods: getAuthMethods() },
@@ -441,7 +472,7 @@
        );
      }
      const { configOptions, models, modes } = await getSessionConfiguration(session.proc, {
-@@ -2064,34 +2104,27 @@
+@@ -2064,34 +2114,27 @@
    }
    async prompt(params) {
      const session = await this.restoreSession(params.sessionId);
@@ -488,7 +519,7 @@
        }
        if (cmd === "session") {
          const stats = await session.proc.getSessionStats();
-@@ -2432,8 +2465,18 @@
+@@ -2432,8 +2475,18 @@
        }
      }
      const result = await session.prompt(message, images);
@@ -509,7 +540,7 @@
    }
    async cancel(params) {
      const session = this.sessions.maybeGet(params.sessionId);
-@@ -2473,7 +2516,7 @@
+@@ -2473,7 +2526,7 @@
        mcpServers: params.mcpServers
      });
      const proc = session.proc;
@@ -518,7 +549,7 @@
      this.sessions.closeAllExcept?.(session.sessionId);
      this.store.upsert({
        sessionId: params.sessionId,
-@@ -2607,6 +2650,7 @@
+@@ -2607,6 +2660,7 @@
      return response;
    }
    async deleteSession(params) {
@@ -526,7 +557,7 @@
      const stored = this.store.get(params.sessionId);
      const piSession = findPiSession(params.sessionId);
      if (!stored && !piSession) {
-@@ -2828,6 +2872,7 @@
+@@ -2828,6 +2882,7 @@
    return 0;
  }
  function buildUpdateNotice() {
@@ -534,7 +565,7 @@
    try {
      const piVersion = spawnSync("pi", ["--version"], { encoding: "utf-8" });
      const installed = (String(piVersion.stdout ?? "").trim() || String(piVersion.stderr ?? "").trim()).replace(
-@@ -2848,6 +2893,7 @@
+@@ -2848,6 +2903,7 @@
    }
  }
  function buildStartupInfo(opts) {
@@ -542,7 +573,7 @@
    void opts.fileCommands;
    const md = [];
    try {
-@@ -2980,6 +3026,7 @@
+@@ -2980,6 +3036,7 @@
 
  // src/index.ts
  if (process.argv.includes("--terminal-login")) {
@@ -550,7 +581,7 @@
    const { spawnSync: spawnSync2 } = await import("child_process");
    const cmd = getPiCommand(process.env.PI_ACP_PI_COMMAND);
    const res = spawnSync2(cmd, [], {
-@@ -3019,11 +3066,12 @@
+@@ -3019,11 +3076,12 @@
    }
  });
  var stream = ndJsonStream(input, output);

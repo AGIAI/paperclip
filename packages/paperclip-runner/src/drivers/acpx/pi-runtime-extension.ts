@@ -11,6 +11,8 @@ export const PI_PERMISSION_OPTIONS = ["Allow once", "Allow for this session", "D
 const MAX_CONFIGURATION_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const MAX_TOOLS = 512;
+// Match the sidecar safeText error bound; the extension is an immutable standalone module.
+const MAX_ERROR_BYTES = 8_192;
 
 interface PiUi {
   select(title: string, options: string[]): Promise<string | undefined>;
@@ -160,6 +162,32 @@ export async function checkPiNativeTool(
   return "Pi tool path is outside its assigned workspace";
 }
 
+/** Keep authenticated tool validation useful without exposing transport credentials. */
+function piMcpToolError(result: Record<string, unknown>, config: PiRuntimeConfiguration): Error {
+  const fallback = "Paperclip tool request was rejected";
+  if (!Array.isArray(result.content) || result.content.length > MAX_TOOLS) return new Error(`${fallback}: invalid error content`);
+  const parts: string[] = [];
+  for (const item of result.content) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return new Error(`${fallback}: invalid error content`);
+    const block = item as Record<string, unknown>;
+    if (block.type !== "text" || typeof block.text !== "string") return new Error(`${fallback}: invalid error content`);
+    parts.push(block.text);
+  }
+  if (result.structuredContent !== undefined) {
+    if (!result.structuredContent || typeof result.structuredContent !== "object" || Array.isArray(result.structuredContent)) return new Error(`${fallback}: invalid error details`);
+    parts.push(JSON.stringify(result.structuredContent));
+  }
+  let message = `${fallback}: ${parts.join("\n").trim() || "no validation details"}`;
+  if (Buffer.byteLength(message) > MAX_ERROR_BYTES) return new Error(`${fallback}: error content exceeds ${MAX_ERROR_BYTES} bytes`);
+  const boundSecrets = [process.env.OPENROUTER_API_KEY, ...config.servers.flatMap(server => server.headers.flatMap(header => [header.value, header.value.replace(/^Bearer /, "")]))];
+  for (const secret of boundSecrets) if (secret) message = message.split(secret).join("[REDACTED]");
+  // Use the same labelled-secret rule as sidecar safeText, also covering JSON
+  // quoted keys and bearer values that can occur in gateway error text.
+  message = message.replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, "Bearer [REDACTED]")
+    .replace(/(key|token|secret|password|authorization)["']?\s*[:=]\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s,}\]]+)/gi, "$1=[REDACTED]");
+  return new Error(Buffer.byteLength(message) <= MAX_ERROR_BYTES ? message : `${fallback}: redacted error content exceeds ${MAX_ERROR_BYTES} bytes`);
+}
+
 /** Bounded JSON MCP client for runner-owned HTTP bridges. No redirects or files. */
 export async function piMcpRequest(
   server: PiMcpServer,
@@ -258,7 +286,8 @@ export async function installPiRuntimeExtension(
         parameters: structuredClone(schema),
         async execute(callId, arguments_, signal) {
           const result = await request(server, "tools/call", { name: sourceName, arguments: arguments_ }, callId, signal);
-          if (result.isError === true) throw new Error("Paperclip tool request was rejected");
+          if (result.isError !== undefined && typeof result.isError !== "boolean") throw new Error("Pi MCP tool error flag is invalid");
+          if (result.isError === true) throw piMcpToolError(result, config);
           if (!Array.isArray(result.content)) throw new Error("Pi MCP tool result is invalid");
           const content = result.content.map((item) => {
             const block = asRecord(item);

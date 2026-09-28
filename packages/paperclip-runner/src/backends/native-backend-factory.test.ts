@@ -534,10 +534,10 @@ describe("native backend factory", () => {
     })).toThrow("ACPX candidate direct execution requires completed qualification");
   });
 
-  it("rejects a Pi version 1 warm snapshot after the rich ACP upgrade", () => {
+  it.each([1, 2] as const)("rejects a Pi version %s warm snapshot after the rich ACP upgrade", version => {
     const input = acpxExecution("pi");
     if (input.provider.kind !== "acpx") throw new Error("invalid fixture");
-    input.provider.profile.agentProfileVersion = 1;
+    input.provider.profile.agentProfileVersion = version;
     expect(() => createNativeSessionBackend(input, { acpxRuntimeDirectory: "/runtime" }))
       .toThrow("does not match the qualified agentProfileVersion");
   });

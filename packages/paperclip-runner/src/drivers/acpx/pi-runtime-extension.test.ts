@@ -152,6 +152,44 @@ describe("owned Pi runtime extension", () => {
     expect(select).not.toHaveBeenCalled();
   });
 
+  it("preserves bounded MCP validation errors as failures and removes bound authentication", async () => {
+    const { config } = await workspace(); const h = harness();
+    const authorization = "Bearer assigned-mcp-token-123456789";
+    config.servers = [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1234", headers: [{ name: "Authorization", value: authorization }] }];
+    const request = vi.fn(async (_server, method) => method === "tools/list"
+      ? { tools: [{ name: "paperclip_finish", inputSchema: { type: "object" } }] }
+      : method === "tools/call" ? { isError: true, content: [{ type: "text", text: `completionClaim.contractRevision must equal 1; verification.items[0].status is invalid; Authorization: ${authorization}; token=other-private-value; \"password\":\"another-secret\"` }], structuredContent: { code: "INVALID_VERIFICATION", field: "verification.items[0].status" } } : {});
+    await installPiRuntimeExtension(h.api, config, request);
+    const error = await h.tools[0]!.execute("original-call", {}).catch(value => value);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain("completionClaim.contractRevision must equal 1");
+    expect(error.message).toContain("verification.items[0].status is invalid");
+    expect(error.message).not.toContain("assigned-mcp-token-123456789");
+    expect(error.message).not.toContain("other-private-value");
+    expect(error.message).not.toContain("another-secret");
+    expect(error.message).toContain("INVALID_VERIFICATION");
+    expect(error.message).toContain("[REDACTED]");
+  });
+
+  it.each([
+    { isError: true, content: [{ type: "text", text: "x".repeat(9000) }] },
+    { isError: true, content: [{ type: "text", text: { unsafe: "not text" } }] },
+    { isError: true, content: [{ type: "image", data: "not an error description", mimeType: "image/png" }] },
+    { isError: true, content: null },
+    { isError: "true", content: [{ type: "text", text: "malformed error flag" }] },
+  ])("fails closed for oversized or malformed MCP error content %#", async result => {
+    const { config } = await workspace(); const h = harness();
+    config.servers = [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1234", headers: [] }];
+    const request = vi.fn(async (_server, method) => method === "tools/list"
+      ? { tools: [{ name: "paperclip_finish", inputSchema: { type: "object" } }] }
+      : method === "tools/call" ? result : {});
+    await installPiRuntimeExtension(h.api, config, request);
+    const error = await h.tools[0]!.execute("call", {}).catch(value => value);
+    expect(error).toBeInstanceOf(Error);
+    expect(Buffer.byteLength(error.message)).toBeLessThanOrEqual(8192);
+    expect(error.message).not.toContain("not an error description");
+  });
+
   it("rejects incomplete catalogs and tool-result errors without exposing auth", async () => {
     const { config } = await workspace(); const h = harness();
     config.servers = [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1234", headers: [] }];

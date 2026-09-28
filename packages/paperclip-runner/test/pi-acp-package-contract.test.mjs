@@ -159,3 +159,26 @@ test("manual and automatic compaction retain Pi 0.84.2 progress and usage", asyn
   f.notify("session/cancel", { sessionId: session.sessionId }); await active;
   assert.match(packageSource, /this\.request\(\{ type: "compact", customInstructions \}, 120000\)/);
 });
+
+for (const outcome of ["success", "failure", "oversized"]) {
+  test(`actual patched ACP Bash ${outcome} retains standard structured tool data`, async (t) => {
+    const f = await fixture(t);
+    const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
+    const result = await f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: `bash-${outcome}` }] });
+    assert.equal(result.stopReason, "end_turn");
+    const updates = f.notifications.map((event) => event.params?.update).filter((update) => update?.toolCallId === "bash-fixture");
+    assert.deepEqual(updates[0].rawInput, { command: outcome === "failure" ? "printf failure >&2; exit 7" : "printf done", timeout: 3 });
+    assert.deepEqual(updates[1].rawOutput, { content: [{ type: "text", text: "partial" }] });
+    const terminal = updates.at(-1);
+    assert.equal(terminal.status, outcome === "failure" ? "failed" : "completed");
+    if (outcome === "oversized") {
+      assert.equal(terminal.rawOutput._meta.paperclipPi.omitted, "tool value exceeds 65536 bytes");
+      assert.ok(terminal.rawOutput._meta.paperclipPi.originalBytes > 65536);
+      assert.ok(Buffer.byteLength(JSON.stringify(terminal.rawOutput)) < 256);
+    } else {
+      assert.deepEqual(terminal.rawOutput, { content: [{ type: "text", text: outcome === "failure" ? "failure\n" : "done\n" }], details: { exitCode: outcome === "failure" ? 7 : 0, truncated: false } });
+    }
+    // Preserve existing terminal consumers without inferring a canonical exit code.
+    assert.equal(terminal._meta.terminal_exit.exit_code, outcome === "failure" ? 7 : 0);
+  });
+}

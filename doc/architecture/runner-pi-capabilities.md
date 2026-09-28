@@ -204,7 +204,7 @@ that those targets have executed successfully.
 
 ### Installation authority and token semantics
 
-`verifyPiInstallation(profile)` admits only profile version 2 and the source-owned
+`verifyPiInstallation(profile)` admits only profile version 3 and the source-owned
 Pi identity. It resolves `provider-assets/pi/<platform>-<arch>` inside the verified
 Runner package, checks the complete runtime against source-pinned closure hashes,
 and opens a guarded immutable native snapshot. The snapshot bootstrap binds Node,
@@ -227,9 +227,9 @@ The first authenticated local Runner snapshot verified the exact configured
 model ID. It did not settle or produce a terminal usage receipt; complete local
 and Linux/Daytona receipt qualification remains outstanding.
 
-Profile version 2 declaration digest: `sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1`. It hashes the versioned
+Profile version 3 declaration digest: `sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472`. It hashes the versioned
 profile domain, patched wrapper source and platform closure pins. Every native
-closure remains independently checked at launch. Version 1 warm sessions cannot
+closure remains independently checked at launch. Version 1 and 2 warm sessions cannot
 be reused with this integration.
 
 Pi 0.84.2 emits `compaction_start`/`compaction_end`; the wrapper maps those
@@ -441,3 +441,31 @@ reports and fixtures; an execution-source change requires a fresh build.
 
 Production admission remains qualification-pending until the live matrix and
 spend receipt checks pass.
+
+
+## Version 3: retain failed tool validation and Bash results
+
+The version 2 file-edit Product attempt exposed an owned bridge defect: five
+`paperclip_finish` calls returned failed MCP results, but the extension replaced
+all authenticated validation text with a generic rejection. Version 3 keeps
+valid text and structured error details within an 8 KiB UTF-8 bound, redacts
+bound credentials and labelled secrets, and still raises a failed tool result.
+Malformed or oversized errors remain explicit failures. The original five call
+arguments were not retained across the privacy boundary, and the fixture's
+workspace was removed during cleanup, so this report does not reconstruct their
+contents or assert that the file oracle passed.
+
+A separate Bash projection gap discarded native result fields because upstream
+sent them only as private terminal metadata. The wrapper now also emits standard
+ACP `rawInput` and `rawOutput`, preserving each structured value whole up to
+64 KiB and marking larger values omitted. Installed-process fixtures cover
+success, failure, partial output and the size boundary. Canonical `exitCode`
+remains unknown: the shared projection does not yet map the native structured
+field, and this patch does not infer it from text or success status.
+
+These changes alter the immutable wrapper and owned extension. All three target
+closure pins and the versioned profile digest change; version 2 warm snapshots
+are rejected. Earlier local hello, restrictive-denial and Linux initialization
+proofs remain tied to their version 2 execution source. Version 3 must complete
+fresh immutable-pack checks and paid qualification before those behaviors can be
+claimed for its bytes.
