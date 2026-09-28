@@ -14337,7 +14337,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     ).rejects.toBeDefined();
   });
 
-  it("retries a durable lifecycle row without treating it as a message delivery", async () => {
+  it.each(["active", "paused", "attention"] as const)("retries a durable lifecycle row without treating it as a message delivery (%s)", async (status) => {
     const fixture = await seedCompany();
     const { endpoint, service } = await configuredSlackEndpoint(fixture);
     const configuredEndpoint = await service.get(endpoint.id);
@@ -14375,6 +14375,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
       );
     expect(retry).toMatchObject({ state: "retry", attempts: 1 });
 
+    await db.update(chatEndpoints).set({ status }).where(eq(chatEndpoints.id, endpoint.id));
     await service.processPendingDeliveries(25, retry!.id);
     await expect(
       db

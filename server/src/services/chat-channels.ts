@@ -27849,9 +27849,9 @@ export function chatChannelService(db: Db, options: ChatChannelServiceOptions) {
         .from(chatDeliveries)
         .where(
           and(
-            // These endpoints cannot drain. Keep their receipts durable, but
-            // do not let an old paused backlog starve active connections.
-            sql`not exists (select 1 from chat_endpoints e where e.id = ${chatDeliveries.endpointId} and (e.provider = 'agentmail' or e.status in ('paused', 'attention')))`,
+            // Paused conversations cannot drain. Keep their receipts durable,
+            // while allowing lifecycle recovery and active connections through.
+            sql`not exists (select 1 from chat_endpoints e where e.id = ${chatDeliveries.endpointId} and (e.provider = 'agentmail' or (e.status in ('paused', 'attention') and ${chatDeliveries.eventKind} not in ('installation', 'uninstallation'))))`,
             onlyDeliveryId ? eq(chatDeliveries.id, onlyDeliveryId) : undefined,
             notInArray(chatDeliveries.eventKind, [
               "reaction_added",
