@@ -1,4 +1,5 @@
 /** Source for the helper embedded in patches/pi-acp@0.0.33.patch. */
+import { createHash, randomUUID } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync } from "node:fs";
@@ -25,6 +26,92 @@ export const PI_ACP_FEATURES = Object.freeze({
   nativePermissions: true, promptUsage: true, nativePlan: false,
   pendingRequestRecovery: "live-process-only",
 });
+
+/** One trusted Pi model iteration, not one ACP prompt. Pi resets its own turnIndex
+ * on warm prompts; our ordinal is monotonic for the lifetime of the child. */
+export class PiToolIdentities {
+  private ordinal = 0;
+  private active = false;
+  private poisoned = false;
+  private entries = new Map<string, { id: string; nativeId: string; fingerprint?: string; claimed: boolean }>();
+  private namespace: string;
+  constructor(namespace: string) {
+    this.namespace = namespace;
+    if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(namespace)) throw new Error("Pi invocation namespace is invalid");
+  }
+  private fail(message: string): never { this.poisoned = true; throw new Error(message); }
+  begin(): void {
+    if (this.poisoned || this.active || this.ordinal >= Number.MAX_SAFE_INTEGER) this.fail("Pi model iteration identity is ambiguous");
+    this.ordinal++; this.active = true; this.entries.clear();
+  }
+  end(): void {
+    if (this.poisoned || !this.active) this.fail("Pi model iteration identity is unavailable");
+    this.active = false;
+  }
+  identity(nativeId: unknown): string {
+    if (this.poisoned || this.ordinal === 0) this.fail("Pi model iteration identity is unavailable");
+    let native: string;
+    try { native = text(nativeId, 256); } catch { return this.fail("Pi native tool identity is invalid"); }
+    if (!native) this.fail("Pi native tool identity is missing");
+    const prior = this.entries.get(native);
+    if (prior) return prior.id;
+    if (!this.active || this.entries.size >= 4096) this.fail("Pi tool identity is outside its iteration bound");
+    const id = `pi-${createHash("sha256").update(JSON.stringify([this.namespace, this.ordinal, native])).digest("hex")}`;
+    this.entries.set(native, { id, nativeId: native, claimed: false });
+    return id;
+  }
+  bind(nativeId: string, name: string, args: unknown, claim = false): string {
+    if (this.poisoned || !this.active) this.fail("Pi tool invocation has no active model iteration");
+    const id = this.identity(nativeId); const entry = this.entries.get(nativeId)!;
+    const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical)
+      : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)])) : value;
+    let encoded: string;
+    try { encoded = JSON.stringify([text(name, 256), canonical(args)]); }
+    catch { return this.fail("Pi tool invocation is invalid"); }
+    if (Buffer.byteLength(encoded) > 1_048_576) this.fail("Pi tool invocation is oversized");
+    const fingerprint = createHash("sha256").update(encoded).digest("hex");
+    if ((claim && entry.claimed) || (entry.fingerprint !== undefined && entry.fingerprint !== fingerprint)) this.fail("Pi native tool invocation identity conflict");
+    entry.fingerprint = fingerprint; if (claim) entry.claimed = true;
+    return id;
+  }
+  provenance(id: string): RecordValue | undefined {
+    for (const entry of this.entries.values()) if (entry.id === id) return { nativeToolCallId: entry.nativeId, modelIteration: this.ordinal, identityScope: "native-model-iteration" };
+    return undefined;
+  }
+  normalize(event: RecordValue): RecordValue {
+    if (event.type === "turn_start") { this.begin(); return event; }
+    if (event.type === "turn_end") { this.end(); return event; }
+    if (["tool_execution_start", "tool_execution_update", "tool_execution_end"].includes(String(event.type))) {
+      const native = text(event.toolCallId, 256);
+      const id = event.type === "tool_execution_start" ? this.bind(native, text(event.toolName, 256), event.args, true) : this.identity(native);
+      return { ...event, toolCallId: id };
+    }
+    if (event.type === "message_update" && event.assistantMessageEvent) {
+      const update = record(event.assistantMessageEvent);
+      const normalizeTool = (value: unknown, direct = false): unknown => {
+        if (!value || typeof value !== "object") return value;
+        const block = record(value);
+        // Empty IDs during initial streaming do not identify an executable call.
+        return (direct || block.type === "toolCall") && typeof block.id === "string" && block.id
+          ? { ...block, id: this.identity(block.id) } : value;
+      };
+      const partial = update.partial && typeof update.partial === "object" ? record(update.partial) : undefined;
+      return { ...event, assistantMessageEvent: { ...update,
+        ...(update.toolCall ? { toolCall: normalizeTool(update.toolCall, true) } : {}),
+        ...(partial && Array.isArray(partial.content) ? { partial: { ...partial, content: partial.content.map((block) => normalizeTool(block)) } } : {}),
+      } };
+    }
+    return event;
+  }
+}
+
+/** Session history is presentation-only and must never acquire a live delivery ID. */
+export function piHistoricalToolIdentity(sessionId: string, messageIndex: number, nativeId: string): { id: string; provenance: RecordValue } {
+  const session = text(sessionId, 1024); const native = text(nativeId, 256);
+  if (!session || !native || !Number.isSafeInteger(messageIndex) || messageIndex < 0) throw new Error("Pi history tool identity is invalid");
+  return { id: `pi-history-${createHash("sha256").update(JSON.stringify([session, messageIndex, native])).digest("hex")}`,
+    provenance: { nativeToolCallId: native, historyMessageIndex: messageIndex, identityScope: "history-display-only" } };
+}
 
 /** Strict LF framing: Unicode line separators inside JSON are ordinary text. */
 export class PiRpcFrames {
@@ -96,7 +183,7 @@ export function snapshotPiWorkspaceFile(cwd: string, path: string, environment: 
 export function createPiLaunchSpec(
   params: { cwd: string; mcpServers?: unknown[]; sessionPath?: string },
   environment: NodeJS.ProcessEnv,
-): { command: string; args: string[]; env: NodeJS.ProcessEnv } {
+): { command: string; args: string[]; env: NodeJS.ProcessEnv; invocationNamespace: string } {
   if (environment.PAPERCLIP_ACPX_ISOLATED_CONTEXT !== "1") throw new Error("Pi requires an isolated runner launch");
   const command = requiredFile(environment, "PAPERCLIP_PI_NODE_EXECUTABLE");
   const entrypoint = requiredFile(environment, "PAPERCLIP_PI_ENTRYPOINT");
@@ -105,8 +192,9 @@ export function createPiLaunchSpec(
   const readRoots = pathArray(environment.PAPERCLIP_PI_READ_ROOTS);
   const protectedRoots = pathArray(environment.PAPERCLIP_PI_PROTECTED_ROOTS);
   const workspace = realpathSync(params.cwd);
+  const invocationNamespace = randomUUID();
   const configuration = JSON.stringify({
-    workspace, servers: params.mcpServers ?? [],
+    invocationNamespace, workspace, servers: params.mcpServers ?? [],
     readOnly: environment.PAPERCLIP_PI_READ_ONLY === "1",
     readRoots, protectedRoots,
     instructions: environment.PAPERCLIP_PI_SYSTEM_INSTRUCTIONS ?? "",
@@ -125,7 +213,7 @@ export function createPiLaunchSpec(
     if (!suffix || isAbsolute(suffix) || suffix === ".." || suffix.startsWith(`..${sep}`) || !lstatSync(params.sessionPath).isFile()) throw new Error("Pi session escaped its private home");
     args.push("--session", sessionPath);
   }
-  return { command, args, env: { ...environment, PAPERCLIP_PI_RUNTIME_CONFIGURATION: configuration } };
+  return { command, args, invocationNamespace, env: { ...environment, PAPERCLIP_PI_RUNTIME_CONFIGURATION: configuration } };
 }
 
 interface UiConnection {
@@ -175,7 +263,7 @@ export class PiUiBridge {
         const input = record(permission.input);
         const result = record(await this.connection.requestPermission({
           sessionId: this.sessionId,
-          toolCall: { toolCallId, title: `Pi ${toolName}`, kind: toolName === "bash" ? "execute" : ["write", "edit"].includes(toolName) ? "edit" : "read", status: "pending", rawInput: input },
+          toolCall: { toolCallId, _meta: { paperclipPi: { nativeToolCallId: text(permission.nativeToolCallId, 256), modelIteration: permission.modelIteration } }, title: `Pi ${toolName}`, kind: toolName === "bash" ? "execute" : ["write", "edit"].includes(toolName) ? "edit" : "read", status: "pending", rawInput: input },
           options: PERMISSION_CHOICES,
         }));
         const outcome = record(result.outcome);

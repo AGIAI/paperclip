@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPiLaunchSpec, PiRpcFrames, PiTurnUsage, PiUiBridge } from "./pi-acp-runtime.js";
+import { createPiLaunchSpec, PiToolIdentities, PiRpcFrames, PiTurnUsage, PiUiBridge } from "./pi-acp-runtime.js";
 
 const temporary: string[] = [];
 afterEach(async () => { vi.useRealTimers(); for (const path of temporary.splice(0)) await rm(path, { recursive: true, force: true }); });
@@ -11,6 +11,48 @@ function fixture() {
   const process = { sendExtensionUiResponse: vi.fn().mockResolvedValue(undefined) };
   return { connection, process, bridge: new PiUiBridge("session-a", connection, process) };
 }
+
+describe("Pi occurrence identity", () => {
+  const namespace = "00000000-0000-4000-8000-000000000000";
+  it("aligns independent wrapper and extension counters without resetting warm prompts", () => {
+    const wrapper = new PiToolIdentities(namespace); const extension = new PiToolIdentities(namespace);
+    const ids: string[] = [];
+    for (let iteration = 1; iteration <= 3; iteration++) {
+      wrapper.normalize({ type: "turn_start" }); extension.begin();
+      const id = extension.bind("call_0", "write", { path: "out", content: "x" }, true);
+      const event = wrapper.normalize({ type: "tool_execution_start", toolCallId: "call_0", toolName: "write", args: { content: "x", path: "out" } });
+      expect(event.toolCallId).toBe(id); expect(wrapper.provenance(id)).toMatchObject({ nativeToolCallId: "call_0", modelIteration: iteration });
+      expect(wrapper.normalize({ type: "tool_execution_end", toolCallId: "call_0" }).toolCallId).toBe(id);
+      ids.push(id); wrapper.normalize({ type: "turn_end" }); extension.end();
+    }
+    expect(new Set(ids).size).toBe(3);
+  });
+  it("poisons exhausted iteration and tool bounds", () => {
+    const exhausted = new PiToolIdentities(namespace);
+    // Exercise the numerical guard without performing MAX_SAFE_INTEGER turns.
+    (exhausted as unknown as { ordinal: number }).ordinal = Number.MAX_SAFE_INTEGER;
+    expect(() => exhausted.begin()).toThrow("ambiguous");
+    expect(() => exhausted.identity("call")).toThrow("unavailable");
+    const full = new PiToolIdentities(namespace); full.begin();
+    for (let index = 0; index < 4096; index++) full.identity(`call_${index}`);
+    expect(() => full.identity("call_4096")).toThrow("bound");
+    expect(() => full.identity("call_0")).toThrow("unavailable");
+  });
+  it("fails closed on missing/duplicate iteration boundaries and ambiguous duplicate tools", () => {
+    const missing = new PiToolIdentities(namespace);
+    expect(() => missing.bind("call", "write", {})).toThrow("iteration");
+    expect(() => missing.begin()).toThrow("ambiguous");
+    const invalid = new PiToolIdentities(namespace); invalid.begin();
+    expect(() => invalid.bind("call", "x".repeat(257), {})).toThrow("invalid");
+    expect(() => invalid.bind("valid", "read", {})).toThrow("iteration");
+    const duplicate = new PiToolIdentities(namespace); duplicate.begin();
+    expect(() => duplicate.begin()).toThrow("ambiguous");
+    expect(() => duplicate.identity("call")).toThrow("unavailable");
+    const tools = new PiToolIdentities(namespace); tools.begin(); tools.bind("call", "write", {}, true);
+    expect(() => tools.bind("call", "read", {}, true)).toThrow("conflict");
+    expect(() => tools.bind("different", "read", {})).toThrow("iteration");
+  });
+});
 
 describe("Pi ACP bridge", () => {
   it.each([
@@ -28,7 +70,7 @@ describe("Pi ACP bridge", () => {
 
   it("sends only offered native permission choices and keeps questions separate", async () => {
     const f = fixture(); f.connection.requestPermission.mockResolvedValue({ outcome: { outcome: "selected", optionId: "allow_always" } });
-    const event = { id: "p1", method: "select", title: 'paperclip.pi.permission.v1:{"toolCallId":"tool-a","toolName":"bash","input":{"command":"pwd"}}' };
+    const event = { id: "p1", method: "select", title: 'paperclip.pi.permission.v1:{"toolCallId":"tool-a","nativeToolCallId":"native-a","modelIteration":1,"toolName":"bash","input":{"command":"pwd"}}' };
     await f.bridge.handle(event);
     expect(f.connection.unstable_createElicitation).not.toHaveBeenCalled();
     expect(f.process.sendExtensionUiResponse).toHaveBeenCalledExactlyOnceWith({ id: "p1", value: "Allow for this session" });

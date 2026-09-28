@@ -91,6 +91,59 @@ test("actual patched ACP process streams thinking and waits for settlement with 
   assert.ok(f.notifications.some((event) => event.params?.update?.content?.text === "hello🌒\u2028world"));
 });
 
+test("actual patched ACP process scopes recycled native IDs across iterations and warm prompts", async (t) => {
+  const f = await fixture(t); const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
+  for (let turn = 0; turn < 2; turn++) await f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "reused-tool-ids" }] });
+  const updates = f.notifications.map(event => event.params?.update).filter(update => update?.toolCallId);
+  const starts = updates.filter(update => update.sessionUpdate === "tool_call");
+  assert.equal(starts.length, 6);
+  assert.equal(new Set(starts.map(update => update.toolCallId)).size, 6, "each model iteration has an independent tool identity");
+  for (const start of starts) {
+    assert.match(start.toolCallId, /^pi-[a-f0-9]{64}$/);
+    const lifecycle = updates.filter(update => update.toolCallId === start.toolCallId);
+    assert.ok(lifecycle.some(update => update.status === "in_progress"));
+    assert.equal(lifecycle.filter(update => ["failed", "completed"].includes(update.status)).length, 1);
+    assert.ok(lifecycle.every(update => update._meta.paperclipPi.nativeToolCallId === "call_0"));
+  }
+  assert.deepEqual(starts.map(update => update._meta.paperclipPi.modelIteration), [1, 2, 3, 4, 5, 6]);
+});
+
+test("cancellation closes the iteration before a warm prompt reuses native IDs", async (t) => {
+  const f = await fixture(t); const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
+  const active = f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "long" }] });
+  // The acknowledged native control is a FIFO barrier proving prompt admission.
+  await f.call("pi/steer", { sessionId: session.sessionId, message: "fixture admission fence" });
+  f.notify("session/cancel", { sessionId: session.sessionId }); await active;
+  const warm = await f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "reused-tool-ids" }] });
+  assert.equal(warm.stopReason, "end_turn");
+  const starts = f.notifications.map(event => event.params?.update).filter(update => update?.sessionUpdate === "tool_call");
+  assert.deepEqual(starts.map(update => update._meta.paperclipPi.modelIteration), [2, 3, 4]);
+  assert.equal(new Set(starts.map(update => update.toolCallId)).size, 3);
+});
+
+test("warm load uses stable display-only history IDs distinct from live execution", async (t) => {
+  const f = await fixture(t, { PI_FIXTURE_HISTORY: "1" });
+  const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
+  const loads = [];
+  for (let load = 0; load < 2; load++) {
+    f.notifications.length = 0;
+    await f.call("session/load", { sessionId: session.sessionId, cwd: join(f.root, "workspace"), mcpServers: [] });
+    const starts = f.notifications.map(event => event.params?.update).filter(update => update?.sessionUpdate === "tool_call");
+    assert.equal(starts.length, 2);
+    assert.notEqual(starts[0].toolCallId, starts[1].toolCallId);
+    for (const start of starts) {
+      assert.match(start.toolCallId, /^pi-history-[a-f0-9]{64}$/);
+      assert.equal(start._meta.paperclipPi.nativeToolCallId, "call_0");
+      assert.equal(start._meta.paperclipPi.identityScope, "history-display-only");
+    }
+    loads.push(starts.map(update => update.toolCallId));
+  }
+  assert.deepEqual(loads[0], loads[1]);
+  f.notifications.length = 0;
+  await f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "reused-tool-ids" }] });
+  assert.ok(f.notifications.map(event => event.params?.update).filter(update => update?.toolCallId).every(update => /^pi-[a-f0-9]{64}$/.test(update.toolCallId)));
+});
+
 test("actual patched ACP process keeps text questions separate from native permissions", async (t) => {
   const f = await fixture(t); const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
   await f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "question" }] });
@@ -166,7 +219,7 @@ for (const outcome of ["success", "failure", "oversized"]) {
     const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
     const result = await f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: `bash-${outcome}` }] });
     assert.equal(result.stopReason, "end_turn");
-    const updates = f.notifications.map((event) => event.params?.update).filter((update) => update?.toolCallId === "bash-fixture");
+    const updates = f.notifications.map((event) => event.params?.update).filter((update) => update?._meta?.paperclipPi?.nativeToolCallId === "bash-fixture");
     assert.deepEqual(updates[0].rawInput, { command: outcome === "failure" ? "printf failure >&2; exit 7" : "printf done", timeout: 3 });
     assert.deepEqual(updates[1].rawOutput, { content: [{ type: "text", text: "partial" }] });
     const terminal = updates.at(-1);

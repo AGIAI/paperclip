@@ -13,13 +13,17 @@
  // src/pi-rpc/process.ts
  import { spawn } from "child_process";
 -import * as readline from "readline";
-+import { PI_ACP_FEATURES, PiRpcFrames, PiUiBridge, PiTurnUsage, createPiLaunchSpec, snapshotPiWorkspaceFile } from "./paperclip-runtime.js";
++import { PI_ACP_FEATURES, PiToolIdentities, piHistoricalToolIdentity, PiRpcFrames, PiUiBridge, PiTurnUsage, createPiLaunchSpec, snapshotPiWorkspaceFile } from "./paperclip-runtime.js";
 
  // src/pi-rpc/command.ts
  import { platform } from "os";
-@@ -96,49 +97,38 @@
+@@ -94,51 +95,42 @@
+   pending = /* @__PURE__ */ new Map();
+   eventHandlers = [];
    preludeLines = [];
-   constructor(child) {
+-  constructor(child) {
++  constructor(child, invocationNamespace) {
++    this.toolIdentities = new PiToolIdentities(invocationNamespace);
      this.child = child;
 -    const rl = readline.createInterface({ input: child.stdout });
 -    rl.on("line", (line) => {
@@ -55,7 +59,8 @@
 -        }
 -      }
 -      for (const h of this.eventHandlers) h(msg);
-+      for (const handler of this.eventHandlers) handler(msg);
++      const event = this.toolIdentities.normalize(msg);
++      for (const handler of this.eventHandlers) handler(event);
      });
 -    child.on("exit", (code, signal) => {
 -      const err = new Error(`pi process exited (code=${code}, signal=${signal})`);
@@ -90,7 +95,16 @@
      });
      try {
        await new Promise((resolve4, reject) => {
-@@ -181,21 +171,30 @@
+@@ -172,7 +164,7 @@
+     }
+     child.stderr.on("data", () => {
+     });
+-    const proc = new _PiRpcProcess(child);
++    const proc = new _PiRpcProcess(child, launch.invocationNamespace);
+     try {
+       const state = await proc.getState();
+       const sessionFile = typeof state?.sessionFile === "string" ? state.sessionFile : null;
+@@ -181,21 +173,30 @@
          const { dirname: dirname3 } = await import("path");
          mkdirSync2(dirname3(sessionFile), { recursive: true });
        }
@@ -126,7 +140,7 @@
      }
    }
    /**
-@@ -242,7 +241,7 @@
+@@ -242,7 +243,7 @@
      if (!res.success) throw new Error(`pi set_steering_mode failed: ${res.error ?? JSON.stringify(res.data)}`);
    }
    async compact(customInstructions) {
@@ -135,7 +149,7 @@
      if (!res.success) throw new Error(`pi compact failed: ${res.error ?? JSON.stringify(res.data)}`);
      return res.data;
    }
-@@ -283,17 +282,23 @@
+@@ -283,17 +284,23 @@
      await this.writeLine(`${JSON.stringify({ type: "extension_ui_response", ...response })}
  `);
    }
@@ -165,7 +179,7 @@
      });
    }
    writeLine(line) {
-@@ -337,7 +342,7 @@
+@@ -337,7 +344,7 @@
      {
        authMethods: getAuthMethods()
      },
@@ -174,7 +188,7 @@
    );
  }
 
-@@ -534,6 +539,14 @@
+@@ -534,6 +541,14 @@
    const record = value;
    const command = record?.command ?? record?.cmd ?? record?.args?.command ?? record?.args?.cmd ?? record?.input?.command ?? record?.input?.cmd ?? record?.rawInput?.command ?? record?.rawInput?.cmd ?? record?.toolInput?.command ?? record?.toolInput?.cmd ?? record?.details?.command ?? record?.details?.cmd;
    return typeof command === "string" && command.trim() ? command : void 0;
@@ -189,7 +203,7 @@
  }
  function bashResultText(result) {
    const record = result;
-@@ -714,6 +727,7 @@
+@@ -714,6 +729,7 @@
      try {
        proc = await PiRpcProcess.spawn({
          cwd: params.cwd,
@@ -197,7 +211,7 @@
          piCommand: params.piCommand
        });
      } catch (e) {
-@@ -808,6 +822,9 @@
+@@ -808,6 +824,9 @@
      this.proc = opts.proc;
      this.conn = opts.conn;
      this.fileCommands = opts.fileCommands ?? [];
@@ -207,7 +221,7 @@
      this.proc.onEvent((ev) => this.handlePiEvent(ev));
    }
    setStartupInfo(text) {
-@@ -852,6 +869,7 @@
+@@ -852,6 +871,7 @@
    }
    async cancel() {
      this.cancelRequested = true;
@@ -215,7 +229,16 @@
      if (this.turnQueue.length) {
        const queued = this.turnQueue.splice(0, this.turnQueue.length);
        for (const t of queued) t.resolve("cancelled");
-@@ -890,6 +908,7 @@
+@@ -870,6 +890,8 @@
+     return this.cancelRequested;
+   }
+   emit(update) {
++    const provenance = typeof update.toolCallId === "string" ? this.proc.toolIdentities.provenance(update.toolCallId) : undefined;
++    if (provenance) update = { ...update, _meta: { ...update._meta, paperclipPi: { ...update._meta?.paperclipPi, ...provenance } } };
+     this.lastEmit = this.lastEmit.then(
+       () => this.conn.sessionUpdate({
+         sessionId: this.sessionId,
+@@ -890,6 +912,7 @@
        kind: "execute",
        status: params.status,
        locations: params.locations,
@@ -223,7 +246,7 @@
        ...params.includeTerminal ? { content: bashTerminalContent(params.toolCallId) } : {},
        ...params.includeTerminal ? { _meta: bashTerminalInfoMeta(params.toolCallId, this.cwd) } : {}
      });
-@@ -903,6 +922,7 @@
+@@ -903,6 +926,7 @@
        sessionUpdate: "tool_call_update",
        toolCallId: params.toolCallId,
        status: params.status,
@@ -231,7 +254,7 @@
        _meta: {
          ...delta ? bashTerminalOutputMeta(params.toolCallId, delta) : {},
          ...params.status === "completed" || params.status === "failed" ? bashTerminalExitMeta(params.toolCallId, bashExitCode(params.result, Boolean(params.isError))) : {}
-@@ -920,12 +940,16 @@
+@@ -920,12 +944,16 @@
      this.cancelRequested = false;
      this.inAgentLoop = false;
      this.pendingTurn = { resolve: t.resolve, reject: t.reject };
@@ -248,7 +271,7 @@
          const authErr = maybeAuthRequiredError(err);
          if (authErr) {
            this.pendingTurn?.reject(authErr);
-@@ -946,6 +970,23 @@
+@@ -946,6 +974,23 @@
    handlePiEvent(ev) {
      const type = String(ev.type ?? "");
      switch (type) {
@@ -272,7 +295,7 @@
        case "message_update": {
          const ame = ev.assistantMessageEvent;
          if (ame?.type === "text_delta" && typeof ame.delta === "string") {
-@@ -1047,7 +1088,7 @@
+@@ -1047,7 +1092,7 @@
            if (p) {
              try {
                const abs = isAbsolute(p) ? p : resolvePath(this.cwd, p);
@@ -281,7 +304,7 @@
                this.fileSnapshots.set(toolCallId, { path: p, oldText: snapshotOldText });
                if (toolName === "edit") {
                  for (const needle of getEditOldTexts(args)) {
-@@ -1125,7 +1166,7 @@
+@@ -1125,7 +1170,7 @@
          if (!isError && snapshot) {
            try {
              const abs = isAbsolute(snapshot.path) ? snapshot.path : resolvePath(this.cwd, snapshot.path);
@@ -290,7 +313,7 @@
              if (snapshot.oldText === null || newText !== snapshot.oldText) {
                hasStructuredDiff = true;
                content = [
-@@ -1154,14 +1195,11 @@
+@@ -1154,14 +1199,11 @@
          break;
        }
        case "extension_ui_request": {
@@ -309,7 +332,7 @@
          break;
        }
        case "auto_retry_start": {
-@@ -1174,28 +1212,31 @@
+@@ -1174,28 +1216,31 @@
        case "auto_retry_end": {
          this.emit({
            sessionUpdate: "agent_message_chunk",
@@ -357,7 +380,7 @@
          break;
        }
        case "agent_start": {
-@@ -1210,9 +1251,12 @@
+@@ -1210,9 +1255,12 @@
          break;
        }
        case "agent_settled": {
@@ -371,7 +394,7 @@
            this.pendingTurn = null;
            this.inAgentLoop = false;
            const next = this.turnQueue.shift();
-@@ -1725,6 +1769,7 @@
+@@ -1725,6 +1773,7 @@
    return process.env.PI_CODING_AGENT_DIR ? resolve3(process.env.PI_CODING_AGENT_DIR) : join4(homedir4(), ".pi", "agent");
  }
  function getEnableSkillCommands(cwd) {
@@ -379,7 +402,7 @@
    const merged = getMergedSettings(cwd);
    const direct = merged.enableSkillCommands;
    if (typeof direct === "boolean") return direct;
-@@ -1733,6 +1778,7 @@
+@@ -1733,6 +1782,7 @@
    return true;
  }
  function getQuietStartup(cwd) {
@@ -387,7 +410,7 @@
    const merged = getMergedSettings(cwd);
    const direct = merged.quietStartup;
    if (typeof direct === "boolean") return direct;
-@@ -1824,6 +1870,7 @@
+@@ -1824,6 +1874,7 @@
    const out = [];
    const seen = /* @__PURE__ */ new Set();
    for (const c of [...a, ...b]) {
@@ -395,7 +418,7 @@
      if (seen.has(c.name)) continue;
      seen.add(c.name);
      out.push(c);
-@@ -1884,11 +1931,13 @@
+@@ -1884,11 +1935,13 @@
          throw RequestError3.invalidParams(`Unknown sessionId: ${sessionId}`);
        }
        const cwd = opts?.cwd ?? stored.cwd;
@@ -409,7 +432,7 @@
            piCommand: process.env.PI_ACP_PI_COMMAND
          });
        } catch (e) {
-@@ -1897,7 +1946,7 @@
+@@ -1897,7 +1950,7 @@
          }
          throw e;
        }
@@ -418,7 +441,7 @@
        const session = this.sessions.getOrCreate(sessionId, {
          cwd,
          mcpServers: opts?.mcpServers ?? [],
-@@ -1917,6 +1966,7 @@
+@@ -1917,6 +1970,7 @@
      }
    }
    async initialize(params) {
@@ -426,7 +449,7 @@
      const supportedVersion = 1;
      const requested = params.protocolVersion;
      return {
-@@ -1933,7 +1983,8 @@
+@@ -1933,7 +1987,8 @@
        }),
        agentCapabilities: {
          loadSession: true,
@@ -436,7 +459,7 @@
          promptCapabilities: {
            image: true,
            audio: false,
-@@ -1942,8 +1993,7 @@
+@@ -1942,8 +1997,7 @@
          sessionCapabilities: {
            // **UNSTABLE** ACP capability used by Zed's codex-acp adapter.
            // Enables a native session picker in clients that support it.
@@ -446,7 +469,7 @@
          }
        }
      };
-@@ -1953,7 +2003,7 @@
+@@ -1953,7 +2007,7 @@
        throw RequestError3.invalidParams(`cwd must be an absolute path: ${params.cwd}`);
      }
      this.lastSessionCwd = params.cwd;
@@ -455,7 +478,7 @@
      const enableSkillCommands = getEnableSkillCommands(params.cwd);
      const session = await this.sessions.create({
        cwd: params.cwd,
-@@ -1994,14 +2044,14 @@
+@@ -1994,14 +2048,14 @@
        this.cleanupFailedNewSession(session.sessionId, state);
        throw RequestError3.authRequired(
          { authMethods: getAuthMethods() },
@@ -472,7 +495,7 @@
        );
      }
      const { configOptions, models, modes } = await getSessionConfiguration(session.proc, {
-@@ -2064,34 +2114,27 @@
+@@ -2064,34 +2118,27 @@
    }
    async prompt(params) {
      const session = await this.restoreSession(params.sessionId);
@@ -519,7 +542,7 @@
        }
        if (cmd === "session") {
          const stats = await session.proc.getSessionStats();
-@@ -2432,8 +2475,18 @@
+@@ -2432,8 +2479,18 @@
        }
      }
      const result = await session.prompt(message, images);
@@ -540,7 +563,7 @@
    }
    async cancel(params) {
      const session = this.sessions.maybeGet(params.sessionId);
-@@ -2473,7 +2526,7 @@
+@@ -2473,7 +2530,7 @@
        mcpServers: params.mcpServers
      });
      const proc = session.proc;
@@ -549,7 +572,61 @@
      this.sessions.closeAllExcept?.(session.sessionId);
      this.store.upsert({
        sessionId: params.sessionId,
-@@ -2607,6 +2660,7 @@
+@@ -2482,7 +2539,7 @@
+     });
+     const data = await proc.getMessages();
+     const messages = Array.isArray(data?.messages) ? data.messages : [];
+-    for (const m of messages) {
++    for (const [messageIndex, m] of messages.entries()) {
+       const role = String(m?.role ?? "");
+       if (role === "user") {
+         const text = normalizePiMessageText(m?.content);
+@@ -2510,7 +2567,8 @@
+       }
+       if (role === "toolResult") {
+         const toolName = String(m?.toolName ?? "tool");
+-        const toolCallId = String(m?.toolCallId ?? crypto.randomUUID());
++        const historical = piHistoricalToolIdentity(params.sessionId, messageIndex, String(m?.toolCallId ?? ""));
++        const toolCallId = historical.id;
+         const isError = Boolean(m?.isError);
+         const isBash = isBashTool(toolName);
+         if (isBash) {
+@@ -2524,7 +2582,7 @@
+               kind: "execute",
+               status: "completed",
+               content: bashTerminalContent(toolCallId),
+-              _meta: bashTerminalInfoMeta(toolCallId, params.cwd)
++              _meta: { ...bashTerminalInfoMeta(toolCallId, params.cwd), paperclipPi: historical.provenance }
+             }
+           });
+           await this.conn.sessionUpdate({
+@@ -2535,7 +2593,8 @@
+               status: isError ? "failed" : "completed",
+               _meta: {
+                 ...text2 ? bashTerminalOutputMeta(toolCallId, text2) : {},
+-                ...bashTerminalExitMeta(toolCallId, bashExitCode(m, isError))
++                ...bashTerminalExitMeta(toolCallId, bashExitCode(m, isError)),
++                paperclipPi: historical.provenance
+               }
+             }
+           });
+@@ -2549,6 +2608,7 @@
+             title: toolName,
+             kind: toolName === "read" ? "read" : toolName === "write" || toolName === "edit" ? "edit" : "other",
+             status: "completed",
++            _meta: { paperclipPi: historical.provenance },
+             rawInput: null,
+             rawOutput: m
+           }
+@@ -2560,6 +2620,7 @@
+             sessionUpdate: "tool_call_update",
+             toolCallId,
+             status: isError ? "failed" : "completed",
++            _meta: { paperclipPi: historical.provenance },
+             content: text ? [{ type: "content", content: { type: "text", text } }] : null,
+             rawOutput: m
+           }
+@@ -2607,6 +2668,7 @@
      return response;
    }
    async deleteSession(params) {
@@ -557,7 +634,7 @@
      const stored = this.store.get(params.sessionId);
      const piSession = findPiSession(params.sessionId);
      if (!stored && !piSession) {
-@@ -2828,6 +2882,7 @@
+@@ -2828,6 +2890,7 @@
    return 0;
  }
  function buildUpdateNotice() {
@@ -565,7 +642,7 @@
    try {
      const piVersion = spawnSync("pi", ["--version"], { encoding: "utf-8" });
      const installed = (String(piVersion.stdout ?? "").trim() || String(piVersion.stderr ?? "").trim()).replace(
-@@ -2848,6 +2903,7 @@
+@@ -2848,6 +2911,7 @@
    }
  }
  function buildStartupInfo(opts) {
@@ -573,7 +650,7 @@
    void opts.fileCommands;
    const md = [];
    try {
-@@ -2980,6 +3036,7 @@
+@@ -2980,6 +3044,7 @@
 
  // src/index.ts
  if (process.argv.includes("--terminal-login")) {
@@ -581,7 +658,7 @@
    const { spawnSync: spawnSync2 } = await import("child_process");
    const cmd = getPiCommand(process.env.PI_ACP_PI_COMMAND);
    const res = spawnSync2(cmd, [], {
-@@ -3019,11 +3076,12 @@
+@@ -3019,11 +3084,12 @@
    }
  });
  var stream = ndJsonStream(input, output);
@@ -598,8 +675,9 @@
    try {
 --- /dev/null
 +++ b/dist/paperclip-runtime.js
-@@ -0,0 +1,283 @@
+@@ -0,0 +1,371 @@
 +/** Source for the helper embedded in patches/pi-acp@0.0.33.patch. */
++import { createHash, randomUUID } from "node:crypto";
 +import { StringDecoder } from "node:string_decoder";
 +import { isAbsolute, relative, resolve, sep } from "node:path";
 +import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync, realpathSync } from "node:fs";
@@ -626,6 +704,92 @@
 +  nativePermissions: true, promptUsage: true, nativePlan: false,
 +  pendingRequestRecovery: "live-process-only",
 +});
++
++/** One trusted Pi model iteration, not one ACP prompt. Pi resets its own turnIndex
++ * on warm prompts; our ordinal is monotonic for the lifetime of the child. */
++export class PiToolIdentities {
++          ordinal = 0;
++          active = false;
++          poisoned = false;
++          entries = new Map                                                                                  ();
++          namespace        ;
++  constructor(namespace        ) {
++    this.namespace = namespace;
++    if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(namespace)) throw new Error("Pi invocation namespace is invalid");
++  }
++          fail(message        )        { this.poisoned = true; throw new Error(message); }
++  begin()       {
++    if (this.poisoned || this.active || this.ordinal >= Number.MAX_SAFE_INTEGER) this.fail("Pi model iteration identity is ambiguous");
++    this.ordinal++; this.active = true; this.entries.clear();
++  }
++  end()       {
++    if (this.poisoned || !this.active) this.fail("Pi model iteration identity is unavailable");
++    this.active = false;
++  }
++  identity(nativeId         )         {
++    if (this.poisoned || this.ordinal === 0) this.fail("Pi model iteration identity is unavailable");
++    let native        ;
++    try { native = text(nativeId, 256); } catch { return this.fail("Pi native tool identity is invalid"); }
++    if (!native) this.fail("Pi native tool identity is missing");
++    const prior = this.entries.get(native);
++    if (prior) return prior.id;
++    if (!this.active || this.entries.size >= 4096) this.fail("Pi tool identity is outside its iteration bound");
++    const id = `pi-${createHash("sha256").update(JSON.stringify([this.namespace, this.ordinal, native])).digest("hex")}`;
++    this.entries.set(native, { id, nativeId: native, claimed: false });
++    return id;
++  }
++  bind(nativeId        , name        , args         , claim = false)         {
++    if (this.poisoned || !this.active) this.fail("Pi tool invocation has no active model iteration");
++    const id = this.identity(nativeId); const entry = this.entries.get(nativeId) ;
++    const canonical = (value         )          => Array.isArray(value) ? value.map(canonical)
++      : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)])) : value;
++    let encoded        ;
++    try { encoded = JSON.stringify([text(name, 256), canonical(args)]); }
++    catch { return this.fail("Pi tool invocation is invalid"); }
++    if (Buffer.byteLength(encoded) > 1_048_576) this.fail("Pi tool invocation is oversized");
++    const fingerprint = createHash("sha256").update(encoded).digest("hex");
++    if ((claim && entry.claimed) || (entry.fingerprint !== undefined && entry.fingerprint !== fingerprint)) this.fail("Pi native tool invocation identity conflict");
++    entry.fingerprint = fingerprint; if (claim) entry.claimed = true;
++    return id;
++  }
++  provenance(id        )                          {
++    for (const entry of this.entries.values()) if (entry.id === id) return { nativeToolCallId: entry.nativeId, modelIteration: this.ordinal, identityScope: "native-model-iteration" };
++    return undefined;
++  }
++  normalize(event             )              {
++    if (event.type === "turn_start") { this.begin(); return event; }
++    if (event.type === "turn_end") { this.end(); return event; }
++    if (["tool_execution_start", "tool_execution_update", "tool_execution_end"].includes(String(event.type))) {
++      const native = text(event.toolCallId, 256);
++      const id = event.type === "tool_execution_start" ? this.bind(native, text(event.toolName, 256), event.args, true) : this.identity(native);
++      return { ...event, toolCallId: id };
++    }
++    if (event.type === "message_update" && event.assistantMessageEvent) {
++      const update = record(event.assistantMessageEvent);
++      const normalizeTool = (value         , direct = false)          => {
++        if (!value || typeof value !== "object") return value;
++        const block = record(value);
++        // Empty IDs during initial streaming do not identify an executable call.
++        return (direct || block.type === "toolCall") && typeof block.id === "string" && block.id
++          ? { ...block, id: this.identity(block.id) } : value;
++      };
++      const partial = update.partial && typeof update.partial === "object" ? record(update.partial) : undefined;
++      return { ...event, assistantMessageEvent: { ...update,
++        ...(update.toolCall ? { toolCall: normalizeTool(update.toolCall, true) } : {}),
++        ...(partial && Array.isArray(partial.content) ? { partial: { ...partial, content: partial.content.map((block) => normalizeTool(block)) } } : {}),
++      } };
++    }
++    return event;
++  }
++}
++
++/** Session history is presentation-only and must never acquire a live delivery ID. */
++export function piHistoricalToolIdentity(sessionId        , messageIndex        , nativeId        )                                          {
++  const session = text(sessionId, 1024); const native = text(nativeId, 256);
++  if (!session || !native || !Number.isSafeInteger(messageIndex) || messageIndex < 0) throw new Error("Pi history tool identity is invalid");
++  return { id: `pi-history-${createHash("sha256").update(JSON.stringify([session, messageIndex, native])).digest("hex")}`,
++    provenance: { nativeToolCallId: native, historyMessageIndex: messageIndex, identityScope: "history-display-only" } };
++}
 +
 +/** Strict LF framing: Unicode line separators inside JSON are ordinary text. */
 +export class PiRpcFrames {
@@ -697,7 +861,7 @@
 +export function createPiLaunchSpec(
 +  params                                                               ,
 +  environment                   ,
-+)                                                              {
++)                                                                                           {
 +  if (environment.PAPERCLIP_ACPX_ISOLATED_CONTEXT !== "1") throw new Error("Pi requires an isolated runner launch");
 +  const command = requiredFile(environment, "PAPERCLIP_PI_NODE_EXECUTABLE");
 +  const entrypoint = requiredFile(environment, "PAPERCLIP_PI_ENTRYPOINT");
@@ -706,8 +870,9 @@
 +  const readRoots = pathArray(environment.PAPERCLIP_PI_READ_ROOTS);
 +  const protectedRoots = pathArray(environment.PAPERCLIP_PI_PROTECTED_ROOTS);
 +  const workspace = realpathSync(params.cwd);
++  const invocationNamespace = randomUUID();
 +  const configuration = JSON.stringify({
-+    workspace, servers: params.mcpServers ?? [],
++    invocationNamespace, workspace, servers: params.mcpServers ?? [],
 +    readOnly: environment.PAPERCLIP_PI_READ_ONLY === "1",
 +    readRoots, protectedRoots,
 +    instructions: environment.PAPERCLIP_PI_SYSTEM_INSTRUCTIONS ?? "",
@@ -726,7 +891,7 @@
 +    if (!suffix || isAbsolute(suffix) || suffix === ".." || suffix.startsWith(`..${sep}`) || !lstatSync(params.sessionPath).isFile()) throw new Error("Pi session escaped its private home");
 +    args.push("--session", sessionPath);
 +  }
-+  return { command, args, env: { ...environment, PAPERCLIP_PI_RUNTIME_CONFIGURATION: configuration } };
++  return { command, args, invocationNamespace, env: { ...environment, PAPERCLIP_PI_RUNTIME_CONFIGURATION: configuration } };
 +}
 +
 +
@@ -776,7 +941,7 @@
 +        const input = record(permission.input);
 +        const result = record(await this.connection.requestPermission({
 +          sessionId: this.sessionId,
-+          toolCall: { toolCallId, title: `Pi ${toolName}`, kind: toolName === "bash" ? "execute" : ["write", "edit"].includes(toolName) ? "edit" : "read", status: "pending", rawInput: input },
++          toolCall: { toolCallId, _meta: { paperclipPi: { nativeToolCallId: text(permission.nativeToolCallId, 256), modelIteration: permission.modelIteration } }, title: `Pi ${toolName}`, kind: toolName === "bash" ? "execute" : ["write", "edit"].includes(toolName) ? "edit" : "read", status: "pending", rawInput: input },
 +          options: PERMISSION_CHOICES,
 +        }));
 +        const outcome = record(result.outcome);

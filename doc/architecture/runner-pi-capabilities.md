@@ -1,11 +1,13 @@
 # Pi rich ACP runtime
 
-Status: implementation candidate, 2026-09-28. Profile version 3 passes local
-Product file delivery and typed question continuation, plus a native steering,
-queued follow-up and denied-write probe. The semantic plan journey found a shared
-MCP identity projection defect and remains failed. Version 2 hello completion and
-all earlier failures remain retained. Deterministic protocol and immutable launch
-checks also pass.
+Status: implementation candidate, 2026-09-28. Profile version 4 repairs native
+tool ID reuse across model iterations and warm prompts. Its deterministic bridge,
+SDK ordering, lifecycle and history regressions pass; authenticated v4
+qualification is pending. Historical version 3 passes cover local Product file
+delivery, typed question continuation and native steering, queued follow-up and
+denied-write controls. Its semantic plan journey exposed two defects: the shared
+MCP display projection, now repaired, followed by a resumed-turn ID collision,
+addressed by v4. Version 2 hello completion and every failure remain retained.
 The wider local and Linux x64 Daytona matrix remains pending; this document does
 not promote the candidate to a qualified production runtime.
 
@@ -27,19 +29,62 @@ boundaries explicit.
 | Native tools | `read`, `grep`, `find`, `ls`, `write`, `edit`, and `bash` pass the immutable extension gate before execution. File roots and read-only mode are checked before and after a permission wait. The host sandbox remains authoritative for shell commands and races. |
 | Permissions | Native tool approval uses ACP `session/request_permission`, with allow once, allow for the session, and deny. Only offered options are accepted. Session grants cover an identical operation and still revalidate paths. Questions never become approvals. |
 | Questions | Pi `select`, `confirm`, `input`, and `editor` map to ACP form elicitation with typed schemas. Decline, cancellation, timeout, malformed replies, and duplicate/late replies cannot become accepted answers. |
-| Semantic tools | Runner-bound HTTP MCP catalogs (numeric loopback HTTP or assigned HTTPS gateways) register under exact `mcp__<server>__<tool>` names. Calls retain the native tool call ID and cancellation signal. Authenticated PRP tool handling owns semantic authorization and durable interactions. Only the exact session-assigned gateway URL and credential are used, with redirects disabled. Ambient and unassigned MCP servers are not admitted. |
+| Semantic tools | Runner-bound HTTP MCP catalogs (numeric loopback HTTP or assigned HTTPS gateways) register under exact `mcp__<server>__<tool>` names. Calls use an occurrence-scoped delivery ID and preserve the bounded native ID as private ACP-wire provenance, together with the cancellation signal. Common normalized events currently drop that metadata. Authenticated PRP tool handling owns semantic authorization and durable interactions. Only the exact session-assigned gateway URL and credential are used, with redirects disabled. Ambient and unassigned MCP servers are not admitted. |
 | Plans and artifacts | Pi has no native structured plan or artifact channel. Paperclip plan and artifact semantic tools remain available through the MCP bridge; native file edits retain bounded, workspace-confined ACP diff projection. Tool text/image results are preserved, and resource blocks are recorded without following URLs. |
 | Steering | Capability-negotiated `pi/steer` issues native RPC `steer` during an active turn. `pi/follow_up` explicitly queues native RPC `follow_up`. Neither is inferred from a second ACP prompt. Each takes `{sessionId, message}` and returns `{accepted: true, sessionId, kind}` with the matching control kind. |
 | Usage | Prompt results sum actual assistant message usage receipts across continuations. Input, output, cache reads/writes, total tokens and Pi-reported pricing estimates have provenance. Context-window occupancy is not billed usage. No receipt means no usage assertion; absent cache or cost fields remain unknown. Pi calculates cost from its model catalog rates, so this is not an authoritative provider bill. |
 | Retry and compaction | Upstream retry/compaction notices are retained. `agent_settled`, rather than a transient `agent_end`, settles a prompt. A final provider error remains a failed prompt and does not become successful completion. |
-| Images | Upstream ACP image prompt blocks are passed to native Pi RPC. Model-specific image support still requires live qualification. |
+| Images | The upstream ACP wrapper accepts image blocks, but `AcpxRuntimeTurnInput` and the common adapter currently forward text only. P1: implement typed image content through the common converter and then qualify the exact model; live testing alone cannot close this implementation gap. |
 | Cancellation and death | Cancellation expires live UI waits and calls native abort. Pi process exit rejects pending RPC requests and all active/queued turns. Partial RPC frames, oversized frames, and malformed JSON fail closed. |
-| Fork, durable goal, native plan | Unavailable. Do not advertise Codex parity for these features. |
+| Fork and clone | Native Pi RPC exposes `fork(entryId)`, `clone`, and `get_fork_messages`; the ACP wrapper and Paperclip controls do not map them. P2: add explicit admitted session operations and verified lineage before exposing controls. |
+| HTML export | Native `export_html` is available but unused by this integration. P2: add a bounded workspace artifact export with publication policy before exposing it. |
+| Durable goal and native plan | No mapped native surface. Paperclip semantic tools remain the plan path; no Codex parity is claimed. |
 
 `initialize` advertises `_meta.paperclipPi.version = 1`, `steering`,
 `queuedFollowUp`, the four question methods, `nativePermissions`, `promptUsage`,
 `nativePlan: false`, and `pendingRequestRecovery: "live-process-only"`. The common
 host must inspect this advertisement before sending provider extension requests.
+
+## Occurrence identity (profile version 4)
+
+Pi can reuse a native ID such as `call_0` in a later model iteration, including
+within one ACP prompt. The wrapper and immutable extension now derive one live
+ID from a private per-child launch namespace, a monotonic model-iteration ordinal,
+and the native ID. The native `turn_start` event advances the ordinal; the SDK's
+relative `turnIndex` is not authority because it resets on each warm prompt.
+Permission requests, streamed tools, lifecycle updates and semantic MCP requests
+share that ID. Bounded private ACP-wire provenance retains the original native
+ID and iteration. Common ACPX/sidecar normalization drops this `_meta`; these raw
+IDs and iteration fields are not currently UI-visible. The normalized delivery ID
+itself survives the common tool and permission paths. P2: add an allowlisted
+diagnostic provenance projection and UI coverage without granting the raw ID
+execution authority. Historical message-index/scope metadata has the same
+private-wire-only disposition.
+
+An exact HTTP retry reuses the delivery ID and shared cached result. Reusing a
+native ID for a second invocation in the same iteration, changing its arguments,
+or receiving ambiguous iteration boundaries poisons identity state and fails
+closed. Shared Runner bridge deduplication and Rust call tombstones are unchanged.
+This avoids both replaying a mutation and mistaking a new corrected invocation for
+an old cached error. Historical session replay uses a separate stable
+`pi-history-` identity from session/message occurrence, explicitly marked
+`history-display-only`; it never grants execution authority.
+
+The maintained `test/pi-native-package-contract.test.mjs` regression exercises
+actual pinned Pi Agent/AgentSession dispatch with an in-memory model stream,
+empty authentication storage and model networking disabled. Across two warm
+prompts it verifies six native iterations, relative indices `[0,1,2,0,1,2]`,
+four reused `call_0` executions, extension-before-wrapper ordering, and four
+matching distinct delivery/display IDs. The authenticated loopback test in
+`pi-runtime-extension.test.ts` uses the real Runner semantic bridge to prove
+cached validation errors, concurrent exact retries, changed-payload rejection,
+and a corrected invocation in the next iteration. Installed-wrapper tests verify
+lifecycle correlation and stable, disjoint historical replay identities.
+
+The v4 command digest is
+`sha256:2324d9b47650c12b16f8e2c44dc33637d52f1b22ba8e914623eac4049e7e1991`.
+Versions 1, 2 and 3 cannot reopen under this identity. Older paid and image proofs
+below remain evidence of their recorded versions, not v4 qualification.
 
 ## Lifetime and recovery
 
@@ -108,6 +153,15 @@ x64 pack; the candidate materializer emits it at `runtime/extensions/paperclip.j
 part of its verified package and must never be omitted from a copy or hash.
 
 ## Verification and maintenance
+
+The v4 focused verification passes 49 TypeScript tests plus the separately enabled
+actual-distribution installation test (all five installation cases), 24 installed
+wrapper/native-SDK/materializer cases, and 13 Rust native-provider backend tests.
+The new macOS arm64 closure was independently reproduced by a fresh locked
+public-registry installation. The helper tests cover poisoned malformed inputs,
+iteration overflow and the 4,096-entry limit; installed tests cover cancellation
+followed by warm native-ID reuse. These checks make no provider inference calls.
+
 
 The four colocated Vitest suites exercise questions, permissions, timeouts,
 framing, usage, file policies, MCP behavior, and graph verification. The Node test
@@ -206,7 +260,7 @@ that those targets have executed successfully.
 
 ### Installation authority and token semantics
 
-`verifyPiInstallation(profile)` admits only profile version 3 and the source-owned
+`verifyPiInstallation(profile)` admits only profile version 4 and the source-owned
 Pi identity. It resolves `provider-assets/pi/<platform>-<arch>` inside the verified
 Runner package, checks the complete runtime against source-pinned closure hashes,
 and opens a guarded immutable native snapshot. The snapshot bootstrap binds Node,
@@ -229,9 +283,9 @@ The first authenticated local Runner snapshot verified the exact configured
 model ID. It did not settle or produce a terminal usage receipt; complete local
 and Linux/Daytona receipt qualification remains outstanding.
 
-Profile version 3 declaration digest: `sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472`. It hashes the versioned
+Historical profile version 3 declaration digest: `sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472`. The current v4 digest above hashes its versioned
 profile domain, patched wrapper source and platform closure pins. Every native
-closure remains independently checked at launch. Version 1 and 2 warm sessions cannot
+closure remains independently checked at launch. Version 1, 2 and 3 warm sessions cannot
 be reused with this integration.
 
 Pi 0.84.2 emits `compaction_start`/`compaction_end`; the wrapper maps those
@@ -304,32 +358,39 @@ require a new pack build and source-pinned admission record.
 The candidate preserves the core request/response paths. It does not preserve
 every field in Pi's native event stream. These are explicit follow-ups:
 
-- Retry and compaction progress currently becomes assistant text. The wrapper
+- **P1 — retry and compaction notices.** Progress currently becomes assistant text. The wrapper
   does not retain all structured `attempt`, `maxAttempts`, `delayMs`,
   `errorMessage`, `success`, `finalError`, `reason`, and `willRetry` fields. A
   follow-up should emit bounded provider notices with source-event provenance
   and test its metadata. The `auto_retry_end` display distinguishes explicit
   success, failure, and unknown outcomes. A patched-process regression covers
   each result and confirms that terminal assistant failure still fails the prompt.
-- Native `queue_update` contains steering and follow-up queues. Extension calls
+- **P1 — native queue state.** `queue_update` contains steering and follow-up queues. Extension calls
   acknowledge RPC acceptance, but the wrapper does not project that event into
   durable queued/delivered state. Do not treat `{accepted: true}` as proof that
   a later model turn consumed a message. Queue contents are also user content,
-  so any added projection needs explicit retention rules.
-- Extension `setStatus`, `setWidget`, `setTitle`, and `set_editor_text` messages
+  so any added projection needs explicit retention rules. Next: emit bounded,
+  occurrence-bound queued/delivered notices and distinguish acceptance from actual
+  consumption; preserve queue content only under the existing content policy.
+- **P2 — extension UI and configuration.** `setStatus`, `setWidget`, `setTitle`,
+  and `set_editor_text` messages
   have no Paperclip UI projection. The admitted extension does not use them.
   `notify` retains a bounded message and severity, while interactive `select`,
   `confirm`, `input`, and `editor` have the explicit response bridge. Native
   session-name and thinking-level change events also lack a separate event
   projection. The wrapper advertises ACP thinking-level configuration, but the
   current Runner host does not expose `set_mode` or `set_config_option`; no
-  reasoning-level override was applied during qualification.
-- File diffs are bounded text snapshots, not complete binary changes or durable
+  reasoning-level override was applied during qualification. Next: define bounded
+  status/widget/title dispositions and explicit typed configuration controls;
+  require a provider acknowledgement before claiming a setting changed.
+- **P2 — files and artifacts; P1 — image input.** File diffs are bounded text snapshots, not complete binary changes or durable
   artifact publication. Semantic artifact tools remain the supported publication
   path. Image prompting, model-triggered tools, approvals, typed questions,
   explicit steering, warm recovery, and live usage need authenticated local and
   Linux x64 Daytona proof for the exact declared model. The reported model ID
-  must be checked, rather than inferred from the configuration.
+  must be checked, rather than inferred from the configuration. Next: implement
+  image content through the shared text-only converter, qualify actual model
+  content handling, and separately test diff/artifact publication boundaries.
 
 ## Authenticated local qualification progress
 

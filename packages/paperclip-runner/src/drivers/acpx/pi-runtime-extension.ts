@@ -3,6 +3,7 @@
  * this immutable module explicitly; project/global extension discovery is off.
  * Structural types keep this module independent of Pi's optional UI packages.
  */
+import { PiToolIdentities } from "./pi-acp-runtime.js";
 import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
@@ -40,6 +41,7 @@ export interface PiToolDefinition {
 export interface PiExtensionApi {
   registerTool(tool: PiToolDefinition): void;
   registerCommand(name: string, command: { description: string; handler(): Promise<void> }): void;
+  on(event: "turn_start" | "turn_end", handler: () => void): void;
   on(event: "tool_call", handler: (
     event: PiToolEvent, context: PiExtensionContext,
   ) => Promise<{ block: true; reason: string } | undefined>): void;
@@ -56,6 +58,7 @@ export interface PiMcpServer {
 }
 
 export interface PiRuntimeConfiguration {
+  invocationNamespace: string;
   servers: PiMcpServer[];
   workspace: string;
   readOnly: boolean;
@@ -69,6 +72,8 @@ export function readPiRuntimeConfiguration(environment: NodeJS.ProcessEnv): PiRu
   const raw = environment.PAPERCLIP_PI_RUNTIME_CONFIGURATION;
   if (!raw || Buffer.byteLength(raw) > MAX_CONFIGURATION_BYTES) throw new Error("Pi runtime configuration is missing or oversized");
   const value = asRecord(JSON.parse(raw));
+  const invocationNamespace = value.invocationNamespace;
+  if (typeof invocationNamespace !== "string" || !/^[a-f0-9-]{36}$/.test(invocationNamespace)) throw new Error("Pi invocation namespace is invalid");
   const workspace = absolutePath(value.workspace, "workspace");
   if (typeof value.readOnly !== "boolean") throw new Error("Pi read-only policy is missing");
   if (!Array.isArray(value.servers) || value.servers.length > 16) throw new Error("Pi MCP configuration is invalid");
@@ -96,7 +101,7 @@ export function readPiRuntimeConfiguration(environment: NodeJS.ProcessEnv): PiRu
   });
   if (typeof value.instructions !== "string" || Buffer.byteLength(value.instructions) > 32 * 1024) throw new Error("Pi runtime instructions are invalid");
   return {
-    servers, workspace, readOnly: value.readOnly,
+    invocationNamespace, servers, workspace, readOnly: value.readOnly,
     readRoots: pathList(value.readRoots, "read roots"),
     protectedRoots: pathList(value.protectedRoots, "protected roots"),
     instructions: value.instructions,
@@ -231,6 +236,9 @@ export async function installPiRuntimeExtension(
 ): Promise<void> {
   // Registered names are held in this closure; provider-originated metadata
   // cannot promote a tool to the authenticated Paperclip bridge.
+  const identities = new PiToolIdentities(config.invocationNamespace);
+  pi.on("turn_start", () => identities.begin());
+  pi.on("turn_end", () => identities.end());
   const bridgeTools = new Set<string>();
   const permissionGrants = new Set<string>();
   // Assigned skills are a separate immutable lease. A config or executable
@@ -249,11 +257,12 @@ export async function installPiRuntimeExtension(
   pi.on("before_agent_start", (event) => config.instructions
     ? { systemPrompt: `${event.systemPrompt}\n\n${config.instructions}` } : undefined);
   pi.on("tool_call", async (event, context) => {
-    if (bridgeTools.has(event.toolName)) return;
     try {
+      const toolCallId = identities.bind(event.toolCallId, event.toolName, event.input, true);
+      if (bridgeTools.has(event.toolName)) return;
       const denial = await checkPiNativeTool(event, context, config);
       if (denial) return { block: true, reason: denial };
-      const detail = JSON.stringify({ toolCallId: event.toolCallId, toolName: event.toolName, input: event.input });
+      const detail = JSON.stringify({ toolCallId, ...identities.provenance(toolCallId), toolName: event.toolName, input: event.input });
       if (Buffer.byteLength(detail) > 48 * 1024) return { block: true, reason: "Pi permission request is oversized" };
       // A session grant covers only the identical operation, never a whole
       // tool class or a subsequent path. Paths are still revalidated each time.
@@ -285,7 +294,8 @@ export async function installPiRuntimeExtension(
         description: typeof tool.description === "string" ? tool.description : sourceName,
         parameters: structuredClone(schema),
         async execute(callId, arguments_, signal) {
-          const result = await request(server, "tools/call", { name: sourceName, arguments: arguments_ }, callId, signal);
+          const requestId = identities.bind(callId, nativeName, arguments_);
+          const result = await request(server, "tools/call", { name: sourceName, arguments: arguments_ }, requestId, signal);
           if (result.isError !== undefined && typeof result.isError !== "boolean") throw new Error("Pi MCP tool error flag is invalid");
           if (result.isError === true) throw piMcpToolError(result, config);
           if (!Array.isArray(result.content)) throw new Error("Pi MCP tool result is invalid");

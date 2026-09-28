@@ -18,8 +18,8 @@ const patchPath = join(workspaceRoot, "patches/pi-acp@0.0.33.patch");
 const supportedTargets = new Set(["darwin-arm64", "darwin-x64", "linux-x64"]);
 export const PI_DISTRIBUTION_PINS = Object.freeze({
   wrapper: "0.0.33", runtime: "0.84.2", sdk: "0.26.0", zod: "3.25.76", nodeVersion: PI_NODE_VERSION,
-  wrapperSha256: "df6b6270d95154aef058e3dacb766d0f0ca0d26fbfaccc4c804cdb088fd89e1e",
-  helperSha256: "4333d284ff06ab1195e49630041f0b03a486a92fc678100525ad107e0982dba1",
+  wrapperSha256: "dc4786faff30942e82106c87a8984a75fb979a925ff1d62648500a642b920cac",
+  helperSha256: "9e50b60644d0d00b3fb2660eb78ad616dd01395775bcb05974d2bdeadc7f7e57",
 });
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
@@ -166,7 +166,7 @@ export async function materializePiDistribution({ outputRoot, nodeExecutable, np
     const stripped = stripTypeScriptTypes(helperSource).split("\n").map((line) => line.trimEnd()).join("\n");
     if (hash(wrapperBytes) !== PI_DISTRIBUTION_PINS.wrapperSha256 || hash(helperBytes) !== PI_DISTRIBUTION_PINS.helperSha256 || helperBytes.toString("utf8") !== stripped) throw new Error("Pi wrapper patch does not match its qualified source");
     await mkdir(join(runtimeRoot, "extensions"));
-    await writeFile(join(runtimeRoot, "extensions/paperclip.js"), stripTypeScriptTypes(await readFile(join(packageRoot, "src/drivers/acpx/pi-runtime-extension.ts"), "utf8")));
+    await writeFile(join(runtimeRoot, "extensions/paperclip.js"), stripTypeScriptTypes(await readFile(join(packageRoot, "src/drivers/acpx/pi-runtime-extension.ts"), "utf8")).replace('from "./pi-acp-runtime.js"', 'from "../node_modules/pi-acp/dist/paperclip-runtime.js"'));
     await mkdir(join(runtimeRoot, "node/bin"), { recursive: true });
     const copiedNode = join(runtimeRoot, "node/bin/node");
     await copyFile(node, copiedNode); await chmod(copiedNode, 0o755);
