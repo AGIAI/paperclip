@@ -1,4 +1,5 @@
 import { TextAttachmentContext } from "../context/TextAttachmentContext";
+import { WorkspaceExportRecovery } from "../components/WorkspaceExportRecovery";
 import { useUserPreferences } from "../hooks/useUserPreferences";
 import { DispositionRecoveryProvider } from "../components/DispositionRecoveryNotice";
 import { AgentAvatar } from "@/components/AgentAvatar";
@@ -7734,6 +7735,8 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
                   : undefined
               }
             >
+              <WorkspaceExportRecovery key={issue.activeRecoveryAction?.id ?? issue.id} issueId={issue.id}
+                action={issue.activeRecoveryAction ?? null} canManage={canManageBoardRuntime} onQueued={invalidateIssueDetail} />
               {issue.executionBlocker && (
                 <ExecutionBlockerNotice companyId={issue.companyId} issueId={issue.id} blocker={issue.executionBlocker} onRetried={invalidateIssueDetail} />
               )}
