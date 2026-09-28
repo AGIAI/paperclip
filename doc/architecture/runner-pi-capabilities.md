@@ -1,9 +1,11 @@
 # Pi rich ACP runtime
 
-Status: implementation candidate, 2026-09-28. The local Product hello-complete
-journey passes with real Pi, semantic MCP completion, terminal tokens and measured
-billing. Deterministic protocol and immutable launch checks also pass. The earlier
-Runner protocol timeout and Product infrastructure failures remain retained.
+Status: implementation candidate, 2026-09-28. Profile version 3 passes local
+Product file delivery and typed question continuation, plus a native steering,
+queued follow-up and denied-write probe. The semantic plan journey found a shared
+MCP identity projection defect and remains failed. Version 2 hello completion and
+all earlier failures remain retained. Deterministic protocol and immutable launch
+checks also pass.
 The wider local and Linux x64 Daytona matrix remains pending; this document does
 not promote the candidate to a qualified production runtime.
 
@@ -27,7 +29,7 @@ boundaries explicit.
 | Questions | Pi `select`, `confirm`, `input`, and `editor` map to ACP form elicitation with typed schemas. Decline, cancellation, timeout, malformed replies, and duplicate/late replies cannot become accepted answers. |
 | Semantic tools | Runner-bound HTTP MCP catalogs (numeric loopback HTTP or assigned HTTPS gateways) register under exact `mcp__<server>__<tool>` names. Calls retain the native tool call ID and cancellation signal. Authenticated PRP tool handling owns semantic authorization and durable interactions. Only the exact session-assigned gateway URL and credential are used, with redirects disabled. Ambient and unassigned MCP servers are not admitted. |
 | Plans and artifacts | Pi has no native structured plan or artifact channel. Paperclip plan and artifact semantic tools remain available through the MCP bridge; native file edits retain bounded, workspace-confined ACP diff projection. Tool text/image results are preserved, and resource blocks are recorded without following URLs. |
-| Steering | Capability-negotiated `pi/steer` issues native RPC `steer` during an active turn. `pi/follow_up` explicitly queues native RPC `follow_up`. Neither is inferred from a second ACP prompt. Each takes `{sessionId, message}` and returns `{accepted: true}`. |
+| Steering | Capability-negotiated `pi/steer` issues native RPC `steer` during an active turn. `pi/follow_up` explicitly queues native RPC `follow_up`. Neither is inferred from a second ACP prompt. Each takes `{sessionId, message}` and returns `{accepted: true, sessionId, kind}` with the matching control kind. |
 | Usage | Prompt results sum actual assistant message usage receipts across continuations. Input, output, cache reads/writes, total tokens and Pi-reported pricing estimates have provenance. Context-window occupancy is not billed usage. No receipt means no usage assertion; absent cache or cost fields remain unknown. Pi calculates cost from its model catalog rates, so this is not an authoritative provider bill. |
 | Retry and compaction | Upstream retry/compaction notices are retained. `agent_settled`, rather than a transient `agent_end`, settles a prompt. A final provider error remains a failed prompt and does not become successful completion. |
 | Images | Upstream ACP image prompt blocks are passed to native Pi RPC. Model-specific image support still requires live qualification. |
@@ -332,18 +334,22 @@ every field in Pi's native event stream. These are explicit follow-ups:
 ## Authenticated local qualification progress
 
 The [sanitized attempt ledger](../../packages/paperclip-runner/test-fixtures/pi-acp/paid-qualification-progress.darwin-arm64.json)
-retains all twelve attempts, including seven failures before a model prompt. One
+retains all sixteen attempts, including seven failures before a model prompt. One
 Runner protocol turn reached the exact model and successfully called `get_task_context`, `get_task_history`,
 `list_documents`, and `read_document`. The canonical case permits those extra
 orientation reads, but also requires a completed turn; it timed out after 120s
 without terminal usage. The later Product hello journey passes; the canonical
 Runner protocol case has not yet passed.
 
-Exclusive OpenRouter key billing increased by **$0.017750126**, including
+Exclusive OpenRouter key billing increased by **$0.025720049**, including
 $0.000351509 from the sleep-interrupted Product attempt and $0.000654767
 from the successful hello journey, plus $0.010995043 across the restrictive-denial
 and file-edit batch. A delayed charge crossed the latter attempt baselines, so
-that batch is accounted as an aggregate without per-generation attribution. The seven pre-prompt failures had two post-attempt
+that batch is accounted as an aggregate without per-generation attribution.
+Version 3 file, question and failed plan cases add $0.007828938. The version 3
+native controls probe adds $0.000140985 after a later key reading resolves its
+initially unchanged observations; those early reads did not prove free inference.
+The seven pre-prompt failures had two post-attempt
 observations with zero delta. This is measured provider spend, separate from
 Pi's stale catalog pricing estimate. A missing terminal receipt remains unknown, not free execution. Each
 attempt had no automatic retries, a $2 reservation and a $0.50 billing watchdog;
@@ -433,9 +439,9 @@ The Product path enforces this comparison before prompting, but its retained
 identity. The separate proof closes model-selection evidence without pretending
 it came from that Product transcript.
 
-The current pack, model and hello proof JSON files retain Git tree hashes for
+The historical version 2 pack, model and hello proof JSON files retain Git tree hashes for
 Runner source, scripts, Rust, protocol, patches, server source and Product E2E.
-The pack runtime stays pinned to `dd78df1e` when later commits change only these
+Those version 2 observations stay pinned to `dd78df1e` when later commits change only these
 reports and fixtures; an execution-source change requires a fresh build.
 
 | Execution source path | Git tree at `dd78df1e` |
@@ -491,3 +497,56 @@ The [file-edit failure](../../packages/paperclip-runner/test-fixtures/pi-acp/pro
 retains the candidate timeout, five generic finish errors, missing file oracle,
 unknown terminal usage and successful process cleanup. These failures are kept
 alongside the version 3 corrections rather than overwritten by a future retry.
+## Version 3 live evidence
+
+The [file delivery proof](../../packages/paperclip-runner/test-fixtures/pi-acp/product-file-proof.darwin-arm64.json)
+passes all seven canonical matchers. The independent oracle reads the exact
+24-byte workspace file before cleanup. The first finish request fails because a
+workspace-only file is not downloadable; the retained validation message tells
+Pi to register the deliverable. Pi does so and then finishes successfully. The
+browser shows the download card and Done status. All five Bash results are
+non-null; canonical exit code remains unknown. The case measured $0.003324737.
+No separate raw copy of the workspace file was retained.
+
+The [typed question proof](../../packages/paperclip-runner/test-fixtures/pi-acp/product-question-proof.darwin-arm64.json)
+passes all six matchers. The browser submits option ID `cobalt` for question ID
+`verification-word`; the same durable interaction becomes answered and a distinct
+warm continuation completes. The pending form and final answer were visually
+inspected. This is continuation without server restart. The waiting run has no
+usage receipt, while the continuation has one; total token coverage remains
+partial. The measured key delta is $0.001413697.
+
+The [plan failure](../../packages/paperclip-runner/test-fixtures/pi-acp/product-plan-failure.darwin-arm64.json)
+retains a complete two-step Plan at revision 1 and an unanswered confirmation
+bound to that exact revision. The provider run succeeds and the task remains in
+review. The real browser trace shows `task-chat-plan-preview-fallback` inside a
+settled turn. Rust had retained `mcp__paperclip__write_document` as a builtin tool
+with no namespace, so the UI could not embed the Plan at its `write_document`
+boundary. The meaningful canonical matcher remains unchanged. No approval was
+submitted, terminal usage is unavailable, and the measured key delta is
+$0.003090504. Shared repair `5aa02662b` restores MCP name/namespace/transport while preserving
+operation authority. Its negative fixture retains the observed fallback, and the
+positive settled-turn UI regression passes. A fresh daemon and new source-pinned
+live run are still required.
+
+The [native controls proof](../../packages/paperclip-runner/test-fixtures/pi-acp/native-controls-proof.darwin-arm64.json)
+submits one ACP prompt to the actual selected model. While its native write waits
+for permission, both explicit controls acknowledge the same active session. The
+original offered denial ID is persisted and fsynced before the pipe response.
+Visible output is exactly `STEERED_CURRENT` followed by `QUEUED_NEXT`; a matching
+failed tool update and independent absent-file check prove the denied write.
+The prompt settles and a later steering request is rejected as stale. The native
+receipt reports 1,941 input, 134 output and 3,584 cache-read tokens. Its
+$0.000409612 catalog estimate differs from the later measured $0.000140985 key
+delta. This proves consumed
+controls on a live process, not durable queue replay after process replacement.
+
+All four observations use immutable pack `eb31cada…` at source `7710736ca…`,
+with runtime source `06cf356a8…`; they predate the combined provider integration
+`7ab463697…`. Execution tree hashes are retained in the Product proofs. The
+[Linux x64 proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-native-proof.linux-x64.v3.json)
+uses profile version 3 at source `06cf356a8…`, image
+`sha256:c5fa7976bba92a186a2f70dc8b8ddc58ab86606b80a819c89bf550d2d057c832`.
+It launches the verified native wrapper, initializes ACP protocol 1 and exits
+cleanly on EOF with network disabled and no credentials or model prompts. This
+proves Linux executable admission; authenticated Daytona behavior remains pending.

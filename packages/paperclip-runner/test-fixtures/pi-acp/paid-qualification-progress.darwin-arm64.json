@@ -1,6 +1,6 @@
 {
   "schema": "paperclip.pi-paid-qualification-progress.v1",
-  "recordedAt": "2026-09-28T21:12:21.059145+00:00",
+  "recordedAt": "2026-09-28T21:34:16.545526+00:00",
   "qualificationStatus": "pending",
   "environment": {
     "platform": "darwin",
@@ -17,7 +17,7 @@
   "budget": {
     "authorizedMaximumUsd": 25,
     "reservedPerBatchUsd": 2,
-    "measuredSpendUsd": 0.017750126,
+    "measuredSpendUsd": 0.025720049,
     "measurement": "exclusive OpenRouter key billing delta; model catalog estimates are not provider billing",
     "billingGroups": [
       {
@@ -31,7 +31,8 @@
         "delayedDeltaBetweenAttemptWindowsUsd": 0.000105107,
         "billingObservedThrough": "2026-09-28T20:55:09Z"
       }
-    ]
+    ],
+    "pendingBillingAttemptIds": []
   },
   "attempts": [
     {
@@ -428,6 +429,189 @@
       "terminalUsage": null,
       "evidence": "product-file-failure.darwin-arm64.json",
       "diagnosis": "Five semantic finish requests failed with generic bridge error; active deadline expired without file oracle or terminal receipt. Version 3 retains bounded validation details and native Bash output."
+    },
+    {
+      "attemptId": "pi-product-file-02",
+      "family": "product-e2e",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.file-edit-validate",
+      "startedAt": "2026-09-28T21:17:12.291736+00:00",
+      "finishedAt": "2026-09-28T21:18:19.632350+00:00",
+      "durationSeconds": 67.34,
+      "exitCode": 0,
+      "sourceRevision": "7710736ca3924c655c5b0efd172cfd3c0173766a",
+      "providerPackDigest": "sha256:eb31cadae93805b901d2565912121fca6e79024c0120b1bd7982e05215b5aa5a",
+      "profileDigest": "sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472",
+      "submittedProviderTurns": null,
+      "providerRequestCount": null,
+      "billingDeltaUsd": 0.003324737,
+      "billingCoverage": "exclusive OpenRouter key delta, two spaced post-attempt observations",
+      "retainedStatus": "passed",
+      "retainedMachineDisposition": null,
+      "cleanup": "passed",
+      "terminalUsage": {
+        "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+        "biller": "openrouter",
+        "provider": "openrouter",
+        "costStatus": "unpriced",
+        "billingType": "unknown",
+        "inputTokens": 14461,
+        "outputTokens": 3604,
+        "cachedInputTokens": 116736,
+        "usageSource": "per_run"
+      },
+      "evidence": "product-file-proof.darwin-arm64.json",
+      "diagnosis": "File oracle passed; retained MCP validation enabled deliverable registration and successful finish.",
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "activeTimeoutSeconds": 120,
+        "outerTimeoutSeconds": 300,
+        "sleepAssertion": "caffeinate -i",
+        "deadlineClocks": [
+          "wall",
+          "monotonic"
+        ],
+        "automaticRetries": 0
+      }
+    },
+    {
+      "attemptId": "pi-product-question-01",
+      "family": "product-e2e",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.question-resume-complete",
+      "startedAt": "2026-09-28T21:20:00.032734+00:00",
+      "finishedAt": "2026-09-28T21:22:55.721708+00:00",
+      "durationSeconds": 175.689,
+      "exitCode": 0,
+      "sourceRevision": "7710736ca3924c655c5b0efd172cfd3c0173766a",
+      "providerPackDigest": "sha256:eb31cadae93805b901d2565912121fca6e79024c0120b1bd7982e05215b5aa5a",
+      "profileDigest": "sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472",
+      "submittedProviderTurns": null,
+      "providerRequestCount": null,
+      "billingDeltaUsd": 0.001413697,
+      "billingCoverage": "exclusive OpenRouter key delta, two spaced post-attempt observations",
+      "retainedStatus": "passed",
+      "retainedMachineDisposition": null,
+      "cleanup": "passed",
+      "terminalUsage": {
+        "runCount": 2,
+        "byRun": [
+          null,
+          {
+            "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+            "biller": "openrouter",
+            "provider": "openrouter",
+            "costStatus": "unpriced",
+            "billingType": "unknown",
+            "inputTokens": 17894,
+            "outputTokens": 1891,
+            "cachedInputTokens": 19200,
+            "usageSource": "per_run",
+            "sessionReused": true
+          }
+        ],
+        "coverage": "partial: waiting run receipt unavailable; resumed run receipt retained"
+      },
+      "evidence": "product-question-proof.darwin-arm64.json",
+      "diagnosis": "Typed semantic question answered with original question and option identity; warm continuation finished. Waiting-run usage remains missing.",
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "activeTimeoutSeconds": 120,
+        "outerTimeoutSeconds": 300,
+        "sleepAssertion": "caffeinate -i",
+        "deadlineClocks": [
+          "wall",
+          "monotonic"
+        ],
+        "automaticRetries": 0
+      }
+    },
+    {
+      "attemptId": "pi-product-plan-01",
+      "family": "product-e2e",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.plan-approve-complete",
+      "startedAt": "2026-09-28T21:23:40.821883+00:00",
+      "finishedAt": "2026-09-28T21:25:59.888902+00:00",
+      "durationSeconds": 139.067,
+      "exitCode": 1,
+      "sourceRevision": "7710736ca3924c655c5b0efd172cfd3c0173766a",
+      "providerPackDigest": "sha256:eb31cadae93805b901d2565912121fca6e79024c0120b1bd7982e05215b5aa5a",
+      "profileDigest": "sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472",
+      "submittedProviderTurns": null,
+      "providerRequestCount": null,
+      "billingDeltaUsd": 0.003090504,
+      "billingCoverage": "exclusive OpenRouter key delta, two spaced post-attempt observations",
+      "retainedStatus": "failed",
+      "retainedMachineDisposition": "candidate_failure",
+      "cleanup": "passed",
+      "terminalUsage": null,
+      "evidence": "product-plan-failure.darwin-arm64.json",
+      "diagnosis": "Plan and exact revision confirmation persisted, but Rust MCP identity loss placed its UI card in fallback; unchanged meaningful oracle failed.",
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "activeTimeoutSeconds": 120,
+        "outerTimeoutSeconds": 300,
+        "sleepAssertion": "caffeinate -i",
+        "deadlineClocks": [
+          "wall",
+          "monotonic"
+        ],
+        "automaticRetries": 0
+      }
+    },
+    {
+      "attemptId": "pi-native-controls-01",
+      "family": "native-acp",
+      "caseId": "active-steer-queued-follow-up-and-denied-write",
+      "startedAt": "2026-09-28T21:32:45.580333+00:00",
+      "finishedAt": "2026-09-28T21:33:06.922601+00:00",
+      "durationSeconds": 21.342,
+      "exitCode": 0,
+      "automaticRetries": 0,
+      "sourceRevision": "7710736ca3924c655c5b0efd172cfd3c0173766a",
+      "providerPackDigest": "sha256:eb31cadae93805b901d2565912121fca6e79024c0120b1bd7982e05215b5aa5a",
+      "profileDigest": "sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472",
+      "submittedProviderTurns": 1,
+      "providerRequestCount": null,
+      "billingDeltaUsd": 0.000140985,
+      "billingCoverage": "exclusive OpenRouter key delta; delayed charge observed after unchanged initial readings",
+      "retainedStatus": "passed",
+      "retainedMachineDisposition": null,
+      "cleanup": "passed",
+      "terminalUsage": {
+        "inputTokens": 1941,
+        "outputTokens": 134,
+        "cachedReadTokens": 3584,
+        "cachedWriteTokens": 0,
+        "totalTokens": 5659,
+        "_meta": {
+          "paperclipPi": {
+            "provenance": "assistant_message_receipts",
+            "costUsd": 0.00040961200000000006,
+            "costSource": "pi_pricing_estimate"
+          }
+        }
+      },
+      "evidence": "native-controls-proof.darwin-arm64.json",
+      "diagnosis": "Active steer and native queued follow-up were acknowledged and consumed in order; original native write denied, no marker, terminal settlement, stale steer rejected.",
+      "supervision": {
+        "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+        "source": "7710736ca3924c655c5b0efd172cfd3c0173766a",
+        "packDigest": "sha256:eb31cadae93805b901d2565912121fca6e79024c0120b1bd7982e05215b5aa5a",
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "activeDeadlineSeconds": 120,
+        "outerDeadlineSeconds": 180,
+        "deadlineClocks": [
+          "wall",
+          "monotonic"
+        ],
+        "sleepAssertion": "caffeinate -i",
+        "automaticRetries": 0,
+        "providerPromptMaximum": 1
+      },
+      "earlyObservedKeyDeltaUsd": 0
     }
   ],
   "observedSemanticOperations": {
@@ -484,6 +668,17 @@
       "actualSelectedCurrentModelId": "openrouter/deepseek/deepseek-v4-flash-0731",
       "promptRequests": 0,
       "billingDeltaUsd": 0
+    },
+    "version3": {
+      "source": "06cf356a8bc94f709fcd15606fe05e17933fe3b2",
+      "packSource": "7710736ca3924c655c5b0efd172cfd3c0173766a",
+      "typescriptBuild": "passed",
+      "releaseRunnerBuild": "passed",
+      "vitestPassed": 95,
+      "installedPackageChecksPassed": 25,
+      "nativeRustTestsPassed": 16,
+      "offlineProof": "offline-provider-pack-proof.darwin-arm64.json",
+      "linuxInitializeProof": "offline-native-proof.linux-x64.v3.json"
     }
   },
   "publicationBoundary": {
@@ -494,9 +689,9 @@
   },
   "remaining": [
     "Successful canonical Runner protocol completion",
-    "File edit, typed question, plan and restart Product journeys",
-    "Version 3 native permission regression, durable restart replay and active steering/follow-up delivery",
-    "Complete price/billing coverage, separate from catalog estimates",
-    "Linux x64 Daytona qualification"
+    "Semantic plan approval with canonical write boundary, pending-input restart, and refreshed version3 Product hello",
+    "Durable native pending-request reconnect/recovery beyond direct ACP controls",
+    "Complete token and price/billing coverage, separate from catalog estimates",
+    "Linux x64 Daytona authenticated qualification"
   ]
 }
