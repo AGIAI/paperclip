@@ -12,7 +12,9 @@ import type {
   TaskChatProviderActivityFamily,
   TaskChatRuntimeRequestDecision,
 } from "./task-chat-model";
-import type { IssueWorkProduct } from "@paperclipai/shared";
+import type { HeartbeatRunEvent, IssueWorkProduct } from "@paperclipai/shared";
+import { nativeRunEventsToTranscript } from "../transcript/native-run-events";
+import { transcriptToTaskChatItems } from "./transcript-adapter";
 import { IssueGalleryContext } from "@/context/IssueGalleryContext";
 import { RichWorkProductCard } from "./RichWorkProductCard";
 import { stateChipFor } from "./RichWorkProductCard";
@@ -537,6 +539,55 @@ describe("TaskChatProtocolCard", () => {
     expect(button?.disabled).toBe(false);
     await act(async () => button?.click());
     expect(onDecision).toHaveBeenCalledWith({ action: "accept" });
+  });
+
+  it("renders committed ACP permission choices and preserves its exact resolution binding", async () => {
+    const event: HeartbeatRunEvent = {
+      id: 1, seq: 1, companyId: "company-1", runId: "run-1", agentId: "agent-1",
+      eventType: "runtime_request.created", stream: "system", level: "info", color: null, message: null,
+      createdAt: new Date("2026-09-28T12:00:00Z"),
+      payload: { prpEvent: {
+        schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceEventId: "permission-1", sourceSeq: 1,
+        sourceKind: "runner", sourceInstanceId: "runner-1", runId: "run-1", normalizedSessionId: "session-1",
+        turnId: "turn-1", itemId: "item-1", eventType: "runtime_request.created", priority: 0,
+        emittedAt: "2026-09-28T12:00:00Z", payload: { request: {
+          schema: "paperclip.runtime_request.v2", requestKind: "permission_approval", type: "permission",
+          requestId: "permission-1", turnId: "turn-1", itemId: "item-1", status: "pending",
+          prompt: "Allow editing src/example.ts?",
+          choices: [{ key: "accept", label: "Allow once" }, { key: "decline", label: "Deny" }],
+          details: { toolCallId: "tool-1" },
+          origin: { adapter: "acpx-runtime-sidecar", provider: "acpx", method: "session/request_permission" },
+        } },
+      } },
+    };
+    const item = transcriptToTaskChatItems(nativeRunEventsToTranscript([event]), {
+      runId: "run-1", agentName: "ACP", running: true,
+    }).find(candidate => candidate.kind === "protocol" && candidate.surface === "runtime_request");
+    if (item?.kind !== "protocol" || item.surface !== "runtime_request") throw new Error("permission card missing");
+    expect(item).toMatchObject({ runId: "run-1", requestId: "permission-1", turnId: "turn-1", requestKind: "permission_approval", status: "pending" });
+    expect(item.choices.map(choice => choice.key)).toEqual(["accept", "decline"]);
+    const resolve = vi.fn().mockResolvedValue(undefined);
+    flushSync(() => root.render(<MemoryRouter><ThemeProvider>
+      <TaskChatProtocolCard item={item} onRuntimeRequestDecision={resolve} />
+    </ThemeProvider></MemoryRouter>));
+    expect(container.textContent).toContain("Allow editing src/example.ts?");
+    const allow = Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Allow once");
+    expect(allow?.disabled).toBe(false);
+    expect(container.textContent).not.toContain("Allow for session");
+    await act(async () => allow?.click());
+    expect(resolve).toHaveBeenCalledExactlyOnceWith(item, { action: "accept" });
+    const delivered: HeartbeatRunEvent = { ...event, id: 2, seq: 2, eventType: "runtime_request.resolved", payload: { prpEvent: {
+      ...(event.payload!.prpEvent as Record<string, unknown>), sourceEventId: "permission-delivered", sourceSeq: 2,
+      eventType: "runtime_request.resolved", payload: { requestId: "permission-1", requestKind: "permission_approval",
+        turnId: "turn-1", itemId: "item-1", status: "delivered", action: "accept" },
+    } } };
+    const settled = transcriptToTaskChatItems(nativeRunEventsToTranscript([event, delivered]), {
+      runId: "run-1", agentName: "ACP", running: true,
+    }).find(candidate => candidate.kind === "protocol" && candidate.surface === "runtime_request");
+    if (settled?.kind !== "protocol" || settled.surface !== "runtime_request") throw new Error("receipt missing");
+    expect(settled).toMatchObject({ requestId: "permission-1", status: "resolved", resolvedAction: "accept" });
+    renderCard(root, settled, resolve);
+    expect(Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Allow once")).toBeUndefined();
   });
 
   it("submits structured runtime input through the production card", async () => {
