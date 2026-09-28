@@ -1,3 +1,4 @@
+import { readNativeJournalProjection, scanNativeStateFile } from "./native-journal-projection.js";
 import {
   isSupportedRemoteCodexVersion,
   parseCodexCliVersion,
@@ -1790,19 +1791,13 @@ function cleanupStateSnapshot(root: string, providerFile = "codex-provider-state
     throw new Error("native_cleanup_maintenance_unproven");
   }
   const files = [...CLEANUP_CANONICAL_FILES.slice(0, 2), `runner/${providerFile}`];
-  const bytes = files.map((file) =>
-    readBoundedNativeFile(
-      resolve(root, file),
-      nativeStateFileMaxBytes(file),
-      "native_cleanup_maintenance_unproven",
-    ),
+  const controlProof = readNativeJournalProjection(resolve(root, files[0]!));
+  const bytes = files.slice(1).map((file) =>
+    readBoundedNativeFile(resolve(root, file), NATIVE_RUNNER_STATE_MAX_BYTES, "native_cleanup_maintenance_unproven"),
   );
-  const [control, runner, provider] = bytes.map((value) =>
-    record(JSON.parse(value.toString("utf8"))),
-  );
-  const fileSha256 = bytes.map((value) =>
-    createHash("sha256").update(value).digest("hex"),
-  ) as [string, string, string];
+  const control = record(controlProof.value);
+  const [runner, provider] = bytes.map(value => record(JSON.parse(value.toString("utf8"))));
+  const fileSha256 = [controlProof.sha256, ...bytes.map(value => createHash("sha256").update(value).digest("hex"))] as [string, string, string];
   return {
     control: control!,
     runner: runner!,
@@ -4063,44 +4058,30 @@ async function verifyPriorRunnerdStateForSessionScope(input: {
 
 function hasRetainedWarmTransitionEvidence(root: string): boolean {
   for (const [directory, filename, maximum] of [
-    [
-      "control-plane",
-      "control-plane-state.json",
-      DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES,
-    ],
+    ["control-plane", "control-plane-state.json", DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES],
     ["runner", "runner-state.json", NATIVE_RUNNER_STATE_MAX_BYTES],
   ] as const) {
     const path = resolve(root, directory, filename);
     if (!lstatSync(path, { throwIfNoEntry: false })) continue;
-    let bytes: string;
     try {
-      bytes = readBoundedNativeFile(
-        path,
-        maximum,
-        "runner_state_too_large",
-      ).toString("utf8");
+      const state = record(directory === "control-plane"
+        ? readNativeJournalProjection(path).value
+        : JSON.parse(readBoundedNativeFile(path, maximum, "runner_state_too_large").toString("utf8")));
+      if (Object.prototype.hasOwnProperty.call(state, "warmTransition")
+        || state.schema === "paperclip.runner.durable.control-plane-state.warm-transition.v1"
+        || state.schema === "paperclip.runner.durable.state.warm-transition.v1") return true;
     } catch {
-      // The ordinary verifier still owns unreadable legacy state. Inspect the
-      // other file before deciding whether this is a forward-protocol fence.
-      continue;
-    }
-    try {
-      const state = record(JSON.parse(bytes));
-      if (
-        Object.prototype.hasOwnProperty.call(state, "warmTransition") ||
-        state.schema ===
-          "paperclip.runner.durable.control-plane-state.warm-transition.v1" ||
-        state.schema === "paperclip.runner.durable.state.warm-transition.v1"
-      )
-        return true;
-    } catch {
-      // This is detection only, never admission. A damaged forward receipt
-      // must remain available to its owner rather than become legacy state.
-      if (
-        bytes.includes("warm-transition.v1") ||
-        bytes.includes('"warmTransition"')
-      )
-        return true;
+      // Detection is never admission. Preserve the malformed-forward-receipt
+      // fence without materializing its potentially large discarded history.
+      let tail = "", found = false;
+      try {
+        scanNativeStateFile(path, maximum, chunk => {
+          const text = tail + chunk.toString("utf8");
+          if (text.includes("warm-transition.v1") || text.includes('"warmTransition"')) found = true;
+          tail = text.slice(-32);
+        });
+        if (found) return true;
+      } catch { /* The ordinary verifier owns unreadable legacy state. */ }
     }
   }
   return false;
@@ -4121,25 +4102,19 @@ function readWarmTransitionSnapshot(root: string) {
   ) {
     throw new Error("native_runner_warm_transition_recovery_unproven");
   }
-  const core = readBoundedNativeFile(
-    resolve(root, "control-plane", "control-plane-state.json"),
-    DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES,
-    "native_runner_warm_transition_recovery_unproven",
-  );
-  const runner = readBoundedNativeFile(
-    resolve(root, "runner", "runner-state.json"),
-    NATIVE_RUNNER_STATE_MAX_BYTES,
-    "native_runner_warm_transition_recovery_unproven",
-  );
   try {
-    return {
-      controlPlaneState: JSON.parse(core.toString("utf8")) as unknown,
-      runnerState: JSON.parse(runner.toString("utf8")) as unknown,
-      stateFingerprint: nativeSha256([
-        core.toString("base64"),
-        runner.toString("base64"),
-      ]),
-    };
+    const corePath = resolve(root, "control-plane", "control-plane-state.json");
+    const runnerPath = resolve(root, "runner", "runner-state.json");
+    const core = readNativeJournalProjection(corePath);
+    const runner = readBoundedNativeFile(runnerPath, NATIVE_RUNNER_STATE_MAX_BYTES, "native_runner_warm_transition_recovery_unproven");
+    // Preserve the original canonical JSON [base64(core), base64(runner)] hash.
+    const digest = createHash("sha256").update('["');
+    const rawCore = scanNativeStateFile(corePath, DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES, chunk => { digest.update(chunk.toString("base64")); });
+    digest.update('","');
+    const rawRunner = scanNativeStateFile(runnerPath, NATIVE_RUNNER_STATE_MAX_BYTES, chunk => { digest.update(chunk.toString("base64")); });
+    digest.update('"]');
+    if (rawCore.sha256 !== core.sha256 || rawRunner.sha256 !== createHash("sha256").update(runner).digest("hex")) throw new Error("native_state_file_changed");
+    return { controlPlaneState: core.value, runnerState: JSON.parse(runner.toString("utf8")) as unknown, stateFingerprint: digest.digest("hex") };
   } catch {
     throw new Error("native_runner_warm_transition_recovery_unproven");
   }
@@ -4706,7 +4681,7 @@ async function recoverQuiescentRunnerdState(input: {
   const verified: Array<{
     root: string;
     runnerBytes: string;
-    controlBytes: string;
+    controlSha256: string;
     providerBytes: string;
     runner: Record<string, unknown>;
     runId: string;
@@ -4729,13 +4704,11 @@ async function recoverQuiescentRunnerdState(input: {
         ).toString("utf8");
       };
       const runnerBytes = readState("runner", "runner-state.json");
-      const controlBytes = readState(
-        "control-plane",
-        "control-plane-state.json",
-      );
+      const controlProof = readNativeJournalProjection(resolve(root, "control-plane", "control-plane-state.json"));
+      const controlSha256 = controlProof.sha256;
       const providerBytes = readState("runner", "codex-provider-state.json");
       const runner = record(JSON.parse(runnerBytes));
-      const control = record(JSON.parse(controlBytes));
+      const control = record(controlProof.value);
       const provider = record(JSON.parse(providerBytes));
       const commands = control.commands;
       const events = control.committedEvents;
@@ -4857,15 +4830,14 @@ async function recoverQuiescentRunnerdState(input: {
       // No mutation if any evidence changed while the database was read.
       if (
         runnerBytes !== readState("runner", "runner-state.json") ||
-        controlBytes !==
-          readState("control-plane", "control-plane-state.json") ||
+        controlSha256 !== scanNativeStateFile(resolve(root, "control-plane", "control-plane-state.json"), DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES).sha256 ||
         providerBytes !== readState("runner", "codex-provider-state.json")
       )
         continue;
       verified.push({
         root,
         runnerBytes,
-        controlBytes,
+        controlSha256,
         providerBytes,
         runner,
         runId: identity.runId,
@@ -4896,14 +4868,12 @@ async function recoverQuiescentRunnerdState(input: {
   for (const [relativePath, expected] of [
     ["runner/runner-state.json", candidate.runnerBytes],
     ["runner/codex-provider-state.json", candidate.providerBytes],
-    ["control-plane/control-plane-state.json", candidate.controlBytes],
+    ["control-plane/control-plane-state.json", candidate.controlSha256],
   ]) {
     if (
-      readBoundedNativeFile(
-        resolve(candidate.root, relativePath!),
-        nativeStateFileMaxBytes(relativePath!),
-        "recovery_state_too_large",
-      ).toString("utf8") !== expected
+      (relativePath === "control-plane/control-plane-state.json"
+        ? scanNativeStateFile(resolve(candidate.root, relativePath), DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES).sha256
+        : readBoundedNativeFile(resolve(candidate.root, relativePath!), NATIVE_RUNNER_STATE_MAX_BYTES, "recovery_state_too_large").toString("utf8")) !== expected
     ) {
       throw new Error("runner_state_identity_mismatch");
     }
@@ -4960,15 +4930,7 @@ export function runnerdStateProvesIncompleteBootstrap(root: string): boolean {
       "control-plane",
       "control-plane-state.json",
     );
-    const state = record(
-      JSON.parse(
-        readBoundedNativeFile(
-          statePath,
-          DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES,
-          "runner_durable_identity_too_large",
-        ).toString("utf8"),
-      ),
-    );
+    const state = record(readNativeJournalProjection(statePath).value);
     const commands = Array.isArray(state.commands)
       ? state.commands.map(record)
       : [];
@@ -5013,15 +4975,7 @@ function readRunnerdDurableIdentity(
   const statePath = resolve(controlPlaneRoot, "control-plane-state.json");
   if (!existsSync(statePath)) return null;
   try {
-    const state = record(
-      JSON.parse(
-        readBoundedNativeFile(
-          statePath,
-          DURABLE_PRP_CONTROL_PLANE_MAX_STATE_BYTES,
-          "runner_durable_identity_too_large",
-        ).toString("utf8"),
-      ),
-    );
+    const state = record(readNativeJournalProjection(statePath, "identity").value);
     if (state.schema !== RUNNERD_CONTROL_PLANE_STATE_SCHEMA) return null;
     return record(state.identity);
   } catch {
