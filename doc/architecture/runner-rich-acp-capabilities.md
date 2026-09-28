@@ -1,7 +1,7 @@
 # Rich ACP integration and qualification report
 
 Updated: 2026-09-28. Base: `c65fc9e3c81c41aafe421aa90a00514b84343285`.
-Mainline integration: `992f7202628543749236b5a59af4dbbe7c155cce`.
+Mainline integration: `18e8c121d99fee1d4038610531ab57ae3f824fdd`.
 Status: implementation is available as four draft PRs; deterministic review and
 CI verification are in progress. All three new
 profiles remain **pending qualification**. Authenticated paid qualification is in
@@ -47,6 +47,11 @@ mean the required paid local and Daytona product cases have passed. “Not expos
 means the pinned interface was inspected; “unverified” is a separate finding.
 Codex's row is the existing app-server integration, not the Codex ACP bridge.
 
+The provider reports above are the method/event and field inventories. In the
+table below, a method that is absent from a pinned implementation is distinct
+from an exposed method with no Paperclip control. Shared surfaces and their
+deterministic evidence are mapped separately after the comparison.
+
 | Capability | Codex app-server benchmark | Cursor ACP candidate | Copilot ACP candidate | Pi ACP candidate |
 | --- | --- | --- | --- | --- |
 | Exact model | Selected and reported model | Explicit ID required; exact echo, paid semantic protocol, local completion and file validation passed | Explicit ID required; exact `gpt-5.6-luna` echo, paid semantic protocol and local completion passed | Exact `openrouter/deepseek/deepseek-v4-flash-0731`; real paid response and four semantic tools observed; terminal settlement still unverified |
@@ -65,6 +70,21 @@ Codex's row is the existing app-server integration, not the Codex ACP bridge.
 | Usage | Per-request receipt and model context | Pinned ACP omitted receipts on denied and successful turns; account UI confirms included usage separately | ACP/native tokens retained; account UI confirms included credits separately, without a per-run USD receipt | Assistant-message and compaction token receipts; dollar cost is a catalog pricing estimate, never authoritative billing |
 | Config/model changes | Typed configurable controls | Known modes/model interfaces researched; runtime policy cannot be changed by a display event | Model/reasoning/mode options exist; runtime policy remains authoritative | Exact qualified model; arbitrary slash commands/config/extensions disabled |
 | Reconnect/restart | Durable controller replay and qualified provider restoration | Live-process pending input only until exact restoration is proved | Same; history alone is not approval restoration | Same; wrapper explicitly advertises live-process-only pending-input recovery |
+
+| Shared capability | User-visible surface | Inspectable implementation / deterministic evidence |
+| --- | --- | --- |
+| Text, tools and child activity | Task transcript; bounded activity details preserve provider/session/tool attribution | `src/drivers/acpx/codex-runtime-adapter.test.ts`, `runner/crates/runner-core/tests/acpx_rich_events.rs`, `ui/src/components/task-chat/TaskChatProtocolActivityRow.test.tsx` |
+| Native questions and permissions | Existing question/confirmation cards; only offered decisions can be submitted | `src/protocol/permission-request.test.ts`, `src/drivers/acpx/acp-permission-adapter.test.ts`, `server/src/services/native-runtime/native-question-bridge.test.ts`, `ui/src/components/task-chat/TaskChatProtocolCard.test.tsx` |
+| Native plan decisions | Full plan description followed by a revision-bound decision; no implicit plan acceptance | Cursor provider fixtures; `ui/storybook/fixtures/evidence/rich-acp-browser-proof.darwin-arm64.json` records the real renderer with a canonical fixture |
+| Active steering and queued follow-up | Existing active-turn control where a bound method is negotiated; no native Pi queue selector yet | `src/drivers/acpx/turn-controls.test.ts`; provider reports state which wire method is absent or not surfaced |
+| Files, diffs and images | Workspace file/artifact cards plus contained provider reference notices; raw provider diffs are still partial | `src/drivers/acpx/profile-extensions.test.ts`; provider field audits; Product `file-edit-validate` uses an independent exact-byte oracle |
+| Usage and model identity | Exact configured model, per-provider token/accounting fields, explicit incomplete cost coverage | `src/drivers/acpx/usage-accounting.test.ts`, `src/cli/eval-session-contract.test.ts`, `server/src/services/native-runtime/native-session-executor.test.ts` |
+| Durable input, reconnect and provider death | Pending interaction cards survive controller recovery; unsafe replacement expires unresolved requests | `src/control-plane/durable-prp-control-plane.test.ts`, `runner/crates/runner-core/tests/acpx_provider_resolutions.rs`, `src/live/runnerd-codex-transport.test.ts` |
+| Session list/fork, generic configuration and commands | No added operator surface; exact owned session recovery and configured model remain available | Provider inventories identify native-only, ACP-exposed, confirmed-absent and unverified methods with follow-ups |
+
+Paths starting with `src/` or `runner/` in this evidence table are relative to
+`packages/paperclip-runner/`; other paths are repository-relative. Deterministic
+fixtures establish contract behavior, not successful paid provider execution.
 
 ## Shared event and interaction contract
 
@@ -201,12 +221,19 @@ Separate paid Product E2E evidence now records:
 | Cursor / completion | `edf538e61e712dddb6b4d59045c3dcfd445686c7` | 6/6 assertions; committed finalization, one completion marker, cleanup passed |
 | Cursor / file edit and validation | `fe132224c2b30a8d9ce7b46cea38b8760af233fc` | 7/7 assertions; independent final file bytes, visible downloadable workspace artifact, cleanup passed |
 | Copilot / completion | `bcc9c638a25b91b84065f12633f083bd4f7a689f` | 6/6 assertions and cleanup passed; original accounting projection failed independently |
+| Cursor / question continuation | `a7e01a0cec397dd5048f5d5b5825658dc6e91450` | UI answer Cobalt, continuation and 6/6 terminal assertions passed; two expected provider runs, no retry |
+| Cursor / semantic plan approval | `a7e01a0cec397dd5048f5d5b5825658dc6e91450` | Displayed plan revision matched the confirmation target; accept/continue and 6/6 terminal assertions passed |
+| Copilot / file edit and validation | `ee9536001fbe733b2386dd3379730a4e0be59488` | 7/7 assertions and cleanup passed; independent bytes validated; GitHub biller and unpriced receipt verified |
+| Copilot / question continuation | `ee9536001fbe733b2386dd3379730a4e0be59488` | Question/answer and warm session reuse worked; 4/6 terminal assertions passed because the provider returned a literal placeholder instead of the required marker; failed attempt retained |
 
 The Cursor file case proves the workspace artifact surface, not complete native
 file/diff projection. The Copilot result incorrectly projected missing native cost
 as USD zero and attributed its biller to OpenAI. The original result is retained;
 the shared fix identifies GitHub, Cursor and OpenRouter correctly and keeps absent
-candidate USD receipts unpriced. Fresh paid evidence is required to verify that fix.
+candidate USD receipts unpriced. The separate Copilot file case verifies that fix.
+The question case exposed a second ledger edge: zero normalized token counters
+were treated as a reported cost despite no cost field. Ledger classification now
+requires an explicit finite nonnegative cost; an explicit zero remains reported.
 Protocol evals now fail their cost gate when spend is unknown, preserving completed
 behavior and semantic evidence in a separate accounting-failure result. The
 maintained campaign stops subsequent cells on unknown accounting and never turns
@@ -220,6 +247,16 @@ native input and process construction. Agent configuration cannot grant itself
 qualification authority. The obsolete unconditional Pi executor rejection is
 replaced by the same closed host authorization. Candidate active turns are bounded
 to 120 seconds and automatic infrastructure retries remain disabled.
+
+Pi's next local startup attempt timed out before any prompt, with zero exclusive
+key usage delta. A credential-free reproduction isolated a 37.423-second immutable
+copy of its 13,827-file, 234,019,683-byte distribution, after 5.168 seconds of
+verification, against the 30-second session-open deadline. Bounded parallel copying
+reduced that same copy to 5.851 seconds without changing a timeout. Ten tests cover
+the eight-file / 32 MiB batch bounds, unchanged per-file integrity checks, stable
+digest order, mutation rejection, and draining pending copies before cleanup.
+This is startup preparation evidence; a new paid Product attempt must still prove
+successful inference and settlement.
 
 The maintained Product E2E `extended-harnesses` suite covers local and Daytona
 completion, question/answer, semantic plan approval, pending-input restart and
