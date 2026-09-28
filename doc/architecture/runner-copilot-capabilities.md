@@ -259,8 +259,8 @@ unrelated runner integrity errors keep their original classification.
 ## Complete provider-pack proof
 
 The [retained packaged-launch evidence](../../packages/paperclip-runner/test/fixtures/copilot-provider-pack-darwin-arm64-1.0.88.json)
-records clean source revision `9f7f0eef36d83bb889adc2144402c0b4a3b31dba`,
-provider-pack digest `sha256:dda55ed5d573bb5e763bc76495b251fa107d80f1a213ab1c9d26cfb81f893adb`,
+records clean source revision `5272fc6398d42344d1888a3f97ca6909684eefbf`,
+provider-pack digest `sha256:4ba17b2455b0ab92cfe6ee223f77708379fe219792ccb66dbdef70060e6e22e1`,
 the profile and native closure digests, and the exact protocol-1 initialize response.
 The complete pack was built with standalone Node 24.19.0. Its packaged
 `verifyAcpxProfileInstallation` registry acquired a private native command lease,
@@ -278,6 +278,11 @@ bound retry without spawning a provider during the test. The controller now mint
 a provider/session binding from explicit credential names; the sidecar rejects
 unbound ambient credentials and removes the binding before native launch.
 Caller-supplied binding markers cannot override the controller-generated value.
+The final runner spawn allowlist now preserves the selected credential and
+binding through local and remote launch specifications; regression tests cover
+the complete controller-to-launcher-to-sidecar boundary. Pending direct product
+backends reject before driver construction. Qualification remains available
+through the existing host-controlled runnerd CLI.
 
 Probe attempts are accounted for: an initial smoke client closed stdin before
 initialize completed and was corrected; a bare unauthenticated initialize then
@@ -287,17 +292,20 @@ onto foundation `5aeebb20c`, the complete pack was rebuilt and the fifth initial
 probe passed, with numeric ID 0, clean EOF, and zero fixture HTTP requests. All
 five attempts were local with no credentials or inference. After the final
 foundation `f80c312cd` and Copilot review fixes, the complete pack was rebuilt
-from the source above and a sixth initialize probe passed with the same results.
-All six probes used $0 model and infrastructure spend. There was no Daytona
+and a sixth initialize probe passed with the same results. After foundation
+`7721662f2` fixed the final spawn boundary, the pack was rebuilt from the source
+above and a seventh initialize probe passed. All seven probes used $0 model and
+infrastructure spend. There was no Daytona
 deployment. The candidate remains unqualified.
 
-Final focused checks at the source revision above passed: 86 Copilot/provider-host
-and environment tests (including four retained-evidence cases), 12 strict
+Final focused checks at the source revision above passed: 200 Copilot/provider-host,
+environment, backend-admission and durable-control-plane tests (including four
+retained-evidence cases), 12 strict
 builder/materializer, candidate-registry and probe-cleanup tests, all six Daytona
 image-content tests, and the runner
 TypeScript build including generated schema checks and verified sidecar bundles.
 The evidence update itself passed the four evidence cases again. The complete
-pack remains inspectable at `/tmp/paperclip-copilot-reviewed-provider-pack-20260928`
+pack remains inspectable at `/tmp/paperclip-copilot-launch-boundary-pack-20260928`
 on the build host; the sanitized tracked fixture provides the portable proof.
 The exact Docker resolution command, seeded from the tracked lockfile, produced
 `650e23d20e967bcfbfced888e131199b9a06e66a1ba4f64cfb68383b59def4a8`, matching
