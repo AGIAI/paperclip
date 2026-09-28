@@ -47,8 +47,9 @@ must independently verify the trusted closure digest before every launch.
 | Linux x64 | `0059754cf78c3f3bf2c9d4564dfa7e9e25f3a3f8f411f2f0cdad9363f5662748` | 169544512 | `1a675c5b54ae4d94f08718a318451e0499708ded388b4cfd98acec6b4311ccbd` |
 
 All three archives were verified against the npm SHA-512 integrity value before
-hashing the executable. Archive pins are retained in the materializer. Only the
-ARM64 executable was run. The binary contains its JavaScript/native runtime and
+hashing the executable. Archive pins are retained in the materializer. The macOS
+ARM64 executable has live evidence; Linux x64 now has the initialize-only image
+proof described below. macOS x64 remains execution-unverified. The binary contains its JavaScript/native runtime and
 extracts it into `COPILOT_PKG_CACHE_HOME`; this must be a fresh per-spawn private
 lease directory, never a writable cache shared across executions. The native
 distribution verifier supplied by the foundation owns that isolation boundary.
@@ -537,7 +538,7 @@ that the unchanged counter cannot prove zero included-credit consumption. This
 external reconciliation remains separate from unknown provider USD. No further paid prompt is
 authorized or running from this branch. The profile remains pending.
 
-Final provider checks after these evidence updates pass 73 focused TypeScript
+Final provider checks after these evidence updates pass 74 focused TypeScript
 tests and 24 packaging/discovery/risk-probe tests. The discovery regressions cover
 rejecting the mutable `auto` model selector, releasing leases on early setup
 failures, and rejecting pending RPC calls immediately after native exit or
@@ -549,3 +550,19 @@ mentioning the marker cannot satisfy the oracle. The original paid denial names
 that exact target; offline replay of its retained wire and marker observations
 passes the corrected oracle. The fixture records the original evidence and oracle
 script digests. No additional provider prompt was sent.
+
+
+## Linux image initialize-only proof
+
+The [Linux x64 pack proof](../../packages/paperclip-runner/test/fixtures/copilot-provider-pack-linux-x64-2026-09-28.json)
+uses image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:5457769683fd310223d3b0d4f1ed9a6cf341bdb16514746b3aaeabca2e888fee`
+from the same source `8aa867b64d5fc2fd62cff110bd000addf5dc54de`. Its platform-specific
+pack digest is `sha256:b11984fe02bd5d5a36b01ed559d2f4c765663df09a46117d3092b1183be08ba4`.
+The verified executable matches the Linux pin, initializes Copilot 1.0.88/ACP 1
+with request ID 0, and exits 0 after stdin EOF. The maintained smoke script ran
+under network-none, a read-only root and private tmpfs, with no provider
+credentials and zero fixture requests or inference. Missing-token production
+preflight still rejects. Two earlier operator invocations used the wrong image
+repository or Node path and failed before provider launch; both are retained.
+This is Linux packaging evidence, not an authenticated Daytona Product run or
+model qualification. The profile remains pending.
