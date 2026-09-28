@@ -1,4 +1,5 @@
 import { materializePiDistribution } from "./materialize-pi-distribution.mjs";
+import { materializePinnedCursorDistribution } from "./materialize-cursor-distribution.mjs";
 const CANDIDATES = new Set(["cursor", "copilot", "pi"]);
 
 export function parseProviderPackArguments(args) {
@@ -20,5 +21,15 @@ export function parseProviderPackArguments(args) {
 export async function materializeCandidateProviderPack({ provider, outputRoot }) {
   if (!CANDIDATES.has(provider)) throw new Error("Unknown candidate provider");
   if (provider === "pi") return materializePiDistribution({ outputRoot });
+  if (provider === "copilot") {
+    const { buildPinnedCopilotDistribution } = await import("./build-copilot-distribution.mjs");
+    return buildPinnedCopilotDistribution({ outputRoot });
+  }
+  if (provider === "cursor") {
+    const result = await materializePinnedCursorDistribution({ destination: outputRoot });
+    return { version: result.version,
+      profileDigest: "sha256:1157a5d071abbd57ab132f22bace75c65e84cc47a045b0023475488755e14899",
+      closureDigest: `sha256:${result.closureSha256}` };
+  }
   throw new Error(`The ${provider} candidate distribution builder is not included in this source revision`);
 }
