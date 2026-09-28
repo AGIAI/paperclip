@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
-import { deliverAcpxResponse, requireAcpxResponseDelivery } from "./acpx-response-delivery.js";
+import { deliverAcpxResponse, requireAcpxResponseDelivery } from "../drivers/acpx/response-delivery.js";
 
 import type {
   AcpElicitationContext,

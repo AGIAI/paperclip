@@ -1513,7 +1513,7 @@ describe("Codex ACPX harness driver", () => {
         sessionId: "agent-session-1", toolCall: { toolCallId: "tool-permission", title: "Run validation" },
         options: [{ optionId: "once", kind: "allow_once", name: "Allow once" }],
       },
-    } as Parameters<typeof callback>[0], { signal: new AbortController().signal });
+    } as Parameters<typeof callback>[0], { signal: new AbortController().signal, responseDelivery: Promise.resolve() });
     const events = await created;
     const request = session.pendingRuntimeRequests!()[0]!;
     expect(events.at(-1)?.payload).toMatchObject({ request: {
@@ -1532,6 +1532,39 @@ describe("Codex ACPX harness driver", () => {
     fixture.finishTurn({ status: "completed", stopReason: "end_turn" });
     await collectUntil(session.events(), "turn.completed");
     await session.close({ reason: "permission verified" });
+  });
+
+  it.each(["written", "failed"] as const)("waits for the exact provider permission reply receipt: %s", async outcome => {
+    const fixture = driverFixture({ agent: "copilot", model: "explicit-test-model", providerPolicy: { readOnly: false } });
+    const session = await fixture.driver.openSession({ runId: "run-receipt", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
+    const created = collectUntil(session.events(), "runtime_request.created");
+    const { turnId } = await session.startTurn({ message: { role: "user", text: "Approve with receipt." } });
+    const callback = fixture.host.startTurn.mock.calls[0]![0].onPermissionRequest!;
+    const receipt = deferred<void>();
+    const providerResponse = callback({ inferredKind: "execute", raw: {
+      sessionId: "agent-session-1", toolCall: { toolCallId: "receipt-tool", title: "Run validation" },
+      options: [{ optionId: "session", kind: "allow_always", name: "Allow for session" }],
+    } } as Parameters<typeof callback>[0], { signal: new AbortController().signal, responseDelivery: receipt.promise });
+    await created;
+    const request = session.pendingRuntimeRequests!()[0]!;
+    expect(request.details).toMatchObject({ choices: [{ key: "accept_for_session" }, { key: "cancel" }] });
+    let acknowledged = false;
+    const emitted = collectUntil(session.events(), outcome === "written" ? "runtime_request.resolved" : "runtime_request.expired");
+    const resolution = session.resolveRuntimeRequest!({ requestId: request.requestId, turnId, resolution: { action: "accept_for_session" } })
+      .then(() => { acknowledged = true; });
+    await expect(providerResponse).resolves.toEqual({ outcome: "allow_always" });
+    expect(acknowledged).toBe(false);
+    if (outcome === "written") { receipt.resolve(); await resolution; }
+    else {
+      const rejected = expect(resolution).rejects.toThrow("pipe failed");
+      receipt.reject(new Error("pipe failed")); await rejected;
+    }
+    const events = await emitted;
+    expect(events.filter(event => event.eventType === "runtime_request.resolved")).toHaveLength(outcome === "written" ? 1 : 0);
+    if (outcome === "failed") expect(events.at(-1)?.payload).toMatchObject({ replayAllowed: false, reason: "response_delivery_failed" });
+    expect(session.pendingRuntimeRequests!()).toHaveLength(0);
+    if (outcome === "written") fixture.finishTurn({ status: "completed", stopReason: "end_turn" });
+    await session.close({ reason: "receipt checked" });
   });
 
   it("round-trips a provider-neutral ACP form through the runtime request boundary", async () => {
@@ -1568,7 +1601,7 @@ describe("Codex ACPX harness driver", () => {
           },
         },
       },
-      { requestId: "rpc-question-1", signal: controller.signal },
+      { requestId: "rpc-question-1", signal: controller.signal, responseDelivery: Promise.resolve() },
     );
     const events = await createdEvent;
     const request = session.pendingRuntimeRequests!()[0]!;
@@ -1650,7 +1683,7 @@ describe("Codex ACPX harness driver", () => {
         },
         {
           requestId: "rpc-question-created-pressure",
-          signal: new AbortController().signal,
+          signal: new AbortController().signal, responseDelivery: Promise.resolve(),
         },
       ),
     ).resolves.toEqual({ action: "cancel" });
@@ -1684,7 +1717,7 @@ describe("Codex ACPX harness driver", () => {
           properties: { value: { type: "string" } },
         },
       },
-      { requestId: "rpc-question-abort", signal: controller.signal },
+      { requestId: "rpc-question-abort", signal: controller.signal, responseDelivery: Promise.resolve() },
     );
     await createdEvent;
     const cancelledEvent = collectUntil(
@@ -1733,7 +1766,7 @@ describe("Codex ACPX harness driver", () => {
       },
       {
         requestId: "rpc-question-stream-failure",
-        signal: new AbortController().signal,
+        signal: new AbortController().signal, responseDelivery: Promise.resolve(),
       },
     );
     await vi.waitFor(() => {
@@ -1779,7 +1812,7 @@ describe("Codex ACPX harness driver", () => {
       },
       {
         requestId: "rpc-question-handoff",
-        signal: new AbortController().signal,
+        signal: new AbortController().signal, responseDelivery: Promise.resolve(),
       },
     );
     await createdEvent;
@@ -1847,7 +1880,7 @@ describe("Codex ACPX harness driver", () => {
       },
       {
         requestId: "rpc-question-handoff-pressure",
-        signal: new AbortController().signal,
+        signal: new AbortController().signal, responseDelivery: Promise.resolve(),
       },
     );
     await vi.waitFor(() => {

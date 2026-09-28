@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { deliverAcpxResponse, requireAcpxResponseDelivery } from "./acpx-response-delivery.js";
+import { deliverAcpxResponse, requireAcpxResponseDelivery } from "./response-delivery.js";
 
 describe("ACP interaction response delivery", () => {
   it("does not acknowledge callback settlement before the provider pipe write", async () => {

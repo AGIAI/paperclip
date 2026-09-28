@@ -1,3 +1,4 @@
+import { requireAcpxResponseDelivery } from "./response-delivery.js";
 import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "./profile-extensions.js";
 import { createHash, randomBytes } from "node:crypto";
 
@@ -115,6 +116,7 @@ const QUARANTINED_HOST_ADMISSION_GRACE_MS =
 
 interface PendingAcpxRuntimeRequest {
   request: HarnessRuntimeRequest;
+  responseDelivery: Promise<void>;
   prepareResolution(resolution: HarnessRuntimeRequestResolution): () => void;
   cancel(): void;
   cleanup(): void;
@@ -894,7 +896,7 @@ class CodexAcpxSession implements HarnessSession {
         onExtensionRequest: extensions.onExtensionRequest,
         onExtensionNotification: extensions.onExtensionNotification,
         onPermissionRequest: (request, context) =>
-          this.#handlePermission(turnId, request, context.signal),
+          this.#handlePermission(turnId, request, context),
         onElicitation: (request, context) =>
           this.#handleElicitation(turnId, request, context),
       });
@@ -988,6 +990,7 @@ class CodexAcpxSession implements HarnessSession {
       );
     }
     pending.settling = true;
+    let dispatched = false;
     try {
       const resolution = parseHarnessRuntimeRequestResolution(
         pending.request.requestKind,
@@ -997,6 +1000,9 @@ class CodexAcpxSession implements HarnessSession {
       const deliver = pending.prepareResolution(resolution);
       if (!this.#pendingRuntimeRequests.delete(input.requestId)) return;
       pending.cleanup();
+      dispatched = true;
+      deliver();
+      await pending.responseDelivery;
       this.#emit(
         "runtime_request.resolved",
         harnessRuntimeRequestOutcome(pending.request, {
@@ -1007,9 +1013,14 @@ class CodexAcpxSession implements HarnessSession {
         }),
         { turnId: input.turnId, itemId: pending.request.itemId },
       );
-      deliver();
     } catch (error) {
-      pending.settling = false;
+      if (!dispatched) { pending.settling = false; throw error; }
+      this.#emit("runtime_request.expired", {
+        ...harnessRuntimeRequestOutcome(pending.request, { reason: "response_delivery_failed" }),
+        replayAllowed: false,
+      }, { turnId: input.turnId, itemId: pending.request.itemId });
+      try { await this.close({ reason: "ACP response delivery failed" }); }
+      catch (cleanupError) { throw new AggregateError([error, cleanupError], "ACP response delivery and provider cleanup failed"); }
       throw error;
     }
   }
@@ -1640,10 +1651,11 @@ class CodexAcpxSession implements HarnessSession {
   async #handleExtensionInput(
     turnId: string,
     input: AcpxExtensionInput,
-    context: { requestId: string | number; signal: AbortSignal },
+    context: { requestId: string | number; signal: AbortSignal; responseDelivery?: Promise<void> },
   ): Promise<Record<string, unknown>> {
     if (this.#closed || this.#activeTurnId !== turnId || context.signal.aborted
       || this.#pendingRuntimeRequests.size >= MAX_PENDING_RUNTIME_REQUESTS) return input.cancel();
+    const responseDelivery = requireAcpxResponseDelivery(context);
     const requestId = stableId("acpx-request", `${turnId}:${++this.#runtimeRequestSequence}:${typeof context.requestId}:${context.requestId}`);
     const request: HarnessRuntimeRequest = {
       requestId, requestKind: "elicitation", method: input.method, turnId, itemId: requestId,
@@ -1662,7 +1674,7 @@ class CodexAcpxSession implements HarnessSession {
         settle(input.cancel());
       };
       this.#pendingRuntimeRequests.set(requestId, {
-        request,
+        request, responseDelivery,
         prepareResolution: resolution => {
           const response = input.resolve(resolution);
           return () => settle(response);
@@ -1680,13 +1692,15 @@ class CodexAcpxSession implements HarnessSession {
   async #handlePermission(
     turnId: string,
     request: AcpPermissionRequest,
-    signal: AbortSignal,
+    context: { signal: AbortSignal; responseDelivery?: Promise<void> },
   ): Promise<AcpPermissionDecision> {
+    const { signal } = context;
     if (this.#closed || this.#activeTurnId !== turnId || signal.aborted
       || this.#pendingRuntimeRequests.size >= MAX_PENDING_RUNTIME_REQUESTS) {
       return { outcome: "cancel" };
     }
-    const normalized = normalizeAcpxPermission(request, this.#agent === "pi" ? { allowAlwaysScope: "session" } : {});
+    const responseDelivery = requireAcpxResponseDelivery(context);
+    const normalized = normalizeAcpxPermission(request, ["pi", "copilot"].includes(this.#agent) ? { allowAlwaysScope: "session" } : {});
     const requestId = stableId("acpx-permission", `${turnId}:${++this.#runtimeRequestSequence}:${normalized.toolCallId}`);
     const runtimeRequest: HarnessRuntimeRequest = {
       requestId, requestKind: "permission_approval", method: "session/request_permission",
@@ -1705,7 +1719,7 @@ class CodexAcpxSession implements HarnessSession {
         settle({ outcome: "cancel" });
       };
       this.#pendingRuntimeRequests.set(requestId, {
-        request: runtimeRequest,
+        request: runtimeRequest, responseDelivery,
         prepareResolution: (resolution) => {
           const response = normalized.resolve(resolution);
           return () => settle(response);
@@ -1792,6 +1806,7 @@ class CodexAcpxSession implements HarnessSession {
       );
       return { action: "cancel" };
     }
+    const responseDelivery = requireAcpxResponseDelivery(context);
     const requestId = stableId(
       "acpx-request",
       `${turnId}:${++this.#runtimeRequestSequence}:${typeof context.requestId}:${String(context.requestId)}`,
@@ -1844,7 +1859,7 @@ class CodexAcpxSession implements HarnessSession {
       };
       context.signal.addEventListener("abort", cancel, { once: true });
       this.#pendingRuntimeRequests.set(requestId, {
-        request: runtimeRequest,
+        request: runtimeRequest, responseDelivery,
         prepareResolution: (resolution) => {
           const response = acpElicitationResponse(normalized, resolution);
           return () => settle(response);
