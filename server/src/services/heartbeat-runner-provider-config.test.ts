@@ -376,6 +376,6 @@ describe("Paperclip Runner native provider configuration", () => {
         backend: "acpx_runtime",
         adapterConfig: { provider: "acpx", acpxAgent: "pi", model: "pi-model" },
       }),
-    ).toThrow("Pi is not available");
+    ).toThrow("Pi is awaiting local and Daytona qualification");
   });
 });
