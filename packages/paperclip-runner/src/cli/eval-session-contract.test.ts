@@ -1,8 +1,10 @@
-import { chmod, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { chmod, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createCapabilityFixtureState } from "../mock-core/capability-control-plane-types.js";
 
 import { parseNativeRuntimeContext } from "../contracts/runtime-context.js";
 import type { CapabilityLiveSessionSnapshot } from "../live/live-session.js";
@@ -12,6 +14,7 @@ import {
 } from "./eval-session-contract.js";
 import {
   boundedEvalSessionUsage,
+  runEvalSessionCli,
   evalRuntimeSystemInstructions,
   evalSessionProviderVersion,
   prepareEvalRuntimeContext,
@@ -292,7 +295,7 @@ describe("eval-session usage", () => {
       usageLedger: [], usageUnavailable: [unavailable],
     } as unknown as CapabilityLiveSessionSnapshot;
     const turn = { turnId: unavailable.turnId, status: "completed" as const, assistantText: "Upgrade your plan to continue", snapshot };
-    expect(boundedEvalSessionUsage(parsed, turn)).toBeNull();
+    expect(() => boundedEvalSessionUsage(parsed, turn)).toThrow("budget cost coverage is unavailable");
     expect(turn.assistantText).toBe("Upgrade your plan to continue");
     expect(snapshot.usageLedger).toEqual([]);
     expect(() => boundedEvalSessionUsage(parsed, { ...turn, turnId: "other-turn" }))
@@ -325,7 +328,7 @@ describe("eval-session usage", () => {
     } as unknown as CapabilityLiveSessionSnapshot;
     const turn = { turnId: "measured-turn", status: "completed" as const, assistantText: "Done", snapshot };
     expect(() => boundedEvalSessionUsage(parsed, turn)).toThrow("agent turn limit exceeded");
-    expect(boundedEvalSessionUsage({ ...parsed, limits: { ...parsed.limits, maxAgentTurns: 2 } }, turn)).toBeNull();
+    expect(() => boundedEvalSessionUsage({ ...parsed, limits: { ...parsed.limits, maxAgentTurns: 2 } }, turn)).toThrow("budget cost coverage is unavailable");
     expect(boundedEvalSessionUsage(parsed, {
       ...turn,
       snapshot: { ...snapshot, usageUnavailable: [{ ...unavailable, turnId: "measured-turn" }] },
@@ -385,6 +388,10 @@ describe("eval-session usage", () => {
       estimatedCostNanodollars: null, pricingVersion: null, ratesUsdPerMillionTokens: null,
       costCoverage: "unpriced",
     });
+    const parsed = parseEvalSessionRequest(request({ provider: "acpx", acpxAgent: agent, model: "exact-provider-model[context=272k]" }), { candidateProfile: agent as "pi" | "cursor" | "copilot" });
+    expect(() => boundedEvalSessionUsage(parsed, {
+      turnId: "candidate-turn", status: "completed", assistantText: "Completed provider response", snapshot,
+    })).toThrow("budget cost coverage is unavailable");
     const priced = evalSessionUsage("openrouter/deepseek/deepseek-v4-flash-0731", snapshot);
     expect(priced.providerReportedCostNanodollars).toBeNull();
     expect(priced.costCoverage).toBe("estimated");
@@ -394,5 +401,62 @@ describe("eval-session usage", () => {
     expect(() => evalSessionUsage("unpriced-qualified-model", {
       ...snapshot, config: { provider: "codex" },
     } as unknown as CapabilityLiveSessionSnapshot)).toThrow("model pricing unavailable");
+  });
+});
+
+describe("eval-session budget settlement", () => {
+  it.each(["no_receipt", "unpriced", "mixed", "over_limit"] as const)("retains the completed provider outcome while failing %s accounting", async (kind) => {
+    const workspace = await mkdtemp(join(tmpdir(), "eval-budget-settlement-"));
+    try {
+      const binary = join(workspace, "runnerd");
+      await writeFile(binary, "unused fake runner");
+      const model = kind === "unpriced" || kind === "no_receipt" ? "exact-unpriced-candidate" : "gpt-5.6-sol";
+      const unavailable = { turnId: kind === "mixed" ? "prior-turn" : "turn-1", attemptId: "attempt-1", agent: "copilot", reason: "provider_did_not_report_usage", tokenUsage: null, costNanodollars: null, observedAt: "2026-09-28T19:00:00.000Z" };
+      const state = JSON.stringify(createCapabilityFixtureState({}));
+      const snapshot = {
+        sessionId: "session-1", revision: 1, providerThreadId: "provider-1", providerSessionId: "provider-1",
+        providerModel: { id: model, provider: "github" }, status: "idle", activeTurnId: null,
+        createdAt: "2026-09-28T19:00:00.000Z", updatedAt: "2026-09-28T19:00:01.000Z",
+        authority: { companyId: "company-1", actorId: "actor-1", taskId: "task-1", runId: "run-1", sessionId: "session-1", scenarioId: "budget-test" },
+        config: { provider: "acpx", acpxAgent: "copilot", driver: "acpx_runtime", seedState: state, workingDirectory: workspace, scenario: { id: "budget-test" }, capabilities: [], explicitClaims: [], turnTimeoutMs: 1000 },
+        mockState: state, process: null, networkEvidence: { realPaperclipRequests: 0, childPaperclipEnvironmentKeys: [] },
+        transcript: [{ id: "assistant-1", role: "assistant", text: "Retained actual provider response", turnId: "turn-1", at: "2026-09-28T19:00:01.000Z" }],
+        evidence: [], authorizationRecords: [], attempts: [], terminalTurns: [{ turnId: "turn-1", status: "completed" }],
+        usageLedger: kind === "no_receipt" ? [] : [{ receiptId: "receipt-1", turnId: "turn-1", providerCalls: 1, providerRequests: 1, inputTokens: 100, outputTokens: kind === "over_limit" ? 1_000_000 : 10, cachedInputTokens: 0, reasoningTokens: 0, costNanodollars: 0 }],
+        usageUnavailable: kind === "no_receipt" || kind === "mixed" ? [unavailable] : [],
+      } as unknown as CapabilityLiveSessionSnapshot;
+      const sendMessage = vi.fn(async () => ({ turnId: "turn-1", status: "completed", assistantText: "Retained actual provider response", snapshot }));
+      const completeAttempt = vi.fn(async () => undefined);
+      const shutdown = vi.fn(async () => { snapshot.status = "closed"; });
+      const input = request({ provider: "acpx", acpxAgent: "copilot", model,
+        runnerd: { path: binary, sha256: createHash("sha256").update("unused fake runner").digest("hex") },
+        session: { workingDirectory: workspace }, limits: { turnTimeoutMs: 1000, maxAgentTurns: 2, maxEstimatedCostNanodollars: 100_000_000 },
+      });
+      const requestPath = join(workspace, "request.json");
+      const outputPath = join(workspace, "output.json");
+      await writeFile(requestPath, JSON.stringify(input));
+      const exitCode = await runEvalSessionCli(["--request", requestPath, "--output", outputPath, "--candidate-profile", "copilot"], {
+        serviceFactory: () => ({ create: async () => ({ sendMessage, completeAttempt, shutdown, snapshot: () => snapshot }) }) as never,
+      });
+      const artifact = JSON.parse(await readFile(outputPath, "utf8"));
+      expect(exitCode).toBe(2);
+      expect(artifact).not.toHaveProperty("infrastructureError");
+      expect(artifact.accountingFailure).toMatchObject({ class: kind === "over_limit" ? "provider_budget_reached" : "provider_budget_coverage_unknown", retryable: false });
+      expect(artifact.turn).toMatchObject({ status: "completed", assistantText: "Retained actual provider response" });
+      expect(artifact.snapshot.status).toBe("closed");
+      expect(artifact.acpxProfile.agent).toBe("copilot");
+      expect(artifact.devtools).toBeDefined();
+      expect(artifact.issueThread).toBeDefined();
+      if (kind === "no_receipt") expect(artifact).not.toHaveProperty("usage");
+      else expect(artifact.usage.providerReportedCostNanodollars).toBeNull();
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+      expect(shutdown).toHaveBeenCalledTimes(1);
+      expect(completeAttempt).toHaveBeenCalledWith("failed", artifact.accountingFailure.class);
+    } finally {
+      for (const entry of await readdir(workspace)) {
+        if (entry.startsWith(".paperclip-eval-runtime-context-")) await chmod(join(workspace, entry, "instructions"), 0o700).catch(() => undefined);
+      }
+      await rm(workspace, { recursive: true, force: true });
+    }
   });
 });

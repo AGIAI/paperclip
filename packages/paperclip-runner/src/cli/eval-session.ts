@@ -192,12 +192,22 @@ export function evalSessionProviderVersion(
   return null;
 }
 
+class EvalSessionBudgetError extends Error {
+  constructor(message: string, readonly coverageUnknown = false) {
+    super(message);
+    this.name = "EvalSessionBudgetError";
+  }
+}
+
 function failureClass(error: unknown): {
   class: string;
   category: string;
   retryable: boolean;
   diagnostics: Record<string, never>;
 } {
+  if (error instanceof EvalSessionBudgetError && error.coverageUnknown) {
+    return { class: "provider_budget_coverage_unknown", category: "provider_budget", retryable: false, diagnostics: {} };
+  }
   const message = error instanceof Error ? error.message : String(error);
   if (/timed? ?out|timeout/i.test(message)) {
     return {
@@ -268,23 +278,26 @@ export function boundedEvalSessionUsage(
     : evalSessionUsage(request.model, turn.snapshot);
   const unavailableTurns = unavailableTurnIds.size;
   if ((usage?.agentTurns ?? 0) + unavailableTurns > request.limits.maxAgentTurns) {
-    throw new Error("agent turn limit exceeded");
+    throw new EvalSessionBudgetError("agent turn limit exceeded");
   }
   if (
     usage !== null && usage.estimatedCostNanodollars !== null &&
     usage.estimatedCostNanodollars >
     request.limits.maxEstimatedCostNanodollars
   ) {
-    throw new Error("estimated cost limit exceeded");
+    throw new EvalSessionBudgetError("estimated cost limit exceeded");
   }
   if (
     usage !== null && usage.providerReportedCostNanodollars !== null &&
     usage.providerReportedCostNanodollars >
     request.limits.maxEstimatedCostNanodollars
   ) {
-    throw new Error("provider-reported cost limit exceeded");
+    throw new EvalSessionBudgetError("provider-reported cost limit exceeded");
   }
-  return unavailable ? null : usage;
+  if (unavailable || usage === null || (usage.estimatedCostNanodollars === null && usage.providerReportedCostNanodollars === null)) {
+    throw new EvalSessionBudgetError("budget cost coverage is unavailable for one or more completed turns", true);
+  }
+  return usage;
 }
 
 async function closeSession(
@@ -369,10 +382,21 @@ export async function runEvalSessionCli(
     } as unknown as CreateCapabilityLiveSessionInput;
     session = await service.create(createInput);
     turn = await session.sendMessage(request.prompt);
-    const usage = boundedEvalSessionUsage(request, turn);
+    let usage: EvalSessionUsage | null;
+    let accountingError: EvalSessionBudgetError | null = null;
+    try {
+      usage = boundedEvalSessionUsage(request, turn);
+    } catch (error) {
+      if (!(error instanceof EvalSessionBudgetError)) throw error;
+      // A completed provider outcome remains inspectable even when its budget
+      // cannot be verified. Never turn unknown cost into a successful CLI run.
+      accountingError = error;
+      usage = usageIfAvailable(request, turn.snapshot);
+    }
     await session.completeAttempt(
-      turn.status === "completed" ? "succeeded" : "failed",
-      turn.status === "completed" ? null : `provider_turn_${turn.status}`,
+      accountingError === null && turn.status === "completed" ? "succeeded" : "failed",
+      accountingError !== null ? failureClass(accountingError).class
+        : turn.status === "completed" ? null : `provider_turn_${turn.status}`,
     );
     await closeSession(session, "eval session complete");
     snapshot = session.snapshot();
@@ -411,6 +435,10 @@ export async function runEvalSessionCli(
         : {}),
       turn,
       snapshot,
+      ...(accountingError === null ? {} : {
+        accountingError: accountingError.message,
+        accountingFailure: failureClass(accountingError),
+      }),
       devtools: projectCapabilityDevtools(snapshot),
       issueThread: projectCapabilityIssueThread({
         snapshot,
@@ -424,7 +452,7 @@ export async function runEvalSessionCli(
         durationMs: Date.now() - startedAtMs,
       },
     }, null, 2)}\n`);
-    return 0;
+    return accountingError === null ? 0 : 2;
   } catch (error) {
     if (session !== null) {
       snapshot = session.snapshot();
