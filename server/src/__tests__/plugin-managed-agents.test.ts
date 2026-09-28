@@ -27,6 +27,7 @@ import { buildHostServices } from "../services/plugin-host-services.js";
 import { agentService } from "../services/agents.js";
 import { agentInstructionRevisionService } from "../services/agent-instruction-revisions.js";
 import { agentInstructionsService } from "../services/agent-instructions.js";
+import { pluginRegistryService } from "../services/plugin-registry.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
@@ -508,6 +509,78 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
     const [binding] = await db.select().from(pluginEntities);
     expect(binding?.data).toMatchObject({ agentId });
   });
+
+  it("preserves canonical history when relinking after a hard uninstall and reinstall", async () => {
+    const previousHome = process.env.PAPERCLIP_HOME;
+    const tempHome = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "plugin-reinstall-reset-")));
+    process.env.PAPERCLIP_HOME = tempHome;
+    try {
+      const pluginManifest = manifest();
+      pluginManifest.agents![0]!.instructions = { content: "# Original stock\n" };
+      const { companyId, pluginId, services } = await seedCompanyAndPlugin({ manifest: pluginManifest });
+      const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+      const target = { companyId, agentId: created.agentId! };
+      const revisions = agentInstructionRevisionService(db);
+      const original = await revisions.readForPluginReset(target, {
+        type: "plugin", pluginId, pluginKey: pluginManifest.id, agentKey: "wiki-maintainer",
+      });
+      const registry = pluginRegistryService(db);
+      await registry.uninstall(pluginId, true);
+      expect(await db.select().from(pluginManagedResources)).toHaveLength(0);
+      expect(await db.select().from(pluginEntities)).toHaveLength(0);
+      const nextManifest = structuredClone(pluginManifest);
+      nextManifest.agents![0]!.instructions = { content: "# Reinstalled stock\n" };
+      const installed = await registry.install({ packageName: "@paperclipai/plugin-managed-agents-test" }, nextManifest);
+      expect(installed!.id).not.toBe(pluginId);
+      await registry.updateStatus(installed!.id, { status: "ready" });
+      const reinstalledServices = buildHostServices(db, installed!.id, nextManifest.id, createEventBusStub(), undefined, {
+        manifest: nextManifest,
+      });
+      const relinked = await reinstalledServices.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+      expect(relinked.status).toBe("relinked");
+      expect(relinked.agentId).toBe(created.agentId);
+      const reset = await reinstalledServices.agents.managedReset({ companyId, agentKey: "wiki-maintainer" });
+      expect(reset.agentId).toBe(created.agentId);
+      expect(reset.agent!.metadata).toMatchObject({ paperclipManagedResource: { pluginId: installed!.id }, pluginManagedAgent: { pluginId: installed!.id } });
+      expect(await fs.readFile(reset.agent!.adapterConfig.instructionsFilePath as string, "utf8")).toBe("# Reinstalled stock\n");
+      const history = await db.select().from(agentInstructionRevisions).where(eq(agentInstructionRevisions.agentId, created.agentId!));
+      expect(history).toHaveLength(2);
+      expect(history.find((row) => row.id === original.snapshot!.revision.id)?.contentBase64).toBe(Buffer.from("# Original stock\n").toString("base64"));
+      expect(history.find((row) => row.id !== original.snapshot!.revision.id)?.parentRevisionId).toBe(original.snapshot!.revision.id);
+    } finally {
+      if (previousHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousHome;
+      await fs.rm(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["not-ready", "capability-removed", "declaration-removed", "other-plugin-owner"])(
+    "does not relink a managed agent when its authority is %s", async (reason) => {
+      const { companyId, pluginId, pluginManifest, services } = await seedCompanyAndPlugin();
+      const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+      await db.delete(pluginEntities);
+      await db.delete(pluginManagedResources);
+      if (reason === "not-ready") {
+        await db.update(plugins).set({ status: "disabled" }).where(eq(plugins.id, pluginId));
+      } else if (reason === "capability-removed") {
+        await db.update(plugins).set({ manifestJson: { ...pluginManifest, capabilities: [] } }).where(eq(plugins.id, pluginId));
+      } else if (reason === "declaration-removed") {
+        await db.update(plugins).set({ manifestJson: { ...pluginManifest, agents: [] } }).where(eq(plugins.id, pluginId));
+      } else {
+        const otherId = randomUUID();
+        await db.insert(plugins).values({ id: otherId, pluginKey: "paperclip.other-owner", packageName: "other",
+          version: "0.1.0", apiVersion: 1, categories: [], manifestJson: { ...pluginManifest, id: "paperclip.other-owner" }, status: "ready", installOrder: 2 });
+        await db.update(agents).set({ metadata: { ...created.agent!.metadata,
+          paperclipManagedResource: { pluginId: otherId, pluginKey: pluginManifest.id, resourceKind: "agent", resourceKey: "wiki-maintainer" },
+        } }).where(eq(agents.id, created.agentId!));
+      }
+      const [before] = await db.select().from(agents).where(eq(agents.id, created.agentId!));
+      await expect(services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" })).rejects.toMatchObject({ status: 403 });
+      expect(await db.select().from(pluginEntities)).toHaveLength(0);
+      expect(await db.select().from(pluginManagedResources)).toHaveLength(0);
+      const [after] = await db.select().from(agents).where(eq(agents.id, created.agentId!));
+      expect(after.metadata).toEqual(before.metadata);
+    },
+  );
 
   it("respects board approval policy for new managed agents", async () => {
     const { companyId, services } = await seedCompanyAndPlugin({ requireApproval: true });
