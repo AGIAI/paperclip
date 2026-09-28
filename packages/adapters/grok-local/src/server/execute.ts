@@ -728,13 +728,16 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
   };
 
   try {
-    return await withWorkspaceRestore(executeTurn, async () => {
-      try {
-        await providerStop.collectBeforeRestore();
-      } finally {
-        await restoreRemoteWorkspace?.();
-      }
-    });
+    return await withWorkspaceRestore(
+      async () => {
+        try {
+          return await executeTurn();
+        } finally {
+          await providerStop.collectBeforeRestore();
+        }
+      },
+      async () => { await restoreRemoteWorkspace?.(); },
+    );
   } finally {
     // Cleanup runs after settlement on both success and failure.
     if (stagedGrokHomeDir) {
