@@ -1627,7 +1627,8 @@ apps.push({
   ],
   "featured": false,
   "branding": {
-    "logoUrl": "/brands/apps/x.svg"
+    "logoUrl": "/brands/apps/x.svg",
+    "darkLogoUrl": "/brands/apps/x-dark.svg"
   },
   "urlPatterns": [
     "https://x.com/*"
