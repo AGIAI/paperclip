@@ -83,6 +83,11 @@ export interface AcpxRuntimeGoalCapability {
   actions: Array<"set" | "pause" | "resume" | "clear">;
 }
 
+export interface AcpxRuntimeSteeringCapability {
+  steering: boolean;
+  queuedFollowUp: boolean;
+}
+
 export interface AcpxRuntimeGoalSnapshot {
   objective: string;
   status: "active" | "paused" | "blocked" | "limited" | "complete";
@@ -101,6 +106,8 @@ export interface AcpxRuntimeTurnInput {
   signal?: AbortSignal;
   onElicitation?: AcpElicitationHandler;
   onPermissionRequest?: AcpRuntimeOptions["onPermissionRequest"];
+  onExtensionRequest?: AcpRuntimeOptions["onExtensionRequest"];
+  onExtensionNotification?: AcpRuntimeOptions["onExtensionNotification"];
 }
 
 export interface AcpxRuntimeTurn {
@@ -117,6 +124,9 @@ export interface AcpxRuntimePort {
   identity(): Promise<AcpxRuntimePortIdentity>;
   getStatus(): Promise<AcpxModelStatus>;
   setModel?(model: string): Promise<void>;
+  steeringCapability?(): AcpxRuntimeSteeringCapability | null;
+  steerActiveTurn?(text: string, requestId: string): Promise<void>;
+  queueFollowUp?(text: string, requestId: string): Promise<void>;
   goalCapability?(): AcpxRuntimeGoalCapability | null;
   goalSnapshot?(): AcpxRuntimeGoalSnapshot | null;
   controlGoal?(
@@ -128,6 +138,8 @@ export interface AcpxRuntimePort {
 }
 
 export interface AcpxRuntimePortOpenOptions {
+  /** Ephemeral provider extension metadata; mandatory ACP caps remain host-owned. */
+  clientCapabilities?: Record<string, unknown>;
   command: VerifiedAcpxCommandLease;
   /** Replace a consumed launch snapshot after an ephemeral control session. */
   refreshConsumedCommand?: () => Promise<void>;
@@ -199,6 +211,8 @@ export interface AcpxRuntimeHostDependencies {
 }
 
 export interface OpenAcpxRuntimeHostOptions {
+  /** Never persisted as session options or recovery identity. */
+  clientCapabilities?: Record<string, unknown>;
   runtimeDirectory: string;
   normalizedSessionId: string;
   workingDirectory: string;
@@ -463,6 +477,9 @@ export class AcpxRuntimeHost {
         acquire: () => {
           options.assertWorkspaceHeld?.();
           return dependencies.openRuntime({
+            ...(options.clientCapabilities === undefined ? {} : {
+              clientCapabilities: structuredClone(options.clientCapabilities),
+            }),
             command: command!,
             refreshConsumedCommand: commandOwner.refreshConsumedCommand,
             profile,
@@ -629,6 +646,36 @@ export class AcpxRuntimeHost {
     return this.#runtime.goalCapability?.() ?? null;
   }
 
+  steeringCapability(): AcpxRuntimeSteeringCapability | null {
+    return this.#runtime.steeringCapability?.() ?? null;
+  }
+
+  async steerActiveTurn(text: string, turnId?: string): Promise<void> {
+    const turn = this.#activeTurn;
+    if (this.#closed || this.#closingStarted || !turn || (turnId !== undefined && turn.requestId !== turnId)) {
+      throw new Error("ACPX steering does not own an active turn");
+    }
+    if (!this.steeringCapability()?.steering || !this.#runtime.steerActiveTurn) {
+      throw new Error("ACPX active steering is unavailable");
+    }
+    await turn.promptStarted;
+    if (this.#activeTurn !== turn || this.#closingStarted) throw new Error("ACPX steering turn expired");
+    await this.#runtime.steerActiveTurn(boundedTurnText(text), turn.requestId);
+  }
+
+  async queueFollowUp(text: string, turnId?: string): Promise<void> {
+    const turn = this.#activeTurn;
+    if (this.#closed || this.#closingStarted || !turn || (turnId !== undefined && turn.requestId !== turnId)) {
+      throw new Error("ACPX follow-up does not own an active turn");
+    }
+    if (!this.steeringCapability()?.queuedFollowUp || !this.#runtime.queueFollowUp) {
+      throw new Error("ACPX queued follow-up is unavailable");
+    }
+    await turn.promptStarted;
+    if (this.#activeTurn !== turn || this.#closingStarted) throw new Error("ACPX follow-up turn expired");
+    await this.#runtime.queueFollowUp(boundedTurnText(text), turn.requestId);
+  }
+
   goalSnapshot(): AcpxRuntimeGoalSnapshot | null {
     return this.#runtime.goalSnapshot?.() ?? null;
   }
@@ -663,6 +710,8 @@ export class AcpxRuntimeHost {
       ...(input.signal ? { signal: input.signal } : {}),
       ...(input.onElicitation ? { onElicitation: input.onElicitation } : {}),
       ...(input.onPermissionRequest ? { onPermissionRequest: input.onPermissionRequest } : {}),
+      ...(input.onExtensionRequest ? { onExtensionRequest: input.onExtensionRequest } : {}),
+      ...(input.onExtensionNotification ? { onExtensionNotification: input.onExtensionNotification } : {}),
     });
     this.#activeTurn = turn;
     void turn.result

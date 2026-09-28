@@ -16,6 +16,7 @@ import {
 import type {
   AcpxRuntimeGoalCapability,
   AcpxRuntimeGoalSnapshot,
+  AcpxRuntimeSteeringCapability,
   AcpxRuntimePort,
   AcpxRuntimePortIdentity,
   AcpxRuntimePortOpenOptions,
@@ -28,6 +29,7 @@ import {
 } from "./installation-integrity.js";
 import type { AcpxModelStatus } from "./model-verification.js";
 import { AcpxApprovalRequiredError, decideAcpxPermission } from "./permission-policy.js";
+import { ACPX_CAPABILITY_PROFILES } from "./capability-profiles.js";
 
 const VERIFIED_COMMAND_SENTINEL = "paperclip-verified-acpx-command";
 const DEFAULT_RUNTIME_CLOSE_TIMEOUT_MS = 2_000;
@@ -78,6 +80,21 @@ interface AcpxRuntimeGoalState {
   snapshot: AcpxRuntimeGoalSnapshot | null;
   revision: number;
   observedSnapshot: boolean;
+}
+
+interface AcpxRuntimeExtensionTurn {
+  requestId: string;
+  controller: AbortController;
+  signal: AbortSignal;
+  promptStarted: Promise<void>;
+  onRequest?: AcpRuntimeOptions["onExtensionRequest"];
+  onNotification?: AcpRuntimeOptions["onExtensionNotification"];
+}
+
+interface AcpxRuntimeExtensionBoundary {
+  active: AcpxRuntimeExtensionTurn | null;
+  sessionIds: Set<string>;
+  steering: AcpxRuntimeSteeringCapability | null;
 }
 
 class AcpxRuntimeCloseTimeoutError extends Error {
@@ -249,6 +266,15 @@ export async function openQualifiedAcpxRuntime(
     active: AbortController | null;
     handler?: AcpRuntimeOptions["onPermissionRequest"];
   } = { active: null };
+  const extensionProfile = ACPX_CAPABILITY_PROFILES[options.profile.agent];
+  const extensionRequests = new Set(extensionProfile.extensionRequests);
+  const extensionNotifications = new Set(extensionProfile.extensionNotifications);
+  const extensionBoundary: AcpxRuntimeExtensionBoundary = {
+    active: null, sessionIds: new Set(), steering: null,
+  };
+  const ownsExtensionTurn = (active: AcpxRuntimeExtensionTurn, params: Record<string, unknown>): boolean =>
+    extensionBoundary.active === active && !active.signal.aborted
+      && (params.sessionId === undefined || (typeof params.sessionId === "string" && extensionBoundary.sessionIds.has(params.sessionId)));
   const goalState: AcpxRuntimeGoalState = {
     capability: null,
     snapshot: null,
@@ -286,6 +312,24 @@ export async function openQualifiedAcpxRuntime(
       ? "approve-reads"
       : options.permissionMode,
     elicitationModes: ["form"],
+    ...(options.clientCapabilities === undefined ? {} : { clientCapabilities: structuredClone(options.clientCapabilities) }),
+    extensionMethods: [...new Set([...extensionRequests, ...extensionNotifications])],
+    onExtensionRequest: async (method, params, context) => {
+      const active = extensionBoundary.active;
+      if (!extensionRequests.has(method) || !active?.onRequest || !ownsExtensionTurn(active, params) || context.signal.aborted) {
+        throw new Error("ACPX extension request does not own an admitted active turn");
+      }
+      const signal = AbortSignal.any([active.signal, context.signal]);
+      const response = await abortableExtensionResult(active.onRequest(method, params, { requestId: context.requestId, signal }), signal);
+      signal.throwIfAborted();
+      if (!ownsExtensionTurn(active, params)) throw new Error("ACPX extension request turn expired");
+      return response;
+    },
+    onExtensionNotification: (method, params) => {
+      const active = extensionBoundary.active;
+      if (!extensionNotifications.has(method) || !active?.onNotification || !ownsExtensionTurn(active, params)) return;
+      active.onNotification(method, params);
+    },
     nonInteractivePermissions: "fail",
     permissionPolicy: {
       ...options.permissionPolicy,
@@ -341,6 +385,12 @@ export async function openQualifiedAcpxRuntime(
     onAgentInitialize: (result) => {
       const capability = goalCapabilityFromAcpMessage({ result });
       if (capability) goalState.capability = capability;
+      // Only the runner-owned Pi wrapper has an admitted steering contract.
+      // Never infer it from generic ACP prompt support or native-only features.
+      const pi = objectRecord(objectRecord(objectRecord(objectRecord(result).agentCapabilities)._meta).paperclipPi);
+      extensionBoundary.steering = options.profile.agent === "pi" && pi.version === 1
+        ? { steering: pi.steering === true, queuedFollowUp: pi.queuedFollowUp === true }
+        : null;
     },
     onSessionNotification: acceptGoalNotification,
     spawnEnvironment: () => ({
@@ -470,6 +520,7 @@ export async function openQualifiedAcpxRuntime(
       goalState,
       commandLaunches,
       permissionBoundary,
+      extensionBoundary,
     );
   } catch (error) {
     const cleanupReason = "ACPX runtime identity validation failed";
@@ -898,7 +949,36 @@ function runtimePort(
   goalState: AcpxRuntimeGoalState,
   commandLaunches: { count: number; refreshConsumedCommand?: () => Promise<void> },
   permissionBoundary: { active: AbortController | null; handler?: AcpRuntimeOptions["onPermissionRequest"] },
+  extensionBoundary: AcpxRuntimeExtensionBoundary,
 ): AcpxRuntimePort {
+  extensionBoundary.sessionIds = new Set([identity.backendSessionId]);
+  let extensionControls: Promise<void> = Promise.resolve();
+  const controlActiveTurn = (method: "pi/steer" | "pi/follow_up", text: string, requestId: string): Promise<void> => {
+    const active = extensionBoundary.active;
+    const supported = method === "pi/steer"
+      ? extensionBoundary.steering?.steering : extensionBoundary.steering?.queuedFollowUp;
+    if (!supported || !runtime.requestExtension || !active || active.requestId !== requestId || active.signal.aborted) {
+      return Promise.reject(new Error("ACPX extension control does not own a supported active turn"));
+    }
+    if (!text.trim() || Buffer.byteLength(text, "utf8") > 65_536 || text.includes("\0")) {
+      return Promise.reject(new Error("ACPX extension control message is invalid"));
+    }
+    const send = async (): Promise<void> => {
+      await abortableExtensionResult(active.promptStarted, active.signal);
+      active.signal.throwIfAborted();
+      if (extensionBoundary.active !== active) throw new Error("ACPX extension control turn expired");
+      const response = await abortableExtensionResult(runtime.requestExtension!({
+        handle, method, params: { sessionId: identity.backendSessionId, message: text }, sessionMode: "persistent",
+      }), active.signal);
+      active.signal.throwIfAborted();
+      if (extensionBoundary.active !== active) throw new Error("ACPX extension control turn expired");
+      if (response.accepted !== true) throw new Error("ACPX extension control was not acknowledged");
+    };
+    const delivery = extensionControls.then(send);
+    // Preserve caller ordering without letting one rejection deadlock later calls.
+    extensionControls = delivery.catch(() => undefined);
+    return delivery;
+  };
   type RuntimeCloseAttempt = {
     readonly outcome: Promise<unknown | null>;
     readonly reconciliationGeneration: number;
@@ -1042,6 +1122,7 @@ function runtimePort(
       attemptNumber: number;
     };
   }): Promise<void> {
+    extensionBoundary.active?.controller.abort(new Error("ACPX runtime is closing"));
     if (runtimeClosed) return;
     if (
       runtimeCloseAttempt?.origin.kind === "reconciliation" &&
@@ -1128,6 +1209,11 @@ function runtimePort(
     async getStatus() {
       return await persistedRuntimeStatus(sessionStore, handle, identity);
     },
+    steeringCapability() {
+      return extensionBoundary.steering === null ? null : structuredClone(extensionBoundary.steering);
+    },
+    steerActiveTurn: (text, requestId) => controlActiveTurn("pi/steer", text, requestId),
+    queueFollowUp: (text, requestId) => controlActiveTurn("pi/follow_up", text, requestId),
     goalCapability() {
       return goalState.capability === null
         ? null
@@ -1221,7 +1307,20 @@ function runtimePort(
         }
       : {}),
     startTurn(input) {
+      if (extensionBoundary.active) throw new Error("ACPX runtime already has an active turn");
       const approval = new AbortController();
+      const controller = new AbortController();
+      const extensionTurn: AcpxRuntimeExtensionTurn = {
+        requestId: input.requestId, controller,
+        signal: input.signal ? AbortSignal.any([controller.signal, input.signal, approval.signal]) : AbortSignal.any([controller.signal, approval.signal]),
+        promptStarted: Promise.resolve(),
+        onRequest: input.onExtensionRequest, onNotification: input.onExtensionNotification,
+      };
+      extensionBoundary.active = extensionTurn;
+      const releaseExtensionTurn = (): void => {
+        controller.abort(new Error("ACPX extension turn expired"));
+        if (extensionBoundary.active === extensionTurn) extensionBoundary.active = null;
+      };
       permissionBoundary.active = approval;
       permissionBoundary.handler = input.onPermissionRequest;
       const finishOwnershipAdmission =
@@ -1241,21 +1340,32 @@ function runtimePort(
             : {}),
         });
       } catch (error) {
+        releaseExtensionTurn();
         if (permissionBoundary.active === approval) { permissionBoundary.active = null; permissionBoundary.handler = undefined; }
         void finishOwnershipAdmission().catch(() => undefined);
         throw error;
       }
       const guarded = turnWithVerifiedLifetimeOwnership(turn, finishOwnershipAdmission);
+      extensionTurn.promptStarted = guarded.promptStarted;
       const result = guarded.result.then(
         (value) => { approval.signal.throwIfAborted(); return value; },
         (error: unknown) => { approval.signal.throwIfAborted(); throw error; },
       ).finally(() => {
+        releaseExtensionTurn();
         if (permissionBoundary.active === approval) { permissionBoundary.active = null; permissionBoundary.handler = undefined; approval.abort(); }
       });
       void result.catch(() => undefined);
       return {
         ...guarded,
         result,
+        cancel: (input) => {
+          controller.abort(new Error("ACPX extension turn cancelled"));
+          return guarded.cancel(input);
+        },
+        closeStream: (input) => {
+          controller.abort(new Error("ACPX extension stream closed"));
+          return guarded.closeStream(input);
+        },
         events: (async function* () {
           try {
             for await (const event of guarded.events) {
@@ -1809,6 +1919,17 @@ function objectRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+async function abortableExtensionResult<T>(result: Promise<T>, signal: AbortSignal): Promise<T> {
+  signal.throwIfAborted();
+  let rejectAbort: (() => void) | undefined;
+  const cancellation = new Promise<never>((_resolve, reject) => {
+    rejectAbort = () => reject(signal.reason ?? new Error("ACPX extension turn expired"));
+    signal.addEventListener("abort", rejectAbort, { once: true });
+  });
+  try { return await Promise.race([result, cancellation]); }
+  finally { if (rejectAbort) signal.removeEventListener("abort", rejectAbort); }
 }
 
 function goalCapabilityFromAcpMessage(

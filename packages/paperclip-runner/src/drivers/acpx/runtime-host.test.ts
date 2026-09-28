@@ -1176,6 +1176,8 @@ describe("ACPX runtime host", () => {
     const turn = runtimeTurn();
     const startTurn = vi.fn(() => turn);
     const onElicitation = vi.fn();
+    const onExtensionRequest = vi.fn();
+    const onExtensionNotification = vi.fn();
     const runtime = runtimePort({ startTurn });
     const host = await AcpxRuntimeHost.open(
       {
@@ -1193,12 +1195,16 @@ describe("ACPX runtime host", () => {
         text: "Complete the task.",
         requestId: "turn-1",
         onElicitation,
+        onExtensionRequest,
+        onExtensionNotification,
       }),
     ).toBe(turn);
     expect(startTurn).toHaveBeenCalledWith({
       text: "Complete the task.",
       requestId: "turn-1",
       onElicitation,
+      onExtensionRequest,
+      onExtensionNotification,
     });
     expect(() =>
       host.startTurn({ text: "Concurrent", requestId: "turn-2" }),
@@ -1213,6 +1219,34 @@ describe("ACPX runtime host", () => {
     expect(() => host.startTurn({ text: "Late", requestId: "turn-3" })).toThrow(
       "is closing",
     );
+  });
+
+  it("clones ephemeral capabilities and fences steering controls to an acknowledged active turn", async () => {
+    const fixture = await hostFixture();
+    const turn = runtimeTurn();
+    const runtime = Object.assign(runtimePort({ startTurn: () => turn }), {
+      steeringCapability: () => ({ steering: true, queuedFollowUp: true }),
+      steerActiveTurn: vi.fn(async () => undefined),
+      queueFollowUp: vi.fn(async () => undefined),
+    });
+    const clientCapabilities = { _meta: { fixture: { enabled: true } } };
+    let observed: Record<string, unknown> | undefined;
+    const host = await AcpxRuntimeHost.open({
+      ...fixture.options, agent: "codex", model: "gpt-5.6-sol", permissionMode: "approve-reads",
+      environment: { PAPERCLIP_ACPX_CODEX_AUTH_JSON_SECRET: "{}" }, clientCapabilities,
+    }, fixture.dependencies({ openRuntime: async (options) => { observed = options.clientCapabilities; return runtime; } }));
+    expect(observed).toEqual(clientCapabilities);
+    expect(observed).not.toBe(clientCapabilities);
+    await expect(host.steerActiveTurn("Early")).rejects.toThrow("active turn");
+    host.startTurn({ text: "Start", requestId: "turn-1" });
+    await expect(host.steerActiveTurn("Wrong turn", "turn-other")).rejects.toThrow("active turn");
+    await host.steerActiveTurn("Steer", "turn-1");
+    await host.queueFollowUp("Next", "turn-1");
+    expect(runtime.steerActiveTurn).toHaveBeenCalledExactlyOnceWith("Steer", "turn-1");
+    expect(runtime.queueFollowUp).toHaveBeenCalledExactlyOnceWith("Next", "turn-1");
+    expect(runtime.startTurn).toHaveBeenCalledOnce();
+    await host.close({ reason: "controls tested" });
+    await expect(host.queueFollowUp("Too late", "turn-1")).rejects.toThrow("active turn");
   });
 
   it("rejects oversized turn inputs before calling the runtime", async () => {

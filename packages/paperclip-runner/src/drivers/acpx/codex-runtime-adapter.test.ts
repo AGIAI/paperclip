@@ -28,6 +28,91 @@ const HANDLE: AcpRuntimeHandle = {
 };
 
 describe("Codex ACPX runtime adapter", () => {
+  it("routes only profile-allowed extensions to the owning turn and expires late responses", async () => {
+    const runtime = fakeRuntime();
+    const first = pendingExtensionTurn("turn-1");
+    const second = pendingExtensionTurn("turn-2");
+    vi.mocked(runtime.startTurn).mockReturnValueOnce(first.turn).mockReturnValueOnce(second.turn);
+    let created!: AcpRuntimeOptions;
+    const options = openOptions(fakeCommand());
+    options.profile = { ...options.profile, agent: "cursor" };
+    options.clientCapabilities = { _meta: { cursor: { test: true } } };
+    const port = await openCodexAcpxRuntime(options, {
+      createRegistry: () => registry(), createStore: () => store(),
+      createRuntime: (value) => { created = value; return runtime; },
+    });
+    expect(created.clientCapabilities).toEqual(options.clientCapabilities);
+    expect(JSON.stringify(vi.mocked(runtime.ensureSession).mock.calls)).not.toContain("clientCapabilities");
+    const notification = vi.fn();
+    const request = vi.fn(async (_method, _params, context) => ({ requestId: context.requestId }));
+    const admittedFirst = port.startTurn({ text: "First", requestId: "turn-1", onExtensionRequest: request, onExtensionNotification: notification });
+    const signal = new AbortController().signal;
+    await expect(created.onExtensionRequest!("cursor/ask_question", { sessionId: "backend-1" }, { requestId: 0, signal })).resolves.toEqual({ requestId: 0 });
+    await expect(created.onExtensionRequest!("pi/steer", {}, { requestId: 1, signal })).rejects.toThrow("admitted active turn");
+    await expect(created.onExtensionRequest!("cursor/ask_question", { sessionId: "other" }, { requestId: 1, signal })).rejects.toThrow("admitted active turn");
+    created.onExtensionNotification!("cursor/task", { sessionId: "backend-1", taskId: "t" });
+    created.onExtensionNotification!("cursor/task", { sessionId: "other" });
+    created.onExtensionNotification!("cursor/ask_question", { sessionId: "backend-1" });
+    expect(notification).toHaveBeenCalledExactlyOnceWith("cursor/task", { sessionId: "backend-1", taskId: "t" });
+    request.mockImplementationOnce(() => new Promise(() => undefined));
+    const pending = created.onExtensionRequest!("cursor/ask_question", {}, { requestId: 2, signal });
+    const rejected = expect(pending).rejects.toThrow("expired");
+    first.settle(); await admittedFirst.result; await rejected;
+    const nextRequest = vi.fn(async () => ({ accepted: true }));
+    const admittedSecond = port.startTurn({ text: "Second", requestId: "turn-2", onExtensionRequest: nextRequest });
+    expect(nextRequest).not.toHaveBeenCalled();
+    await admittedSecond.cancel({ reason: "cancelled" });
+    await expect(created.onExtensionRequest!("cursor/ask_question", {}, { requestId: 3, signal })).rejects.toThrow("admitted active turn");
+    second.settle(); await admittedSecond.result; await port.close({ reason: "test finished" });
+  });
+
+  it("requires the Pi capability handshake and acknowledgments, preserves follow-up order, and never starts a second prompt", async () => {
+    const pending = pendingExtensionTurn("turn-1");
+    const runtime = Object.assign(fakeRuntime(), { requestExtension: vi.fn(async () => ({ accepted: true })) });
+    vi.mocked(runtime.startTurn).mockReturnValue(pending.turn);
+    let created!: AcpRuntimeOptions & { onAgentInitialize?: (result: unknown) => void };
+    const options = openOptions(fakeCommand());
+    options.profile = { ...options.profile, agent: "pi" };
+    const port = await openCodexAcpxRuntime(options, {
+      createRegistry: () => registry(), createStore: () => store(),
+      createRuntime: (value) => { created = value; return runtime; },
+    });
+    const turn = port.startTurn({ text: "Initial", requestId: "turn-1" });
+    await expect(port.steerActiveTurn!("Update", "turn-1")).rejects.toThrow("supported active turn");
+    created.onAgentInitialize!({ agentCapabilities: { _meta: { paperclipPi: { version: 1, steering: true, queuedFollowUp: true } } } });
+    expect(port.steeringCapability!()).toEqual({ steering: true, queuedFollowUp: true });
+    await expect(port.steerActiveTurn!("Update", "wrong")).rejects.toThrow("supported active turn");
+    await port.steerActiveTurn!("Update", "turn-1");
+    await Promise.all([port.queueFollowUp!("One", "turn-1"), port.queueFollowUp!("Two", "turn-1")]);
+    expect(runtime.requestExtension.mock.calls.map((call) => call[0])).toEqual([
+      { handle: HANDLE, method: "pi/steer", params: { sessionId: "backend-1", message: "Update" }, sessionMode: "persistent" },
+      { handle: HANDLE, method: "pi/follow_up", params: { sessionId: "backend-1", message: "One" }, sessionMode: "persistent" },
+      { handle: HANDLE, method: "pi/follow_up", params: { sessionId: "backend-1", message: "Two" }, sessionMode: "persistent" },
+    ]);
+    expect(runtime.startTurn).toHaveBeenCalledTimes(1);
+    runtime.requestExtension.mockResolvedValueOnce({ accepted: false });
+    await expect(port.steerActiveTurn!("Denied", "turn-1")).rejects.toThrow("not acknowledged");
+    runtime.requestExtension.mockImplementationOnce(() => new Promise(() => undefined));
+    const stale = port.queueFollowUp!("Stale", "turn-1");
+    const rejected = expect(stale).rejects.toThrow("expired");
+    pending.settle(); await turn.result; await rejected;
+    await expect(port.queueFollowUp!("Late", "turn-1")).rejects.toThrow("supported active turn");
+    await port.close({ reason: "test finished" });
+  });
+
+  it("does not grant steering to Copilot or Cursor when an untrusted initialize result claims Pi support", async () => {
+    const options = openOptions(fakeCommand()); options.profile = { ...options.profile, agent: "copilot" };
+    const runtime = fakeRuntime();
+    const port = await openCodexAcpxRuntime(options, {
+      createRegistry: () => registry(), createStore: () => store(),
+      createRuntime: (created) => {
+        (created as AcpRuntimeOptions & { onAgentInitialize: (result: unknown) => void }).onAgentInitialize({ agentCapabilities: { _meta: { paperclipPi: { version: 1, steering: true, queuedFollowUp: true } } } });
+        return runtime;
+      },
+    });
+    expect(port.steeringCapability!()).toBeNull();
+    await port.close({ reason: "test finished" });
+  });
   it.each(["approve-reads", "approve-paperclip"] as const)("%s stops unassigned operations when approval has no handler", async (permissionMode) => {
     const runtime = fakeRuntime();
     let runtimeOptions: AcpRuntimeOptions | undefined;
@@ -2805,6 +2890,17 @@ function fakeRuntime(handle: AcpRuntimeHandle = HANDLE): AcpRuntime {
     cancel: vi.fn(),
     close: vi.fn(),
   };
+}
+
+function pendingExtensionTurn(requestId: string) {
+  let settle!: () => void;
+  const result = new Promise<void>((resolve) => { settle = resolve; });
+  return { settle, turn: {
+    requestId, promptStarted: Promise.resolve(),
+    events: (async function* () { await result; })(),
+    result: result.then(() => ({ status: "completed" as const })),
+    cancel: async () => undefined, closeStream: async () => undefined,
+  } };
 }
 
 function runtimeWithProvider(
