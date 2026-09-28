@@ -148,14 +148,17 @@ export function agentInstructionRevisionService(db: Db) {
       || marker.resourceKind !== "agent" || marker.resourceKey !== actor.agentKey) {
       throw forbidden("Plugin reset is limited to its declared, bound managed agent");
     }
-    return actor;
+    const declared = plugin.manifestJson.agents!.find((declaration) => declaration.agentKey === actor.agentKey)!;
+    return { ...actor, declaredEntryFile: instructionPath(declared.instructions?.entryFile ?? "AGENTS.md") };
   }
   async function readForPluginReset(target: InstructionTarget, actor: PluginResetActor) {
     return db.transaction(async (tx) => {
       const state = await lockTarget(tx, target);
-      await authorizePluginReset(tx, actor, target, state.agent);
-      const row = await seed(tx, target, state, actor);
-      return row ? snapshot(row) : null;
+      const bound = await authorizePluginReset(tx, actor, target, state.agent);
+      // Preserve the formerly configured entry before an explicit stock reset.
+      await seed(tx, target, state, bound);
+      const row = await seed(tx, target, { ...state, entryFile: bound.declaredEntryFile }, bound);
+      return { snapshot: row ? snapshot(row) : null, configuredEntryFile: state.entryFile };
     });
   }
   async function head(tx: Tx, target: InstructionTarget, entryFile: string) {
@@ -302,6 +305,7 @@ export function agentInstructionRevisionService(db: Db) {
           restoreRevisionId: string;
         }),
     actor: RevisionActor,
+    configuredEntryFile?: string,
   ): Promise<AgentInstructionCommitReceipt> {
     instructionPath(input.entryFile);
     const bytes = "content" in input ? instructionBytes(input.content) : null;
@@ -310,6 +314,11 @@ export function agentInstructionRevisionService(db: Db) {
       const bound = actor.type === "plugin"
         ? await authorizePluginReset(tx, actor, input, state.agent)
         : await authorizeInstructionCommit(tx, actor, state.agent);
+      if (bound.type === "plugin") {
+        if (input.entryFile !== bound.declaredEntryFile) throw forbidden("Plugin reset must restore its declared entry file");
+        if (configuredEntryFile !== state.entryFile) throw conflict("Configured instruction entry changed; read the current entry and retry", { code: "INSTRUCTION_ENTRY_CHANGED", entryFile: state.entryFile });
+        state.entryFile = input.entryFile;
+      }
       if (state.entryFile !== input.entryFile)
         throw conflict(
           "Configured instruction entry changed; read the current entry and retry",
@@ -328,10 +337,33 @@ export function agentInstructionRevisionService(db: Db) {
             )
           : null;
       const candidate = bytes ?? Buffer.from(restored!.contentBase64, "base64");
+      const bindEntry = async () => {
+        if (
+          !state.agent.adapterConfig.instructionsRootPath ||
+          !state.agent.adapterConfig.instructionsBundleMode ||
+          (bound.type === "plugin" && configuredEntryFile !== input.entryFile)
+        ) {
+          await tx
+            .update(agents)
+            .set({
+              adapterConfig: {
+                ...state.agent.adapterConfig,
+                instructionsBundleMode: "managed",
+                instructionsRootPath: state.root,
+                instructionsEntryFile: state.entryFile,
+                instructionsFilePath: `${state.root}/${state.entryFile}`,
+              },
+              updatedAt: new Date(),
+            })
+            .where(eq(agents.id, state.agent.id));
+        }
+      };
       // An exact replay can safely return the durable receipt even after its base
       // advanced. Restore also deduplicates identical content, preserving history.
-      if (current && current.contentBase64 === candidate.toString("base64"))
+      if (current && current.contentBase64 === candidate.toString("base64")) {
+        await bindEntry();
         return { row: current, changed: false };
+      }
       if ((current?.id ?? null) !== input.baseRevisionId) {
         throw conflict(
           "Instructions changed since the base revision. Read the current entry before saving.",
@@ -354,24 +386,7 @@ export function agentInstructionRevisionService(db: Db) {
         input.baseRevisionId,
         restored?.id ?? null,
       );
-      if (
-        !state.agent.adapterConfig.instructionsRootPath ||
-        !state.agent.adapterConfig.instructionsBundleMode
-      ) {
-        await tx
-          .update(agents)
-          .set({
-            adapterConfig: {
-              ...state.agent.adapterConfig,
-              instructionsBundleMode: "managed",
-              instructionsRootPath: state.root,
-              instructionsEntryFile: state.entryFile,
-              instructionsFilePath: `${state.root}/${state.entryFile}`,
-            },
-            updatedAt: new Date(),
-          })
-          .where(eq(agents.id, state.agent.id));
-      }
+      await bindEntry();
       return { row, changed: true };
     });
     let materialization: AgentInstructionCommitReceipt["materialization"] =
@@ -493,8 +508,8 @@ export function agentInstructionRevisionService(db: Db) {
     readCommittedForRuntime,
     readCurrent,
     readForPluginReset,
-    commitPluginReset: (input: Omit<InstructionCommitInput, "source">, actor: PluginResetActor) =>
-      commitInternal({ ...input, source: "api" }, actor),
+    commitPluginReset: (input: Omit<InstructionCommitInput, "source"> & { configuredEntryFile: string }, actor: PluginResetActor) =>
+      commitInternal({ ...input, source: "api" }, actor, input.configuredEntryFile),
     readRevision,
     history,
     diff,

@@ -26,6 +26,7 @@ import {
 import { buildHostServices } from "../services/plugin-host-services.js";
 import { agentService } from "../services/agents.js";
 import { agentInstructionRevisionService } from "../services/agent-instruction-revisions.js";
+import { agentInstructionsService } from "../services/agent-instructions.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
@@ -399,6 +400,18 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       const audit = await db.select().from(activityLog).where(eq(activityLog.action, "agent.instructions_revision_committed"));
       expect(audit).toHaveLength(2);
       expect(audit.every((row) => row.actorType === "plugin" && row.actorId === pluginId)).toBe(true);
+      const bundles = agentInstructionsService(db);
+      await bundles.writeFile(repeated.agent!, "CUSTOM.md", "# Alternate configured entry\n");
+      const switched = await bundles.updateBundle(repeated.agent!, { entryFile: "CUSTOM.md" });
+      await agentService(db).update(created.agentId!, { adapterConfig: switched.adapterConfig });
+      const resetEntry = await services.agents.managedReset({ companyId, agentKey: "wiki-maintainer" });
+      expect(resetEntry.agent?.adapterConfig.instructionsEntryFile).toBe("AGENTS.md");
+      expect(resetEntry.defaultDrift).toBeNull();
+      expect(await fs.readFile(instructionsFilePath as string, "utf8")).toBe(content);
+      const preserved = await db.select().from(agentInstructionRevisions).where(eq(agentInstructionRevisions.agentId, created.agentId!));
+      expect(preserved).toHaveLength(3);
+      expect(Buffer.from(preserved.find((row) => row.entryFile === "CUSTOM.md")!.contentBase64, "base64").toString()).toBe("# Alternate configured entry\n");
+
 
     } finally {
       if (previousHome === undefined) delete process.env.PAPERCLIP_HOME;
@@ -422,8 +435,10 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       const target = { companyId, agentId: created.agentId! };
       const actor = { type: "plugin" as const, pluginId, pluginKey: pluginManifest.id, agentKey: "wiki-maintainer" };
       const revisions = agentInstructionRevisionService(db);
-      const baseline = (await revisions.readForPluginReset(target, actor))!;
-      const input = { ...target, entryFile: "AGENTS.md", baseRevisionId: baseline.revision.id, content: "# Reset\n" };
+      const baselineRead = await revisions.readForPluginReset(target, actor);
+      const baseline = baselineRead.snapshot!;
+      const input = { ...target, entryFile: "AGENTS.md", baseRevisionId: baseline.revision.id,
+        configuredEntryFile: baselineRead.configuredEntryFile, content: "# Reset\n" };
       await expect(revisions.commitPluginReset(input, { ...actor, pluginId: randomUUID() })).rejects.toMatchObject({ status: 403 });
       await expect(revisions.commitPluginReset({ ...input, companyId: randomUUID() }, actor)).rejects.toMatchObject({ status: 404 });
       await expect(revisions.commitPluginReset(input, { ...actor, agentKey: "foreign-agent" })).rejects.toMatchObject({ status: 403 });
@@ -438,6 +453,13 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       await db.update(pluginManagedResources).set({ resourceId: randomUUID() }).where(eq(pluginManagedResources.id, binding.id));
       await expect(revisions.commitPluginReset(input, actor)).rejects.toMatchObject({ status: 403 });
       await db.update(pluginManagedResources).set({ resourceId: target.agentId }).where(eq(pluginManagedResources.id, binding.id));
+      await expect(revisions.commitPluginReset({ ...input, entryFile: "OTHER.md" }, actor)).rejects.toMatchObject({ status: 403 });
+      const bundles = agentInstructionsService(db);
+      await bundles.writeFile(created.agent!, "OTHER.md", "# Other entry\n");
+      const switched = await bundles.updateBundle(created.agent!, { entryFile: "OTHER.md" });
+      await agentService(db).update(target.agentId, { adapterConfig: switched.adapterConfig });
+      await expect(revisions.commitPluginReset(input, actor)).rejects.toMatchObject({ status: 409, details: { code: "INSTRUCTION_ENTRY_CHANGED" } });
+      await agentService(db).update(target.agentId, { adapterConfig: created.agent!.adapterConfig });
       const results = await Promise.allSettled([
         revisions.commitPluginReset(input, actor),
         revisions.commitPluginReset({ ...input, content: "# Concurrent reset\n" }, actor),
