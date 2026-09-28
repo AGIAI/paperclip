@@ -907,6 +907,8 @@ describe("Capability live runnerd and Codex session", () => {
     expect(names.filter((name) => name === "paperclip_finish")).toHaveLength(1);
     expect(names.filter((name) => name === "paperclip_block")).toHaveLength(1);
     expect(names).not.toContain("create_task");
+    expect(opened.params.baseInstructions).toContain('"revision":"paperclip-capability-live-v1"');
+    expect(opened.params.baseInstructions).toContain('"criterionIds":["objective"]');
     await first.suspend();
     const restoredService = new CapabilityLiveSessionService({ store, transportFactory: factory });
     const restored = await restoredService.restore(first.id);
@@ -914,6 +916,8 @@ describe("Capability live runnerd and Codex session", () => {
     expect(authority[1]?.resumeDynamicTools?.map((tool) => tool.name)).toEqual(
       names.filter((name) => name !== "paperclip_finish" && name !== "paperclip_block"),
     );
+    const resumed = state.transports[1]!.requests.find((request) => request.method === "thread/resume")!;
+    expect(resumed.params.baseInstructions).toBe(opened.params.baseInstructions);
     await restoredService.shutdown(restored.id);
     await firstService.shutdown(first.id);
   });
@@ -972,9 +976,11 @@ describe("Capability live runnerd and Codex session", () => {
       state.transports[0]?.requests.find(
         (request) => request.method === "thread/start",
       )?.params.baseInstructions,
-    ).toBe(
+    ).toContain(
       "Native instructions\n\nRead-only instruction sibling root: /runtime/instructions",
     );
+    expect(state.transports[0]?.requests.find((request) => request.method === "thread/start")?.params.baseInstructions)
+      .toContain('Native completion report contract: {"revision":"paperclip-capability-live-v1","criterionIds":["objective"]}');
     await service.shutdown(session.id);
   });
 
