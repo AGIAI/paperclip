@@ -23,6 +23,7 @@ export type GeneratedAcpxSidecarCommand =
 
 export const GENERATED_ACPX_SIDECAR_EVENT_TYPES = [
   "runtime.event",
+  "runtime.rich_event",
   "runtime.permission_requested",
   "runtime.input_requested",
   "runtime.tool_called",

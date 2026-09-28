@@ -70,6 +70,8 @@ impl GeneratedAcpxSidecarCommand {
 pub enum GeneratedAcpxSidecarEventType {
     #[serde(rename = "runtime.event")]
     RuntimeEvent,
+    #[serde(rename = "runtime.rich_event")]
+    RuntimeRichEvent,
     #[serde(rename = "runtime.permission_requested")]
     RuntimePermissionRequested,
     #[serde(rename = "runtime.input_requested")]

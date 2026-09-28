@@ -60,6 +60,24 @@ test("the ACPX sidecar schema shares the durable stable-identity boundary", () =
   }
 });
 
+test("rich activity has a closed display-only envelope and explicit run/turn scope", () => {
+  const message = {
+    ...messages[2],
+    eventType: "runtime.rich_event",
+    payload: { eventType: "plan.updated", itemId: "display-1", payload: {} },
+  };
+  assert.equal(validate(message), true, JSON.stringify(validate.errors));
+  for (const field of ["runId", "turnId"]) {
+    assert.equal(validate({ ...message, [field]: null }), false);
+  }
+  for (const eventType of ["turn.completed", "run.result.proposed", "semantic_tool.input", "unknown"]) {
+    assert.equal(validate({ ...message, payload: { ...message.payload, eventType } }), false);
+  }
+  for (const field of ["sourceRef", "priority", "runId"]) {
+    assert.equal(validate({ ...message, payload: { ...message.payload, [field]: "forged" } }), false);
+  }
+});
+
 test("the ACPX sidecar schema fails closed on drift", () => {
   for (const message of [
     { ...messages[0], protocolVersion: protocolVersion + 1 },

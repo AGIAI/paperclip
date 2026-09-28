@@ -194,6 +194,16 @@ impl AcpxProviderState {
     ) -> Result<Vec<AcpxProviderStateEvent>, LocalRunnerError> {
         let payload = decode_acpx_event(&self.scope, event)?;
         match payload {
+            AcpxEventPayload::RichActivity {
+                event_type,
+                payload,
+            } => Ok(vec![AcpxProviderStateEvent::Activity(
+                NormalizedProviderEvent {
+                    event_type,
+                    priority: crate::durable::EventPriority::P1,
+                    payload,
+                },
+            )]),
             AcpxEventPayload::Runtime {
                 kind,
                 tool_operation,
