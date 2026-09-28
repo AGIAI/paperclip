@@ -47,7 +47,9 @@ export async function runProbe(packInput, output, scenario, token) {
   assertAcpxProfileEnvironment("copilot", { COPILOT_GITHUB_TOKEN: token });
   const install = await verifyAcpxProfileInstallation(resolveQualifiedAcpxProfile("copilot", model));
   const lease = await install.openCommand();
-  const root = await mkdtemp("/tmp/paperclip-copilot-live-probe-");
+  let root;
+  try { root = await mkdtemp("/tmp/paperclip-copilot-live-probe-"); }
+  catch (error) { await lease.close(); throw error; }
   const marker = join(root, "qualification-marker.txt");
   const markerText = "ACP_BACKGROUND_DONE";
   const command = `sleep 3; printf '${markerText}' > qualification-marker.txt`;
@@ -106,6 +108,7 @@ export async function runProbe(packInput, output, scenario, token) {
         if (!line.trim()) continue;
         let message;
         try { message = JSON.parse(line); } catch { failPending("malformed_json"); child.kill("SIGTERM"); return; }
+        if (!message || typeof message !== "object" || Array.isArray(message)) { failPending("malformed_message"); child.kill("SIGTERM"); return; }
         evidence.wire.push({ elapsedMs: elapsed(), message });
         if (message.method) {
           const params = message.params;
