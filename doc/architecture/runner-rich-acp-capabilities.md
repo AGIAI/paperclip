@@ -4,8 +4,10 @@ Updated: 2026-09-28. Base: `c65fc9e3c81c41aafe421aa90a00514b84343285`.
 Mainline integration: `14795136f56c11ed83dc754791945bb5a0b8f7fd`.
 Status: implementation is available as four draft PRs; deterministic review and
 CI verification are in progress. All three new
-profiles remain **pending qualification**. No paid inference or Daytona resources
-have been used. This report does not certify a provider from its ACP listing.
+profiles remain **pending qualification**. Authenticated paid qualification is in
+progress. The first Pi request reached real semantic tools but did not settle;
+no Daytona resources have been started. This report does not certify a provider
+from its ACP listing or a partial run.
 
 The [harness priorities report](https://pages.paperclip.ing/2026-09-25-harness-priorities/)
 recommends Cursor and Copilot, followed by Pi, using the existing qualified ACPX
@@ -45,7 +47,7 @@ Codex's row is the existing app-server integration, not the Codex ACP bridge.
 
 | Capability | Codex app-server benchmark | Cursor ACP candidate | Copilot ACP candidate | Pi ACP candidate |
 | --- | --- | --- | --- | --- |
-| Exact model | Selected and reported model | Explicit ID required; authenticated discovery unverified | Explicit ID required; offline ACP status omits model metadata; admission fails if exact model cannot be proved | Exact `openrouter/deepseek/deepseek-v4-flash-0731`; paid model response unverified |
+| Exact model | Selected and reported model | Explicit ID required; authenticated discovery and exact model echo observed; inference qualification pending | Explicit ID required; authenticated catalog and exact `gpt-5.6-luna` echo observed; end-to-end inference pending | Exact `openrouter/deepseek/deepseek-v4-flash-0731`; real paid response and four semantic tools observed; terminal settlement still unverified |
 | Text and tools | Typed thread/turn/item events | Standard ACP updates; child activity kept separate | Standard ACP plus opt-in native session events | Wrapper text/tool updates and owned tool gates |
 | Active steering | Dedicated `turn/steer` | Concurrent prompt replaces/cancels, so it is not steering | Concurrent prompt replaces/cancels, so it is not steering | Owned `pi/steer` requires handshake, exact active turn and acknowledgment |
 | Queued follow-up | Product continuation controls | Controller can schedule a later prompt; native queue not established | Native pending-message activity exists; no qualified ACP queue responder | Owned `pi/follow_up`, separately named and ordered |
@@ -54,11 +56,11 @@ Codex's row is the existing app-server integration, not the Codex ACP bridge.
 | Questions | Typed input requests and response correlation | `cursor/ask_question`, option identity and multiple selection preserved | Native ask-user capability exists, but pinned ACP does not wire its responder; do not display a false answerable form | `select`, `confirm`, `input`, `editor` through typed form elicitation |
 | Permissions | Durable typed approvals | Standard ACP permission options; only supported decisions shown | Standard ACP; offline deny-before-marker proof; session decision scope inspected | Native pre-tool gate; allow once, exact-operation session grant, deny; paths rechecked after wait |
 | Plans | Typed plan and collaboration mode | `cursor/create_plan` includes full plan and revision-bound accept/reject/cancel; todo activity separate | Native plan events displayed; native plan-decision callback not exposed in ACP | No native structured plan event; authenticated Paperclip planning tools available |
-| Authenticated tools | Runner bridge and governed operations | ACP HTTP MCP binding; paid semantic cases pending | ACP HTTP MCP binding; paid semantic cases pending | Owned extension registers exact bound MCP tools; no ambient servers |
+| Authenticated tools | Runner bridge and governed operations | ACP HTTP MCP binding; paid semantic cases pending | ACP HTTP MCP binding; paid semantic cases pending | Owned extension registers exact bound MCP tools; four authenticated semantic reads succeeded in a paid partial run; no ambient servers |
 | Delegation | Typed agent roles and lifecycle | Opt-in subagent lifecycle, nested ownership and bounded child activity; never parent transcript flattening | Native delegation/session events projected with role/model/agent provenance | No built-in ACP delegation protocol; arbitrary extensions are excluded |
 | Files/diffs | Typed file changes and artifact references | Standard tool changes plus validated image references | File/workspace events retained; provider session files are not silently treated as task files | Native read/write/edit diffs; semantic artifact tools |
 | Images/artifacts | Typed references and registered work products | Existing contained files only, provenance, `registered:false` | Contained task references only; external/session-store paths become descriptive notices | Image/resource tool blocks preserved by wrapper; dedicated artifact channel absent |
-| Usage | Per-request receipt and model context | Native usage completeness unverified | ACP/native usage retained without inventing a billing charge | Assistant-message and compaction token receipts; dollar cost is a catalog pricing estimate, never authoritative billing |
+| Usage | Per-request receipt and model context | Pinned ACP omitted token receipts on an entitlement-denied turn; unavailable usage retained explicitly | ACP/native usage retained without inventing a billing charge | Assistant-message and compaction token receipts; dollar cost is a catalog pricing estimate, never authoritative billing |
 | Config/model changes | Typed configurable controls | Known modes/model interfaces researched; runtime policy cannot be changed by a display event | Model/reasoning/mode options exist; runtime policy remains authoritative | Exact qualified model; arbitrary slash commands/config/extensions disabled |
 | Reconnect/restart | Durable controller replay and qualified provider restoration | Live-process pending input only until exact restoration is proved | Same; history alone is not approval restoration | Same; wrapper explicitly advertises live-process-only pending-input recovery |
 
@@ -126,10 +128,10 @@ qualification gates, not claims that a JavaScript path check confines a shell.
 
 | Priority | Exposed but unused, partial, or unverified | Reason and next proof |
 | --- | --- | --- |
-| P0 | All paid product cases on local and Daytona | Bound provider/Daytona credentials and independently inspectable spend are absent. Prove setup, semantic tools, edit+validation, inputs, cancellation, warm continuation and restart. |
+| P0 | All paid product cases on local and Daytona | Credentials are now explicitly bound. The 30-cell Product E2E and private 21-cell Runner Eval extended suites are explicit-only. Prove all required outcomes; initial attempts do not qualify a profile. Daytona billing access is still being established. |
 | P0 | Copilot native ask-user and plan-decision callbacks | Pinned ACP does not install native responders. Prove no blocking request is exposed, or add a qualified responder/wrapper; never swallow the request. |
 | P0 | Copilot denial and detached background settlement | Offline deny/attached-shell tests pass only their narrow fixtures. Exercise affected native tools and detached commands against real service; failing release stays unqualified. |
-| P0 | Exact Cursor/Copilot model reporting | Authentication/entitlement required; no guessed default and no fallback. Fail admission when effective model is unverified. |
+| P0 | Exact Cursor/Copilot model reporting | Authenticated catalog/model echoes observed. Cursor first-account entitlement denial was returned by its native wrapper as ordinary text; the selected paid account is being tested separately. Require successful inference without model fallback. |
 | P0 | Cursor project and remote hooks; native shell boundaries | Configuration flags do not cover every native source. Demonstrate policy cannot be bypassed before production qualification. |
 | P1 | Native Pi queue selection in the product UI | The runner API exposes negotiated `follow_up` separately from active steering. The current composer has no native queue selector; add one without confusing it with controller-scheduled later turns. |
 | P1 | Native Cursor/Copilot active steering and queues | ACP prompt replacement is not steering; native SDK capabilities may be richer. Require a dedicated bound method plus acknowledgment before advertising. |
@@ -146,10 +148,32 @@ qualification gates, not claims that a JavaScript path check confines a shell.
 ## Qualification ledger
 
 Combined ceiling: **$100**, including retries and infrastructure. Cursor allocation:
-$25; Copilot: $25; Pi: $25; coordinated diagnosis reserve: $25. Used: **$0**.
-No model requests or Daytona leases have been started. Registry/binary downloads,
-loopback fake-model tests and uncredentialed initialization are deterministic
-engineering evidence, not paid qualification.
+$25; Copilot: $25; Pi: $25; coordinated diagnosis reserve: $25.
+Initial reservations are $2 per provider. Measured OpenRouter key-usage delta for
+the first model-backed Pi attempt: **$0.005748807**. Cursor's first account was
+not entitled; its dashboard was unchanged at the displayed precision, with no
+per-request receipt. Copilot's first session-start failure left its dashboard at
+0/1,500 included AI credits and $0 incremental charges. These measurements are
+partial, not a final all-provider total. No Daytona leases have been started.
+Registry downloads, fake-model fixtures and metadata-only authenticated discovery
+are separate from model inference.
+
+The first Pi canonical `get-task-context` attempt used source `788105248a3ba594b30b5bcec3fa266d8a51d8d4`
+and provider-pack digest `sha256:4de47c31a8131424495366741bd491ff5fa10723ab9a3918c07a3e42982dbe3c`.
+It observed successful `get_task_context`, `get_task_history`, `list_documents`
+and `read_document` calls, then hit its 120-second turn deadline without a
+terminal receipt. This is a retained failed attempt, not semantic qualification.
+Earlier launch/interpreter failures are retained separately. The initial Cursor
+failure exposed a native wrapper gap: a typed entitlement error becomes an
+ordinary message and normal completion. The runner does not infer authorization
+from that message or fabricate a zero-cost usage receipt.
+
+The maintained Product E2E `extended-harnesses` suite covers local and Daytona
+completion, question/answer, semantic plan approval, pending-input restart and
+file edit/validation. It has no automatic retries and does not enable candidates
+outside exact operator-authorized provider/model pairs. The private Runner Eval
+campaign is complementary: seven semantic protocol cases per provider. Neither
+suite's membership is a qualification claim.
 
 Before each paid batch, record source SHA, executable and closure/profile digests,
 exact model, OS/architecture or Daytona image, selected cases, prior spend,
