@@ -32,6 +32,7 @@ import type {
   PrpTerminalState,
 } from "../protocol/replay-contract.js";
 import { executeNativeSession } from "../native-session-runtime.js";
+import { redactCapabilityEvidenceData } from "./evidence-redaction.js";
 import { NativeSessionCloseUnrecoverableError } from "../contracts/native-session-backend.js";
 import { parsePaperclipQuestionSet } from "../contracts/question-set.js";
 import { ACPX_CREDENTIAL_BINDING_ENV, createAcpxCredentialBinding, createAcpxSidecarHostEnvironment } from "../drivers/acpx/environment.js";
@@ -1920,6 +1921,35 @@ it("binds a durable semantic result to the active provider turn", () => {
       reportedWorkDisposition: "done",
     },
   });
+});
+
+it.each(["summary", "detail"])("preserves canonical reasoning %s deltas without publishing assistant text", (channel) => {
+  // Exact shape emitted by the Rust ACPX projector, with synthetic private text.
+  const payload = { provider: "acpx", itemId: "reason-1", kind: "reasoning", channel,
+    providerMethod: "runtime.event", text: "PRIVATE_REASONING_SENTINEL" };
+  const method = runnerdCanonicalNotificationMethod("item.delta", payload);
+  expect(method).toBe(channel === "detail" ? "item/reasoning/textDelta" : "item/reasoning/summaryTextDelta");
+  const params = rehydrateRunnerdDeltaNotification(payload, "provider-thread", "provider-turn");
+  expect(params).toMatchObject({ threadId: "provider-thread", turnId: "provider-turn", itemId: "reason-1" });
+  const evidence = redactCapabilityEvidenceData("provider_event", { method, params });
+  expect(evidence).toEqual({ event: "reasoning_delta" });
+  expect(JSON.stringify(evidence)).not.toContain("PRIVATE_REASONING_SENTINEL");
+});
+
+it("classifies each coalesced canonical delta without mixing reasoning into assistant output", () => {
+  const notifications = expandRunnerdCanonicalNotifications("item/agentMessage/delta", {
+    coalescedCount: 3,
+    events: [
+      { kind: "reasoning", channel: "summary", text: "PRIVATE_REASONING_SENTINEL" },
+      { kind: "agentMessage", channel: "progress", text: "Visible progress" },
+      { kind: "reasoning", channel: "detail", text: "PRIVATE_DETAIL_SENTINEL" },
+    ],
+  }, "item.delta");
+  expect(notifications.map((entry) => entry.method)).toEqual([
+    "item/reasoning/summaryTextDelta", "item/agentMessage/delta", "item/reasoning/textDelta",
+  ]);
+  expect(notifications.filter((entry) => entry.method === "item/agentMessage/delta").map((entry) => entry.params.text))
+    .toEqual(["Visible progress"]);
 });
 
 it("restores provider identity and streamed text from a canonical delta", () => {

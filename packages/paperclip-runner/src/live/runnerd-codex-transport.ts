@@ -1325,10 +1325,21 @@ export function unseenRunnerdCommittedEvents<
 export function expandRunnerdCanonicalNotifications(
   method: string,
   input: unknown,
+  eventType?: string,
 ): Array<{ method: string; params: Record<string, unknown> }> {
   const payload = record(input);
-  if (!Array.isArray(payload.events)) return [{ method, params: payload }];
-  return payload.events.map((event) => ({ method, params: record(event) }));
+  const events = Array.isArray(payload.events) ? payload.events : [payload];
+  return events.map((event) => {
+    const params = record(event);
+    // A coalesced envelope can contain both reasoning and visible messages.
+    // Classify each payload after expansion, never using the envelope's kind.
+    return {
+      method: eventType === "item.delta"
+        ? runnerdCanonicalNotificationMethod(eventType, params) ?? method
+        : method,
+      params,
+    };
+  });
 }
 
 export function runnerdCanonicalNotificationMethod(
@@ -1340,6 +1351,11 @@ export function runnerdCanonicalNotificationMethod(
   // ahead of the first real turn notification.
   if (eventType === "session.goal.snapshot" && payload.goal === null) {
     return undefined;
+  }
+  if (eventType === "item.delta" && payload.kind === "reasoning") {
+    return payload.channel === "detail"
+      ? "item/reasoning/textDelta"
+      : "item/reasoning/summaryTextDelta";
   }
   return (
     {
@@ -6007,7 +6023,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
           : event.eventType === "provider.event"
           ? unwrapRunnerdProviderNotifications(eventPayload)
           : canonicalMethod
-            ? expandRunnerdCanonicalNotifications(canonicalMethod, eventPayload)
+            ? expandRunnerdCanonicalNotifications(canonicalMethod, eventPayload, event.eventType)
             : [];
       for (const payload of notifications) {
         const method = payload.method;
