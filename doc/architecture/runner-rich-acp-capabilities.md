@@ -2,7 +2,8 @@
 
 Updated: 2026-09-28. Base: `c65fc9e3c81c41aafe421aa90a00514b84343285`.
 Mainline integration: `14795136f56c11ed83dc754791945bb5a0b8f7fd`.
-Status: implementation and deterministic verification in progress; all three new
+Status: implementation is available as four draft PRs; deterministic review and
+CI verification are in progress. All three new
 profiles remain **pending qualification**. No paid inference or Daytona resources
 have been used. This report does not certify a provider from its ACP listing.
 
@@ -15,10 +16,10 @@ adapters are outside this change.
 
 | Branch | Deliverable |
 | --- | --- |
-| `codex/runner-rich-acp` | Shared ACPX extension boundary, durable permissions, canonical display events, provider pack infrastructure, configuration and UI |
-| `codex/runner-cursor-acp` | Cursor native distribution, questions/plans, child activity, policy admission, wire fixtures |
-| `codex/runner-copilot-acp` | Copilot native distribution, event inventory/projections, permission and settlement probes |
-| `codex/runner-pi-acp` | Patched wrapper, owned extension, MCP/tools, permissions/input, portable dependency closure |
+| [`codex/runner-rich-acp` / #14430](https://github.com/paperclipai/paperclip/pull/14430) | Shared ACPX extension boundary, durable permissions, canonical display events, provider pack infrastructure, configuration and UI |
+| [`codex/runner-cursor-acp` / #14435](https://github.com/paperclipai/paperclip/pull/14435) | Cursor native distribution, questions/plans, child activity, policy admission, wire fixtures |
+| [`codex/runner-copilot-acp` / #14434](https://github.com/paperclipai/paperclip/pull/14434) | Copilot native distribution, event inventory/projections, permission and settlement probes |
+| [`codex/runner-pi-acp` / #14436](https://github.com/paperclipai/paperclip/pull/14436) | Patched wrapper, owned extension, MCP/tools, permissions/input, portable dependency closure |
 
 Each provider branch depends on the foundation. They remain separate worktrees
 and review units. Source reports on the provider branches are
@@ -159,3 +160,19 @@ Verification commands and final results are recorded with the prerequisite and
 provider PRs. The full handoff requires runner checks, token gates, recursive
 typecheck, `pnpm test:run`, and `pnpm build`. Until that evidence is recorded, this
 report is an implementation report rather than a PR-ready certification.
+
+At foundation `5aeebb20c`, recursive typecheck, build, token gates, full Rust runner
+checks, conformance/replay parity and API-authority checks passed. Approval
+verification includes 18 real database integration tests, 15 projector cases,
+87 transcript/UI cases, 82 route/websocket cases and eight provider receipt cases.
+The local full root test attempt initially failed because embedded Postgres's
+install-time library links were missing. Its official package postinstall restored
+them; all 38 affected suites (743 tests) then passed. An unchanged workspace
+streaming stress test exceeds macOS path limits (`ENAMETOOLONG`); Linux CI retains
+the original case. The full runner TypeScript repeat and remaining workspace
+suites are recorded in the PR as they complete, including any failed attempt.
+
+Fresh macOS ARM64 candidate packs were independently built and launched through
+the generic installation registry: Cursor source `1055c13f8`, Copilot `5d8829add`,
+Pi `f58cfa1cb`. Each provider PR retains the exact source SHA, manifest/profile/
+closure digests and sanitized wire proof. These probes sent no model prompt.
