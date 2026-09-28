@@ -156,3 +156,9 @@ A matching stopped receipt clears the pending intent, leaves the lease released
 and resumable, and saves `sandboxStopAndRetainReceipt`. Its request identity,
 original plugin and `method: "environmentStopLease"` attest this dispatch route.
 The accepted-result export intent and its commitment requirements are unchanged.
+
+The built-in fake provider uses its explicit `stopLease` operation rather than a
+plugin RPC. Its intent pins the registered built-in provider and its receipt says
+`builtin.stopLease`. This provider owns no real process or filesystem; the receipt
+models its lifecycle. Missing built-in stop support or an unconfirmed receipt
+also remains pending through restart, without calling release or destroy.

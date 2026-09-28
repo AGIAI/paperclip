@@ -2695,13 +2695,24 @@ function createSandboxEnvironmentDriver(
       // durable orphan record, not the environment binding, for the same reason
       // as the plugin path above. The teardown targets the recorded provider,
       // never the current environment provider.
-      if (exportResume) throw new Error("Workspace export recovery requires verified stop-only cleanup.");
       const cleanupConfig = await resolveSandboxCleanupConfigSecrets(
         db,
         input.lease.companyId,
         metadataConfig,
         { issueId: input.lease.issueId, heartbeatRunId: input.lease.heartbeatRunId },
       );
+      if (exportResume) {
+        const provider = getBuiltinSandboxProvider(recordedProvider);
+        if (resumeIntent?.pluginId !== null || !provider?.stopLease) {
+          throw new Error("Sandbox preservation requires verified built-in stop-only cleanup.");
+        }
+        await assertExportResumeOwnership();
+        const receipt = await provider.stopLease({ config: cleanupConfig, providerLeaseId: input.lease.providerLeaseId });
+        if (remoteTerminationReceipt(input.lease, receipt)?.state !== "stopped") {
+          throw new Error("Built-in sandbox stop did not confirm the exact retained allocation.");
+        }
+        return receipt;
+      }
       await destroySandboxProviderLease({
         config: cleanupConfig,
         providerLeaseId: input.lease.providerLeaseId,
@@ -2718,7 +2729,9 @@ function createSandboxEnvironmentDriver(
       // teardown runs, throws, and counts toward the cap.
       if (!recordedProvider) return true;
       // A built-in provider has no plugin worker, so it is always ready.
-      if (isBuiltinSandboxProvider(recordedProvider)) return true;
+      if (isBuiltinSandboxProvider(recordedProvider)) {
+        return !hasStopOnlyCleanup(input.lease) || typeof getBuiltinSandboxProvider(recordedProvider)?.stopLease === "function";
+      }
       // No worker manager is a permanent condition here. Report ready, so the
       // teardown runs, throws its own "no worker manager" error, and counts
       // toward the cap.

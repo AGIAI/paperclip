@@ -1326,6 +1326,64 @@ describeEmbeddedPostgres("environmentRuntimeService", () => {
     expect(released[0]?.lease.status).toBe("released");
   });
 
+  it.each([false, true])("confirms a built-in fake stop without release or destroy fallback: cancel=%s", async cancel => {
+    const { companyId, environment, runId } = await seedEnvironment({
+      driver: "sandbox", config: { provider: "fake", image: "ubuntu:24.04", reuseLease: false },
+    });
+    const acquired = await runtime.acquireRunLease({ companyId, environment, issueId: null,
+      heartbeatRunId: runId, persistedExecutionWorkspace: null });
+    const provider = sandboxProviderRuntime.requireSandboxProvider("fake");
+    const release = vi.spyOn(provider, "releaseLease"), destroy = vi.spyOn(provider, "destroyLease");
+    const released = await runtime.releaseRunLeases(runId, "released", undefined, "stop_and_retain", cancel);
+    expect(released).toHaveLength(1);
+    expect(released[0]?.lease).toMatchObject({ status: "released", cleanupStatus: "success", failureReason: null,
+      metadata: { remoteExecutionTermination: { state: "stopped", providerLeaseId: acquired.lease.providerLeaseId },
+        sandboxStopAndRetainReceipt: { method: "builtin.stopLease", builtinProvider: "fake", runId } } });
+    expect(await remoteExecutionHasStopped(db, companyId, runId)).toBe(true);
+    expect(release).not.toHaveBeenCalled();
+    expect(destroy).not.toHaveBeenCalled();
+  });
+
+  it.each(["stop_failed", "wrong_receipt", "missing_capability", "changed_binding"])(
+    "preserves a built-in stop through restart without destructive fallback: %s", async outcome => {
+      const { companyId, environment, runId } = await seedEnvironment({
+        driver: "sandbox", config: { provider: "fake", image: "ubuntu:24.04", reuseLease: false },
+      });
+      const acquired = await runtime.acquireRunLease({ companyId, environment, issueId: null,
+        heartbeatRunId: runId, persistedExecutionWorkspace: null });
+      const provider = sandboxProviderRuntime.requireSandboxProvider("fake"), originalStop = provider.stopLease!;
+      const release = vi.spyOn(provider, "releaseLease"), destroy = vi.spyOn(provider, "destroyLease");
+      try {
+        provider.stopLease = outcome === "missing_capability" ? undefined : vi.fn(async () => {
+          if (outcome === "wrong_receipt") return { providerLeaseId: "sandbox://fake/other", state: "stopped" as const };
+          throw new Error("injected built-in stop failure");
+        });
+        await runtime.releaseRunLeases(runId, "released", undefined, "stop_and_retain", true);
+        expect(await environmentService(db).getLeaseById(acquired.lease.id)).toMatchObject({ status: "pending_cleanup" });
+        expect(await remoteExecutionHasStopped(db, companyId, runId)).toBe(false);
+        if (outcome === "missing_capability") {
+          await heartbeatService(db, { environmentRuntime: environmentRuntimeService(db) }).sweepPendingCleanupLeases({ backoffMs: 0 });
+          expect(await environmentService(db).getLeaseById(acquired.lease.id)).toMatchObject({ status: "pending_cleanup" });
+        }
+        const stop = vi.fn(originalStop.bind(provider));
+        provider.stopLease = stop;
+        if (outcome === "changed_binding") await db.update(environmentLeases).set({ providerLeaseId: "sandbox://fake/replacement" })
+          .where(eq(environmentLeases.id, acquired.lease.id));
+        await heartbeatService(db, { environmentRuntime: environmentRuntimeService(db) }).sweepPendingCleanupLeases({ backoffMs: 0 });
+        if (outcome === "changed_binding") {
+          expect(stop).not.toHaveBeenCalled();
+          expect(await environmentService(db).getLeaseById(acquired.lease.id)).toMatchObject({ status: "pending_cleanup" });
+        } else {
+          expect(stop).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ providerLeaseId: acquired.lease.providerLeaseId }));
+          expect(await environmentService(db).getLeaseById(acquired.lease.id)).toMatchObject({ status: "released", cleanupStatus: "success" });
+          expect(await remoteExecutionHasStopped(db, companyId, runId)).toBe(true);
+        }
+        expect(release).not.toHaveBeenCalled();
+        expect(destroy).not.toHaveBeenCalled();
+      } finally { provider.stopLease = originalStop; }
+    },
+  );
+
   it("releases the remote sandbox when the lease insert rejects a foreign-company binding", async () => {
     const { companyId, environment, runId } = await seedEnvironment({
       driver: "sandbox",
