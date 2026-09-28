@@ -2,7 +2,7 @@
 
 Status: implementation candidate, 2026-09-28. Profile version 5 repairs the
 Undici dependency and bundled Node runtime affected by GHSA-3wwx-pv8p-q78v.
-Authenticated v5 qualification is pending. Historical version 4 repairs native
+Full authenticated v5 qualification is pending; its bounded native controls probe passes. Historical version 4 repairs native
 tool ID reuse across model iterations and warm prompts; its native steering,
 queued follow-up and denied-write probe passes. Historical version 3 passes cover local Product file
 delivery, typed question continuation and native steering, queued follow-up and
@@ -155,6 +155,29 @@ x64 pack; the candidate materializer emits it at `runtime/extensions/paperclip.j
 part of its verified package and must never be omitted from a copy or hash.
 
 ## Verification and maintenance
+
+The [v5 offline pack proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.v5.darwin-arm64.json)
+binds runtime source `aec26ad83f1d082f0d0a5eaffbd615a9e2e26155`, combined macOS
+pack `sha256:cf7d0998bbc2bed7b893c726c2b6455ba8a683d9cff7d92afedbff2d5900d500`,
+and immutable daemon `sha256:fe03a5f5e7b7d51aafb398aa435e4a200ca6e0206c46b84ba0baa15aa0be5f31`.
+Recursive workspace typecheck and full build pass. Focused checks pass 43
+TypeScript tests including actual installation launch, 19 installed-wrapper/native
+SDK tests, eight materializer tests and 13 Rust backend tests. Independent review
+recomputed the v5 digest and verified all 13,827 installed files. The
+[security closure proof](../../packages/paperclip-runner/test-fixtures/pi-acp/security-closure-proof.v5.json)
+retains npm's vulnerable pre-replacement result, the fixed installed version,
+unchanged upstream metadata, target pins and exact runtime file changes.
+
+Both Pi's private interpreter and the separately manifest-bound outer macOS pack
+interpreter are official Node 24.21.0 with bundled Undici 7.29.1. Sibling provider
+closure/profile declarations are unchanged. The actual Pi registry initializes
+ACP1 under a network-denying sandbox, exits EOF0 and releases its process group.
+Full Runner startup with no credential rejects in 8.558 seconds, below the
+unchanged 30-second deadline; this is a typed admission failure, not authenticated
+success. Linux packaging uses the later Docker-only source `94ef513f8`; its
+runtime source trees remain identical to `aec26ad83`. Linux execution is recorded
+separately. The two clean lock resolutions match `9eea6018…`; tracked lock bytes
+remain unchanged.
 
 The [v4 offline proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.v4.darwin-arm64.json)
 binds frozen source `f556110d588a9de9fefe676a9a62bf09e98afb85`, combined pack
@@ -432,6 +455,22 @@ every field in Pi's native event stream. These are explicit follow-ups:
 
 ## Authenticated local qualification progress
 
+The [v5 native controls proof](../../packages/paperclip-runner/test-fixtures/pi-acp/native-controls-proof.v5.darwin-arm64.json)
+passes the unchanged probe on frozen `aec26ad83` / pack `cf7d0998…` in 19.199 seconds.
+The original write invocation `pi-849b369266c920633abffa988509e4ba61fcdf464f62c73900fd5ddd6d477402`
+correlates with the denied failed-tool update. The decision is fsynced before either control request; both control
+acknowledgements precede sending the original denial response. Visible output is exactly
+`STEERED_CURRENTQUEUED_NEXT`, stale steering rejects, the forbidden file remains
+absent, and the turn settles `end_turn`. Child, verified lease and temporary
+workspace cleanup complete; an independent process check finds no remaining
+probe or Pi process. No database is started. Actual usage is 3,727 input, 140
+output and 1,792 cached-read tokens. Delayed exclusive-key billing settles at
+$0.000151739; the separate Pi catalog estimate is $0.000611156. Initial unchanged
+reads are retained, not interpreted as free inference. This proves direct native
+controls and denial on the patched profile; it does not qualify Product recovery
+or remote execution.
+
+
 The [v4 native controls proof](../../packages/paperclip-runner/test-fixtures/pi-acp/native-controls-proof.v4.darwin-arm64.json)
 passes on frozen `f556110d5` / pack `4df7e9fa…`: one native write request uses the
 same normalized invocation ID in its persisted decision and failed tool update;
@@ -445,9 +484,9 @@ unchanged billing reads are retained and were not treated as free inference.
 
 A newly indexed [Undici advisory](https://github.com/advisories/GHSA-3wwx-pv8p-q78v)
 affects the historical v4 isolated npm Undici 8.9.0 and Node 24.19.0's bundled
-Undici 7.29.0. Profile v5 fixes both copies as described above. Further paid work
-remains held until fresh pack proofs and a new bounded authorization. This paid
-v4 proof remains bound to its original bytes.
+Undici 7.29.0. Profile v5 fixes both copies as described above. The separately authorized v5
+control proof uses that repaired closure; no further paid case is authorized.
+This paid v4 proof remains bound to its original bytes.
 
 The first [v4 plan attempt](../../packages/paperclip-runner/test-fixtures/pi-acp/product-plan-infrastructure-failure.v4.darwin-arm64.json)
 failed before provider startup: embedded PostgreSQL could not initialize the
@@ -465,14 +504,14 @@ qualification is held until a supported database resource path is available.
 
 
 The [sanitized attempt ledger](../../packages/paperclip-runner/test-fixtures/pi-acp/paid-qualification-progress.darwin-arm64.json)
-retains all nineteen attempts, including eight failures before a model prompt. One
+retains all twenty attempts, including eight failures before a model prompt. One
 Runner protocol turn reached the exact model and successfully called `get_task_context`, `get_task_history`,
 `list_documents`, and `read_document`. The canonical case permits those extra
 orientation reads, but also requires a completed turn; it timed out after 120s
 without terminal usage. The later Product hello journey passes; the canonical
 Runner protocol case has not yet passed.
 
-Exclusive OpenRouter key billing increased by **$0.028706633**, including
+Exclusive OpenRouter key billing increased by **$0.028858372**, including
 $0.000351509 from the sleep-interrupted Product attempt and $0.000654767
 from the successful hello journey, plus $0.010995043 across the restrictive-denial
 and file-edit batch. A delayed charge crossed the latter attempt baselines, so
