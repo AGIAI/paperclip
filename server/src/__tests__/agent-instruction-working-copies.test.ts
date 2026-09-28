@@ -1,7 +1,8 @@
 import fs from "node:fs/promises";
 import { execFile as execFileCallback } from "node:child_process";
 import { promisify } from "node:util";
-import { readGitWorkspaceSnapshot } from "@paperclipai/adapter-utils/git-workspace-sync";
+import * as gitWorkspaceSync from "@paperclipai/adapter-utils/git-workspace-sync";
+import { DatabaseSync } from "node:sqlite";
 import { captureDirectorySnapshot } from "@paperclipai/adapter-utils/workspace-restore-merge";
 const execFile = promisify(execFileCallback);
 import os from "node:os";
@@ -278,8 +279,27 @@ describe("registered run instruction copies", () => {
     await execFile("git", ["-C", workspace, "add", "."]);
     const staged = await execFile("git", ["-C", workspace, "diff", "--cached", "--name-only"]);
     expect(staged.stdout).toBe("deliverable.txt\n");
-    const snapshot = await readGitWorkspaceSnapshot(workspace);
-    expect(snapshot?.overlayPaths).toEqual(["deliverable.txt"]);
+    const snapshot = await gitWorkspaceSync.readGitWorkspaceSnapshot(workspace);
+    try {
+      const paths: unknown = snapshot?.overlayPaths;
+      if (Array.isArray(paths)) {
+        expect(paths).toEqual(["deliverable.txt"]);
+      } else {
+        // The streaming Git snapshot stores the same path set in a private
+        // manifest. Inspect its actual records, not only the reported count.
+        expect(paths).toMatchObject({ kind: "path_manifest", version: 1, category: "overlay", count: 1 });
+        const manifest = paths as { filePath: string; category: string };
+        const manifestDb = new DatabaseSync(manifest.filePath, { readOnly: true, allowExtension: false });
+        try {
+          const rows = manifestDb.prepare("SELECT path FROM records WHERE category = ? ORDER BY path").all(manifest.category);
+          expect(rows.map((row) => row.path)).toEqual(["deliverable.txt"]);
+        } finally { manifestDb.close(); }
+      }
+    } finally {
+      if ("disposeGitWorkspaceSnapshot" in gitWorkspaceSync && typeof gitWorkspaceSync.disposeGitWorkspaceSnapshot === "function") {
+        await gitWorkspaceSync.disposeGitWorkspaceSnapshot(snapshot);
+      }
+    }
     const files = await captureDirectorySnapshot(workspace, { exclude: [".git", ".paperclip-runtime"] });
     expect([...files.entries.keys()]).toEqual(["deliverable.txt"]);
     await expect(copies.prepare({ ...target(), runId, cwd: home })).rejects.toThrow("different run workspace");
