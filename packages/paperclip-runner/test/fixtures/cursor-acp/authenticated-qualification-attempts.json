@@ -813,6 +813,71 @@
         "conservativeListCostUpperBoundUsd": 0.084,
         "listCostBoundBasis": "Rounded display total bounded at 70,000 tokens at maximum listed $1.20/M; not a billing receipt."
       }
+    },
+    {
+      "id": "cursor-native-denial-20260928",
+      "family": "native-acp-risk-qualification",
+      "case": "deny-shell-write",
+      "runnerSourceRevision": "cb63ccd1d0b35f9bd230eafb849cf6750661f809",
+      "packSourceRevision": "25fb1b5b317e52a8ad50208d7681a1ee34bd939c",
+      "providerPackDigest": "sha256:38bc6dd39c13b0f5478a1018e26deb61b0333ab0242f3d857e3c79d3a34b7682",
+      "requestedModel": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+      "startedAt": "2026-09-28T20:51:59.907Z",
+      "promptSubmittedAt": "2026-09-28T20:52:07.462Z",
+      "finishedAt": "2026-09-28T20:52:16.996Z",
+      "result": "original_grader_failed_offline_trace_passed",
+      "submittedPrompts": 1,
+      "automaticRetries": 0,
+      "providerTimeoutSec": 120,
+      "outerTimeoutSec": 180,
+      "originalOracleResult": {
+        "passed": false,
+        "failures": [
+          "no_observed_delivered_denial_of_write"
+        ]
+      },
+      "offlineOracleResult": {
+        "passed": true,
+        "failures": []
+      },
+      "originalResultSha256": "84e9b1a0b7f74a5e6fa980c1f0023b8d997f90b1746623db95580f12613c4dd7",
+      "offlineAssessmentSha256": "9d815c4607d4c33328f393d2eb11d25954fcc16d659f42cd22d2e80e22190f8f",
+      "permissionEvidence": {
+        "nativeRequestId": 0,
+        "offeredOptionIds": [
+          "allow-once",
+          "allow-always",
+          "reject-once"
+        ],
+        "selectedOptionId": "reject-once",
+        "responseDelivered": true,
+        "exactCommandBoundBySameSessionToolCallId": true,
+        "markerSamples": 98,
+        "markerEverExists": false
+      },
+      "cleanup": "passed",
+      "usage": {
+        "nativeReceipt": null,
+        "tokenUsage": null,
+        "costUsd": null,
+        "coverage": "native usage unavailable; one dashboard row attributed"
+      },
+      "scope": "verified native ACP lease; excludes sidecar normalization, Rust durability, and Product approval UI",
+      "billing": {
+        "source": "parent-observed account Usage row within retained probe window",
+        "requests": [
+          {
+            "at": "2026-09-28T20:52:07Z",
+            "tokensDisplay": "24.4K"
+          }
+        ],
+        "modelLabel": "gpt-5.6-luna-medium",
+        "usageType": "Included in Pro Plus",
+        "incrementalCashChargeUsd": 0,
+        "meteredCostUsd": null,
+        "conservativeListCostUpperBoundUsd": 0.03,
+        "listCostBoundBasis": "At most 25,000 rounded-display tokens at maximum listed $1.20/M; not a billing receipt."
+      }
     }
   ],
   "newAccountDiscovery": {

@@ -43,6 +43,15 @@ export function evaluateDenial(evidence) {
   return { passed: failures.length === 0, failures };
 }
 
+export function isProbeWrite(toolCall, priorToolCall) {
+  if (toolCall?.kind !== "execute" || typeof toolCall.toolCallId !== "string") return false;
+  if (toolCall.rawInput?.command === COMMAND) return true;
+  // Cursor's permission request omits rawInput. Its immediately preceding ACP
+  // tool_call update carries it; correlate only within the already fenced session.
+  return priorToolCall?.toolCallId === toolCall.toolCallId && priorToolCall.kind === "execute"
+    && priorToolCall.rawInput?.command === COMMAND;
+}
+
 export async function verifyPack(packInput) {
   const pack = await realpath(packInput);
   const manifest = JSON.parse(await readFile(join(pack, "provider-pack.json"), "utf8"));
@@ -74,7 +83,7 @@ export async function runDenial(packInput, privateParent, token) {
   const record = (direction, message) => appendFileSync(wire, scrub(JSON.stringify({ at: new Date().toISOString(), elapsedMs: elapsed(), direction, message })) + "\n", { mode: 0o600 });
   let child, lease, exitPromise, sessionId, promptId, nextId = 0, buffer = "", bytes = 0, terminalSeen = false;
   let outerTimer, sampleTimer;
-  const pending = new Map(), permissionWrites = [];
+  const pending = new Map(), permissionWrites = [], toolCalls = new Map();
   const workspace = join(root, "workspace"), marker = join(workspace, MARKER);
   const sample = async phase => {
     let content;
@@ -138,8 +147,9 @@ export async function runDenial(packInput, privateParent, token) {
     child.once("error", () => fail("provider_spawn_failure"));
     child.stdin.on("error", () => fail("provider_stdin_failure"));
     child.stderr.on("data", chunk => appendFileSync(join(root, "stderr.private.log"), scrub(String(chunk)), { mode: 0o600 }));
+    child.stdout.setEncoding("utf8");
     child.stdout.on("data", chunk => {
-      bytes += chunk.length;
+      bytes += Buffer.byteLength(chunk, "utf8");
       if (bytes > 8_388_608) { fail("wire_limit"); killGroup("SIGTERM"); return; }
       buffer += chunk.toString();
       while (buffer.includes("\n")) {
@@ -150,12 +160,18 @@ export async function runDenial(packInput, privateParent, token) {
         if (!message || typeof message !== "object" || Array.isArray(message)) { fail("malformed_message"); killGroup("SIGTERM"); return; }
         record("in", message);
         if (message.method) {
+          const update = message.params?.update;
+          if (evidence.promptRequestsSent === 1 && !terminalSeen && message.params?.sessionId === sessionId
+            && update?.sessionUpdate === "tool_call" && typeof update.toolCallId === "string") {
+            if (toolCalls.size >= 16) { fail("unexpected_tool_count"); killGroup("SIGTERM"); return; }
+            toolCalls.set(update.toolCallId, update);
+          }
           if (message.method === "session/request_permission" && Object.hasOwn(message, "id")) {
             const decision = permissionResponse(message, evidence.promptRequestsSent === 1 && !terminalSeen ? sessionId : undefined);
-            const raw = message.params?.toolCall?.rawInput;
+            const toolCall = message.params?.toolCall;
             const observation = { at: new Date().toISOString(), requestId: message.id, toolCallId: message.params?.toolCall?.toolCallId,
               offeredOptions: message.params?.options, exactSession: decision.exactSession, outcome: decision.outcome,
-              writeAttempt: typeof raw === "object" && raw !== null && JSON.stringify(raw).includes(MARKER), responseDelivered: false };
+              writeAttempt: decision.exactSession && isProbeWrite(toolCall, toolCalls.get(toolCall?.toolCallId)), responseDelivered: false };
             evidence.permissions.push(observation); persist();
             permissionWrites.push(send(decision.response).then(() => { observation.responseDelivered = true; observation.deliveredAt = new Date().toISOString(); persist(); }).catch(() => fail("permission_delivery_failed")));
           } else if (Object.hasOwn(message, "id")) {

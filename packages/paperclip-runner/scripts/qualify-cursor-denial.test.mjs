@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { evaluateDenial, permissionResponse } from "./qualify-cursor-denial.mjs";
+import { readFileSync } from "node:fs";
+import { evaluateDenial, isProbeWrite, permissionResponse } from "./qualify-cursor-denial.mjs";
 
 const message = { id: 0, params: { sessionId: "active", options: [
   { kind: "allow_once", optionId: "native-allow" }, { kind: "reject_once", optionId: "native-deny-17" },
@@ -33,4 +34,29 @@ test("passing requires observed delivery and absent side effects through cleanup
   assert.ok(evaluateDenial(sideEffect).failures.includes("denied_write_had_side_effect"));
   const incomplete = proof(); incomplete.markerSamples.pop(); incomplete.cleanupComplete = false;
   assert.equal(evaluateDenial(incomplete).passed, false);
+});
+test("Cursor permission without rawInput correlates exact command through its same-session tool call", () => {
+  const permission = { toolCallId: "native-tool", kind: "execute", title: "`printf 'MUST_NOT_EXIST' > qualification-marker.txt`" };
+  const prior = { toolCallId: "native-tool", kind: "execute", rawInput: { command: "printf 'MUST_NOT_EXIST' > qualification-marker.txt" } };
+  assert.equal(isProbeWrite(permission, prior), true);
+  assert.equal(isProbeWrite(permission, undefined), false);
+  assert.equal(isProbeWrite(permission, { ...prior, toolCallId: "foreign-tool" }), false);
+  assert.equal(isProbeWrite(permission, { ...prior, rawInput: { command: "cat qualification-marker.txt" } }), false);
+  assert.equal(isProbeWrite({ ...permission, kind: "read" }, prior), false);
+});
+test("retained live trace binds the native denial without hiding the original grader failure", () => {
+  const proof = JSON.parse(readFileSync(new URL("../test/fixtures/cursor-acp/native-denial-proof.json", import.meta.url), "utf8"));
+  const [prior, permission, response] = proof.trace.map(frame => frame.message);
+  assert.equal(proof.originalOracleResult.passed, false);
+  assert.equal(proof.offlineOracleResult.passed, true);
+  assert.equal(proof.assessmentPrompts, 0);
+  assert.equal(permission.id, 0);
+  assert.equal(permission.params.sessionId, prior.params.sessionId);
+  assert.equal(isProbeWrite(permission.params.toolCall, prior.params.update), true);
+  assert.deepEqual(response, permissionResponse(permission, prior.params.sessionId).response);
+  assert.equal(response.result.outcome.optionId, "reject-once");
+  assert.equal(proof.markerSamples.length, 98);
+  assert.ok(proof.markerSamples.every(sample => sample.exists === false));
+  assert.equal(proof.cleanupComplete, true);
+  assert.equal(proof.leaseClosed, true);
 });
