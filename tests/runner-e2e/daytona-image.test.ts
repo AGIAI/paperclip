@@ -202,6 +202,8 @@ describe("runner E2E Daytona image contract", () => {
       "packages/paperclip-runner/scripts/candidate-provider-pack.mjs",
       "packages/paperclip-runner/scripts/build-copilot-distribution.mjs",
       "packages/paperclip-runner/scripts/materialize-copilot-binary.mjs",
+      "packages/paperclip-runner/scripts/materialize-cursor-distribution.mjs",
+      "packages/paperclip-runner/cursor-distributions.json",
       "packages/paperclip-runner/runner/crates",
       "packages/paperclip-runner/src",
     ]) {

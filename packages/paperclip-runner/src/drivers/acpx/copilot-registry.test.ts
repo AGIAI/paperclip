@@ -5,8 +5,11 @@ import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, createAcpxProfile
 import { assertAcpxProfileEnvironment, classifyAcpxProfileError, verifyAcpxProfileInstallation } from "./profile-installation.js";
 import { resolveQualifiedAcpxProfile } from "./qualified-profiles.js";
 import { verifyCopilotInstallation } from "./copilot-installation.js";
+import { verifyCursorInstallation } from "./cursor-installation.js";
 
 vi.mock("./copilot-installation.js", () => ({ verifyCopilotInstallation: vi.fn(async () => ({ commandDigest: "verified-by-native-factory" })) }));
+
+vi.mock("./cursor-installation.js", () => ({ verifyCursorInstallation: vi.fn(async () => ({ commandDigest: "verified-cursor-factory" })) }));
 
 const context = { workspacePath: "/workspace", sessionId: "backend-1", turnId: "turn-1" };
 describe("Copilot provider registry conformance", () => {
@@ -21,7 +24,10 @@ describe("Copilot provider registry conformance", () => {
     const profile = resolveQualifiedAcpxProfile("copilot", "explicit-exact-model");
     expect(await verifyAcpxProfileInstallation(profile)).toMatchObject({ commandDigest: "verified-by-native-factory" });
     expect(verifyCopilotInstallation).toHaveBeenCalledExactlyOnceWith(profile);
-    await expect(verifyAcpxProfileInstallation(resolveQualifiedAcpxProfile("cursor", "exact-model"))).rejects.toThrow(/not installed/);
+    const cursorProfile = resolveQualifiedAcpxProfile("cursor", "exact-model");
+    expect(await verifyAcpxProfileInstallation(cursorProfile)).toMatchObject({ commandDigest: "verified-cursor-factory" });
+    expect(verifyCursorInstallation).toHaveBeenCalledExactlyOnceWith(cursorProfile);
+    expect(verifyCopilotInstallation).toHaveBeenCalledTimes(1);
   });
 
   it("negotiates an isolated native event subscription and preserves every safe subagent field through the shared turn binder", async () => {
