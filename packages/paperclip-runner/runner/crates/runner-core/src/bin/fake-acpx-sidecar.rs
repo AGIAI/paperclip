@@ -148,6 +148,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                             "url": std::env::var("PAPERCLIP_NATIVE_MCP_URL").ok(),
                             "hasToken": std::env::var("PAPERCLIP_NATIVE_MCP_TOKEN").is_ok(),
                             "hasUnrelatedSecret": std::env::var("UNRELATED_EVAL_SECRET").is_ok(),
+                            "credentialKeys": (["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY", "OPENROUTER_API_KEY", "CURSOR_API_KEY", "CURSOR_AUTH_TOKEN", "COPILOT_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"].into_iter().filter(|key| std::env::var(key).is_ok()).collect::<Vec<_>>()),
                         }
                     }),
                 )?;
@@ -206,6 +207,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             | "bootstrap-wrong-run"
             | "controls"
             | "controls-wrong-ack"
+            | "controls-lazy"
             | "turns"
             | "turns-wrong-turn"
             | "turns-wrong-cancel"
@@ -730,6 +732,7 @@ fn bootstrap_success(
                     "providerLifetimeFenceCandidates": [60001, 60002, 60003],
                 },
                 "status": {},
+                "turnControls": {"steering": matches!(mode, "controls" | "controls-wrong-ack"), "queuedFollowUp":matches!(mode, "controls" | "controls-wrong-ack")},
             })
         }
         "run.attach" => json!({
@@ -737,6 +740,7 @@ fn bootstrap_success(
             "catalogRevision": params.get("catalogRevision"),
         }),
         "turn.start" => json!({
+            "turnControls": {"steering": matches!(mode, "controls" | "controls-wrong-ack" | "controls-lazy"), "queuedFollowUp":matches!(mode, "controls" | "controls-wrong-ack" | "controls-lazy")},
             "turnId": if mode == "turns-wrong-turn" { "wrong-turn" } else { params.get("turnId").and_then(Value::as_str).unwrap_or("missing") },
         }),
         "turn.steer" => json!({

@@ -72,6 +72,13 @@ export class CodexHarnessSession
     }
   }
 
+  turnControlCapabilities() {
+    if (this.driverKind === "acpx_runtime") {
+      return this.transport.turnControlCapabilities?.() ?? { steering: false, queuedFollowUp: false };
+    }
+    return { steering: this.capabilities.steering, queuedFollowUp: false };
+  }
+
   ids(): ReturnType<HarnessSession["ids"]> {
     return {
       driverSessionId: this.opened.threadId,
@@ -306,14 +313,17 @@ export class CodexHarnessSession
     correlationId?: string;
   }): Promise<void> {
     this.assertProtocolIntegrity();
-    if (input.mode === "follow_up") throw this.unsupported("steering", "queued follow-up is not exposed by this driver");
-    this.requireCapability("steering");
+    const controls = this.turnControlCapabilities();
+    if (!(input.mode === "follow_up" ? controls.queuedFollowUp : controls.steering)) {
+      throw this.unsupported("steering", "requested turn control was not negotiated");
+    }
     this.requireActiveTurn(input.turnId, "steering");
     if (input.correlationId) {
       const acknowledgedTurnId = this.acknowledgedSteeringCorrelations.get(
         input.correlationId,
       );
       if (acknowledgedTurnId) {
+        if (this.driverKind === "acpx_runtime") throw new Error("ACP turn control correlation was already acknowledged");
         if (acknowledgedTurnId !== input.turnId)
           throw new HarnessOperationAlreadyTerminalError("steering");
         return;
@@ -325,6 +335,7 @@ export class CodexHarnessSession
         input: [userInput(input.message)],
         expectedTurnId: input.turnId,
         correlationId: input.correlationId,
+        ...(input.mode === undefined ? {} : { mode: input.mode }),
       });
       if (this.activeTurnId !== input.turnId) {
         throw new HarnessOperationAlreadyTerminalError("steering");
@@ -339,7 +350,8 @@ export class CodexHarnessSession
         "item.completed",
         {
           kind: "steering_acknowledgement",
-          text: "Steering acknowledged for the active turn.",
+          text: input.mode === "follow_up" ? "Follow-up queued by the active provider." : "Steering acknowledged for the active turn.",
+          ...(this.driverKind === "acpx_runtime" ? { mode: input.mode ?? "steer" } : {}),
           status: "acknowledged",
         },
         {

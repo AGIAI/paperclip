@@ -23,10 +23,11 @@ import type { AcpxRecoveryWorkspaceLease } from "./runtime-sandbox.js";
 
 describe("Codex ACPX harness driver", () => {
   it("delivers negotiated steering and follow-up distinctly, once, for the active turn", async () => {
-    const fixture = driverFixture({ providerPolicy: { readOnly: true } });
+    const fixture = driverFixture({ agent: "pi", model: "openrouter/deepseek/deepseek-v4-flash-0731", providerPolicy: { readOnly: true } });
     fixture.host.steeringCapability.mockReturnValue({ steering: true, queuedFollowUp: true });
     const session = await fixture.driver.openSession({ runId: "run-controls", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
     expect(fixture.hostOptions?.providerPolicy).toEqual({ readOnly: true });
+    expect(session.turnControlCapabilities?.()).toEqual({ steering: true, queuedFollowUp: true });
     const { turnId } = await session.startTurn({ message: { text: "Work" } });
     const turnInput = fixture.host.startTurn.mock.calls[0]![0];
     const context = { requestId: 0, signal: new AbortController().signal };
@@ -48,7 +49,7 @@ describe("Codex ACPX harness driver", () => {
   });
 
   it("rejects unnegotiated controls and retains ambiguous delivery attempts", async () => {
-    const fixture = driverFixture();
+    const fixture = driverFixture({ agent: "pi", model: "openrouter/deepseek/deepseek-v4-flash-0731", providerPolicy: { readOnly: true } });
     const session = await fixture.driver.openSession({ runId: "run-controls", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
     const { turnId } = await session.startTurn({ message: { text: "Work" } });
     await expect(session.steer!({ turnId, message: { text: "No handshake" } })).rejects.toThrow(/did not negotiate/);

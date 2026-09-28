@@ -38,7 +38,7 @@ import type {
   DurableRecoveryCommittedEvent,
   DurableRecoveryIdentity,
 } from "../contracts/durable-recovery.js";
-import type { NativeRunIdentity } from "../contracts/types.js";
+import type { NativeRunIdentity, NativeTurnControlCapabilities } from "../contracts/types.js";
 import type { PrpEvent } from "../protocol/replay-contract.js";
 import { NativeSessionCloseUnrecoverableError } from "../contracts/native-session-backend.js";
 import type {
@@ -3275,6 +3275,27 @@ function unwrapToolResponse(response: Record<string, unknown>): {
   };
 }
 
+/** Only a live, admitted Pi ACP session can enable native turn controls. */
+export function parseAcpxTurnControlCapabilities(
+  value: unknown,
+  agent: unknown,
+): NativeTurnControlCapabilities {
+  const unsupported = { steering: false, queuedFollowUp: false };
+  if (value === undefined) return unsupported;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("ACPX turn control capabilities are malformed");
+  }
+  const controls = value as Record<string, unknown>;
+  if (Object.keys(controls).some(key => key !== "steering" && key !== "queuedFollowUp")
+    || typeof controls.steering !== "boolean" || typeof controls.queuedFollowUp !== "boolean") {
+    throw new Error("ACPX turn control capabilities are malformed");
+  }
+  if (agent !== "pi" && (controls.steering || controls.queuedFollowUp)) {
+    throw new Error("ACPX profile cannot advertise these turn controls");
+  }
+  return { steering: controls.steering, queuedFollowUp: controls.queuedFollowUp };
+}
+
 class DurablePrpCodexTransport implements CodexAppServerTransport {
   readonly #root: string;
   readonly #ownsRoot: boolean;
@@ -3307,6 +3328,13 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
   #threadId = "";
   #sessionId: string | null = null;
   #providerIdentity: Record<string, unknown> | null = null;
+  #turnControls: NativeTurnControlCapabilities = { steering: false, queuedFollowUp: false };
+
+  turnControlCapabilities(): NativeTurnControlCapabilities | null {
+    if (this.options.provider !== "acpx") return null;
+    if (this.#closed || this.#failure) return { steering: false, queuedFollowUp: false };
+    return { ...this.#turnControls };
+  }
   #providerIdentityEventType:
     "harness.ready" | "session.started" | "session.resumed" | null = null;
   #checkpointProviderIdentityExpectation: {
@@ -5891,6 +5919,12 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         this.#applyProviderIdentityEvent(event);
         continue;
       }
+      if (event.eventType === "session.capabilities.updated" && this.options.provider === "acpx") {
+        const capabilities = record(record(event.envelope.payload).payload);
+        if (capabilities.turnControls !== undefined) {
+          this.#turnControls = parseAcpxTurnControlCapabilities(capabilities.turnControls, this.#evidence.acpxAgent);
+        }
+      }
       if (event.eventType === "harness.diagnostic") {
         const diagnostic = record(record(event.envelope.payload).payload);
         if (
@@ -6171,6 +6205,12 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     } = resolveRunnerdSessionIdentity(started);
     const providerIdentity = record(started.providerIdentity);
     this.#confirmCheckpointProviderIdentity(started, event.eventType);
+    if (this.options.provider === "acpx") {
+      if (descriptor.turnControls !== undefined && descriptor.agent !== (this.options.acpxAgent ?? "codex")) {
+        throw new Error("ACPX capability identity differs from the admitted profile");
+      }
+      this.#turnControls = parseAcpxTurnControlCapabilities(descriptor.turnControls, descriptor.agent);
+    }
     if (pid !== null) {
       this.#evidence.providerPid = pid;
       this.#evidence.providerProcessStartedAt = readLocalProcessStartedAt(pid);

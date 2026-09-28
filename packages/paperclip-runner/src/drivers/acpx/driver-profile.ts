@@ -3,7 +3,7 @@ import type {
   HarnessDriverDescriptor,
 } from "../../contracts/harness-driver.js";
 import type { NativeAcpxPermissionMode } from "../../contracts/native-execution.js";
-import type { NativeSessionCapabilities } from "../../contracts/types.js";
+import type { NativeSessionCapabilities, NativeTurnControlCapabilities } from "../../contracts/types.js";
 import { providerFamilyCapabilities } from "../../provider-events.js";
 import {
   ACPX_DRIVER_KIND,
@@ -31,7 +31,9 @@ export interface ValidatedAcpxDriverConfig extends Record<string, unknown> {
 
 export function acpxCapabilities(
   agent: QualifiedAcpxAgent,
+  negotiated?: NativeTurnControlCapabilities | null,
 ): NativeSessionCapabilities {
+  const controls = agent === "pi" ? negotiated : null;
   const profile = ACPX_CAPABILITY_PROFILES[agent];
   return {
     resume: profile.recovery === "session-load",
@@ -44,7 +46,8 @@ export function acpxCapabilities(
       provider_notice: "available",
       artifact: "policy_disabled",
     }),
-    steering: false,
+    steering: controls?.steering === true,
+    queuedFollowUp: controls?.queuedFollowUp === true,
     interruption: true,
     structuredResult: true,
     read: true,
@@ -55,7 +58,7 @@ export function acpxCapabilities(
     runtimeRequestHandoff: true,
     goals: false,
     threadLineage: false,
-    unsupported: ["steering", "goals", "threadLineage"],
+    unsupported: [...(controls?.steering ? [] : ["steering"]), "goals", "threadLineage"],
   };
 }
 

@@ -56,6 +56,7 @@ import { releaseMaterializedNativeRuntimeSkills } from "../drivers/runtime-conte
 import { RUNNERD_CANONICAL_ITEM } from "../drivers/codex/codex-driver-values.js";
 
 import {
+  parseAcpxTurnControlCapabilities,
   authorizedToolSetForProvider,
   createCapabilityRunnerdCodexTransport,
   createCapabilityRunnerdProviderEnvironment,
@@ -7204,4 +7205,16 @@ it("resolves explicit skills to the remote provider home and rejects unassigned 
     expect(() => resolveRunnerdCodexSkillInputs(inputs, context, "/runner/codex-home")).toThrow("unique assigned runtime skill");
   }
   expect(() => resolveRunnerdCodexSkillInputs([skill], null, "/runner/codex-home")).toThrow("assigned runtime skill");
+});
+
+
+it("admits only exact live Pi turn controls", () => {
+  expect(parseAcpxTurnControlCapabilities(undefined, "pi")).toEqual({ steering: false, queuedFollowUp: false });
+  expect(parseAcpxTurnControlCapabilities({ steering: true, queuedFollowUp: true }, "pi")).toEqual({ steering: true, queuedFollowUp: true });
+  for (const value of [null, [], {}, { steering: 1, queuedFollowUp: false }, { steering: true, queuedFollowUp: "true" }, { steering: true, queuedFollowUp: true, arbitrary: true }]) {
+    expect(() => parseAcpxTurnControlCapabilities(value, "pi")).toThrow("malformed");
+  }
+  for (const agent of ["cursor", "copilot", "codex", "claude", undefined]) {
+    expect(() => parseAcpxTurnControlCapabilities({ steering: true, queuedFollowUp: false }, agent)).toThrow("cannot advertise");
+  }
 });

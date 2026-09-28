@@ -7,6 +7,14 @@ import {
 } from "./driver-profile.js";
 
 describe("ACPX driver profile", () => {
+  it("enables only negotiated Pi controls and keeps the static profile conservative", () => {
+    expect(acpxCapabilities("pi")).toMatchObject({ steering: false, queuedFollowUp: false });
+    expect(acpxCapabilities("pi", { steering: true, queuedFollowUp: false })).toMatchObject({ steering: true, queuedFollowUp: false });
+    expect(acpxCapabilities("pi", { steering: false, queuedFollowUp: true })).toMatchObject({ steering: false, queuedFollowUp: true });
+    for (const agent of ["cursor", "copilot", "codex", "claude"] as const) {
+      expect(acpxCapabilities(agent, { steering: true, queuedFollowUp: true })).toMatchObject({ steering: false, queuedFollowUp: false });
+    }
+  });
   it.each([
     ["codex", "available"],
     ["claude", "available"],

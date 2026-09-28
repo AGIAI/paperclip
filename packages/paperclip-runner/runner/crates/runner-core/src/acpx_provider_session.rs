@@ -224,6 +224,30 @@ impl AcpxProviderSessionIdentity {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AcpxTurnControlCapabilities {
+    pub steering: bool,
+    pub queued_follow_up: bool,
+}
+
+fn verified_turn_controls(
+    value: Option<&Value>,
+    agent: &str,
+) -> Result<AcpxTurnControlCapabilities, LocalRunnerError> {
+    let Some(value) = value else {
+        return Ok(AcpxTurnControlCapabilities::default());
+    };
+    let controls: AcpxTurnControlCapabilities = serde_json::from_value(value.clone())
+        .map_err(|_| LocalRunnerError::invalid("ACPX negotiated turn controls are malformed"))?;
+    if agent != "pi" && (controls.steering || controls.queued_follow_up) {
+        return Err(LocalRunnerError::invalid(
+            "ACPX profile cannot advertise these turn controls",
+        ));
+    }
+    Ok(controls)
+}
+
 pub struct AcpxProviderSession {
     transport: AcpxSidecarTransport,
     config: AcpxProviderSessionConfig,
@@ -231,6 +255,7 @@ pub struct AcpxProviderSession {
     tool_bridge: ProviderToolBridge,
     reserved_tool_bridge: ProviderToolBridge,
     identity: AcpxProviderSessionIdentity,
+    turn_controls: AcpxTurnControlCapabilities,
     catalog_revision: u64,
     working_directory: PathBuf,
     closed: bool,
@@ -250,7 +275,7 @@ impl AcpxProviderSession {
         let mut transport =
             AcpxSidecarTransport::start_for_agent(&config.transport, &config.agent)?;
         let bootstrap = bootstrap(&mut transport, config);
-        let (identity, state) = match bootstrap {
+        let (identity, state, turn_controls) = match bootstrap {
             Ok(value) => value,
             Err(error) => {
                 let cleanup = transport.shutdown();
@@ -264,6 +289,7 @@ impl AcpxProviderSession {
             tool_bridge,
             reserved_tool_bridge,
             identity,
+            turn_controls,
             catalog_revision: config.catalog_revision,
             working_directory: config.working_directory.clone(),
             closed: false,
@@ -277,6 +303,10 @@ impl AcpxProviderSession {
 
     pub fn identity(&self) -> &AcpxProviderSessionIdentity {
         &self.identity
+    }
+
+    pub fn turn_control_capabilities(&self) -> AcpxTurnControlCapabilities {
+        self.turn_controls
     }
 
     pub fn state(&self) -> &AcpxProviderState {
@@ -393,6 +423,11 @@ impl AcpxProviderSession {
                 "ACPX sidecar did not confirm the requested turn",
             )));
         }
+        self.turn_controls =
+            match verified_turn_controls(response.get("turnControls"), &self.config.agent) {
+                Ok(controls) => controls,
+                Err(error) => return Err(self.fail_closed(error)),
+            };
         if let Err(error) = self.state.begin_turn(turn_id) {
             return Err(self.fail_closed(error));
         }
@@ -418,6 +453,16 @@ impl AcpxProviderSession {
         {
             return Err(LocalRunnerError::invalid(
                 "ACPX turn control violates its bounded contract",
+            ));
+        }
+        let supported = if mode == "steer" {
+            self.turn_controls.steering
+        } else {
+            self.turn_controls.queued_follow_up
+        };
+        if !supported {
+            return Err(LocalRunnerError::invalid(
+                "ACPX turn control was not negotiated",
             ));
         }
         self.state.reserve_turn_control(turn_id, control_id)?;
@@ -892,12 +937,13 @@ impl AcpxProviderSession {
             &restart_config.transport,
             &restart_config.agent,
         )?;
-        let (replacement_identity, _) = match bootstrap(&mut replacement, &restart_config) {
-            Ok(value) => value,
-            Err(error) => {
-                return Err(self.reject_replacement(replacement, error));
-            }
-        };
+        let (replacement_identity, _, turn_controls) =
+            match bootstrap(&mut replacement, &restart_config) {
+                Ok(value) => value,
+                Err(error) => {
+                    return Err(self.reject_replacement(replacement, error));
+                }
+            };
         if replacement_identity != self.identity {
             return Err(self.reject_replacement(
                 replacement,
@@ -907,6 +953,7 @@ impl AcpxProviderSession {
             ));
         }
         self.transport = replacement;
+        self.turn_controls = turn_controls;
         self.transport_terminated = false;
         Ok(())
     }
@@ -1143,7 +1190,14 @@ impl Drop for AcpxProviderSession {
 fn bootstrap(
     transport: &mut AcpxSidecarTransport,
     config: &AcpxProviderSessionConfig,
-) -> Result<(AcpxProviderSessionIdentity, AcpxProviderState), LocalRunnerError> {
+) -> Result<
+    (
+        AcpxProviderSessionIdentity,
+        AcpxProviderState,
+        AcpxTurnControlCapabilities,
+    ),
+    LocalRunnerError,
+> {
     let sidecar_tools = sidecar_run_tool_operations(&config.tool_set);
     let initialized = transport.request(
         GeneratedAcpxSidecarCommand::Initialize,
@@ -1169,6 +1223,7 @@ fn bootstrap(
         }),
     )?;
     let identity = verify_open_response(&opened, transport.process_id(), config)?;
+    let turn_controls = verified_turn_controls(opened.get("turnControls"), &config.agent)?;
 
     let attached = transport.request(
         GeneratedAcpxSidecarCommand::RunAttach,
@@ -1185,7 +1240,11 @@ fn bootstrap(
             "ACPX sidecar did not confirm the requested run attachment",
         ));
     }
-    Ok((identity, AcpxProviderState::new(&config.run_id)?))
+    Ok((
+        identity,
+        AcpxProviderState::new(&config.run_id)?,
+        turn_controls,
+    ))
 }
 
 fn verify_initialize_response(value: &Value, process_id: u32) -> Result<(), LocalRunnerError> {
@@ -1377,6 +1436,35 @@ fn with_cleanup_error(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn turn_controls_require_exact_live_pi_capability_fields() {
+        use super::*;
+        assert_eq!(
+            verified_turn_controls(None, "pi").unwrap(),
+            AcpxTurnControlCapabilities::default()
+        );
+        assert!(
+            verified_turn_controls(Some(&json!({"steering":true,"queuedFollowUp":true})), "pi")
+                .unwrap()
+                .steering
+        );
+        for value in [
+            Value::Null,
+            json!({}),
+            json!({"steering":1,"queuedFollowUp":false}),
+            json!({"steering":true,"queuedFollowUp":true,"extra":true}),
+        ] {
+            assert!(verified_turn_controls(Some(&value), "pi").is_err());
+        }
+        for agent in ["codex", "claude", "cursor", "copilot"] {
+            assert!(verified_turn_controls(
+                Some(&json!({"steering":true,"queuedFollowUp":false})),
+                agent
+            )
+            .is_err());
+        }
+    }
+
     use super::*;
 
     #[test]

@@ -62,6 +62,7 @@ import {
 } from "./acp-question-adapter.js";
 import {
   acpxDriverDescriptor,
+  acpxCapabilities,
   validateAcpxDriverConfig,
 } from "./driver-profile.js";
 import {
@@ -315,7 +316,7 @@ export class CodexAcpxDriver implements HarnessDriver {
         resume: true,
         runtimeRequestResolution: true,
         runtimeRequestHandoff: true,
-        unsupported: ["steering", "goals", "threadLineage"],
+        unsupported: descriptor.capabilities.unsupported,
       },
     };
   }
@@ -842,6 +843,11 @@ class CodexAcpxSession implements HarnessSession {
     return this.#events;
   }
 
+  turnControlCapabilities() {
+    const capability = acpxCapabilities(this.#agent, this.#host.steeringCapability?.());
+    return { steering: capability.steering, queuedFollowUp: capability.queuedFollowUp === true };
+  }
+
   async startTurn(input: {
     message: NativeUserMessage;
   }): Promise<{ turnId: string }> {
@@ -923,7 +929,7 @@ class CodexAcpxSession implements HarnessSession {
     this.#assertOpen();
     if (input.turnId !== this.#activeTurnId || this.#pendingTerminal) throw new HarnessStaleTurnError(input.turnId);
     const mode = input.mode ?? "steer";
-    const capability = this.#host.steeringCapability?.();
+    const capability = this.turnControlCapabilities();
     const operation = mode === "steer" ? this.#host.steerActiveTurn : this.#host.queueFollowUp;
     if (!(mode === "steer" ? capability?.steering : capability?.queuedFollowUp) || !operation) {
       throw new HarnessCapabilityUnavailableError(mode, "the ACP provider did not negotiate this turn control");

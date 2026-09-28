@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 
 use crate::acpx_provider_session::{
     AcpxPermissionMode, AcpxProviderRuntimePolicy, AcpxProviderSession, AcpxProviderSessionConfig,
-    AcpxProviderSessionIdentity,
+    AcpxProviderSessionIdentity, AcpxTurnControlCapabilities,
 };
 use crate::acpx_sidecar_transport::AcpxSidecarTransportConfig;
 #[cfg(test)]
@@ -422,6 +422,8 @@ struct AcpxDurableState {
     #[serde(default)]
     goal_projection: Value,
     #[serde(default)]
+    turn_controls: AcpxTurnControlCapabilities,
+    #[serde(default)]
     goal_revision: u64,
     #[serde(default)]
     goal_source_revision: Option<u64>,
@@ -451,6 +453,7 @@ impl AcpxDurableState {
             provider_exit_unconfirmed: false,
             semantic_result: None,
             goal_projection: Value::Null,
+            turn_controls: AcpxTurnControlCapabilities::default(),
             goal_revision: 0,
             goal_source_revision: None,
             pending_events: VecDeque::new(),
@@ -823,15 +826,17 @@ impl AcpxCommandExecutor {
         let session = self.start_session(true)?;
         let identity = session.identity().clone();
         let process_id = session.process_id();
+        let turn_controls = session.turn_control_capabilities();
         let state = self
             .state
             .as_mut()
             .expect("ACPX state remains available during recovery");
         state.lifecycle = "session_open".to_owned();
+        state.turn_controls = turn_controls;
         state.push(NormalizedProviderEvent {
             event_type: "session.resumed".to_owned(),
             priority: EventPriority::P0,
-            payload: session_event_payload(&state.descriptor, &identity, process_id),
+            payload: session_event_payload(&state.descriptor, &identity, process_id, turn_controls),
         })?;
         self.session = Some(session);
         self.save_state()
@@ -1018,6 +1023,7 @@ impl AcpxCommandExecutor {
             .expect("ACPX session exists after successful start");
         let identity = session.identity().clone();
         let process_id = session.process_id();
+        let turn_controls = session.turn_control_capabilities();
         let resumed = self
             .state
             .as_ref()
@@ -1031,7 +1037,9 @@ impl AcpxCommandExecutor {
         state.identity = Some(identity.clone());
         state.active_turn_id = None;
         state.lifecycle = "session_open".to_owned();
-        let payload = session_event_payload(&state.descriptor, &identity, process_id);
+        state.turn_controls = turn_controls;
+        let payload =
+            session_event_payload(&state.descriptor, &identity, process_id, turn_controls);
         let goal = self.goal_control("session.goal.get", &json!({}))?;
         self.save_state()?;
         Ok(CommandExecution {
@@ -1129,6 +1137,7 @@ impl AcpxCommandExecutor {
             projection["requestId"] = request_id.clone();
         }
         state.goal_projection = projection.clone();
+        let turn_controls = state.turn_controls;
         self.save_state()?;
         let event_type = match command {
             "session.goal.clear" => "session.goal.cleared",
@@ -1141,7 +1150,7 @@ impl AcpxCommandExecutor {
                 (
                     "session.capabilities.updated".to_owned(),
                     EventPriority::P0,
-                    json!({"sessionGoals":projection["sessionGoals"]}),
+                    json!({"sessionGoals":projection["sessionGoals"], "turnControls":turn_controls}),
                 ),
                 (event_type.to_owned(), EventPriority::P0, projection),
             ],
@@ -1219,6 +1228,12 @@ impl AcpxCommandExecutor {
             .as_mut()
             .expect("ACPX state exists after turn start");
         state.lifecycle = "turn_active".to_owned();
+        state.turn_controls = self
+            .session
+            .as_ref()
+            .expect("live ACPX session")
+            .turn_control_capabilities();
+        let capabilities = json!({"sessionGoals": state.goal_projection["sessionGoals"], "turnControls":state.turn_controls});
         self.save_state()?;
         let mut events = Vec::with_capacity(if provider_process_will_be_replaced {
             2
@@ -1241,6 +1256,11 @@ impl AcpxCommandExecutor {
                 ),
             ));
         }
+        events.push((
+            "session.capabilities.updated".to_owned(),
+            EventPriority::P0,
+            capabilities,
+        ));
         events.push((
             "turn.started".to_owned(),
             EventPriority::P0,
@@ -1270,10 +1290,15 @@ impl AcpxCommandExecutor {
             .get("turnId")
             .and_then(Value::as_str)
             .ok_or_else(|| DurableRunnerError::invalid("turn.steer payload.turnId is required"))?;
-        let mode = payload
-            .get("mode")
-            .and_then(Value::as_str)
-            .unwrap_or("steer");
+        let mode = match payload.get("mode") {
+            None => "steer",
+            Some(Value::String(mode)) => mode.as_str(),
+            _ => {
+                return Err(DurableRunnerError::invalid(
+                    "turn.steer payload.mode must be a string",
+                ))
+            }
+        };
         if !matches!(mode, "steer" | "follow_up")
             || text.trim().is_empty()
             || text.len() > 65_536
@@ -1941,11 +1966,14 @@ fn session_event_payload(
     descriptor: &AcpxProviderDescriptor,
     identity: &AcpxProviderSessionIdentity,
     process_id: u32,
+    turn_controls: AcpxTurnControlCapabilities,
 ) -> Value {
+    let mut public_descriptor = descriptor.public_descriptor(Some(identity));
+    public_descriptor["turnControls"] = json!(turn_controls);
     json!({
         "provider": "acpx",
         "driver": "acpx_runtime",
-        "providerDescriptor": descriptor.public_descriptor(Some(identity)),
+        "providerDescriptor": public_descriptor,
         "runtimeIdentity": {
             "executionKind": "local_process",
             "processId": process_id,
@@ -2199,6 +2227,24 @@ mod tests {
             .unwrap()
             .pending_runtime_requests
             .is_empty());
+    }
+
+    #[test]
+    fn turn_control_rejects_nonstring_mode_before_provider_access() {
+        let directory = temporary_directory("control-mode");
+        let config = test_config(&directory, None);
+        let mut executor = AcpxCommandExecutor::with_runner_config(&directory, &config);
+        for mode in [Value::Null, json!(1), json!(false), json!({})] {
+            let error = executor
+                .steer_turn(
+                    "command-1",
+                    &json!({"text":"change direction", "turnId":"turn-1", "mode":mode}),
+                )
+                .err()
+                .unwrap();
+            assert!(error.to_string().contains("mode must be a string"));
+        }
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

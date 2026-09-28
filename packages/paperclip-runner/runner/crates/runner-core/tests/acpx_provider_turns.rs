@@ -36,8 +36,18 @@ fn config(mode: &str) -> AcpxProviderSessionConfig {
             request_timeout: Duration::from_secs(1),
             shutdown_grace: Duration::from_millis(100),
         },
-        agent: "codex".to_owned(),
-        model: "gpt-5.6-sol".to_owned(),
+        agent: if mode.starts_with("controls") {
+            "pi"
+        } else {
+            "codex"
+        }
+        .to_owned(),
+        model: if mode.starts_with("controls") {
+            "openrouter/deepseek/deepseek-v4-flash-0731"
+        } else {
+            "gpt-5.6-sol"
+        }
+        .to_owned(),
         run_id: "run-1".to_owned(),
         catalog_revision: 1,
         runtime_directory: std::env::temp_dir(),
@@ -45,7 +55,15 @@ fn config(mode: &str) -> AcpxProviderSessionConfig {
         working_directory: std::env::temp_dir(),
         permission_mode: AcpxPermissionMode::ApproveReads,
         permission_mode_pinned: true,
-        provider_policy: None,
+        provider_policy: if mode.starts_with("controls") {
+            Some(
+                paperclip_runner_core::acpx_provider_session::AcpxProviderRuntimePolicy {
+                    read_only: false,
+                },
+            )
+        } else {
+            None
+        },
         system_instructions: "Complete the supplied task.".to_owned(),
         runtime_context: serde_json::Value::Null,
         tool_set: tool_set(),
@@ -743,4 +761,20 @@ fn turn_controls_fail_closed_on_mismatched_acknowledgement() {
     assert!(session
         .steer_turn("turn-1", "control-2", "follow_up", "Do not replay")
         .is_err());
+}
+
+#[test]
+fn lazy_warm_handshake_updates_live_turn_control_discovery() {
+    let mut session = AcpxProviderSession::start(&config("controls-lazy")).unwrap();
+    assert!(!session.turn_control_capabilities().steering);
+    assert!(!session.turn_control_capabilities().queued_follow_up);
+    session
+        .start_turn("turn-lazy", "Work", &std::env::temp_dir())
+        .unwrap();
+    assert!(session.turn_control_capabilities().steering);
+    assert!(session.turn_control_capabilities().queued_follow_up);
+    session
+        .steer_turn("turn-lazy", "control-1", "follow_up", "Then validate")
+        .unwrap();
+    session.shutdown("verified live handshake").unwrap();
 }

@@ -329,6 +329,7 @@ async function dispatch(
       ),
       sidecarPid: process.pid,
       status: opened.status,
+      turnControls: openedHost.steeringCapability() ?? { steering: false, queuedFollowUp: false },
     };
   }
   if (request.command === "run.attach") {
@@ -382,7 +383,10 @@ async function dispatch(
       throw error;
     }
     void pumpTurn(currentTurnId, runtimeTurn, activeHost, usageBefore, extensions.drain);
-    return { turnId: currentTurnId };
+    // Warm sessions may defer initialize until their first prompt. Publish only
+    // the capabilities of that live initialized connection, never old disk state.
+    await runtimeTurn.promptStarted;
+    return { turnId: currentTurnId, turnControls: activeHost.steeringCapability() ?? { steering: false, queuedFollowUp: false } };
   }
   if (request.command === "turn.steer") {
     const control = parseAcpxTurnControl(request.params);
@@ -738,7 +742,7 @@ async function waitForPermission(
   if (turnId !== activeTurnId || signal.aborted || permissions.size >= MAX_PENDING_INPUTS) {
     return { outcome: "cancel" };
   }
-  const normalized = normalizeAcpxPermission(request, openParams?.agent === "pi" ? { allowAlwaysScope: "session" } : {});
+  const normalized = normalizeAcpxPermission(request, ["pi", "copilot"].includes(openParams?.agent ?? "") ? { allowAlwaysScope: "session" } : {});
   const responseDelivery = requireAcpxResponseDelivery(context);
   const requestId = stableRequestId(activeTurnId, ++requestSequence, normalized.toolCallId);
   return await new Promise((settle) => {

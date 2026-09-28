@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { normalizeAcpxPermission } from "../drivers/acpx/acp-permission-adapter.js";
 import { ACPX_SIDECAR_PROTOCOL_VERSION } from "../drivers/acpx/sidecar-protocol.js";
 import {
   awaitSidecarCleanupWithin,
@@ -30,6 +31,29 @@ afterEach(async () => {
 });
 
 describe("qualified ACPX runtime sidecar", () => {
+  it.each(["pi", "copilot", "cursor", "codex", "claude"])("offers verified session permission grants only for %s", async agent => {
+    const source = readFileSync(fileURLToPath(new URL("./acpx-runtime-sidecar.ts", import.meta.url)), "utf8");
+    const start = source.indexOf("  const { signal } = context;", source.indexOf("async function waitForPermission"));
+    const end = source.indexOf("\nasync function waitForInput", start);
+    expect(start).toBeGreaterThan(0);
+    const permissions = new Map<string, unknown>();
+    const emitted: Array<{ choices: Array<{ key: string }> }> = [];
+    const wait = new Function("permissions", "openParams", "normalizeAcpxPermission", "emit",
+      `let turnId = "turn-1", requestSequence = 0; const MAX_PENDING_INPUTS = 512;
+       const stableRequestId = () => "request-1"; const requireAcpxResponseDelivery = c => c.responseDelivery;
+       return async function(activeTurnId, request, context) { ${source.slice(start, end)}`)(
+      permissions, { agent }, normalizeAcpxPermission, (_event: string, payload: { choices: Array<{ key: string }> }) => emitted.push(payload),
+    );
+    const abort = new AbortController();
+    const pending = wait("turn-1", { sessionId: "session", inferredKind: "edit", raw: {
+      sessionId: "session", toolCall: { toolCallId: "call", title: "Edit file" },
+      options: ["allow_once", "allow_always", "reject_once"].map(kind => ({ kind, optionId: kind, name: kind })),
+    } }, { signal: abort.signal, responseDelivery: Promise.resolve() });
+    expect(emitted[0]!.choices.some(choice => choice.key === "accept_for_session")).toBe(agent === "pi" || agent === "copilot");
+    abort.abort();
+    await expect(pending).resolves.toEqual({ outcome: "cancel" });
+    expect(permissions.size).toBe(0);
+  });
   it.each(["paperclip_finish", "paperclip_block"])(
     "bounds pending %s calls before reserved handling and resumes admission",
     async (operationId) => {

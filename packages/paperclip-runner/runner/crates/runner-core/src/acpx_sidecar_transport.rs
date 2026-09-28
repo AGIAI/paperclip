@@ -98,9 +98,12 @@ impl AcpxSidecarTransport {
         let credential_keys: &[&str] = match agent {
             "claude" => &["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"],
             "codex" => &["OPENAI_API_KEY", "CODEX_API_KEY"],
+            "pi" => &["OPENROUTER_API_KEY"],
+            "cursor" => &["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"],
+            "copilot" => &["COPILOT_GITHUB_TOKEN"],
             _ => {
                 return Err(LocalRunnerError::invalid(
-                    "ACPX sidecar credentials require a qualified claude or codex agent",
+                    "ACPX sidecar credentials require a known agent profile",
                 ))
             }
         };
