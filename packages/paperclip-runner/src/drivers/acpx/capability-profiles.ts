@@ -31,6 +31,12 @@ export const ACPX_CAPABILITY_PROFILES: Readonly<Record<QualifiedAcpxAgent, AcpxC
     recovery: "session-load", usage: "reported", steering: "unsupported", followUp: "controller-queue",
     artifacts: "policy_disabled", extensionRequests: [], extensionNotifications: [],
   },
+  grok: {
+    displayName: "Grok Build", qualification: "qualified", models: "explicit-provider-verified",
+    permissions: "interactive", questions: "form", plans: "native", tools: "authenticated-mcp",
+    recovery: "session-load", usage: "unverified", steering: "unsupported", followUp: "controller-queue",
+    artifacts: "policy_disabled", extensionRequests: [], extensionNotifications: [],
+  },
   cursor: {
     displayName: "Cursor", qualification: "pending", models: "explicit-provider-verified",
     permissions: "interactive", questions: "cursor-extension", plans: "cursor-decision", tools: "authenticated-mcp",

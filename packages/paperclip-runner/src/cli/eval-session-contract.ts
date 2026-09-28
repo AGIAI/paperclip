@@ -250,7 +250,7 @@ export function parseEvalSessionRequest(
   if (
     acpxAgent !== undefined &&
     acpxAgent !== "codex" &&
-    acpxAgent !== "claude" &&
+    acpxAgent !== "claude" && acpxAgent !== "grok" &&
     acpxAgent !== "pi" && acpxAgent !== "cursor" && acpxAgent !== "copilot"
   ) {
     throw new Error("eval-session acpxAgent must be a registered ACPX profile");

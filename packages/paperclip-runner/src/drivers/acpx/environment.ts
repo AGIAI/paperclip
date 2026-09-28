@@ -2,6 +2,7 @@ import type { QualifiedAcpxAgent } from "./qualified-profiles.js";
 
 export const ACPX_CREDENTIAL_BINDING_ENV = "PAPERCLIP_ACPX_CREDENTIAL_BINDING";
 export const ACPX_CREDENTIAL_NAMES: Readonly<Record<QualifiedAcpxAgent, readonly string[]>> = {
+  grok: ["XAI_API_KEY"],
   pi: ["OPENROUTER_API_KEY"],
   cursor: ["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"],
   copilot: ["COPILOT_GITHUB_TOKEN"],

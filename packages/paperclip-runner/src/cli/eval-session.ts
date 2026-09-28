@@ -260,6 +260,9 @@ export function boundedEvalSessionUsage(
   if (turn.status !== "completed") {
     return usageIfAvailable(request, turn.snapshot);
   }
+  if (request.provider === "acpx" && request.acpxAgent === "grok" && !turn.snapshot.usageLedger?.length) {
+    throw new EvalSessionBudgetError("budget cost coverage is unavailable for the completed Grok turn", true);
+  }
   const candidate = request.provider === "acpx"
     && request.acpxAgent !== undefined
     && ["pi", "cursor", "copilot"].includes(request.acpxAgent)

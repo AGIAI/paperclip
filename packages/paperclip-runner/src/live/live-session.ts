@@ -1,3 +1,4 @@
+import { liveRunResultFeedback } from "./run-result-feedback.js";
 import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 
@@ -648,7 +649,7 @@ export function assertCapabilityLiveSessionSnapshot(
   }
   if (provider === "acpx") {
     const agent = config.acpxAgent;
-    if (agent !== "pi" && agent !== "claude" && agent !== "codex" && agent !== "cursor" && agent !== "copilot") {
+    if (agent !== "pi" && agent !== "claude" && agent !== "codex" && agent !== "grok" && agent !== "cursor" && agent !== "copilot") {
       throw new Error("capability_live_checkpoint_corrupt: invalid config.acpxAgent");
     }
     const expected = resolveQualifiedAcpxProfile(agent, text(config.requestedModel));
@@ -1710,7 +1711,8 @@ export class CapabilityLiveSession {
     }
     await this.#captureTurnUsage(
       result.turnId,
-      result.status !== "completed" || options.allowMissingUsage === true,
+      result.status !== "completed" || options.allowMissingUsage === true ||
+        (this.#config.provider === "acpx" && this.#config.acpxAgent === "grok"),
     );
     await this.#persist();
     await this.#afterTurnSettled();
@@ -1853,6 +1855,10 @@ export class CapabilityLiveSession {
         totalKeys: Object.keys(total).sort(),
       })}`);
     }
+    // Grok 1.0.13 does not report verified token/cost measurements. Do not
+    // synthesize a zero receipt from the fallback when nothing was observed.
+    if (this.#config.provider === "acpx" && this.#config.acpxAgent === "grok" &&
+        (captured?.reported ?? captured?.raw ?? captured?.terminal) == null && Object.keys(total).length === 0) return;
     const finalUsage = selectedWithReportedCost ?? cumulativeFallback;
     await this.recordUsage({
       receiptId: `${turnId}:usage`,
@@ -2605,10 +2611,16 @@ export class CapabilityLiveSession {
       if (this.#semanticResult !== null && JSON.stringify(this.#semanticResult) !== JSON.stringify(result)) {
         return rejectedCodexToolCall("A different native completion report was already accepted for this turn.");
       }
+      const runResult = liveRunResultFeedback(operationId, request.params.arguments, LIVE_COMPLETION_CONTRACT.revision);
+      if (!runResult?.ok) {
+        return rejectedCodexToolCall("Native completion does not satisfy the current run result contract.");
+      }
       this.#semanticResult = result;
+      const revision = this.#port.snapshot().revision;
+      this.#appendEvidence("tool_call", turnId, { callId, operationId, input: jsonValue(request.params.arguments), beforeRevision: revision });
+      this.#appendEvidence("tool_result", turnId, { callId, operationId, result: jsonValue(runResult), beforeRevision: revision, afterRevision: revision });
       await this.#persist();
-      return { success: true, contentItems: [{ type: "inputText", text:
-        "Native run report accepted. This does not change mock task state. End this provider turn after your final response; task mutations require their separately authorized semantic tools." }] };
+      return this.#codexToolResponse(runResult);
     }
     if (operationId === DISCOVER_TOOL) {
       const args = record(request.params.arguments);

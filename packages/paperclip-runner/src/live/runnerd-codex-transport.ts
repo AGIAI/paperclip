@@ -679,7 +679,7 @@ async function releaseRunnerProcessOwnership(input: {
   runnerSettled: boolean;
   checkpoint:
     ((settlement: "settled" | "unsettled") => Promise<void> | void) | null;
-  forceKill: () => void;
+  forceKill: () => Promise<void> | void;
   release: (() => Promise<void> | void) | null;
 }): Promise<void> {
   let releaseFailure: unknown;
@@ -702,7 +702,7 @@ async function releaseRunnerProcessOwnership(input: {
   } catch (error) {
     checkpointFailure = error;
   } finally {
-    input.forceKill();
+    await input.forceKill();
   }
   if (checkpointFailure !== undefined) throw checkpointFailure;
   if (releaseFailure !== undefined) throw releaseFailure;
@@ -1331,10 +1331,10 @@ export function expandRunnerdCanonicalNotifications(
   const events = Array.isArray(payload.events) ? payload.events : [payload];
   return events.map((event) => {
     const params = record(event);
-    // A coalesced envelope can contain both reasoning and visible messages.
-    // Classify each payload after expansion, never using the envelope's kind.
+    // A coalesced envelope can contain different event kinds. Classify each
+    // payload after expansion, never using the envelope's kind.
     return {
-      method: eventType === "item.delta"
+      method: eventType
         ? runnerdCanonicalNotificationMethod(eventType, params) ?? method
         : method,
       params,
@@ -1352,6 +1352,9 @@ export function runnerdCanonicalNotificationMethod(
   if (eventType === "session.goal.snapshot" && payload.goal === null) {
     return undefined;
   }
+  // ACPX thoughts retain their reasoning kind through the notification facade.
+  // Treating them as assistant deltas exposes them in the task transcript and
+  // bypasses the existing reasoning redaction and progress handling.
   if (eventType === "item.delta" && payload.kind === "reasoning") {
     return payload.channel === "detail"
       ? "item/reasoning/textDelta"
@@ -3143,6 +3146,8 @@ export function createCapabilityRunnerdProviderEnvironment(input: {
         input.options.acpxAgent ?? "codex",
       ).env,
       ...(credentialBinding === undefined ? {} : { [ACPX_CREDENTIAL_BINDING_ENV]: credentialBinding }),
+      ...(input.options.acpxAgent === "grok" && input.options.environment?.PAPERCLIP_ACPX_GROK_AUTH_JSON_SECRET
+        ? { PAPERCLIP_ACPX_GROK_AUTH_JSON_SECRET: input.options.environment.PAPERCLIP_ACPX_GROK_AUTH_JSON_SECRET } : {}),
       ...commonIdentity,
       // The verified sidecar bundle cannot use import.meta.url while Node
       // executes it through /proc/self/fd. Anchor its closed provider package
@@ -3285,7 +3290,7 @@ export function createRunnerdCodexAppServerArgs(input: {
   );
 }
 
-function unwrapToolResponse(response: Record<string, unknown>): {
+export function unwrapToolResponse(response: Record<string, unknown>, preserveEnvelope = false): {
   readonly __paperclipSemanticToolOutcome: true;
   readonly result: unknown;
   readonly isError: boolean;
@@ -3296,7 +3301,7 @@ function unwrapToolResponse(response: Record<string, unknown>): {
   const value = record(items[0]).text;
   let result: unknown = response;
   try {
-    if (typeof value === "string") result = JSON.parse(value);
+    if (!preserveEnvelope && typeof value === "string") result = JSON.parse(value);
   } catch {
     result = response;
   }
@@ -4315,8 +4320,18 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
           adoptedRunner && !this.#adoptedRunnerAuthenticated
             ? null
             : this.#controlPlaneCheckpoint,
-        forceKill: () => {
-          this.#handle?.child.kill("SIGKILL");
+        forceKill: async () => {
+          const handle = this.#handle;
+          if (!handle || this.#evidence.runnerExited) return;
+          handle.child.kill("SIGKILL");
+          // A remote kill dispatches an asynchronous, ownership-fenced RPC.
+          // Do not release the session for reuse until its process monitor has
+          // settled: the successor would otherwise overwrite that ownership
+          // marker while the previous runner still holds the fixed listener.
+          const result = await waitForProcess(handle, 15_000);
+          this.#evidence.runnerExited = true;
+          this.#evidence.runnerExitCode = result.code;
+          this.#evidence.runnerSignal = result.signal as NodeJS.Signals | null;
         },
         release: this.#controlPlaneRelease,
       });
@@ -5512,6 +5527,8 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
             }
           : {}),
       }),
+      this.options.provider === "acpx" &&
+        (call.operationId === "paperclip_finish" || call.operationId === "paperclip_block"),
     );
     if (call.operationId === "call_api") {
       const result = record(outcome.result);
@@ -6687,6 +6704,7 @@ function openedThreadModelProvider(
   if (provider === "aws_agentcore") return "aws";
   if (provider === "acpx") {
     if (acpxAgent === "pi") return "openrouter";
+    if (acpxAgent === "grok") return "xai";
     if (acpxAgent === "claude") return "anthropic";
     if (acpxAgent === "cursor") return "cursor";
     if (acpxAgent === "copilot") return "github";

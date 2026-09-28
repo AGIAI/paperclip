@@ -17,6 +17,7 @@ describe("ACPX driver profile", () => {
   });
   it.each([
     ["codex", "available"],
+    ["grok", "available"],
     ["claude", "available"],
     ["pi", "unsupported"],
   ] as const)(
@@ -56,6 +57,7 @@ describe("ACPX driver profile", () => {
   it.each([
     ["claude", "claude-sonnet-5"],
     ["codex", "gpt-5.6-sol"],
+    ["grok", "grok-4.7"],
   ] as const)("accepts the exact qualified %s model", (agent, model) => {
     expect(validateAcpxDriverConfig({ agent, model })).toEqual({
       ok: true,

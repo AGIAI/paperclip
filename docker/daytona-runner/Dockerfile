@@ -9,7 +9,7 @@ WORKDIR /workspace/packages/paperclip-runner/runner
 COPY packages/paperclip-runner/runner/Cargo.toml packages/paperclip-runner/runner/Cargo.lock ./
 COPY packages/paperclip-runner/runner/crates ./crates
 COPY packages/paperclip-runner/protocol ../protocol
-RUN cargo build --locked --release -p paperclip-runner-core --bin paperclip-runnerd \
+RUN cargo build --locked --release -j 2 -p paperclip-runner-core --bin paperclip-runnerd \
     && strip /workspace/packages/paperclip-runner/runner/target/release/paperclip-runnerd
 
 FROM node:24-bookworm@sha256:9137a20e25879e0b557227b57e3ee4e9af4bde29eb3db66134cd1723e84f830b AS provider-pack-build
@@ -18,9 +18,9 @@ WORKDIR /workspace
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
 COPY patches ./patches
 COPY scripts/link-plugin-dev-sdk.mjs ./scripts/link-plugin-dev-sdk.mjs
-# CI owns pnpm-lock.yaml and regenerates it for manifest-only PRs. Include the
-# complete workspace manifest graph so all source-owned patches apply, then
-# resolve before the frozen install. This happens only during image creation.
+# Include the complete workspace manifest graph so source-owned patches apply.
+# Verify the reviewed lockfile as supplied; never resolve dependencies again
+# against the registry during an immutable image build.
 COPY packages ./packages
 COPY server/package.json ./server/package.json
 COPY ui/package.json ./ui/package.json
@@ -28,9 +28,8 @@ COPY cli/package.json ./cli/package.json
 # The complete resolved lock (including transitive integrity hashes) is reviewed.
 # Reject registry-time drift BEFORE installing packages or running lifecycle code.
 # Refresh this digest together with source/provider dependency changes.
-ARG PAPERCLIP_RUNNER_LOCK_SHA256=650e23d20e967bcfbfced888e131199b9a06e66a1ba4f64cfb68383b59def4a8
-RUN pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile \
-    && printf '%s  pnpm-lock.yaml\n' "${PAPERCLIP_RUNNER_LOCK_SHA256}" > /tmp/provider-lock.sha256 \
+ARG PAPERCLIP_RUNNER_LOCK_SHA256=9c163adf40fe1c6a65abda6207bd9f5acfc8196bc94f81348b8bf1b2769e050e
+RUN printf '%s  pnpm-lock.yaml\n' "${PAPERCLIP_RUNNER_LOCK_SHA256}" > /tmp/provider-lock.sha256 \
     && sha256sum -c /tmp/provider-lock.sha256 \
     && pnpm install --frozen-lockfile --filter '@paperclipai/paperclip-runner...'
 ARG PAPERCLIP_RUNNER_SOURCE_REVISION

@@ -46,6 +46,7 @@ import { validatePrpStructuredRunResult } from "../../protocol/replay-contract.j
 import {
   canonicalProviderEventsFromAcpxRuntimeEvent,
   createAcpxToolEventNormalizer,
+  createGrokMessageNormalizer,
 } from "../../provider-events.js";
 import {
   canonicalRunnerToolName,
@@ -756,6 +757,7 @@ class CodexAcpxSession implements HarnessSession {
   } | null = null;
   #usage: Record<string, unknown> | null = null;
   #assistantText = "";
+  #assistantMessageId: string | null = null;
   #closed = false;
   #closingStarted = false;
   #eventStreamClosed = false;
@@ -875,6 +877,7 @@ class CodexAcpxSession implements HarnessSession {
     this.#activeTurnId = turnId;
     this.#turnControls.begin(turnId);
     this.#assistantText = "";
+    this.#assistantMessageId = null;
     this.#emit("turn.submitted", { text: input.message.text }, { turnId });
     this.#emit("turn.accepted", { turnId }, { turnId });
     this.#emit("turn.started", { status: "inProgress" }, { turnId });
@@ -1423,8 +1426,10 @@ class CodexAcpxSession implements HarnessSession {
       let index = 0;
       const normalizeToolEvent =
         createAcpxToolEventNormalizer<AcpRuntimeEvent>();
+      const normalizeMessage = this.#agent === "grok"
+        ? createGrokMessageNormalizer<AcpRuntimeEvent>() : (event: AcpRuntimeEvent) => event;
       for await (const event of turn.events) {
-        this.#mapRuntimeEvent(normalizeToolEvent(event), turnId, ++index);
+        this.#mapRuntimeEvent(normalizeMessage(normalizeToolEvent(event)), turnId, ++index);
       }
       const result = await turn.result;
       await drainExtensions();
@@ -1616,6 +1621,9 @@ class CodexAcpxSession implements HarnessSession {
       const isReasoning =
         event.stream === "thought" || event.tag === "agent_thought_chunk";
       if (!isReasoning) {
+        const messageId = typeof event.messageId === "string" && event.messageId ? event.messageId : null;
+        if (messageId && this.#assistantMessageId && messageId !== this.#assistantMessageId) this.#assistantText = "";
+        if (messageId) this.#assistantMessageId = messageId;
         this.#assistantText = boundedText(
           `${this.#assistantText}${output}`,
           256 * 1024,

@@ -246,6 +246,15 @@ describe("eval-session request contract", () => {
 });
 
 describe("eval-session usage", () => {
+  it("preserves Grok's missing usage as unknown instead of manufacturing zero tokens or cost", () => {
+    const parsed = { ...parseEvalSessionRequest(request()), provider: "acpx" as const, acpxAgent: "grok" as const };
+    const turn = { turnId: "turn-1", status: "completed" as const, assistantText: "done", snapshot: { usageLedger: [] } as unknown as CapabilityLiveSessionSnapshot };
+    expect(() => boundedEvalSessionUsage(parsed, turn)).toThrow("budget cost coverage is unavailable");
+    expect(turn.status).toBe("completed");
+    expect(turn.snapshot.usageLedger).toEqual([]);
+    expect(() => boundedEvalSessionUsage({ ...parsed, provider: "codex", acpxAgent: undefined }, turn)).toThrow();
+  });
+
   it("retains durable failed turns even when their reported usage exceeds completed-turn limits", () => {
     const parsed = parseEvalSessionRequest(request());
     const snapshot = {
@@ -405,37 +414,39 @@ describe("eval-session usage", () => {
 });
 
 describe("eval-session budget settlement", () => {
-  it.each(["no_receipt", "unpriced", "mixed", "over_limit"] as const)("retains the completed provider outcome while failing %s accounting", async (kind) => {
+  it.each(["no_receipt", "grok_no_receipt", "unpriced", "mixed", "over_limit"] as const)("retains the completed provider outcome while failing %s accounting", async (kind) => {
     const workspace = await mkdtemp(join(tmpdir(), "eval-budget-settlement-"));
     try {
       const binary = join(workspace, "runnerd");
       await writeFile(binary, "unused fake runner");
-      const model = kind === "unpriced" || kind === "no_receipt" ? "exact-unpriced-candidate" : "gpt-5.6-sol";
+      const agent = kind === "grok_no_receipt" ? "grok" : "copilot";
+      const noReceipt = kind === "no_receipt" || kind === "grok_no_receipt";
+      const model = kind === "grok_no_receipt" ? "grok-4.7" : kind === "unpriced" || kind === "no_receipt" ? "exact-unpriced-candidate" : "gpt-5.6-sol";
       const unavailable = { turnId: kind === "mixed" ? "prior-turn" : "turn-1", attemptId: "attempt-1", agent: "copilot", reason: "provider_did_not_report_usage", tokenUsage: null, costNanodollars: null, observedAt: "2026-09-28T19:00:00.000Z" };
       const state = JSON.stringify(createCapabilityFixtureState({}));
       const snapshot = {
         sessionId: "session-1", revision: 1, providerThreadId: "provider-1", providerSessionId: "provider-1",
-        providerModel: { id: model, provider: "github" }, status: "idle", activeTurnId: null,
+        providerModel: { id: model, provider: agent === "grok" ? "xai" : "github" }, status: "idle", activeTurnId: null,
         createdAt: "2026-09-28T19:00:00.000Z", updatedAt: "2026-09-28T19:00:01.000Z",
         authority: { companyId: "company-1", actorId: "actor-1", taskId: "task-1", runId: "run-1", sessionId: "session-1", scenarioId: "budget-test" },
-        config: { provider: "acpx", acpxAgent: "copilot", driver: "acpx_runtime", seedState: state, workingDirectory: workspace, scenario: { id: "budget-test" }, capabilities: [], explicitClaims: [], turnTimeoutMs: 1000 },
+        config: { provider: "acpx", acpxAgent: agent, driver: "acpx_runtime", seedState: state, workingDirectory: workspace, scenario: { id: "budget-test" }, capabilities: [], explicitClaims: [], turnTimeoutMs: 1000 },
         mockState: state, process: null, networkEvidence: { realPaperclipRequests: 0, childPaperclipEnvironmentKeys: [] },
         transcript: [{ id: "assistant-1", role: "assistant", text: "Retained actual provider response", turnId: "turn-1", at: "2026-09-28T19:00:01.000Z" }],
         evidence: [], authorizationRecords: [], attempts: [], terminalTurns: [{ turnId: "turn-1", status: "completed" }],
-        usageLedger: kind === "no_receipt" ? [] : [{ receiptId: "receipt-1", turnId: "turn-1", providerCalls: 1, providerRequests: 1, inputTokens: 100, outputTokens: kind === "over_limit" ? 1_000_000 : 10, cachedInputTokens: 0, reasoningTokens: 0, costNanodollars: 0 }],
+        usageLedger: noReceipt ? [] : [{ receiptId: "receipt-1", turnId: "turn-1", providerCalls: 1, providerRequests: 1, inputTokens: 100, outputTokens: kind === "over_limit" ? 1_000_000 : 10, cachedInputTokens: 0, reasoningTokens: 0, costNanodollars: 0 }],
         usageUnavailable: kind === "no_receipt" || kind === "mixed" ? [unavailable] : [],
       } as unknown as CapabilityLiveSessionSnapshot;
       const sendMessage = vi.fn(async () => ({ turnId: "turn-1", status: "completed", assistantText: "Retained actual provider response", snapshot }));
       const completeAttempt = vi.fn(async () => undefined);
       const shutdown = vi.fn(async () => { snapshot.status = "closed"; });
-      const input = request({ provider: "acpx", acpxAgent: "copilot", model,
+      const input = request({ provider: "acpx", acpxAgent: agent, model,
         runnerd: { path: binary, sha256: createHash("sha256").update("unused fake runner").digest("hex") },
         session: { workingDirectory: workspace }, limits: { turnTimeoutMs: 1000, maxAgentTurns: 2, maxEstimatedCostNanodollars: 100_000_000 },
       });
       const requestPath = join(workspace, "request.json");
       const outputPath = join(workspace, "output.json");
       await writeFile(requestPath, JSON.stringify(input));
-      const exitCode = await runEvalSessionCli(["--request", requestPath, "--output", outputPath, "--candidate-profile", "copilot"], {
+      const exitCode = await runEvalSessionCli(["--request", requestPath, "--output", outputPath, ...(agent === "grok" ? [] : ["--candidate-profile", "copilot"])], {
         serviceFactory: () => ({ create: async () => ({ sendMessage, completeAttempt, shutdown, snapshot: () => snapshot }) }) as never,
       });
       const artifact = JSON.parse(await readFile(outputPath, "utf8"));
@@ -444,10 +455,10 @@ describe("eval-session budget settlement", () => {
       expect(artifact.accountingFailure).toMatchObject({ class: kind === "over_limit" ? "provider_budget_reached" : "provider_budget_coverage_unknown", retryable: false });
       expect(artifact.turn).toMatchObject({ status: "completed", assistantText: "Retained actual provider response" });
       expect(artifact.snapshot.status).toBe("closed");
-      expect(artifact.acpxProfile.agent).toBe("copilot");
+      expect(artifact.acpxProfile.agent).toBe(agent);
       expect(artifact.devtools).toBeDefined();
       expect(artifact.issueThread).toBeDefined();
-      if (kind === "no_receipt") expect(artifact).not.toHaveProperty("usage");
+      if (noReceipt) expect(artifact).not.toHaveProperty("usage");
       else expect(artifact.usage.providerReportedCostNanodollars).toBeNull();
       expect(sendMessage).toHaveBeenCalledTimes(1);
       expect(shutdown).toHaveBeenCalledTimes(1);

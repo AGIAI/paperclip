@@ -15,7 +15,7 @@ import type {
 
 import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "../drivers/acpx/profile-extensions.js";
 import type { PaperclipQuestionSet } from "../contracts/question-set.js";
-import { createAcpxToolEventNormalizer } from "../provider-events.js";
+import { createAcpxToolEventNormalizer, createGrokMessageNormalizer } from "../provider-events.js";
 import { parseNativeRuntimeContext } from "../contracts/runtime-context.js";
 import {
   PRP_BLOCK_TOOL_NAME,
@@ -596,11 +596,13 @@ async function pumpTurn(
     // display metadata for later progress/completion frames before they cross
     // the sidecar boundary, matching the in-process ACPX driver path.
     const normalizeToolEvent = createAcpxToolEventNormalizer<AcpRuntimeEvent>();
+    const normalizeMessage = initializedAgent === "grok"
+      ? createGrokMessageNormalizer<AcpRuntimeEvent>() : (event: AcpRuntimeEvent) => event;
     for await (const event of runtimeTurn.events) {
       emit(
         "runtime.event",
         sanitizeRuntimeEvent(
-          normalizeToolEvent(boundRuntimeEventForNormalization(event)),
+          normalizeMessage(normalizeToolEvent(boundRuntimeEventForNormalization(event))),
         ),
         currentTurnId,
       );
@@ -1321,8 +1323,8 @@ function requireHost(
 }
 
 function requireQualifiedAgent(value: unknown): QualifiedAcpxAgent {
-  if (value !== "codex" && value !== "claude" && value !== "pi" && value !== "cursor" && value !== "copilot") {
-    throw new Error("ACPX agent must be claude, codex, cursor, copilot, or pi");
+  if (value !== "grok" && value !== "codex" && value !== "claude" && value !== "pi" && value !== "cursor" && value !== "copilot") {
+    throw new Error("ACPX agent must be claude, codex, grok, cursor, copilot, or pi");
   }
   return value;
 }

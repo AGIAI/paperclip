@@ -188,6 +188,14 @@ impl AcpxProviderDescriptor {
                 None,
                 "sha256:b18c01603dd0169d233140709cfaa8bf5304a03cf5de78ca4f625f30013e8457",
             ),
+            "grok" => (
+                "grok-4.7",
+                "@paperclipai/grok-acp",
+                "1.0.13",
+                Some("@paperclipai/grok-acp"),
+                Some("1.0.13"),
+                "sha256:f0b698395a3704ed2ffaf84ea19bdb20c36c8a0a70b7c629c7b6ffe144e59e55",
+            ),
             _ => {
                 return Err(DurableRunnerError::invalid(
                     "ACPX agent must name a known immutable profile",
@@ -199,7 +207,7 @@ impl AcpxProviderDescriptor {
             || self.driver != "acpx_runtime"
             || self.provider_version != "0.13.1"
             || self.acpx_version != "0.13.1"
-            || (self.agent != "claude" && self.model != expected.0)
+            || (self.agent != "claude" && self.agent != "grok" && self.model != expected.0)
             || self.model.trim().is_empty()
             || self.model.len() > 240
             || self.model.contains('\0')

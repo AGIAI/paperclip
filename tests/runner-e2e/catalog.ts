@@ -145,7 +145,7 @@ function nativeProfile(input: {
   provider: "codex" | "opencode" | "acpx";
   model: string;
   credential: RunnerProfileFixture["credential"];
-  acpxAgent?: "claude" | "codex" | "cursor" | "copilot" | "pi";
+  acpxAgent?: "claude" | "codex" | "grok" | "cursor" | "copilot" | "pi";
   qualificationCandidate?: RunnerProfileFixture["qualificationCandidate"];
   supportedEnvironments?: readonly (typeof ENVIRONMENT_IDS)[number][];
   modelQualification?: RunnerProfileFixture["modelQualification"];
@@ -174,7 +174,9 @@ function nativeProfile(input: {
       provider: input.provider,
     },
     buildAgent(buildInput) {
-      const credentialRef = requiredSecret(buildInput, input.credential);
+      const credentialRef = input.credential === "GROK_AUTH_JSON"
+        ? null
+        : requiredSecret(buildInput, input.credential);
       const permissionConfig =
         input.provider === "codex"
           ? { codexPermissionMode: "never" }
@@ -189,7 +191,7 @@ function nativeProfile(input: {
         idleTimeoutMs: 300_000,
         ...permissionConfig,
         env: {
-          [input.credential]: credentialRef,
+          ...(credentialRef ? { [input.credential]: credentialRef } : {}),
           // Codex's supported automation credential is CODEX_API_KEY. Keep
           // OPENAI_API_KEY as the operator-facing fixture secret name and bind
           // the same encrypted reference to the runtime-specific alias.
@@ -285,6 +287,14 @@ export const runnerProfiles: readonly RunnerProfileFixture[] = [
     acpxAgent: "claude",
     model: QUALIFIED_ACPX_PROFILES.claude.qualificationModel,
     credential: "ANTHROPIC_API_KEY",
+  }),
+  nativeProfile({
+    id: "runner-acpx-grok",
+    label: "Runner Grok Build",
+    provider: "acpx",
+    acpxAgent: "grok",
+    model: QUALIFIED_ACPX_PROFILES.grok.qualificationModel,
+    credential: "XAI_API_KEY",
   }),
   nativeProfile({
     id: "runner-acpx-codex",
@@ -963,6 +973,37 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     definitionMetadata: { version: 1, qualification: "pending", scheduling: "explicit-only", admission: "host-exact-candidate-and-model", authenticatedDiscoveryDate: "2026-09-28" },
   },
   {
+    id: "grok-subscription-qualification", label: "Grok Build Subscription Qualification", manualOnly: true,
+    description: "Explicit company subscription login across Grok browser workflows in local and Daytona environments.",
+    groups: ["native"],
+    profiles: [nativeProfile({
+      id: "runner-acpx-grok-subscription", label: "Grok Build Subscription",
+      provider: "acpx", acpxAgent: "grok",
+      model: QUALIFIED_ACPX_PROFILES.grok.qualificationModel,
+      credential: "GROK_AUTH_JSON",
+    })],
+    environments: [localEnvironment, daytonaWarmEnvironment],
+    tasks: [
+      ...runnerTasks, ...localIntegrityTasks,
+      ...everydayTasks.filter(task => task.id === "build-revise"),
+      ...chatHardeningTasks.filter(task => ["stop-new-resume", "continuity-restart"].includes(task.id)),
+    ], expectedMatrixSize: 16,
+    definitionMetadata: { version: 1, authentication: "company-subscription", binary: "1.0.13", model: "grok-4.7", scheduling: "explicit-only", repetitionsRequired: 3, artifactOracle: "independent-python-contract", stopBoundary: "provider-turn-started" },
+  },
+  {
+    id: "grok-qualification", label: "Grok Build Qualification", manualOnly: true,
+    description: "Grok replies, planning approval, questions, downloadable artifacts, stop/resume and controller restart in local and Daytona environments.",
+    groups: ["native"],
+    profiles: runnerProfiles.filter(profile => profile.id === "runner-acpx-grok"),
+    environments: [localEnvironment, daytonaWarmEnvironment],
+    tasks: [
+      ...runnerTasks, ...localIntegrityTasks,
+      ...everydayTasks.filter(task => task.id === "build-revise"),
+      ...chatHardeningTasks.filter(task => ["stop-new-resume", "continuity-restart"].includes(task.id)),
+    ], expectedMatrixSize: 16,
+    definitionMetadata: { version: 2, binary: "1.0.13", model: "grok-4.7", scheduling: "explicit-only", repetitionsRequired: 3, artifactOracle: "independent-python-contract", stopBoundary: "provider-turn-started" },
+  },
+  {
     id: "api-response-reading", label: "Bounded API response reading", manualOnly: true,
     description: "Retrieve evidence beyond a saved API preview through authorized bounded text windows.",
     groups: [], environments: runnerEnvironments,
@@ -1079,7 +1120,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     profiles: runnerProfiles,
     environments: runnerEnvironments,
     tasks: runnerTasks,
-    expectedMatrixSize: 42,
+    expectedMatrixSize: 48,
   },
   {
     id: "local-session-integrity",
@@ -1090,7 +1131,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     profiles: runnerProfiles,
     environments: [localEnvironment],
     tasks: localIntegrityTasks,
-    expectedMatrixSize: 14,
+    expectedMatrixSize: 16,
   },
   {
     id: "openrouter-model-breadth",

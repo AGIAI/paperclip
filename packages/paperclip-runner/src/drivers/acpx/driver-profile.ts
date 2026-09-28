@@ -14,7 +14,7 @@ import {
 
 import { ACPX_CAPABILITY_PROFILES } from "./capability-profiles.js";
 
-const ACPX_AGENTS = ["claude", "codex", "pi", "cursor", "copilot"] as const;
+const ACPX_AGENTS = ["claude", "codex", "grok", "pi", "cursor", "copilot"] as const;
 const ACPX_PERMISSION_MODES = [
   "approve-all",
   "approve-paperclip",
@@ -42,8 +42,8 @@ export function acpxCapabilities(
       plan: profile.plans === "semantic-only" ? "unsupported" : "available",
       tool_execution: "available",
       model_identity: "available",
-      review: "available",
-      provider_notice: "available",
+      review: agent === "grok" ? "unsupported" : "available",
+      provider_notice: agent === "grok" ? "unsupported" : "available",
       artifact: "policy_disabled",
     }),
     steering: controls?.steering === true,
@@ -102,7 +102,7 @@ export function validateAcpxDriverConfig(
     return invalid(
       "agent",
       "invalid_agent",
-      "ACPX agent must be claude, codex, cursor, copilot, or pi.",
+      "ACPX agent must be claude, codex, grok, cursor, copilot, or pi.",
     );
   }
   if (ACPX_CAPABILITY_PROFILES[agent].qualification !== "qualified") {

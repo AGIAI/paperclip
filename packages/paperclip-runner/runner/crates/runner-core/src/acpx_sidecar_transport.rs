@@ -98,6 +98,7 @@ impl AcpxSidecarTransport {
         let credential_keys: &[&str] = match agent {
             "claude" => &["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"],
             "codex" => &["OPENAI_API_KEY", "CODEX_API_KEY"],
+            "grok" => &["XAI_API_KEY", "PAPERCLIP_ACPX_GROK_AUTH_JSON_SECRET"],
             "pi" => &["OPENROUTER_API_KEY"],
             "cursor" => &["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"],
             "copilot" => &["COPILOT_GITHUB_TOKEN"],

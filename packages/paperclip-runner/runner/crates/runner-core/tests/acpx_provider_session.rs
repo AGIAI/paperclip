@@ -160,6 +160,8 @@ fn admits_custom_claude_models_and_legacy_codex_profile() {
         ("claude", "claude-sonnet-5"),
         ("claude", "claude-opus-5"),
         ("claude", "custom-provider-model"),
+        ("grok", "grok-4.7"),
+        ("grok", "future-exact-model"),
     ] {
         let mut qualified = config("bootstrap");
         qualified.agent = agent.to_owned();

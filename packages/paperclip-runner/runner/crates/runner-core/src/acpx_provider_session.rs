@@ -81,6 +81,7 @@ impl AcpxProviderSessionConfig {
         self.transport.validate()?;
         let qualified_model = match self.agent.as_str() {
             "claude" => "claude-sonnet-5",
+            "grok" => "grok-4.7",
             "codex" => "gpt-5.6-sol",
             "pi" => "openrouter/deepseek/deepseek-v4-flash-0731",
             "cursor" | "copilot" => self.model.as_str(),
@@ -90,7 +91,7 @@ impl AcpxProviderSessionConfig {
                 ))
             }
         };
-        if self.agent != "claude" && self.model != qualified_model {
+        if self.agent != "claude" && self.agent != "grok" && self.model != qualified_model {
             return Err(LocalRunnerError::invalid(format!(
                 "ACPX {} profile requires exact model {qualified_model}",
                 self.agent
