@@ -28,6 +28,28 @@ const HANDLE: AcpRuntimeHandle = {
 };
 
 describe("Codex ACPX runtime adapter", () => {
+  it("rejects forged permission session identifiers before delegating or applying full-auto policy", async () => {
+    const pending = pendingExtensionTurn("turn-1");
+    const runtime = fakeRuntime(); vi.mocked(runtime.startTurn).mockReturnValue(pending.turn);
+    let created!: AcpRuntimeOptions;
+    const options = openOptions(fakeCommand());
+    const port = await openCodexAcpxRuntime(options, {
+      createRegistry: () => registry(), createStore: () => store(), createRuntime: (value) => { created = value; return runtime; },
+    });
+    const handler = vi.fn(async () => ({ outcome: "allow_once" as const }));
+    const turn = port.startTurn({ text: "Write", requestId: "turn-1", onPermissionRequest: handler });
+    const signal = new AbortController().signal;
+    for (const [sessionId, rawSessionId] of [["forged", "backend-1"], ["backend-1", "forged"]]) {
+      const request = { sessionId, raw: { sessionId: rawSessionId }, inferredKind: "edit" as const };
+      await expect(created.onPermissionRequest!(request as never, { signal })).resolves.toEqual({ outcome: "reject_once" });
+    }
+    expect(handler).not.toHaveBeenCalled();
+    await expect(created.onPermissionRequest!({ sessionId: "backend-1", raw: { sessionId: "backend-1" }, inferredKind: "edit" } as never, { signal })).resolves.toEqual({ outcome: "allow_once" });
+    expect(handler).toHaveBeenCalledOnce();
+    options.permissionMode = "approve-all";
+    await expect(created.onPermissionRequest!({ sessionId: "forged", raw: {}, inferredKind: "edit" } as never, { signal })).resolves.toEqual({ outcome: "reject_once" });
+    pending.settle(); await turn.result; await port.close({ reason: "session checks complete" });
+  });
   it("routes only profile-allowed extensions to the owning turn and expires late responses", async () => {
     const runtime = fakeRuntime();
     const first = pendingExtensionTurn("turn-1");
@@ -1745,7 +1767,7 @@ describe("Codex ACPX runtime adapter", () => {
       await expect(
         runtimeOptions?.onPermissionRequest?.(
           {
-            sessionId: "session-1",
+            sessionId: "backend-1",
             inferredKind: "write",
             raw: {},
           },

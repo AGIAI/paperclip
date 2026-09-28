@@ -349,6 +349,11 @@ export async function openQualifiedAcpxRuntime(
       ],
     })),
     onPermissionRequest: async (request, context) => {
+      const rawSessionId = objectRecord(request.raw).sessionId;
+      if (!extensionBoundary.sessionIds.has(request.sessionId)
+        || (rawSessionId !== undefined && rawSessionId !== request.sessionId)) {
+        return { outcome: "reject_once" };
+      }
       const disposition = decideAcpxPermission(
         options.profile.agent,
         options.permissionMode,
