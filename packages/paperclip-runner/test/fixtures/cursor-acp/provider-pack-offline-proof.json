@@ -181,5 +181,24 @@
   },
   "redactions": [
     "ephemeral workspace and private directories replaced with /qualification/private"
-  ]
+  ],
+  "nativeEofProbe": {
+    "provider": "cursor",
+    "packSource": "25fb1b5b317e52a8ad50208d7681a1ee34bd939c",
+    "credentials": false,
+    "prompts": 0,
+    "startedAt": "2026-09-28T20:56:56.035Z",
+    "initialized": true,
+    "eofAt": "2026-09-28T20:56:57.776Z",
+    "eofSettled": false,
+    "exit": null,
+    "stderrBytes": 0,
+    "finishedAt": "2026-09-28T20:57:02.777Z",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "gracefulExitDeadlineMs": 5000,
+    "fallback": "explicit owned process-group SIGTERM and native lease close",
+    "qualification": "EOF non-settlement observed; explicit cleanup is the supported runner lifecycle",
+    "evidenceSha256": "b99e972c14d1dbd731a5cef4d06e6ea54af6574fb4fe26fd44e78dfa9913fd7b"
+  }
 }
