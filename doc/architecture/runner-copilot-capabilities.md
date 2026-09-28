@@ -1,9 +1,9 @@
 # Copilot 1.0.88 rich ACP capability audit
 
 Audited 2026-09-28 against repository base `c65fc9e3c81c41aafe421aa90a00514b84343285`.
-Status: **candidate, not qualified**. No GitHub credential, entitlement, real model,
-or Daytona execution has been verified. Real executable offline probes cost $0;
-no billable request was made. The allocated live budget remains $25, subject to
+Status: **candidate, not qualified**. Authenticated model discovery and exact model
+selection now pass; real inference and Daytona execution remain unverified.
+Real executable offline probes cost $0; no model prompt has been sent. The allocated live budget remains $25, subject to
 the shared $100 hard stop and verifiable spend. Do not expose this profile as
 supported until the required local and Daytona qualification passes.
 
@@ -81,10 +81,10 @@ HTTP/SSE MCP; image and embedded-context input; no audio input; and session list
 and close. It does not advertise steering, forking, goals, or a question/plan
 extension responder. The source adapter supports model/reasoning/config changes,
 but the offline session only returns `mode` and `allow_all` options. There is no
-verified GitHub model ID from this probe. Require an explicitly selected model
+verified GitHub model ID from the historical offline probe. Require an explicitly selected model
 and exact effective-model verification; never silently use the fixture's
-`gpt-4.1` or substitute another model. A possible candidate such as
-`gpt-5.6-luna` is unverified until authenticated negotiation succeeds.
+`gpt-4.1` or substitute another model. Authenticated discovery on 2026-09-28 subsequently advertised and accepted
+`gpt-5.6-luna`; inference entitlement remains unverified.
 
 The native event extension is real and is negotiated with:
 
@@ -322,3 +322,28 @@ Both Copilot builder scripts are explicit Daytona image hash inputs. The selecte
 `copilot` candidate also changes image identity, while manifest qualification stays
 `pending`. Linux x64 binaries are pinned and buildable; live Linux/Daytona behavior
 still requires the qualification cases above.
+
+
+## Authenticated qualification preparation (2026-09-28)
+
+The [sanitized authenticated discovery](../../packages/paperclip-runner/test/fixtures/copilot-authenticated-discovery-1.0.88.json)
+uses the previously verified native pack and a dedicated, short-lived personal
+Copilot Requests token, explicitly bound as `COPILOT_GITHUB_TOKEN`. The token has
+no repository write authority. No credential, account identifier, provider
+session ID, or private path is retained in that fixture.
+
+Three metadata-only sessions were created and closed: catalog discovery,
+`session/set_model`, then `session/set_model` plus `session/set_config_option`
+with exact `gpt-5.6-luna` echo. The native catalog advertises 21 model IDs and
+marks Luna enabled. No `session/prompt` request was sent. This verifies auth and
+model selection only. The reproducible metadata probe is
+`scripts/discover-copilot-acp.mjs`; it refuses any outbound method outside its
+closed initialize/new/select/close list and denies unexpected inbound requests.
+
+The initial paid qualification reservation is $2 within the provider's $25
+allocation and shared $100 budget. The account dashboard baseline is 0 of 1,500
+included AI credits; additional paid usage is disabled with a $0 cash budget.
+Included credit consumption must still be reconciled and reported separately
+from cash charges. One canonical `get-task-context` case with a 60-second turn,
+zero retries, and a $0.50 declared envelope is next. Neither that envelope nor
+Copilot's optional soft credit limit is a guaranteed per-response hard cap.

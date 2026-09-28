@@ -7,6 +7,15 @@ function fixture(name: string) {
 }
 
 describe("Copilot pinned executable evidence", () => {
+  it("retains authenticated exact model selection without promoting metadata to inference", () => {
+    const evidence = fixture("copilot-authenticated-discovery-1.0.88.json");
+    expect(evidence).toMatchObject({ harnessVersion: "1.0.88", promptSent: false, promptRequestsSent: 0, inferenceVerified: false, sessionClosed: true });
+    expect(evidence.models.availableModels).toHaveLength(21);
+    expect(evidence.models.availableModels.find((model: { modelId: string }) => model.modelId === "gpt-5.6-luna")._meta.copilotEnablement).toBe("enabled");
+    expect(evidence.modelSelection.requestedModel).toBe("gpt-5.6-luna");
+    expect(evidence.modelSelection.configEcho.configOptions.find((option: { id: string }) => option.id === "model").currentValue).toBe("gpt-5.6-luna");
+    expect(JSON.stringify(evidence)).not.toMatch(/\/Users\/|\/tmp\/|github_pat_|gho_|sessionId|accessToken/);
+  });
   it("retains a complete packaged native launch without promoting offline proof to qualification", () => {
     const evidence = fixture("copilot-provider-pack-darwin-arm64-1.0.88.json");
     expect(evidence.sourceRevision).toMatch(/^[a-f0-9]{40}$/);
