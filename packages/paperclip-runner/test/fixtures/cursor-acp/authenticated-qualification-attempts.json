@@ -644,6 +644,67 @@
         "conservativeListCostUpperBoundUsd": 0.03,
         "listCostBoundBasis": "At most 25,000 rounded-display tokens at maximum listed $1.20/M; not a billing receipt."
       }
+    },
+    {
+      "schema": "paperclip-cursor-native-question-probe/v1",
+      "sourceRevision": "25fb1b5b317e52a8ad50208d7681a1ee34bd939c",
+      "providerPackDigest": "sha256:38bc6dd39c13b0f5478a1018e26deb61b0333ab0242f3d857e3c79d3a34b7682",
+      "model": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+      "prompts": 1,
+      "automaticRetries": 0,
+      "activeDeadlineSec": 120,
+      "outerDeadlineSec": 180,
+      "reservedUsd": 2,
+      "declaredEnvelopeUsd": 0.5,
+      "expectedNativeMethod": "cursor/ask_question",
+      "expectedQuestions": [
+        "single Cobalt/Amber",
+        "multi Cedar/Birch/Maple"
+      ],
+      "expectedAnswer": [
+        "Cobalt",
+        [
+          "Cedar",
+          "Maple"
+        ]
+      ],
+      "semanticTools": [],
+      "nativePlanProbe": "not attempted: runtime lacks explicit session/set_mode",
+      "scope": "actual native provider -> patched ACPX -> profile normalization -> sidecar runtime input and pipe response acknowledgement; excludes Rust durable replay and browser",
+      "startedAt": "2026-09-28T20:39:41.855Z",
+      "status": "failed",
+      "costUsd": null,
+      "promptSubmittedAt": "2026-09-28T20:39:47.990Z",
+      "sessionClosed": true,
+      "finishedAt": "2026-09-28T20:39:58.232Z",
+      "inputCount": 0,
+      "deliveryAcknowledged": false,
+      "duplicateResolutionRejected": false,
+      "terminalStatus": "completed",
+      "nativeUsageReceipt": null,
+      "id": "cursor-native-question-20260928",
+      "family": "native-sidecar-qualification",
+      "case": "cursor/ask_question-single-and-multi",
+      "failureClass": "provider_behavior",
+      "oracleFailure": "Expected one native input request; observed zero.",
+      "visibleProviderResponse": "The native AskQuestion tool is unavailable in this session.",
+      "probeSha256": "ff197923020be5b578112603980c9aebb0f1c644baffdf7c086bae52998e2c0b",
+      "resultSha256": "b0674dd97f36ff754875677b5b139fad8af3595455d6321600663b5df0e0775a",
+      "billing": {
+        "source": "parent-observed account Usage row within retained probe window",
+        "requests": [
+          {
+            "at": "2026-09-28T20:39:48Z",
+            "tokensDisplay": "17.4K"
+          }
+        ],
+        "modelLabel": "gpt-5.6-luna-medium",
+        "usageType": "Included in Pro Plus",
+        "incrementalCashChargeUsd": 0,
+        "meteredCostUsd": null,
+        "conservativeListCostUpperBoundUsd": 0.024,
+        "listCostBoundBasis": "At most 20,000 rounded-display tokens at maximum listed $1.20/M; not a billing receipt."
+      }
     }
   ],
   "newAccountDiscovery": {
