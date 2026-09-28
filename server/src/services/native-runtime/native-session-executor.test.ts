@@ -1044,6 +1044,26 @@ describe("remote provider pack manifest", () => {
     expect(readRemoteProviderPackManifest(root).payload.pins.opencode).toBe(
       "1.18.29",
     );
+    const candidatePath = "provider-assets/pi/linux-x64";
+    await mkdir(join(root, candidatePath), { recursive: true });
+    await writeFile(join(root, candidatePath, "runtime"), "pinned runtime");
+    const candidates = { pi: { version: "0.0.33", profileDigest: digest("profile"),
+      closureDigest: digest("closure"), qualification: "pending", path: candidatePath,
+      sha256: sha256DirectoryTree(join(root, candidatePath)) } };
+    Object.assign(payload, { candidateProviders: candidates });
+    await writeManifest();
+    expect(readRemoteProviderPackManifest(root).payload.candidateProviders?.pi?.qualification).toBe("pending");
+    await writeFile(join(root, candidatePath, "runtime"), "substitute runtime");
+    expect(() => readRemoteProviderPackManifest(root)).toThrow("candidate asset tree digest mismatch");
+    await writeFile(join(root, candidatePath, "runtime"), "pinned runtime");
+    for (const invalid of [{ path: "../outside" }, { qualification: "qualified" }]) {
+      const original = { ...candidates.pi };
+      Object.assign(candidates.pi, invalid);
+      await writeManifest();
+      expect(() => readRemoteProviderPackManifest(root)).toThrow("invalid candidate identity");
+      candidates.pi = original;
+    }
+    await writeManifest();
     for (const [artifactName, substituteName] of [
       ["nodeCommand", "productionLock"],
       ["opencodeExecutable", "opencodeCommand"],

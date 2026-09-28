@@ -77,3 +77,24 @@ with source dependency changes; registry-time resolution drift fails closed.
 Keep one latest stable CLI installation per provider; refresh exact runtime
 versions and qualification digests together, never install a private older copy
 or download dependencies when a task starts.
+
+## Candidate ACP qualification assets
+
+Provider branches can build their pinned assets with
+`node packages/paperclip-runner/scripts/build-provider-pack.mjs /absolute/pack --candidate-providers=cursor`
+(or `copilot` or `pi`). The source revision must include the named provider's
+builder. Assets are installed at build time under `provider-assets/<provider>/<platform>-<architecture>`.
+The pack manifest binds each complete asset tree. Runtime admission separately
+checks the provider's source-owned closure pins and copies a verified launch snapshot.
+A pack with candidate assets does not qualify or enable that provider.
+
+For an isolated Linux x64 Daytona qualification image, pass
+`--build-arg PAPERCLIP_RUNNER_CANDIDATE_PROVIDERS=cursor` with the normal build arguments.
+Use each provider branch's recorded version and explicit model. Keep credentials
+out of images. Paid qualification requires bound provider and Daytona credentials,
+inspectable spend, and the shared $100 ceiling recorded in the capability report.
+
+The pack builder tests its copied Node interpreter after relocation. Use a
+standalone Node distribution if the host interpreter depends on a package manager's
+private shared libraries. Pi additionally pins its complete portable interpreter
+and npm dependency graph.
