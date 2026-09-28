@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export function permissionDecision(scenario, params, sessionId, command) {
@@ -14,6 +14,12 @@ export function permissionDecision(scenario, params, sessionId, command) {
   const kind = exactSession && scenario === "detached-shell" && exactCommand ? "allow_once" : "reject_once";
   const option = options.find(value => value?.kind === kind && typeof value.optionId === "string");
   return { outcome: option ? { outcome: "selected", optionId: option.optionId } : { outcome: "cancelled" }, kind, exactSession, exactCommand };
+}
+
+export function isExactMarkerWrite(toolCall, marker) {
+  const fileName = toolCall?.rawInput?.fileName;
+  return toolCall?.kind === "edit" && typeof fileName === "string" && fileName.length > 0
+    && !fileName.includes("\0") && resolve(dirname(marker), fileName) === resolve(marker);
 }
 
 export function evaluateProbe(evidence) {
@@ -48,8 +54,14 @@ export async function runProbe(packInput, output, scenario, token) {
   const install = await verifyAcpxProfileInstallation(resolveQualifiedAcpxProfile("copilot", model));
   const lease = await install.openCommand();
   let root;
-  try { root = await mkdtemp("/tmp/paperclip-copilot-live-probe-"); }
-  catch (error) { await lease.close(); throw error; }
+  try {
+    root = await mkdtemp("/tmp/paperclip-copilot-live-probe-");
+    root = await realpath(root);
+  } catch (error) {
+    try { if (root) await rm(root, { recursive: true, force: true }); }
+    finally { await lease.close(); }
+    throw error;
+  }
   const marker = join(root, "qualification-marker.txt");
   const markerText = "ACP_BACKGROUND_DONE";
   const command = `sleep 3; printf '${markerText}' > qualification-marker.txt`;
@@ -114,8 +126,7 @@ export async function runProbe(packInput, output, scenario, token) {
           const params = message.params;
           if (message.method === "session/request_permission" && message.id !== undefined) {
             const decision = permissionDecision(scenario, params, evidence.promptRequestsSent === 1 && !terminalSeen ? sessionId : undefined, command);
-            const raw = params?.toolCall?.rawInput ?? {};
-            const writeAttempt = params?.toolCall?.kind === "edit" || raw.path === marker || raw.file_path === marker || raw.command?.includes("qualification-marker.txt") === true;
+            const writeAttempt = isExactMarkerWrite(params?.toolCall, marker);
             evidence.permissions.push({ elapsedMs: elapsed(), requestId: message.id, offeredOptions: params.options, ...decision, writeAttempt });
             send({ jsonrpc: "2.0", id: message.id, result: { outcome: decision.outcome } });
           } else if (message.id !== undefined) {

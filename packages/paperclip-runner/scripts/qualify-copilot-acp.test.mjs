@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateProbe, permissionDecision } from "./qualify-copilot-acp.mjs";
+import { evaluateProbe, isExactMarkerWrite, permissionDecision } from "./qualify-copilot-acp.mjs";
 const options = [{ kind: "allow_once", optionId: "native-approve-17" }, { kind: "allow_always", optionId: "native-session-3" }, { kind: "reject_once", optionId: "native-deny-0" }];
 test("permission decisions preserve provider option identities and never select session-wide approval", () => {
   const params = { sessionId: "owned", options, toolCall: { rawInput: { command: "exact" } } };
@@ -14,6 +14,32 @@ test("denial needs an actual rejected write and no side effect even after termin
   assert.equal(evaluateProbe(evidence).passed, true);
   assert.deepEqual(evaluateProbe({ ...evidence, permissions: [] }).failures, ["no_observed_denied_write_request"]);
   assert.deepEqual(evaluateProbe({ ...evidence, markerSamples: [{ exists: false }, { exists: true }] }).failures, ["denied_write_had_side_effect"]);
+});
+test("denial evidence requires the native write target, not an unrelated edit or command mention", () => {
+  const marker = "/fixture/workspace/qualification-marker.txt";
+  for (const fileName of [marker, "qualification-marker.txt", "./qualification-marker.txt"]) {
+    assert.equal(isExactMarkerWrite({ kind: "edit", rawInput: { fileName } }, marker), true);
+  }
+  for (const toolCall of [
+    { kind: "edit", rawInput: { fileName: "other.txt" } },
+    { kind: "edit", rawInput: { fileName: "../qualification-marker.txt" } },
+    { kind: "edit", rawInput: { fileName: `${marker}\0` } },
+    { kind: "edit", rawInput: { command: "echo qualification-marker.txt" } },
+    { kind: "execute", rawInput: { fileName: marker } },
+    { kind: "edit" },
+  ]) {
+    const writeAttempt = isExactMarkerWrite(toolCall, marker);
+    assert.equal(writeAttempt, false);
+    assert.equal(evaluateProbe({ scenario: "deny-write", stopReason: "end_turn", cleanupComplete: true,
+      permissions: [{ exactSession: true, kind: "reject_once", writeAttempt, outcome: { outcome: "selected" } }],
+      markerSamples: [{ exists: false }],
+    }).passed, false);
+  }
+});
+test("retained real denial still passes the exact target oracle without another provider call", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const evidence = JSON.parse(await readFile(new URL("../test/fixtures/copilot-live-denial-2026-09-28.json", import.meta.url), "utf8"));
+  assert.equal(isExactMarkerWrite(evidence.nativeToolCall, "/fixture/workspace/qualification-marker.txt"), true);
 });
 test("detached settlement requires native mode, exact approval and output before terminal", () => {
   const evidence = { scenario: "detached-shell", stopReason: "end_turn", cleanupComplete: true, detachedToolObserved: true, backgroundCompletionObservedBeforeTerminal: true, permissions: [{ exactSession: true, kind: "allow_once", exactCommand: true }], markerAtTerminal: { matches: true } };
@@ -52,7 +78,7 @@ createInterface({input:process.stdin}).on('line', line => {
  if(m.method==='initialize')result={agentInfo:{version:'1.0.88'},agentCapabilities:{}};
  if(m.method==='session/new')result={sessionId:'fixture-session',models:{availableModels:[{modelId:'gpt-5.6-luna'}]}};
  if(m.method==='session/set_config_option')result={configOptions:[{id:'model',currentValue:'gpt-5.6-luna'}]};
- if(m.method==='session/prompt'){promptId=m.id;send({id:0,method:'session/request_permission',params:{sessionId:'fixture-session',toolCall:{kind:'edit',rawInput:{path:process.cwd()+'/qualification-marker.txt'}},options:${JSON.stringify(options)}}});return;}
+ if(m.method==='session/prompt'){promptId=m.id;send({id:0,method:'session/request_permission',params:{sessionId:'fixture-session',toolCall:{kind:'edit',rawInput:{fileName:process.cwd()+'/qualification-marker.txt'}},options:${JSON.stringify(options)}}});return;}
  send({id:m.id,result});
 }).on('close',()=>process.exit(0));`);
     await writeFile(join(moduleRoot, "profile-installation.js"), `import { spawn } from 'node:child_process'; export const assertAcpxProfileEnvironment=()=>{}; export const verifyAcpxProfileInstallation=async()=>({commandDigest:'fixture-only',openCommand:async()=>({spawn:(_args,options)=>spawn(options.env.COPILOT_GITHUB_TOKEN === "fixture-spawn-failure" ? "/paperclip-fixture-missing-executable" : ${JSON.stringify(process.execPath)},[${JSON.stringify(childScript)}],options),close:async()=>{}})});`);

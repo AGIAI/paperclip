@@ -538,7 +538,14 @@ external reconciliation remains separate from unknown provider USD. No further p
 authorized or running from this branch. The profile remains pending.
 
 Final provider checks after these evidence updates pass 73 focused TypeScript
-tests and 22 packaging/discovery/risk-probe tests. The discovery regressions cover
+tests and 24 packaging/discovery/risk-probe tests. The discovery regressions cover
 rejecting the mutable `auto` model selector, releasing leases on early setup
 failures, and rejecting pending RPC calls immediately after native exit or
 malformed output. These probe-script changes do not alter the final runtime pack.
+
+Review tightened the denial probe to require the native `rawInput.fileName` to
+resolve to the exact marker target. An unrelated edit or a command merely
+mentioning the marker cannot satisfy the oracle. The original paid denial names
+that exact target; offline replay of its retained wire and marker observations
+passes the corrected oracle. The fixture records the original evidence and oracle
+script digests. No additional provider prompt was sent.

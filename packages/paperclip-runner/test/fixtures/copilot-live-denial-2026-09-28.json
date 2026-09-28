@@ -106,5 +106,19 @@
     "additionalCashChargesUsd": 0,
     "note": "Unchanged display can reflect granularity or delay; it is not a zero-credit per-run receipt."
   },
-  "scope": "One real GitHub inference request through the verified native ACP command lease. This proves this denied file edit only, not every tool or full Product/Daytona qualification."
+  "scope": "One real GitHub inference request through the verified native ACP command lease. This proves this denied file edit only, not every tool or full Product/Daytona qualification.",
+  "offlineExactTargetRevalidation": {
+    "originalPrivateEvidenceSha256": "sha256:f5cd355cbed796e3ed1564f6201e55e9e90e0419197912a6bb89948c4d0eb340",
+    "oracleScriptSha256": "sha256:0dc70ffd88abf502a68f8b4974b799d105c928bf250be615532e71cd919a765f",
+    "method": "Offline replay of retained permission rawInput.fileName and original marker observations through tightened exact-target oracle",
+    "requestIds": [
+      0
+    ],
+    "allDeniedWriteTargetsMatchMarker": true,
+    "result": {
+      "passed": true,
+      "failures": []
+    },
+    "newProviderPrompts": 0
+  }
 }
