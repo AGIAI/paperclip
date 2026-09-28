@@ -34,11 +34,21 @@ function fixture(historyMiB = 0) {
   const fd = openSync(path, "w");
   writeSync(
     fd,
-    '{"schema":"paperclip.runner.durable.control-plane-state.v1","identity":{"runId":"bounded"},"connectionCount":0,"commands":[],"committedEvents":[{"envelope":{"payload":{"eventType":"item.completed","payload":{"text":"',
+    '{"schema":"paperclip.runner.durable.control-plane-state.v1","identity":{"runId":"bounded"},"connectionCount":0,"commands":[],"committedEvents":[',
   );
-  const chunk = Buffer.alloc(1024 * 1024, 120);
-  for (let i = 0; i < historyMiB; i++) writeSync(fd, chunk);
-  writeSync(fd, '"}}}}]}');
+  // A near-limit journal consists of individually bounded event frames, not
+  // one oversized output that the writer could never accept.
+  const chunk = Buffer.alloc(512 * 1024, 120);
+  for (let i = 0; i < Math.max(1, historyMiB * 2); i++) {
+    if (i) writeSync(fd, ",");
+    writeSync(
+      fd,
+      '{"envelope":{"payload":{"eventType":"item.completed","payload":{"text":"',
+    );
+    if (historyMiB) writeSync(fd, chunk);
+    writeSync(fd, '"}}}}');
+  }
+  writeSync(fd, "]}");
   closeSync(fd);
   return { root, path };
 }
