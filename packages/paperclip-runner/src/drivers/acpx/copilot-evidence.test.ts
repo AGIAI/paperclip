@@ -7,6 +7,26 @@ function fixture(name: string) {
 }
 
 describe("Copilot pinned executable evidence", () => {
+  it("retains controller-restart recovery without erasing the separate question failure", () => {
+    const evidence = fixture("copilot-product-restart-live-proof-2026-09-28.json");
+    expect(evidence).toMatchObject({ qualificationStatus: "pending", status: "passed", providerReportedCostUsd: null, billingComplete: false, cleanup: "passed", retainedFixtureProcessesAfterCleanup: 0 });
+    expect(evidence.matcherResults).toHaveLength(6);
+    expect(evidence.matcherResults.every((result: { passed: boolean }) => result.passed)).toBe(true);
+    expect(evidence.question).toMatchObject({ nativeCopilotAskUserCallback: false, answerOptionIds: ["cobalt"], status: "answered", serverRestartedBeforeAnswer: true, sameInteractionPreserved: true });
+    expect(evidence.continuation).toMatchObject({ samePersistedProviderSession: true, freshSession: false, sessionReused: true, taskSessionReused: true, providerDeathRecoveryVerified: false });
+    expect(evidence.usage.every((usage: { biller: string; costStatus: string; costUsdFieldPresent: boolean }) => usage.biller === "github" && usage.costStatus === "unpriced" && !usage.costUsdFieldPresent)).toBe(true);
+    expect(fixture("copilot-product-merged-live-proof-2026-09-28.json").cases[1].status).toBe("failed");
+    expect(JSON.stringify(evidence)).not.toMatch(/\/Users\/|\/tmp\/|github_pat_|accessToken/);
+  });
+  it("retains revision-bound semantic plan approval without claiming warm reuse or priced usage", () => {
+    const evidence = fixture("copilot-product-plan-live-proof-2026-09-28.json");
+    expect(evidence).toMatchObject({ qualificationStatus: "pending", status: "passed", providerReportedCostUsd: null, billingComplete: false, cleanup: "passed" });
+    expect(evidence.matcherResults).toHaveLength(6);
+    expect(evidence.matcherResults.every((result: { passed: boolean }) => result.passed)).toBe(true);
+    expect(evidence.planApproval).toMatchObject({ displayedRevisionNumber: 1, targetMatchesDisplayedRevision: true, status: "accepted", nativeCopilotPlanCallback: false });
+    expect(evidence.continuation).toMatchObject({ freshSession: true, sessionReused: false });
+    expect(evidence.usage.every((usage: { biller: string; costStatus: string; costUsdFieldPresent: boolean }) => usage.biller === "github" && usage.costStatus === "unpriced" && !usage.costUsdFieldPresent)).toBe(true);
+  });
   it("retains an actual detached command completing before the GitHub turn settles", () => {
     const evidence = fixture("copilot-live-detached-2026-09-28.json");
     expect(evidence).toMatchObject({ qualificationStatus: "pending", model: "gpt-5.6-luna", promptRequestsSent: 1, providerReportedCostUsd: null, detachedToolObserved: true, backgroundCompletionObservedBeforeTerminal: true, cleanupComplete: true, result: { passed: true } });

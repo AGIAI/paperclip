@@ -2,10 +2,11 @@
 
 Audited 2026-09-28 against repository base `c65fc9e3c81c41aafe421aa90a00514b84343285`.
 Status: **candidate, not qualified**. Authenticated model discovery and exact model
-selection now pass. One canonical local protocol case and the local Product hello
-and file-edit cases passed through the real runner. A local question delivered and
-resumed, but failed its exact terminal-marker requirement. Plan, restart and
-Daytona qualification remain pending.
+selection now pass. One canonical local protocol case and the local Product hello,
+file-edit, semantic plan and controller-restart cases passed through the real runner.
+A separate local question delivered and resumed, but failed its exact terminal-marker
+requirement. Daytona and the remaining qualification matrix remain pending. Two
+narrow real-service permission and detached-command probes also passed.
 Real executable offline probes cost $0; the live token receipt has no verified USD charge. The allocated live budget remains $25, subject to
 the shared $100 hard stop and verifiable spend. Do not expose this profile as
 supported until the required local and Daytona qualification passes.
@@ -87,7 +88,7 @@ but the offline session only returns `mode` and `allow_all` options. There is no
 verified GitHub model ID from the historical offline probe. Require an explicitly selected model
 and exact effective-model verification; never silently use the fixture's
 `gpt-4.1` or substitute another model. Authenticated discovery on 2026-09-28 subsequently advertised and accepted
-`gpt-5.6-luna`; inference entitlement remains unverified.
+`gpt-5.6-luna`; subsequent canonical and Product cases verified inference on that exact model.
 
 The native event extension is real and is negotiated with:
 
@@ -136,22 +137,22 @@ Daytona claims require the separate live product qualification.
 | Active turn steering (`turn/steer`) | Native SDK steering exists. ACP `session/prompt` unconditionally aborts the active session before sending a new prompt. | Unsupported active steering; do not impersonate it with concurrent prompts. | Source; P1 add a versioned upstream ACP steering method. |
 | Ordered follow-ups | Native pending-message controls and `pending_messages.modified`; notification has no queue body. | Lifecycle activity only. Scheduler can start a subsequent completed-turn prompt, but that is not native queue delivery. | Source; P1 require queue acknowledgment and ordering contract. |
 | Interruption (`turn/interrupt`) | Standard `session/cancel`, active prompt abort and process shutdown. | Shared cancellation and bounded cleanup. | Source; authenticated cancellation/process-tree test pending. |
-| Session recovery/history | `session/load`, list and close; native history and rewind richer. | Exact identity/warm continuation through shared ACPX host; never replay approvals or mutations. | Initialize wire; restart/load history and pending-input recovery unqualified. |
+| Session recovery/history | `session/load`, list and close; native history and rewind richer. | Exact identity/warm continuation through shared ACPX host; never replay approvals or mutations. | Live Product controller restart preserved the pending interaction and reused the same provider session. Provider-death restoration and history loading remain unqualified. |
 | Session list / explicit close | Initialize advertises both methods. | Runner owns its selected-session registry and process cleanup; it does not call Copilot's list or explicit close methods. | Observed initialize; P2 company-scoped history/session management before consuming these interfaces. |
 | Fork / history paging | Native CLI/SDK capabilities exist; no ACP fork advertised. | Unsupported. | Confirmed absent from initialize advertisement, not proof native harness lacks it; P2 upstream extension. |
-| Tools / correlation | Standard `tool_call`/`tool_call_update`; parent identity in `_meta["github.com/copilot"].agentId`. HTTP/SSE MCP supported. | Shared tool activity, authenticated runner-owned MCP bridge. | Real create/bash/read_bash traffic; semantic tools/company boundary live proof pending. |
+| Tools / correlation | Standard `tool_call`/`tool_call_update`; parent identity in `_meta["github.com/copilot"].agentId`. HTTP/SSE MCP supported. | Shared tool activity, authenticated runner-owned MCP bridge. | Real create/bash/read_bash traffic and canonical authenticated get-task-context pass; Product semantic question and plan calls observed. Full adversarial company-boundary coverage remains pending. |
 | MCP transport selection | Both HTTP and SSE are advertised. | The assigned Paperclip gateway uses the controlled HTTP bridge. Arbitrary SSE endpoint configuration is not exposed. | Observed initialize; SSE remains unused, P2 only if a governed connection requires it. |
-| Scoped approvals | `session/request_permission`, actual options allow_once/allow_always/reject_once. | Shared durable permissions; only received decisions offered, policy enforced. | Wire ID 0 denied before file creation. Ask-mode recovery and wider tool denial unqualified. |
-| Structured questions | Native `ask_user` callback and `user_input.requested`; current ACP adapter does not wire the responder. | Emits capability-gap notice if native notification arrives; cannot claim answer delivery. | Actual agent-mode tool list omits `ask_user` with no suppression flag; other modes unverified. P0 qualify blocking interaction behavior. |
-| Plan approval | Native `exit_plan_mode` callback; notification contains plan content/actions but lacks qualified ACP responder. | Capability-gap notice only; never synthesize plan acceptance. | Agent-mode tool list omits exit_plan_mode. Plan mode requires explicit qualification; P0. |
+| Scoped approvals | `session/request_permission`, actual options allow_once/allow_always/reject_once. | Shared durable permissions; only received decisions offered, policy enforced. | Real-service wire ID 0 denied before file creation, with no side effect through cleanup. Durable Product restrictive-mode recovery and wider tool denial remain unqualified. |
+| Structured questions | Native `ask_user` callback and `user_input.requested`; current ACP adapter does not wire the responder. | Emits capability-gap notice if native notification arrives; cannot claim answer delivery. | Actual agent-mode tool list omits `ask_user` without a suppression flag. Paperclip semantic questions are available: restart case passes, while the separate question case failed its exact marker. P0 qualify other native blocking modes. |
+| Plan approval | Native `exit_plan_mode` callback; notification contains plan content/actions but lacks qualified ACP responder. | Capability-gap notice only; never synthesize plan acceptance. | Agent-mode tool list omits exit_plan_mode. Paperclip semantic plan/revision approval passes through the UI; native plan mode still requires explicit qualification, P0. |
 | Plan progress | Standard plan from todos SQL; native `session.plan_changed` has operation only. | Existing ACP plan/activity; native operation preserved, `planContentAvailable:false`. | Source; plan document reads require native interface. P1. |
-| Models / reasoning / config | Source `session/set_model`, config options for model, reasoning, mode, custom agents, allow_all. | Explicit model admission. Mode/governance changes must remain policy-gated. | Offline lacks model metadata; GitHub list and entitlement unverified, P0. |
-| Usage | Standard prompt usage and context usage; native assistant usage, AI-unit checkpoint. | Token/counter metadata with source; multiplier and nano-AI-units distinct from USD. | Wire usage; real charge measurement unavailable, P0 budget blocker. Never double-count passthrough. |
+| Models / reasoning / config | Source `session/set_model`, config options for model, reasoning, mode, custom agents, allow_all. | Explicit model admission. Mode/governance changes must remain policy-gated. | Authenticated catalog, exact set_model/config echo and real inference verified for gpt-5.6-luna. Other models and config-mode changes remain unqualified. |
+| Usage | Standard prompt usage and context usage; native assistant usage, AI-unit checkpoint. | Token/counter metadata with source; multiplier and nano-AI-units distinct from USD. | Real token counters retain GitHub provenance; authoritative per-turn USD is unavailable. External included-credit snapshots are separate, with additional cash billing disabled. CLI requested-cost coverage fails closed when unknown. Never double-count passthrough. |
 | Subagent activity | Native started/configured/completed/failed, model and tool IDs, token/call/duration stats. | Bounded structured activity retaining attribution and model-selection details. | Source and unit fixtures; live UI attribution pending. |
-| Task file changes / diffs | Standard tools carry locations/diff content for create/edit/str_replace/apply_patch. | Shared ACP tool activity retains bounded `rawOutput`, `inputUpdated` and the first validated relative location. Structured tool `content` diffs/images, `rawInput` and secondary locations are dropped; no complete diff presentation is claimed. | Real denied-create wire contains a diff, but wire presence is not runner/UI preservation. P1 add typed, bounded diff/image content and all validated locations with tool/session provenance; successful product edit and presentation remain unqualified. |
+| Task file changes / diffs | Standard tools carry locations/diff content for create/edit/str_replace/apply_patch. | Shared ACP tool activity retains bounded `rawOutput`, `inputUpdated` and the first validated relative location. Structured tool `content` diffs/images, `rawInput` and secondary locations are dropped; no complete diff presentation is claimed. | Real denied-create wire contains a diff, but wire presence is not runner/UI preservation. P1 add typed, bounded diff/image content and all validated locations with tool/session provenance; Product file-edit/validation and downloadable-file presentation pass; rich diff rendering remains unqualified. |
 | Provider workspace files | `session.workspace_file_changed.path` is relative to provider session workspace files, not task cwd. | Validated reference tagged `provider_session_workspace`, resolution required. | Source + traversal tests; P1 safe file retrieval/upload. |
 | Images / binary artifacts | Prompt image input; native content-addressed binary_asset base64. | Hash/length-validated metadata references; bytes not blindly read from disk or emitted in activity. | Source + unit digest tests; P1 durable artifact storage; >32 KiB payload provider omission remains. |
-| Background settlement | Standard prompt waits for idle in tested attached async-shell case; lossy native idle/receipt also exist. | ACP terminal result remains authoritative; raw event cannot end turn. | Offline attached shell wrote marker and read output before end_turn. Detached/live cases unverified; P0 release qualification. |
+| Background settlement | Standard prompt waits for idle in tested attached async-shell case; lossy native idle/receipt also exist. | ACP terminal result remains authoritative; raw event cannot end turn. | Offline attached and real-service finite detached commands completed before end_turn; marker verified through cleanup. Arbitrary background lifetimes remain unqualified; P0 broader settlement coverage. |
 | Compaction/context | Native compaction lifecycle/token counts/context git metadata. | Safe bounded counters/status, immutable workspace binding. | Source + projection tests; raw summary/private custom instructions omitted. |
 | Goals / remote/schedules | Native autopilot/objectives/remote/schedule facilities; no qualified ACP goal protocol. | Unsupported through this profile; remote disabled. | Source; P2 separate governance review before control exposure. |
 
@@ -216,11 +217,14 @@ Retained real-binary evidence:
 
 These are local offline conformance probes, not product E2E or live GitHub
 qualification. No screenshots were produced because no product UI was exercised.
-Required blockers remain: explicitly bound token, confirmed entitlement and exact
-model, measured cost, successful file edit/validation, semantic tools, every
-blocking question/plan mode, restrictive permissions across native tools and
-configuration, warm/restart input recovery, active cancellation, multi-company
-isolation, artifact UI, macOS x64 execution and Linux x64 Daytona E2E. Retry with
+The later live sections record explicit authentication, exact-model inference,
+file validation, semantic tools, plan approval and controller-restart evidence.
+Remaining qualification blockers include the failed standalone question marker,
+every native blocking question/plan mode, restrictive permissions across native
+tools and configuration, provider-death recovery, active cancellation,
+multi-company isolation, rich artifact/diff UI, macOS x64 execution and Linux x64
+Daytona E2E. Authoritative per-turn USD remains unavailable; external included-credit
+reconciliation is distinct from cost-limit coverage. Retry with
 another pinned release if a blocking interaction or settlement/denial case fails;
 do not suppress the interaction to obtain a pass.
 
@@ -435,10 +439,10 @@ deadline, a $2 reservation and zero automatic retries. GitHub's displayed includ
 credits moved from 1 to 2 after the file case and from 2 to 3 after the question
 case. Additional paid usage stayed disabled with a $0 budget and $0 cash charge.
 Display deltas are not exact per-request credit receipts; provider USD remains
-unknown. Across all live work, five provider turns were observed; the underlying
+unknown. At that historical checkpoint, five provider turns were observed; the underlying
 HTTP model-request count is unavailable. No additional paid attempt is running.
-The candidate remains pending because the failed question, unverified plan/restart,
-Daytona, restrictive-permission and full isolation cases still require evidence.
+Later plan, restart and native risk-probe results follow below. This checkpoint
+remains unchanged as historical evidence; its failed question result is not erased.
 
 ## Final shared-source packaging checkpoint
 
@@ -479,3 +483,62 @@ was still 3/1,500 included credits after denial; display granularity or delay
 prevents a zero-use claim. The post-command dashboard also remained at 3/1,500 included credits,
 with additional usage disabled and $0 cash charges. Exact per-probe credit use
 remains unknown. The overall candidate remains pending.
+
+## Semantic plan after host capacity recovered
+
+A separately authorized [Product plan attempt](../../packages/paperclip-runner/test/fixtures/copilot-product-plan-live-proof-2026-09-28.json)
+passed all six matchers in 45.625 seconds at source
+`c06fc5fccc88f5816450434493451b9d2d339125`, using the final provider pack and updated
+immutable daemon. The original PostgreSQL startup failure is retained separately;
+this was one explicit new attempt with no automatic retry. Browser review shows
+the complete Plan revision 1, a confirmation targeting that exact revision,
+the approval message and the exact terminal marker once.
+
+This is Paperclip semantic planning. It does not enable Copilot's unwired native
+`exit_plan_mode` responder. The approved continuation deliberately opened a fresh
+session after the adapter configuration changed and `forceFreshSession` was
+requested, so this case does not prove warm-session reuse. Both paused and
+completed runs now correctly report GitHub and `unpriced` with no USD field,
+including the paused run's zero normalized token counters. Cleanup passed and
+the retained fixture process audit found no remaining owned processes.
+
+GitHub subsequently displayed 5/1,500 included credits, an aggregate increase of
+2 from the snapshot before the denied-write, detached-command and two-turn plan
+batch. Display delay and granularity prevent allocation among those calls.
+Additional usage stayed disabled with a $0 budget and $0 cash charge. Provider
+USD remains unknown; this external reconciliation is not an authoritative
+per-turn cost receipt.
+
+
+## Controller restart and pending question recovery
+
+The [retained restart proof](../../packages/paperclip-runner/test/fixtures/copilot-product-restart-live-proof-2026-09-28.json)
+passed all six matchers in 50.875 seconds at source
+`19ca0f558d3aebddedc6ff14836ff3e71498e68e`, using the same final pack and immutable
+daemon. The exact pending Cobalt/Amber interaction remained visible after server
+restart. The board selected Cobalt; the continuation reused the same persisted
+provider session and emitted the exact terminal marker once. Screenshots show
+the recovered question, selected answer and Done task. This proves controller
+reconnect with a preserved session, not reconstruction after provider death.
+
+Both paused and completed receipts are GitHub/unpriced with no USD field. The
+continuation reports 49,436 input, 44,075 cached input and 418 output tokens.
+Cleanup passed, the bounded supervisor exited successfully and an exact owned-root
+process audit found no retained processes. This was one explicit attempt with
+two provider turns, no automatic retry, a 120-second active deadline, a 300-second
+outer deadline and a $2 reservation. The earlier standalone question's literal
+`[terminal marker]` failure remains unchanged and continues to block its cell.
+
+Eleven provider turns have now been observed across the canonical, Product and
+native risk probes; the number of upstream HTTP model requests is unavailable.
+GitHub displayed 5/1,500 included credits both before and after restart, with
+additional usage disabled and $0 cash charge. Display delay and precision mean
+that the unchanged counter cannot prove zero included-credit consumption. This
+external reconciliation remains separate from unknown provider USD. No further paid prompt is
+authorized or running from this branch. The profile remains pending.
+
+Final provider checks after these evidence updates pass 73 focused TypeScript
+tests and 22 packaging/discovery/risk-probe tests. The discovery regressions cover
+rejecting the mutable `auto` model selector, releasing leases on early setup
+failures, and rejecting pending RPC calls immediately after native exit or
+malformed output. These probe-script changes do not alter the final runtime pack.
