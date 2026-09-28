@@ -15,6 +15,7 @@ import { agentInstructionRevisionService } from "../services/agent-instruction-r
 import { agentInstructionWorkingCopyService } from "../services/agent-instruction-working-copies.js";
 import { appendHeartbeatRunEvent } from "../services/heartbeat-run-events.js";
 import { resolveManagedInstructionsRoot } from "../services/agent-instructions.js";
+import { buildNativeRuntimeContext } from "../services/native-runtime/runtime-context.js";
 
 describe("registered run instruction copies", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
@@ -128,6 +129,23 @@ describe("registered run instruction copies", () => {
     const current = (await revisions.readCurrent(target(), board()))!;
     await fs.writeFile(path.join(root, entryFile), "stale disk projection");
     expect(await revisions.readCommittedForRuntime(target())).toEqual(current);
+    const [agent] = await db.select().from(agents).where(eq(agents.id, agentId));
+    const context = await buildNativeRuntimeContext({ db, agent, runId: copy.runId, runtimeConfig: {}, runtimeSkillEntries: [] });
+    try {
+      expect(context.instructions.entryPath).toBe(entryFile);
+      expect(await fs.readFile(path.join(context.instructions.bundle.rootPath, entryFile), "utf8"))
+        .toBe(current.content);
+    } finally {
+      // Runtime assets are immutable, so make only this fixture's directories
+      // removable before the ordinary temporary-home cleanup.
+      const makeRemovable = async (directory: string): Promise<void> => {
+        await fs.chmod(directory, 0o700);
+        for (const child of await fs.readdir(directory, { withFileTypes: true })) {
+          if (child.isDirectory()) await makeRemovable(path.join(directory, child.name));
+        }
+      };
+      await makeRemovable(context.instructions.bundle.rootPath);
+    }
     expect(await fs.readFile(path.join(root, entryFile), "utf8")).toBe("stale disk projection");
     expect((await revisions.history({ ...target(), entryFile }, board())).revisions).toHaveLength(2);
     await expect(revisions.readCommittedForRuntime({ companyId: randomUUID(), agentId })).rejects.toThrow("Agent not found");
