@@ -7,6 +7,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   activityLog,
   agentConfigRevisions,
+  agentInstructionRevisions,
+  agentInstructionHeads,
   agents,
   approvals,
   companies,
@@ -23,6 +25,7 @@ import {
 } from "./helpers/embedded-postgres.js";
 import { buildHostServices } from "../services/plugin-host-services.js";
 import { agentService } from "../services/agents.js";
+import { agentInstructionRevisionService } from "../services/agent-instruction-revisions.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
@@ -312,7 +315,7 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
   it("materializes declared managed agent instructions with local folder paths", async () => {
     const previousHome = process.env.PAPERCLIP_HOME;
     const previousInstance = process.env.PAPERCLIP_INSTANCE_ID;
-    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-managed-agent-home-"));
+    const tempHome = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-managed-agent-home-")));
     const wikiRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-managed-agent-wiki-")));
     process.env.PAPERCLIP_HOME = tempHome;
     process.env.PAPERCLIP_INSTANCE_ID = "test";
@@ -369,6 +372,34 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       expect(content).toContain("You are the LLM Wiki Maintainer.");
       expect(content).toContain(`Wiki root: \`${wikiRoot}\``);
       expect(content).toContain(`Wiki schema: \`${path.join(wikiRoot, "AGENTS.md")}\``);
+
+      // A managed plugin reset must preserve the previous entry in canonical
+      // history instead of deleting a shared bundle or bypassing its write guard.
+      const edited = "# User-customized wiki instructions\n";
+      await fs.writeFile(instructionsFilePath as string, edited);
+      const reset = await services.agents.managedReset({ companyId, agentKey: "wiki-maintainer" });
+      expect(reset.status).toBe("reset");
+      expect(await fs.readFile(instructionsFilePath as string, "utf8")).toBe(content);
+      const history = await db.select().from(agentInstructionRevisions)
+        .where(eq(agentInstructionRevisions.agentId, created.agentId!));
+      expect(history).toHaveLength(2);
+      const seed = history.find((revision) => revision.source === "seed")!;
+      const saved = history.find((revision) => revision.id !== seed.id)!;
+      expect(Buffer.from(seed.contentBase64, "base64").toString()).toBe(edited);
+      expect(Buffer.from(saved.contentBase64, "base64").toString()).toBe(content);
+      expect(saved).toMatchObject({ parentRevisionId: seed.id, baseRevisionId: seed.id,
+        actorUserId: null, actorAgentId: null, responsibleUserId: null });
+      const [head] = await db.select().from(agentInstructionHeads)
+        .where(eq(agentInstructionHeads.agentId, created.agentId!));
+      expect(head.revisionId).toBe(saved.id);
+      const repeated = await services.agents.managedReset({ companyId, agentKey: "wiki-maintainer" });
+      expect(repeated.status).toBe("reset");
+      expect(await db.select().from(agentInstructionRevisions)
+        .where(eq(agentInstructionRevisions.agentId, created.agentId!))).toHaveLength(2);
+      const audit = await db.select().from(activityLog).where(eq(activityLog.action, "agent.instructions_revision_committed"));
+      expect(audit).toHaveLength(2);
+      expect(audit.every((row) => row.actorType === "plugin" && row.actorId === pluginId)).toBe(true);
+
     } finally {
       if (previousHome === undefined) delete process.env.PAPERCLIP_HOME;
       else process.env.PAPERCLIP_HOME = previousHome;
@@ -376,6 +407,52 @@ describeEmbeddedPostgres("plugin-managed agents", () => {
       else process.env.PAPERCLIP_INSTANCE_ID = previousInstance;
       await fs.rm(tempHome, { recursive: true, force: true });
       await fs.rm(wikiRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("fences plugin instruction reset by exact ownership, current capability and canonical CAS", async () => {
+    const previousHome = process.env.PAPERCLIP_HOME;
+    const tempHome = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "plugin-reset-cas-")));
+    process.env.PAPERCLIP_HOME = tempHome;
+    try {
+      const pluginManifest = manifest();
+      pluginManifest.agents![0]!.instructions = { content: "# Default\n" };
+      const { companyId, pluginId, services } = await seedCompanyAndPlugin({ manifest: pluginManifest });
+      const created = await services.agents.managedReconcile({ companyId, agentKey: "wiki-maintainer" });
+      const target = { companyId, agentId: created.agentId! };
+      const actor = { type: "plugin" as const, pluginId, pluginKey: pluginManifest.id, agentKey: "wiki-maintainer" };
+      const revisions = agentInstructionRevisionService(db);
+      const baseline = (await revisions.readForPluginReset(target, actor))!;
+      const input = { ...target, entryFile: "AGENTS.md", baseRevisionId: baseline.revision.id, content: "# Reset\n" };
+      await expect(revisions.commitPluginReset(input, { ...actor, pluginId: randomUUID() })).rejects.toMatchObject({ status: 403 });
+      await expect(revisions.commitPluginReset({ ...input, companyId: randomUUID() }, actor)).rejects.toMatchObject({ status: 404 });
+      await expect(revisions.commitPluginReset(input, { ...actor, agentKey: "foreign-agent" })).rejects.toMatchObject({ status: 403 });
+      await db.update(plugins).set({ manifestJson: { ...pluginManifest, capabilities: [] } }).where(eq(plugins.id, pluginId));
+      await expect(revisions.commitPluginReset(input, actor)).rejects.toMatchObject({ status: 403 });
+      await db.update(plugins).set({ manifestJson: pluginManifest }).where(eq(plugins.id, pluginId));
+      const originalMetadata = created.agent!.metadata;
+      await db.update(agents).set({ metadata: {} }).where(eq(agents.id, target.agentId));
+      await expect(revisions.commitPluginReset(input, actor)).rejects.toMatchObject({ status: 403 });
+      await db.update(agents).set({ metadata: originalMetadata }).where(eq(agents.id, target.agentId));
+      const [binding] = await db.select().from(pluginManagedResources).where(eq(pluginManagedResources.resourceId, target.agentId));
+      await db.update(pluginManagedResources).set({ resourceId: randomUUID() }).where(eq(pluginManagedResources.id, binding.id));
+      await expect(revisions.commitPluginReset(input, actor)).rejects.toMatchObject({ status: 403 });
+      await db.update(pluginManagedResources).set({ resourceId: target.agentId }).where(eq(pluginManagedResources.id, binding.id));
+      const results = await Promise.allSettled([
+        revisions.commitPluginReset(input, actor),
+        revisions.commitPluginReset({ ...input, content: "# Concurrent reset\n" }, actor),
+      ]);
+      expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+      const loser = results.find((result) => result.status === "rejected") as PromiseRejectedResult;
+      expect(loser.reason).toMatchObject({ status: 409, details: { code: "INSTRUCTION_REVISION_CONFLICT" } });
+      const winner = results.find((result) => result.status === "fulfilled") as PromiseFulfilledResult<Awaited<ReturnType<typeof revisions.commitPluginReset>>>;
+      expect(await fs.readFile(created.agent!.adapterConfig.instructionsFilePath as string, "utf8")).toBe(winner.value.content);
+      const history = await db.select().from(agentInstructionRevisions).where(eq(agentInstructionRevisions.agentId, target.agentId));
+      expect(history).toHaveLength(2);
+      expect(history.find((row) => row.id === baseline.revision.id)?.contentBase64).toBe(Buffer.from("# Default\n").toString("base64"));
+    } finally {
+      if (previousHome === undefined) delete process.env.PAPERCLIP_HOME; else process.env.PAPERCLIP_HOME = previousHome;
+      await fs.rm(tempHome, { recursive: true, force: true });
     }
   });
 
