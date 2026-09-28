@@ -398,6 +398,7 @@ export function xChannelService(db: Db, hooks: XHooks, fetchImpl = fetch) {
         })),
         replyablePostIds: [messageId(source.delivery)],
         invokingPostId: messageId(source.delivery),
+        invokingMessage: source.delivery.normalizedEvent.message,
       };
     }
     if (tool === "x_delivery") {

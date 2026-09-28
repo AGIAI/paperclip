@@ -72320,7 +72320,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     await expect(executeConnectorTool(db, binding, "x_reply", { replyToPostId: "10", text: "wrong target", idempotencyKey: randomUUID() })).rejects.toThrow("invoking post");
     await expect(executeConnectorTool(db, { ...binding, companyId: randomUUID() }, "x_read_thread", {})).rejects.toThrow();
     const request = { replyToPostId: "200", text: "Here is the answer.", idempotencyKey: randomUUID() };
-    const result = await executeConnectorTool(db, binding, "x_reply", request) as { publicationId: string; status: string };
+    const result = await native.execute({ tool: "x_reply", callId: randomUUID(), arguments: request }) as { publicationId: string; status: string };
     expect(result.status).toBe("pending");
     expect(await executeConnectorTool(db, binding, "x_reply", request)).toEqual(result);
     await expect(executeConnectorTool(db, binding, "x_reply", { ...request, idempotencyKey: randomUUID() })).rejects.toThrow("already has a reply");
@@ -72338,6 +72338,30 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     expect(links.find(l => l.providerMessageId === "202")?.conversationId).toBe(links.find(l => l.providerMessageId === "200")?.conversationId);
     expect(links.find(l => l.providerMessageId === "203")?.conversationId).not.toBe(links.find(l => l.providerMessageId === "200")?.conversationId);
     expect(f.sends).toHaveLength(1);
+  }, 60_000);
+
+  it("X concurrent reply intents and workers preserve each branch's exact target after restart", async () => {
+    const f = await configuredXEndpoint();
+    const { executeConnectorTool } = await import("../services/connector-runtime.js");
+    await f.deliver([f.event("210"), f.event("211")]);
+    await f.drain();
+    const first = await f.binding("210");
+    const second = await f.binding("211");
+    expect(first.issueId).not.toBe(second.issueId);
+    const request = { replyToPostId: "210", text: "First branch", idempotencyKey: randomUUID() };
+    const [one, duplicate] = await Promise.all([
+      executeConnectorTool(db, first, "x_reply", request),
+      executeConnectorTool(db, first, "x_reply", request),
+      executeConnectorTool(db, second, "x_reply", { replyToPostId: "211", text: "Second branch", idempotencyKey: randomUUID() }),
+    ]);
+    expect(one).toEqual(duplicate);
+    await f.restart();
+    await Promise.all([f.service().processPendingPublications(), f.service().processPendingPublications()]);
+    expect(f.sends).toHaveLength(2);
+    expect(f.sends).toEqual(expect.arrayContaining([
+      { text: "First branch", reply: { in_reply_to_tweet_id: "210" } },
+      { text: "Second branch", reply: { in_reply_to_tweet_id: "211" } },
+    ]));
   }, 60_000);
 
   it("X opt-out and current authority stop work and sends; uncertain sends never retry", async () => {
