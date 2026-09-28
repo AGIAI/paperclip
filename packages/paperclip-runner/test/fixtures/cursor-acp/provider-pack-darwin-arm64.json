@@ -1,12 +1,13 @@
 {
   "schema": "paperclip-runner/remote-provider-pack/v1",
-  "digest": "sha256:f0b622e9151c1c0886e6220c48ea71993b65887baa88b1600b27462074748ddb",
+  "digest": "sha256:f9b1869c3d6822981518a4acfa5ffd0d8623ac555034754d92e57dabd56feadb",
   "payload": {
     "pins": {
       "nodeMinimum": "24.11.0",
       "codex": "0.156.0",
       "opencode": "1.18.32",
       "acpx": "0.13.1",
+      "grok": "1.0.13",
       "claudeAcp": "0.73.0",
       "codexAcp": "1.6.2"
     },
@@ -14,10 +15,11 @@
       "platform": "darwin",
       "architecture": "arm64"
     },
-    "runnerSourceRevision": "01959b8a602683f13706807983f02c3cba9d36a0",
-    "distDigest": "sha256:6ac11b85a406f041e13a9896362cd78ebea5e9edef97527bffb7a8360f6a10bb",
-    "bridgeDigest": "sha256:e444f448c6fe3c7e0246dc0cc1dcb98c2f735479ba5576f9a9bbb7a3137061c1",
+    "runnerSourceRevision": "19ac45c4fd87b8b9f28507b3ecd57803da3f7c73",
+    "distDigest": "sha256:b381359f0b80cc15f437f8d98c616c2f230f2ede672e4faca6e8e42a373f84d6",
+    "bridgeDigest": "sha256:5bf5b2c89849aaf2501c5410b3d4037bc59183516be08b9e7264e9089c0da6fa",
     "acpxProfileDigests": {
+      "grok": "sha256:f0b698395a3704ed2ffaf84ea19bdb20c36c8a0a70b7c629c7b6ffe144e59e55",
       "claude": "sha256:9d73d1f0f121fb96cc8badb28c22d5bff02d8582eb2e40360a81c189e1b9422a",
       "codex": "sha256:c4538599d1ab767db5dff50934f13bb5ba313a59d9c4a83e993fac4617ea63d3"
     },
@@ -32,13 +34,17 @@
       }
     },
     "artifacts": {
+      "grokExecutable": {
+        "path": "node_modules/@paperclipai/grok-acp/bin/grok",
+        "sha256": "sha256:8669e0fdadceec25b8c159c355f427ffbd82583525d774b6ab1522197ea83b80"
+      },
       "nodeCommand": {
         "path": "node_modules/node/bin/node",
         "sha256": "sha256:27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1"
       },
       "productionLock": {
         "path": "pnpm-lock.yaml",
-        "sha256": "sha256:ec689ad9c31aa2004c7c2c39889764d55897ac2e6d899c8f059d9c23b082c2c8"
+        "sha256": "sha256:a9f7b2839491612675e9ec543143848e8b01343cbf8456098b3e9f4d7394eed1"
       },
       "opencodeCommand": {
         "path": "node_modules/.bin/opencode",
@@ -50,11 +56,11 @@
       },
       "opencodeProxy": {
         "path": "dist/cli/opencode-app-server-proxy.cjs",
-        "sha256": "sha256:26c685c57e196d94cf4524b000b5c7d81a66bb11c8687a3a4944c7445af785f0"
+        "sha256": "sha256:c98afd501fb93b56388c0c0f673f9c815c9847ede906eb11a6f693ec56439862"
       },
       "acpxSidecar": {
         "path": "dist/cli/acpx-runtime-sidecar.cjs",
-        "sha256": "sha256:f688c95784dc8d0422c8610251263e374e765d28d22b2f5eeeda509f6155e3e5"
+        "sha256": "sha256:dfc808bde4101915af8a7e5b304263862b50617cfbb5676fdf599711c2e65c66"
       }
     }
   }
