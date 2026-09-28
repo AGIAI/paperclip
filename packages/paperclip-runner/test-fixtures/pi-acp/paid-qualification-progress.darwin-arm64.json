@@ -1,6 +1,6 @@
 {
   "schema": "paperclip.pi-paid-qualification-progress.v1",
-  "recordedAt": "2026-09-28T20:39:38.907308+00:00",
+  "recordedAt": "2026-09-28T21:12:21.059145+00:00",
   "qualificationStatus": "pending",
   "environment": {
     "platform": "darwin",
@@ -17,8 +17,21 @@
   "budget": {
     "authorizedMaximumUsd": 25,
     "reservedPerBatchUsd": 2,
-    "measuredSpendUsd": 0.006755083,
-    "measurement": "exclusive OpenRouter key billing delta; model catalog estimates are not provider billing"
+    "measuredSpendUsd": 0.017750126,
+    "measurement": "exclusive OpenRouter key billing delta; model catalog estimates are not provider billing",
+    "billingGroups": [
+      {
+        "id": "pi-denial-file-01",
+        "attemptIds": [
+          "pi-native-denial-01",
+          "pi-product-file-01"
+        ],
+        "measuredDeltaUsd": 0.010995043,
+        "attribution": "Exclusive key aggregate; delayed charge crossed attempt baselines, so per-generation attribution is unavailable.",
+        "delayedDeltaBetweenAttemptWindowsUsd": 0.000105107,
+        "billingObservedThrough": "2026-09-28T20:55:09Z"
+      }
+    ]
   },
   "attempts": [
     {
@@ -354,6 +367,67 @@
         "automaticRetries": 0
       },
       "evidence": "product-hello-proof.darwin-arm64.json"
+    },
+    {
+      "attemptId": "pi-native-denial-01",
+      "family": "native-acp",
+      "caseId": "restrictive-native-write-denial",
+      "startedAt": "2026-09-28T20:47:09.907468+00:00",
+      "finishedAt": "2026-09-28T20:47:30.345865+00:00",
+      "durationSeconds": 20.438,
+      "exitCode": 0,
+      "sourceRevision": "dd78df1ef8b279c30c710c9b7a7f9fda22e321d6",
+      "providerPackDigest": "sha256:f75d3de7814276508f3706edb6e4510ce1dcecbc3e8fa674991fd554e5a75273",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "submittedProviderTurns": 1,
+      "providerRequestCount": null,
+      "billingDeltaUsd": null,
+      "billingCoverage": "accounted in aggregate pi-denial-file-01; no per-generation attribution",
+      "billingGroupId": "pi-denial-file-01",
+      "automaticRetries": 0,
+      "retainedStatus": "passed",
+      "retainedMachineDisposition": null,
+      "cleanup": "passed",
+      "terminalUsage": {
+        "inputTokens": 1735,
+        "outputTokens": 125,
+        "cachedReadTokens": 1792,
+        "cachedWriteTokens": 0,
+        "totalTokens": 3652,
+        "_meta": {
+          "paperclipPi": {
+            "provenance": "assistant_message_receipts",
+            "costUsd": 0.00032807600000000006,
+            "costSource": "pi_pricing_estimate"
+          }
+        }
+      },
+      "evidence": "native-denial-proof.darwin-arm64.json",
+      "diagnosis": "Original offered deny choice persisted before response; matching native write failed, prompt settled, and independent marker stat proved no write occurred."
+    },
+    {
+      "attemptId": "pi-product-file-01",
+      "family": "product-e2e",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.file-edit-validate",
+      "startedAt": "2026-09-28T20:49:00.303832+00:00",
+      "finishedAt": "2026-09-28T20:51:41.406899+00:00",
+      "durationSeconds": 161.103,
+      "exitCode": 1,
+      "sourceRevision": "dd78df1ef8b279c30c710c9b7a7f9fda22e321d6",
+      "providerPackDigest": "sha256:f75d3de7814276508f3706edb6e4510ce1dcecbc3e8fa674991fd554e5a75273",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "submittedProviderTurns": 1,
+      "providerRequestCount": null,
+      "billingDeltaUsd": null,
+      "billingCoverage": "accounted in aggregate pi-denial-file-01; no per-generation attribution",
+      "billingGroupId": "pi-denial-file-01",
+      "automaticRetries": 0,
+      "retainedStatus": "failed",
+      "retainedMachineDisposition": "candidate_failure",
+      "cleanup": "passed",
+      "terminalUsage": null,
+      "evidence": "product-file-failure.darwin-arm64.json",
+      "diagnosis": "Five semantic finish requests failed with generic bridge error; active deadline expired without file oracle or terminal receipt. Version 3 retains bounded validation details and native Bash output."
     }
   ],
   "observedSemanticOperations": {
@@ -401,7 +475,8 @@
       "deployedPackCredentialFreeProbe": "passed",
       "fullCredentialFreeRunnerStartup": "terminal rejection within30s deadline; not authenticated success",
       "cleanDependencyResolution": "two independent runs from tracked manifest/config/patch inputs with pnpm9.15.4 --resolution-only --ignore-scripts --no-frozen-lockfile",
-      "cleanDependencyLockSha256": "2c46a68811ba1d504a41b6f4d3f642bc93f4a1c615097754c9c6486881dba8e6"
+      "cleanDependencyLockSha256": "2c46a68811ba1d504a41b6f4d3f642bc93f4a1c615097754c9c6486881dba8e6",
+      "scope": "historical version 2 verification, before version 3 bridge/output changes"
     },
     "startupDiagnosis": "startup-diagnostic.darwin-arm64.json",
     "authenticatedModelNoPrompt": {
@@ -420,7 +495,7 @@
   "remaining": [
     "Successful canonical Runner protocol completion",
     "File edit, typed question, plan and restart Product journeys",
-    "Native permissions and active steering/follow-up delivery",
+    "Version 3 native permission regression, durable restart replay and active steering/follow-up delivery",
     "Complete price/billing coverage, separate from catalog estimates",
     "Linux x64 Daytona qualification"
   ]

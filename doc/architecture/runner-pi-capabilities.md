@@ -324,16 +324,18 @@ every field in Pi's native event stream. These are explicit follow-ups:
 ## Authenticated local qualification progress
 
 The [sanitized attempt ledger](../../packages/paperclip-runner/test-fixtures/pi-acp/paid-qualification-progress.darwin-arm64.json)
-retains all ten attempts, including seven failures before a model prompt. One
+retains all twelve attempts, including seven failures before a model prompt. One
 Runner protocol turn reached the exact model and successfully called `get_task_context`, `get_task_history`,
 `list_documents`, and `read_document`. The canonical case permits those extra
 orientation reads, but also requires a completed turn; it timed out after 120s
 without terminal usage. The later Product hello journey passes; the canonical
 Runner protocol case has not yet passed.
 
-Exclusive OpenRouter key billing increased by **$0.006755083**, including
+Exclusive OpenRouter key billing increased by **$0.017750126**, including
 $0.000351509 from the sleep-interrupted Product attempt and $0.000654767
-from the successful hello journey. The seven pre-prompt failures had two post-attempt
+from the successful hello journey, plus $0.010995043 across the restrictive-denial
+and file-edit batch. A delayed charge crossed the latter attempt baselines, so
+that batch is accounted as an aggregate without per-generation attribution. The seven pre-prompt failures had two post-attempt
 observations with zero delta. This is measured provider spend, separate from
 Pi's stale catalog pricing estimate. A missing terminal receipt remains unknown, not free execution. Each
 attempt had no automatic retries, a $2 reservation and a $0.50 billing watchdog;
@@ -469,3 +471,15 @@ are rejected. Earlier local hello, restrictive-denial and Linux initialization
 proofs remain tied to their version 2 execution source. Version 3 must complete
 fresh immutable-pack checks and paid qualification before those behaviors can be
 claimed for its bytes.
+
+
+The [restrictive-denial proof](../../packages/paperclip-runner/test-fixtures/pi-acp/native-denial-proof.darwin-arm64.json)
+retains the version 2 real native write rejection: the original offered decision
+was durably recorded before responding, the matching tool failed, the prompt
+settled, and an independent filesystem check found no forbidden marker. This is
+direct ACP delivery proof; it does not exercise PRP restart replay.
+
+The [file-edit failure](../../packages/paperclip-runner/test-fixtures/pi-acp/product-file-failure.darwin-arm64.json)
+retains the candidate timeout, five generic finish errors, missing file oracle,
+unknown terminal usage and successful process cleanup. These failures are kept
+alongside the version 3 corrections rather than overwritten by a future retry.
