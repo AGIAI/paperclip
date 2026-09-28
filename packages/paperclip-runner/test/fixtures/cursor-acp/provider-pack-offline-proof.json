@@ -1,8 +1,8 @@
 {
   "schema": "paperclip-cursor-offline-pack-proof/v1",
-  "capturedAt": "2026-09-28T18:04:33.552Z",
-  "runnerSourceRevision": "1324437f4ce4031e646738aae5a09c314f51e21e",
-  "packDigest": "sha256:0631f2e7541b03e0becd15fd9ea51be1f913faa3f5350c2e207827f692176675",
+  "capturedAt": "2026-09-28T18:36:20.637Z",
+  "runnerSourceRevision": "a92d06ca5940a42d45cba937f19ba7e7e9c03018",
+  "packDigest": "sha256:3d36acd9adcfe049fdc30b93ee50f8ce35d59938362eb0c497b4e6b4fbcac028",
   "target": {
     "platform": "darwin",
     "architecture": "arm64"

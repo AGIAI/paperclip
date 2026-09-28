@@ -1,6 +1,6 @@
 {
   "schema": "paperclip-runner/remote-provider-pack/v1",
-  "digest": "sha256:0631f2e7541b03e0becd15fd9ea51be1f913faa3f5350c2e207827f692176675",
+  "digest": "sha256:3d36acd9adcfe049fdc30b93ee50f8ce35d59938362eb0c497b4e6b4fbcac028",
   "payload": {
     "pins": {
       "nodeMinimum": "24.11.0",
@@ -14,9 +14,9 @@
       "platform": "darwin",
       "architecture": "arm64"
     },
-    "runnerSourceRevision": "1324437f4ce4031e646738aae5a09c314f51e21e",
-    "distDigest": "sha256:779d392f23d47cde795143dcf2df4e36a3a0c04d1ee983d1a19b8bdbfb7f3220",
-    "bridgeDigest": "sha256:19d8ae1df8c87e97d2abba0a7249e400e64218a71a3ffe99e7baf886d8b85ff2",
+    "runnerSourceRevision": "a92d06ca5940a42d45cba937f19ba7e7e9c03018",
+    "distDigest": "sha256:78fc5189d6f8a441aa1060dc968b09cd423f03fb039ef33b17568bb44b7f6da6",
+    "bridgeDigest": "sha256:d58c15293fd44bad94d222b982da989af54621150c1f16fa7da53beb3bb16f9d",
     "acpxProfileDigests": {
       "claude": "sha256:9d73d1f0f121fb96cc8badb28c22d5bff02d8582eb2e40360a81c189e1b9422a",
       "codex": "sha256:c4538599d1ab767db5dff50934f13bb5ba313a59d9c4a83e993fac4617ea63d3"
