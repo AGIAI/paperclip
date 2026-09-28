@@ -9,6 +9,13 @@ function request(kinds = ["allow_once", "allow_always", "reject_once"]): AcpPerm
   } } as AcpPermissionRequest;
 }
 describe("ACP permission normalization", () => {
+  it("keeps requests answerable when a provider omits its operation title", () => {
+    for (const title of [undefined, "", "   "]) {
+      const value = request();
+      value.raw.toolCall.title = title;
+      expect(normalizeAcpxPermission(value).title).toBe("Approve provider operation");
+    }
+  });
   it("offers only native choices and preserves cancellation", () => {
     const value = normalizeAcpxPermission(request(["allow_once"]));
     expect(value.choices.map(c => c.key)).toEqual(["accept", "cancel"]);

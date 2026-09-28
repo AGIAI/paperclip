@@ -47,7 +47,8 @@ export function normalizeAcpxPermission(request: AcpPermissionRequest, options: 
     throw new Error("ACP permission request omitted its tool identity");
   }
   return {
-    title: typeof call.title === "string" ? call.title.slice(0, 4_000) : "Approve provider operation",
+    title: typeof call.title === "string" && call.title.trim()
+      ? call.title.slice(0, 4_000) : "Approve provider operation",
     kind: request.inferredKind ?? "other",
     toolCallId: call.toolCallId,
     choices,
