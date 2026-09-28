@@ -1,0 +1,112 @@
+{
+  "schema": "paperclip-cursor-authenticated-qualification/v1",
+  "providerVersion": "2026.09.26-dd393fe",
+  "qualification": "pending",
+  "attempts": [
+    {
+      "id": "cursor-tracer-20260928-1920",
+      "accountContext": "previous free account; superseded by explicit operator account selection",
+      "case": "get-task-context",
+      "runnerSourceRevision": "e5159fb67ad28bf6a691bfa64ffddb332d96f8be",
+      "providerPackDigest": "sha256:86b907fe5efadaab9bb0953acd1434bcd0e098b1f78bbb2fd7c5ea1b975da5ac",
+      "runnerPackageSha256": "90c806623d24694997d9d0173cc6c020b1db18e5a978824e2c6f2d0a25825a3b",
+      "runnerdSha256": "66122cae0160bfa2655d64afb7c7b5c01aa5fa7bba8ad608c7ee768c14f51fec",
+      "evalRevision": "63e33f556d933beb274447b9568b185a1e37056f",
+      "requestedModel": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+      "observedModel": {
+        "id": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+        "provider": "cursor"
+      },
+      "startedAt": "2026-09-28T19:17:48.658Z",
+      "finishedAt": "2026-09-28T19:18:12.924Z",
+      "durationMs": 24256,
+      "limits": {
+        "turnTimeoutMs": 60000,
+        "maxAgentTurns": 1,
+        "maxEstimatedCostNanodollars": 500000000
+      },
+      "automaticRetries": 0,
+      "nativeTerminalStatus": "completed",
+      "assistantText": [
+        "Upgrade your plan to continue"
+      ],
+      "semanticToolInvocations": 0,
+      "runnerResult": "eval_orchestration_failure",
+      "runnerDiagnostic": "capability_live_usage_missing",
+      "interpretation": "Native entitlement denial text was followed by normal ACP completion; missing usage then masked the semantic failure. This attempt is not a pass.",
+      "networkEvidence": {
+        "childPaperclipEnvironmentKeys": [],
+        "realPaperclipRequests": 0
+      },
+      "cleanup": {
+        "runnerExited": true,
+        "runnerExitCode": 0,
+        "authorityCleared": true,
+        "mockStopped": true
+      },
+      "usage": {
+        "submittedPrompts": 1,
+        "billedPrompts": null,
+        "tokens": null,
+        "costUsd": null,
+        "coverage": "unavailable",
+        "dashboardBefore": {
+          "onDemandUsd": 0,
+          "includedPoolPercent": [
+            0,
+            0,
+            0
+          ]
+        },
+        "dashboardAfter": {
+          "onDemandUsd": 0,
+          "includedPoolPercent": [
+            0,
+            0,
+            0
+          ]
+        },
+        "dashboardLimitation": "Aggregate display unchanged at coarse precision; this does not prove zero metered usage or zero charge."
+      }
+    }
+  ],
+  "newAccountDiscovery": {
+    "accountContext": "operator-selected replacement account; Pro+ confirmed by operator dashboard",
+    "methods": [
+      {
+        "method": "initialize",
+        "status": "success"
+      },
+      {
+        "method": "cursor/list_available_models",
+        "status": "success"
+      },
+      {
+        "method": "session/new",
+        "status": "success"
+      },
+      {
+        "method": "session/set_model",
+        "status": "success"
+      },
+      {
+        "method": "session/set_config_option",
+        "status": "success"
+      }
+    ],
+    "modelCount": 41,
+    "requestedModel": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+    "exactModelEcho": true,
+    "modelPrompts": 0
+  },
+  "nativeWrapperGap": {
+    "source": "Pinned 5672.index.js entitlement catch",
+    "behavior": "Actionable upgrade, login, payment, and configuration errors become assistant message text without structured failure metadata; ACP completion may still be successful.",
+    "treatment": "Retain raw outcome for qualification and semantic oracle; no string-only terminal heuristic.",
+    "priority": "P1",
+    "followUp": "Upstream typed failure or an owned verified wrapper hook that preserves typed error before it is rendered."
+  },
+  "redactions": [
+    "No tokens, account identifiers, provider session identifiers, private paths, or hidden reasoning retained."
+  ]
+}
