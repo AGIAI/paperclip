@@ -1,11 +1,12 @@
 # Rich ACP integration and qualification report
 
 Updated: 2026-09-28. Base: `c65fc9e3c81c41aafe421aa90a00514b84343285`.
-Mainline integration: `14795136f56c11ed83dc754791945bb5a0b8f7fd`.
+Mainline integration: `992f7202628543749236b5a59af4dbbe7c155cce`.
 Status: implementation is available as four draft PRs; deterministic review and
 CI verification are in progress. All three new
 profiles remain **pending qualification**. Authenticated paid qualification is in
-progress. Cursor and Copilot each passed the first authenticated semantic protocol case.
+progress. Cursor and Copilot each passed the first authenticated semantic protocol case
+and local Product E2E completion. Cursor also passed local file editing and validation.
 The first Pi request reached real semantic tools but did not settle;
 no Daytona resources have been started. This report does not certify a provider
 from its ACP listing or a partial run.
@@ -48,7 +49,7 @@ Codex's row is the existing app-server integration, not the Codex ACP bridge.
 
 | Capability | Codex app-server benchmark | Cursor ACP candidate | Copilot ACP candidate | Pi ACP candidate |
 | --- | --- | --- | --- | --- |
-| Exact model | Selected and reported model | Explicit ID required; exact model echo and first paid semantic protocol case passed; Product E2E pending | Explicit ID required; exact `gpt-5.6-luna` echo and first paid semantic protocol case passed; Product E2E pending | Exact `openrouter/deepseek/deepseek-v4-flash-0731`; real paid response and four semantic tools observed; terminal settlement still unverified |
+| Exact model | Selected and reported model | Explicit ID required; exact echo, paid semantic protocol, local completion and file validation passed | Explicit ID required; exact `gpt-5.6-luna` echo, paid semantic protocol and local completion passed | Exact `openrouter/deepseek/deepseek-v4-flash-0731`; real paid response and four semantic tools observed; terminal settlement still unverified |
 | Text and tools | Typed thread/turn/item events | Standard ACP updates; child activity kept separate | Standard ACP plus opt-in native session events | Wrapper text/tool updates and owned tool gates |
 | Active steering | Dedicated `turn/steer` | Concurrent prompt replaces/cancels, so it is not steering | Concurrent prompt replaces/cancels, so it is not steering | Owned `pi/steer` requires handshake, exact active turn and acknowledgment |
 | Queued follow-up | Product continuation controls | Controller can schedule a later prompt; native queue not established | Native pending-message activity exists; no qualified ACP queue responder | Owned `pi/follow_up`, separately named and ordered |
@@ -61,7 +62,7 @@ Codex's row is the existing app-server integration, not the Codex ACP bridge.
 | Delegation | Typed agent roles and lifecycle | Opt-in subagent lifecycle, nested ownership and bounded child activity; never parent transcript flattening | Native delegation/session events projected with role/model/agent provenance | No built-in ACP delegation protocol; arbitrary extensions are excluded |
 | Files/diffs | Typed file changes and artifact references | Standard tool changes plus validated image references | File/workspace events retained; provider session files are not silently treated as task files | Native read/write/edit diffs; semantic artifact tools |
 | Images/artifacts | Typed references and registered work products | Existing contained files only, provenance, `registered:false` | Contained task references only; external/session-store paths become descriptive notices | Image/resource tool blocks preserved by wrapper; dedicated artifact channel absent |
-| Usage | Per-request receipt and model context | Pinned ACP omitted token receipts on an entitlement-denied turn; unavailable usage retained explicitly | ACP/native usage retained without inventing a billing charge | Assistant-message and compaction token receipts; dollar cost is a catalog pricing estimate, never authoritative billing |
+| Usage | Per-request receipt and model context | Pinned ACP omitted receipts on denied and successful turns; account UI confirms included usage separately | ACP/native tokens retained; account UI confirms included credits separately, without a per-run USD receipt | Assistant-message and compaction token receipts; dollar cost is a catalog pricing estimate, never authoritative billing |
 | Config/model changes | Typed configurable controls | Known modes/model interfaces researched; runtime policy cannot be changed by a display event | Model/reasoning/mode options exist; runtime policy remains authoritative | Exact qualified model; arbitrary slash commands/config/extensions disabled |
 | Reconnect/restart | Durable controller replay and qualified provider restoration | Live-process pending input only until exact restoration is proved | Same; history alone is not approval restoration | Same; wrapper explicitly advertises live-process-only pending-input recovery |
 
@@ -129,10 +130,10 @@ qualification gates, not claims that a JavaScript path check confines a shell.
 
 | Priority | Exposed but unused, partial, or unverified | Reason and next proof |
 | --- | --- | --- |
-| P0 | All paid product cases on local and Daytona | Credentials are now explicitly bound. The 30-cell Product E2E and private 21-cell Runner Eval extended suites are explicit-only. Prove all required outcomes; initial attempts do not qualify a profile. Daytona billing access is still being established. |
+| P0 | Remaining paid product cases on local and Daytona | Credentials are explicitly bound. Cursor local completion/file validation and Copilot local completion passed; question, plan, restart, remaining file and all remote cases remain open. The 30-cell Product E2E and private 21-cell Runner Eval extended suites are explicit-only. Daytona billing access is still being established. |
 | P0 | Copilot native ask-user and plan-decision callbacks | Pinned ACP does not install native responders. Prove no blocking request is exposed, or add a qualified responder/wrapper; never swallow the request. |
 | P0 | Copilot denial and detached background settlement | Offline deny/attached-shell tests pass only their narrow fixtures. Exercise affected native tools and detached commands against real service; failing release stays unqualified. |
-| P0 | Exact Cursor/Copilot model reporting | Authenticated catalog/model echoes observed. Cursor first-account entitlement denial was returned by its native wrapper as ordinary text; the selected paid account is being tested separately. Require successful inference without model fallback. |
+| P0 | Typed Cursor entitlement failure | Exact models and successful inference are observed on the selected paid accounts. Cursor's first-account entitlement denial became ordinary text and normal completion. Preserve this failure and qualify typed failure handling; never infer a successful task from terminal status alone. |
 | P0 | Cursor project and remote hooks; native shell boundaries | Configuration flags do not cover every native source. Demonstrate policy cannot be bypassed before production qualification. |
 | P1 | Native Pi queue selection in the product UI | The runner API exposes negotiated `follow_up` separately from active steering. The current composer has no native queue selector; add one without confusing it with controller-scheduled later turns. |
 | P1 | Native Cursor/Copilot active steering and queues | ACP prompt replacement is not steering; native SDK capabilities may be richer. Require a dedicated bound method plus acknowledgment before advertising. |
@@ -145,6 +146,7 @@ qualification gates, not claims that a JavaScript path check confines a shell.
 | P2 | Remaining Copilot native diagnostic/config/account events | The provider inventory records every event and field, its projection or reason for omission. Preserve bounded useful context; avoid credentials, raw environment or unbounded blobs. |
 | P2 | Pi native extension surfaces and unsupported slash commands | Arbitrary extensions/templates/themes may execute ambient code. Only reviewed runner-owned capabilities are admitted; native plan/fork/goals are not fabricated. |
 | P2 | Conditional native-plan follow-up fields | Cursor's optional rejection-reason field also appears for accept/cancel. The current question renderer has no conditional fields; add conditional presentation without changing the revision-bound decision receipt. |
+| P2 | Cursor command exit code projection | The paid file case preserved native `exitCode: 0` inside output text, while the canonical command field remained null. Normalize a typed, correlated exit code without parsing arbitrary prose; current independent file assertions do not prove this field. |
 
 ## Qualification ledger
 
@@ -154,7 +156,10 @@ Initial reservations are $2 per provider. Measured OpenRouter key-usage delta fo
 the first model-backed Pi attempt: **$0.005748807**. Cursor's first account was
 not entitled; its dashboard was unchanged at the displayed precision, with no
 per-request receipt. Copilot's first session-start failure left its dashboard at
-0/1,500 included AI credits and $0 incremental charges. These measurements are
+0/1,500 included AI credits and $0 incremental charges. After its protocol and
+Product completion tests, GitHub displayed 1/1,500 included credits with additional
+usage still disabled. The selected Cursor account displayed 181.8K included tokens
+across its three qualification requests and zero on-demand tokens. These measurements are
 partial, not a final all-provider total. No Daytona leases have been started.
 Registry downloads, fake-model fixtures and metadata-only authenticated discovery
 are separate from model inference.
@@ -188,6 +193,24 @@ estimate. GitHub still displayed 0/1,500 included credits and additional billing
 disabled with a $0 budget after the run. UI delay/rounding leaves the exact credit
 delta unverified; this is not a provider USD receipt. Neither protocol case proves
 Product E2E, restrictive permissions, restart recovery, or Daytona qualification.
+
+Separate paid Product E2E evidence now records:
+
+| Provider / local case | Exact source revision | Observed result |
+| --- | --- | --- |
+| Cursor / completion | `edf538e61e712dddb6b4d59045c3dcfd445686c7` | 6/6 assertions; committed finalization, one completion marker, cleanup passed |
+| Cursor / file edit and validation | `fe132224c2b30a8d9ce7b46cea38b8760af233fc` | 7/7 assertions; independent final file bytes, visible downloadable workspace artifact, cleanup passed |
+| Copilot / completion | `bcc9c638a25b91b84065f12633f083bd4f7a689f` | 6/6 assertions and cleanup passed; original accounting projection failed independently |
+
+The Cursor file case proves the workspace artifact surface, not complete native
+file/diff projection. The Copilot result incorrectly projected missing native cost
+as USD zero and attributed its biller to OpenAI. The original result is retained;
+the shared fix identifies GitHub, Cursor and OpenRouter correctly and keeps absent
+candidate USD receipts unpriced. Fresh paid evidence is required to verify that fix.
+Protocol evals now fail their cost gate when spend is unknown, preserving completed
+behavior and semantic evidence in a separate accounting-failure result. The
+maintained campaign stops subsequent cells on unknown accounting and never turns
+an unavailable receipt into a zero-dollar measurement.
 
 Initial Product attempts exposed local PostgreSQL postinstall hydration and a
 server candidate-admission gap before any model prompt. Both failed attempts are
