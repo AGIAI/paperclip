@@ -35,7 +35,7 @@ if (
   throw new Error(`Refusing unsafe provider-pack output path: ${outputRoot}`);
 }
 
-const temporaryParent = mkdtempSync(join(tmpdir(), "paperclip-provider-pack-"));
+const temporaryParent = realpathSync(mkdtempSync(join(tmpdir(), "paperclip-provider-pack-")));
 const temporaryRoot = join(temporaryParent, "pack");
 
 function canonicalJson(value) {

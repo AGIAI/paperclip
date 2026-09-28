@@ -1638,7 +1638,10 @@ fn preserve_bounded_display_content(
         }
         return Ok(preserved);
     }
-    if matches!(event_type, "runtime_request.created" | "runtime_request.expired" | "runtime_request.cancelled") {
+    if matches!(
+        event_type,
+        "runtime_request.created" | "runtime_request.expired" | "runtime_request.cancelled"
+    ) {
         if let Some(input) = original.pointer("/request/input") {
             if input.get("schema").and_then(Value::as_str) == Some("paperclip.question_set.v1") {
                 validate_question_set(input)
@@ -3263,7 +3266,15 @@ mod tests {
                 "requestId":"request-1", "replayAllowed":false,
                 "request":{"schema":"paperclip.runtime_request.v2","requestId":"request-1","type":"input","status":"pending","input":input}
             })).unwrap();
-            assert_eq!(state.outbox.last().unwrap().envelope.pointer("/payload/payload/request/input/description"), Some(&json!(text)));
+            assert_eq!(
+                state
+                    .outbox
+                    .last()
+                    .unwrap()
+                    .envelope
+                    .pointer("/payload/payload/request/input/description"),
+                Some(&json!(text))
+            );
         }
 
         let mut oversized = input;
