@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::fs::{self, DirBuilder, File};
 use std::io::{Read, Write};
 use std::net::TcpListener;
@@ -427,6 +427,8 @@ struct AcpxDurableState {
     goal_source_revision: Option<u64>,
     #[serde(default)]
     pending_events: VecDeque<PolledEvent>,
+    #[serde(default)]
+    pending_runtime_requests: BTreeMap<String, Value>,
     #[serde(default = "initial_event_sequence")]
     next_event_sequence: u64,
 }
@@ -452,6 +454,7 @@ impl AcpxDurableState {
             goal_revision: 0,
             goal_source_revision: None,
             pending_events: VecDeque::new(),
+            pending_runtime_requests: BTreeMap::new(),
             next_event_sequence: initial_event_sequence(),
         }
     }
@@ -472,6 +475,7 @@ impl AcpxDurableState {
                 "ACPX durable launch profile digest does not match runner startup",
             ));
         }
+        validate_pending_runtime_requests(&self.pending_runtime_requests)?;
         let mut ids = HashSet::new();
         if self.schema != ACPX_PROVIDER_STATE_SCHEMA
             || self.launch_profile_digest.len() != 71
@@ -491,6 +495,7 @@ impl AcpxDurableState {
                 .attempted_turn_controls
                 .iter()
                 .any(|id| !is_stable_id(id, 160))
+            || (!self.pending_runtime_requests.is_empty() && self.active_turn_id.is_none())
             || self.pending_events.len() > MAX_PENDING_EVENTS
             || self.pending_events.iter().any(|event| {
                 event_sequence(&event.executor_event_id)
@@ -528,11 +533,73 @@ impl AcpxDurableState {
         Ok(())
     }
 
+    fn expire_runtime_requests(
+        &mut self,
+        reason: &str,
+        cancelled: bool,
+    ) -> Result<(), DurableRunnerError> {
+        for request in self
+            .pending_runtime_requests
+            .values()
+            .cloned()
+            .collect::<Vec<_>>()
+        {
+            let input = request.get("type").and_then(Value::as_str) == Some("input");
+            let mut payload = json!({
+                "provider":"acpx", "requestId":request["requestId"],
+                "requestKind":request["requestKind"], "requestType":request["type"],
+                "turnId":request["turnId"], "itemId":request["itemId"],
+                "reason":reason, "replayAllowed":false, "adapter":"acpx-runtime-sidecar",
+            });
+            if input {
+                payload["request"] = request;
+            }
+            self.push(NormalizedProviderEvent {
+                event_type: if cancelled {
+                    "runtime_request.cancelled"
+                } else {
+                    "runtime_request.expired"
+                }
+                .to_owned(),
+                priority: EventPriority::P0,
+                payload,
+            })?;
+        }
+        Ok(())
+    }
+
     fn push(&mut self, event: NormalizedProviderEvent) -> Result<(), DurableRunnerError> {
         if self.pending_events.len() >= MAX_PENDING_EVENTS {
             return Err(DurableRunnerError::invalid(
                 "ACPX provider event backlog exceeds its durable limit",
             ));
+        }
+        if event.event_type == "runtime_request.created" {
+            let request = event.payload.get("request").cloned().ok_or_else(|| {
+                DurableRunnerError::invalid("ACPX runtime request omitted its payload")
+            })?;
+            let request_id = request
+                .get("requestId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| {
+                    DurableRunnerError::invalid("ACPX runtime request omitted its identity")
+                })?
+                .to_owned();
+            let mut next = self.pending_runtime_requests.clone();
+            if next.insert(request_id, request).is_some() {
+                return Err(DurableRunnerError::invalid(
+                    "ACPX runtime request reused a pending durable identity",
+                ));
+            }
+            validate_pending_runtime_requests(&next)?;
+            self.pending_runtime_requests = next;
+        } else if matches!(
+            event.event_type.as_str(),
+            "runtime_request.resolved" | "runtime_request.expired" | "runtime_request.cancelled"
+        ) {
+            if let Some(id) = event.payload.get("requestId").and_then(Value::as_str) {
+                self.pending_runtime_requests.remove(id);
+            }
         }
         let sequence = self.next_event_sequence;
         self.next_event_sequence = sequence
@@ -546,6 +613,53 @@ impl AcpxDurableState {
         });
         Ok(())
     }
+}
+
+fn validate_pending_runtime_requests(
+    requests: &BTreeMap<String, Value>,
+) -> Result<(), DurableRunnerError> {
+    if requests.len() > 1024
+        || serde_json::to_vec(requests).map_or(true, |bytes| bytes.len() > 8 * 1024 * 1024)
+    {
+        return Err(DurableRunnerError::invalid(
+            "ACPX durable runtime request ledger exceeds its bound",
+        ));
+    }
+    for (id, request) in requests {
+        let input = request.get("type").and_then(Value::as_str) == Some("input");
+        if !is_stable_id(id, 160)
+            || request.get("requestId").and_then(Value::as_str) != Some(id)
+            || request.get("schema").and_then(Value::as_str) != Some("paperclip.runtime_request.v2")
+            || request.get("status").and_then(Value::as_str) != Some("pending")
+            || request.get("requestKind").and_then(Value::as_str)
+                != Some(if input {
+                    "runtime"
+                } else {
+                    "permission_approval"
+                })
+            || (!input && request.get("type").and_then(Value::as_str) != Some("permission"))
+            || ["turnId", "itemId"].iter().any(|field| {
+                request
+                    .get(field)
+                    .and_then(Value::as_str)
+                    .is_none_or(|value| !is_stable_id(value, DURABLE_STABLE_ID_CHARS))
+            })
+            || (input
+                && request.pointer("/input/schema").and_then(Value::as_str)
+                    != Some("paperclip.question_set.v1"))
+            || (!input && request.get("input").is_some())
+            || serde_json::to_vec(request).map_or(true, |bytes| bytes.len() > 256 * 1024)
+        {
+            return Err(DurableRunnerError::invalid(
+                "ACPX durable runtime request ledger has an invalid identity or type",
+            ));
+        }
+        if input {
+            crate::acpx_event_payload::validate_question_set(&request["input"])
+                .map_err(|error| DurableRunnerError::invalid(error.to_string()))?;
+        }
+    }
+    Ok(())
 }
 
 pub struct AcpxCommandExecutor {
@@ -675,6 +789,7 @@ impl AcpxCommandExecutor {
                 .state
                 .as_mut()
                 .expect("ACPX state remains available during recovery");
+            state.expire_runtime_requests("provider_process_lost", false)?;
             state.lifecycle = "closed".to_owned();
             state.active_turn_id = None;
             state.provider_exit_unconfirmed = true;
@@ -1285,6 +1400,7 @@ impl AcpxCommandExecutor {
             .state
             .as_mut()
             .expect("ACPX state remains available after provider termination");
+        state.expire_runtime_requests("explicit_cancellation", true)?;
         state.active_turn_id = None;
         self.context.provider_turn_id = None;
         // Persist a non-attachable, recoverable boundary before the fallible
@@ -1358,6 +1474,10 @@ impl AcpxCommandExecutor {
         .map_err(|error| {
             DurableRunnerError::invalid(format!("ACPX runtime response failed: {error}"))
         })?;
+        if let Some(state) = self.state.as_mut() {
+            state.pending_runtime_requests.remove(request_id);
+        }
+        self.save_state()?;
         Ok(CommandExecution {
             result: json!({"status": "delivered", "requestId": request_id}),
             events: vec![(
@@ -1421,6 +1541,7 @@ impl AcpxCommandExecutor {
             .state
             .as_mut()
             .ok_or_else(|| DurableRunnerError::invalid("ACPX provider is not prepared"))?;
+        state.expire_runtime_requests("explicit_cancellation", true)?;
         state.lifecycle = "closed".to_owned();
         state.active_turn_id = None;
         self.context.provider_turn_id = None;
@@ -1480,7 +1601,7 @@ impl AcpxCommandExecutor {
         if self
             .state
             .as_ref()
-            .is_some_and(|state| !state.pending_events.is_empty())
+            .is_some_and(|state| !state.pending_events.is_empty() || state.lifecycle == "closed")
             || self.session.is_none()
         {
             return Ok(());
@@ -1490,10 +1611,33 @@ impl AcpxCommandExecutor {
                 .session
                 .as_mut()
                 .expect("ACPX session remains available while polling")
-                .poll_event(Duration::from_millis(1))
-                .map_err(|error| {
-                    DurableRunnerError::invalid(format!("ACPX provider failed: {error}"))
-                })?;
+                .poll_event(Duration::from_millis(1));
+            let events = match events {
+                Ok(events) => events,
+                Err(error) => {
+                    let state = self
+                        .state
+                        .as_mut()
+                        .expect("ACPX failed provider has durable state");
+                    state.expire_runtime_requests("provider_process_lost", false)?;
+                    let failed_turn = state.active_turn_id.take();
+                    state.lifecycle = "closed".to_owned();
+                    state.provider_exit_unconfirmed = true;
+                    if let Some(turn_id) = failed_turn {
+                        state.push(NormalizedProviderEvent { event_type: "turn.failed".to_owned(), priority: EventPriority::P0,
+                            payload: json!({"provider":"acpx","providerTurnId":turn_id,"status":"failed","providerTerminalObserved":false,
+                                "code":"acpx_provider_transport_failed","message":crate::durable::redact_text(&error.to_string())}) })?;
+                        state.push(NormalizedProviderEvent { event_type: "run.terminal".to_owned(), priority: EventPriority::P0,
+                            payload: json!({"schema":"paperclip.prp.terminal.v1","status":"failed","turnTerminalState":"failed","runTerminalState":"failed","reportedWorkDisposition":"unknown","provider":"acpx"}) })?;
+                    }
+                    self.context.provider_turn_id = None;
+                    // A failed transport cannot attest escaped provider cleanup.
+                    // Drop the closed process owner; later cleanup must prove the lifetime fence.
+                    self.session = None;
+                    self.save_state()?;
+                    return Ok(());
+                }
+            };
             let Some(events) = events else { break };
             let mut provider_turn_settled = false;
             for event in events {
@@ -1976,6 +2120,87 @@ mod tests {
         })
     }
 
+    fn pending_input_request(id: &str) -> Value {
+        json!({"schema":"paperclip.runtime_request.v2","requestId":id,"requestKind":"runtime","type":"input","status":"pending",
+            "turnId":"turn-1","itemId":"item-1","prompt":"Choose","input":{"schema":"paperclip.question_set.v1","questions":[{"id":"q","prompt":"Choose","answerMode":"text","required":true}]},
+            "origin":{"adapter":"acpx-runtime-sidecar","provider":"cursor","method":"cursor/ask_question"}})
+    }
+
+    #[test]
+    fn durable_runtime_ledger_retains_only_unsettled_requests_and_rejects_forged_types() {
+        let operations = Vec::new();
+        let tool_set = AuthorizedToolSet {
+            schema: TOOL_SET_SCHEMA.into(),
+            schema_version: 1,
+            catalog_digest: authorized_tool_catalog_digest(&operations).unwrap(),
+            operations,
+        };
+        let mut state = AcpxDurableState::new(
+            serde_json::from_value(descriptor("codex")).unwrap(),
+            tool_set,
+            "test".into(),
+        );
+        state
+            .push(NormalizedProviderEvent {
+                event_type: "runtime_request.created".into(),
+                priority: EventPriority::P0,
+                payload: json!({"request":pending_input_request("input-1")}),
+            })
+            .unwrap();
+        assert!(state
+            .push(NormalizedProviderEvent {
+                event_type: "runtime_request.created".into(),
+                priority: EventPriority::P0,
+                payload: json!({"request":pending_input_request("input-1")})
+            })
+            .is_err());
+        let mut forged = pending_input_request("forged");
+        forged["requestKind"] = json!("permission_approval");
+        assert!(state
+            .push(NormalizedProviderEvent {
+                event_type: "runtime_request.created".into(),
+                priority: EventPriority::P0,
+                payload: json!({"request":forged})
+            })
+            .is_err());
+        state.pending_events.clear();
+        let mut restored: AcpxDurableState =
+            serde_json::from_value(serde_json::to_value(&state).unwrap()).unwrap();
+        restored
+            .expire_runtime_requests("provider_process_lost", false)
+            .unwrap();
+        assert_eq!(restored.pending_events.len(), 1);
+        assert_eq!(
+            restored.pending_events[0].event_type,
+            "runtime_request.expired"
+        );
+        assert_eq!(
+            restored.pending_events[0].payload["request"],
+            pending_input_request("input-1")
+        );
+        assert_eq!(restored.pending_events[0].payload["replayAllowed"], false);
+        restored
+            .expire_runtime_requests("provider_process_lost", false)
+            .unwrap();
+        assert_eq!(restored.pending_events.len(), 1);
+        state
+            .push(NormalizedProviderEvent {
+                event_type: "runtime_request.resolved".into(),
+                priority: EventPriority::P0,
+                payload: json!({"requestId":"input-1"}),
+            })
+            .unwrap();
+        assert!(state.pending_runtime_requests.is_empty());
+        let mut old = serde_json::to_value(state).unwrap();
+        old.as_object_mut()
+            .unwrap()
+            .remove("pendingRuntimeRequests");
+        assert!(serde_json::from_value::<AcpxDurableState>(old)
+            .unwrap()
+            .pending_runtime_requests
+            .is_empty());
+    }
+
     #[test]
     fn retained_events_exposes_terminal_suffix_without_restoring_provider() {
         let directory = temporary_directory("retained-terminal-suffix");
@@ -2382,6 +2607,15 @@ mod tests {
         state.lifecycle = "turn_active".to_owned();
         state.identity = Some(identity);
         state.active_turn_id = Some("turn-1".to_owned());
+        state
+            .push(NormalizedProviderEvent {
+                event_type: "runtime_request.created".into(),
+                priority: EventPriority::P0,
+                payload: json!({"request":pending_input_request("restart-input")}),
+            })
+            .unwrap();
+        state.pending_events.clear(); // The controller already acknowledged creation.
+
         let config = test_config(&directory, Some(launch_profile));
         let mut original = AcpxCommandExecutor::with_runner_config(&directory, &config);
         original.state = Some(state);
@@ -2443,11 +2677,15 @@ mod tests {
         assert_eq!(snapshot.result["status"], "closed");
         assert!(!marker.exists());
         let events = recovered.poll_events().unwrap();
-        assert_eq!(events[0].event_type, "turn.failed");
-        assert_eq!(events[0].payload["providerShutdownFailed"], true);
-        assert_eq!(events[1].event_type, "run.terminal");
-        assert_eq!(events[1].payload["schema"], "paperclip.prp.terminal.v1");
-        assert_eq!(events[1].payload["turnTerminalState"], "failed");
+        assert_eq!(events[0].event_type, "runtime_request.expired");
+        assert_eq!(events[0].payload["requestId"], "restart-input");
+        assert_eq!(events[0].payload["replayAllowed"], false);
+        assert_eq!(events[1].event_type, "turn.failed");
+        assert_eq!(events[1].payload["providerShutdownFailed"], true);
+        assert_eq!(events[2].event_type, "run.terminal");
+        assert_eq!(events[2].payload["schema"], "paperclip.prp.terminal.v1");
+        assert_eq!(events[2].payload["turnTerminalState"], "failed");
+        assert_eq!(recovered.poll_events().unwrap(), events);
         let cleanup_error = recovered
             .shutdown()
             .expect_err("cleanup must not succeed while the original lifetime remains active");

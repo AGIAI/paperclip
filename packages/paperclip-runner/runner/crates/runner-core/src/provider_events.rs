@@ -254,7 +254,7 @@ pub fn project_acpx_state_event(
                         .and_then(Value::as_str)
                 })
                 .map(|value| bounded_text(value, MAX_TEXT_CHARS))
-                .unwrap_or_else(|| "Codex needs your input".to_owned());
+                .unwrap_or_else(|| "Provider needs your input".to_owned());
             let origin = project_runtime_request_origin(origin.as_ref())?;
             one(
                 "runtime_request.created",
@@ -273,6 +273,60 @@ pub fn project_acpx_state_event(
                         "origin": origin,
                     },
                 }),
+            )
+        }
+        AcpxProviderStateEvent::RuntimeRequestEnded {
+            request_id,
+            question_set,
+            origin,
+            status,
+        } => {
+            let cancelled = matches!(
+                status,
+                AcpxTurnStatus::Cancelled | AcpxTurnStatus::Interrupted
+            );
+            let reason = match status {
+                AcpxTurnStatus::Completed => "turn_completed",
+                AcpxTurnStatus::Failed => "provider_process_lost",
+                _ => "explicit_cancellation",
+            };
+            let (request_id, request) = if let Some(question_set) = question_set {
+                let created = project_acpx_state_event(
+                    context,
+                    &AcpxProviderStateEvent::InputRequest {
+                        request_id: request_id.clone(),
+                        question_set: question_set.clone(),
+                        origin: origin.clone(),
+                    },
+                )?;
+                let request = created[0].payload["request"].clone();
+                (request["requestId"].clone(), Some(request))
+            } else {
+                validate_projection_identity(
+                    request_id,
+                    "permission request",
+                    SHORT_STABLE_ID_CHARS,
+                )?;
+                (json!(request_id), None)
+            };
+            let mut payload = json!({
+                "provider":"acpx", "requestId":request_id,
+                "requestKind": if request.is_some() {"runtime"} else {"permission_approval"},
+                "requestType": if request.is_some() {"input"} else {"permission"},
+                "turnId":context.turn_id, "itemId":context.item_id,
+                "reason":reason, "replayAllowed":false, "adapter":"acpx-runtime-sidecar",
+            });
+            if let Some(request) = request {
+                payload["request"] = request;
+            }
+            one(
+                if cancelled {
+                    "runtime_request.cancelled"
+                } else {
+                    "runtime_request.expired"
+                },
+                EventPriority::P0,
+                payload,
             )
         }
         AcpxProviderStateEvent::SemanticResult(result) => {

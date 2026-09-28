@@ -61,6 +61,12 @@ pub enum AcpxProviderStateEvent {
         question_set: Value,
         origin: Option<Value>,
     },
+    RuntimeRequestEnded {
+        request_id: String,
+        question_set: Option<Value>,
+        origin: Option<Value>,
+        status: AcpxTurnStatus,
+    },
     SemanticResult(AcpxSemanticResult),
     AssistantMessage {
         turn_id: String,
@@ -84,6 +90,7 @@ struct PendingInput {
     runtime_request_id: String,
     value_bytes: usize,
     question_set: Value,
+    origin: Option<Value>,
 }
 
 /// Reduces validated sidecar events into bounded provider state.
@@ -273,7 +280,8 @@ impl AcpxProviderState {
                 question_set,
                 origin,
             } => {
-                let value_bytes = value_bytes(&question_set)?;
+                let value_bytes = value_bytes(&question_set)?
+                    + origin.as_ref().map(value_bytes).transpose()?.unwrap_or(0);
                 self.admit_runtime_request(&request_id, value_bytes)?;
                 let runtime_request_id = project_acpx_runtime_request_id(&request_id)
                     .expect("a decoded ACPX input request has a bounded identity");
@@ -295,6 +303,7 @@ impl AcpxProviderState {
                             runtime_request_id,
                             value_bytes,
                             question_set: question_set.clone(),
+                            origin: origin.clone(),
                         },
                     )
                     .is_some()
@@ -355,8 +364,8 @@ impl AcpxProviderState {
                     .expect("a decoded terminal event has a turn binding")
                     .to_owned();
                 self.scope.clear_turn(&turn_id)?;
+                let mut events = self.end_pending_runtime_requests(status);
                 self.clear_pending_requests();
-                let mut events = Vec::new();
                 if status == AcpxTurnStatus::Completed && !self.assistant_text.is_empty() {
                     events.push(AcpxProviderStateEvent::AssistantMessage {
                         turn_id: turn_id.clone(),
@@ -610,6 +619,31 @@ impl AcpxProviderState {
             ));
         }
         Ok(())
+    }
+
+    pub(crate) fn end_pending_runtime_requests(
+        &mut self,
+        status: AcpxTurnStatus,
+    ) -> Vec<AcpxProviderStateEvent> {
+        let mut events = Vec::new();
+        for (request_id, _) in std::mem::take(&mut self.pending_permissions) {
+            events.push(AcpxProviderStateEvent::RuntimeRequestEnded {
+                request_id,
+                question_set: None,
+                origin: None,
+                status,
+            });
+        }
+        for (request_id, pending) in std::mem::take(&mut self.pending_inputs) {
+            events.push(AcpxProviderStateEvent::RuntimeRequestEnded {
+                request_id,
+                question_set: Some(pending.question_set),
+                origin: pending.origin,
+                status,
+            });
+        }
+        self.pending_runtime_request_bytes = 0;
+        events
     }
 
     fn clear_pending_requests(&mut self) {
