@@ -15,7 +15,6 @@ import {
   scanNativeStateFile,
   NATIVE_JOURNAL_PROJECTION_BUDGET,
 } from "./native-journal-projection.js";
-import { runnerdStateProvesIncompleteBootstrap } from "./native-session-executor.js";
 const roots: string[] = [];
 afterEach(() => {
   vi.restoreAllMocks();
@@ -44,8 +43,8 @@ const event = (type: string, payload: unknown) => ({
   },
 });
 describe("bounded native journal proof projection", () => {
-  it("does not materialize large tool history during a real controller admission read", () => {
-    const { root } = fixture(
+  it("does not materialize large tool history in the proof scanner", () => {
+    const { path } = fixture(
       JSON.stringify({
         schema: "paperclip.runner.durable.control-plane-state.v1",
         identity: { runId: "run-1" },
@@ -62,7 +61,9 @@ describe("bounded native journal proof projection", () => {
       sizes.push(text.length);
       return parse(text, reviver);
     });
-    expect(runnerdStateProvesIncompleteBootstrap(root)).toBe(false);
+    expect(readNativeJournalProjection(path).retainedBudgetBytes).toBeLessThan(
+      NATIVE_JOURNAL_PROJECTION_BUDGET,
+    );
     expect(Math.max(...sizes)).toBeLessThan(NATIVE_JOURNAL_PROJECTION_BUDGET);
   });
   it("hashes omitted bytes while retaining semantic and process proof", () => {
@@ -146,7 +147,7 @@ describe("bounded native journal proof projection", () => {
     const { path } = fixture(
       JSON.stringify({
         schema: "s",
-        identity: { runId: "x".repeat(4 * 1024 * 1024) },
+        identity: { runId: "x".repeat(8 * 1024 * 1024) },
       }),
     );
     expect(() => readNativeJournalProjection(path)).toThrow(
@@ -160,7 +161,10 @@ describe("bounded native journal proof projection", () => {
         commands: [
           {
             type: "semantic_tool.result",
-            payload: { input: "x".repeat(4 * 1024 * 1024) },
+            payload: {
+              operationId: "paperclip_finish",
+              input: "x".repeat(8 * 1024 * 1024),
+            },
             result: null,
           },
         ],
@@ -169,6 +173,213 @@ describe("bounded native journal proof projection", () => {
     expect(() => readNativeJournalProjection(path)).toThrow(
       "native_journal_projection_budget_exceeded",
     );
+  });
+  it("admits many individually bounded semantic results without retaining their ordinary output", () => {
+    const commands = Array.from({ length: 24 }, (_, index) => ({
+      commandId: `command-${index}`,
+      controllerSeq: index + 1,
+      type: "semantic_tool.result",
+      status: "completed",
+      payload: {
+        operationId: "call_api",
+        callId: `call-${index}`,
+        input: { path: "/api/issues" },
+        result: { text: "x".repeat(500 * 1024) },
+      },
+      result: { status: "completed", result: { callId: `call-${index}` } },
+    }));
+    expect(
+      commands.every(
+        (command) =>
+          Buffer.byteLength(JSON.stringify(command)) < 1024 * 1024 - 4096,
+      ),
+    ).toBe(true);
+    const raw = JSON.stringify({
+      schema: "schema",
+      identity: { runId: "run-1" },
+      commands,
+      committedEvents: [
+        event("mcp_app.tool_input", { input: "x".repeat(500 * 1024) }),
+        event("semantic_tool.input", {
+          semantic_tool: {
+            operationId: "call_api",
+            input: "x".repeat(500 * 1024),
+          },
+        }),
+        event("harness.diagnostic", {
+          providerMethod: "acpx/process",
+          pid: 42,
+          output: "x".repeat(500 * 1024),
+        }),
+      ],
+    });
+    expect(Buffer.byteLength(raw)).toBeGreaterThan(
+      NATIVE_JOURNAL_PROJECTION_BUDGET,
+    );
+    const { path } = fixture(raw),
+      proof = readNativeJournalProjection(path);
+    expect(proof.sha256).toBe(createHash("sha256").update(raw).digest("hex"));
+    expect(proof.retainedBudgetBytes).toBeLessThan(64 * 1024);
+    expect(proof.value).toMatchObject({
+      commands: commands.map((command) => ({
+        commandId: command.commandId,
+        status: "completed",
+      })),
+      committedEvents: [
+        { eventType: "mcp_app.tool_input" },
+        {
+          envelope: {
+            payload: {
+              payload: { semantic_tool: { operationId: "call_api" } },
+            },
+          },
+        },
+        {
+          envelope: {
+            payload: { payload: { providerMethod: "acpx/process", pid: 42 } },
+          },
+        },
+      ],
+    });
+    expect(JSON.stringify(proof.value)).not.toContain('"output"');
+    expect(JSON.stringify(proof.value)).not.toContain('"text"');
+  });
+  it("charges retained keys once, releasing discarded and superseded fields", () => {
+    const discarded = Array.from(
+      { length: 15000 },
+      (_, index) => `"discard-${index}":0`,
+    ).join(",");
+    const duplicate = Array.from(
+      { length: 10000 },
+      () => '"runId":"same"',
+    ).join(",");
+    const { path } = fixture(`{"identity":{${duplicate}},${discarded}}`);
+    const simple = fixture('{"identity":{"runId":"same"}}');
+    const proof = readNativeJournalProjection(path);
+    expect(proof.value).toEqual({ identity: { runId: "same" } });
+    expect(proof.retainedBudgetBytes).toBe(
+      readNativeJournalProjection(simple.path).retainedBudgetBytes,
+    );
+  });
+  it("keeps the full 4096-event writer window with maximum-length durable identity headers", () => {
+    const committedEvents = Array.from({ length: 4096 }, (_, index) => ({
+      ...event("item.completed", { text: "ordinary output", processId: 42 }),
+      sourceSeq: index + 1,
+      sourceEventId: `${index}`.padEnd(160, "x"),
+      envelope: {
+        runId: "r".repeat(160),
+        normalizedSessionId: "s".repeat(160),
+        payload: {
+          schema: "paperclip.prp.event.v1",
+          sourceSeq: index + 1,
+          sourceEventId: `${index}`.padEnd(160, "x"),
+          sourceInstanceId: "i".repeat(160),
+          runId: "r".repeat(160),
+          normalizedSessionId: "s".repeat(160),
+          turnId: "t".repeat(240),
+          itemId: "i".repeat(240),
+          eventType: "item.completed",
+          payload: { text: "ordinary output", processId: 42 },
+        },
+      },
+    }));
+    const raw = JSON.stringify({ committedEvents }),
+      { path } = fixture(raw);
+    const proof = readNativeJournalProjection(path);
+    expect(
+      (proof.value as { committedEvents: unknown[] }).committedEvents,
+    ).toHaveLength(4096);
+    expect(proof.retainedBudgetBytes).toBeLessThan(
+      NATIVE_JOURNAL_PROJECTION_BUDGET,
+    );
+    expect(proof.sha256).toBe(createHash("sha256").update(raw).digest("hex"));
+  });
+  it("retains finish validation fields and every provider process owner", () => {
+    const semantic = {
+      operationId: "paperclip_finish",
+      input: { summary: "exact" },
+      correlation: { runId: "run-1", extraBinding: "retain" },
+      content: { digest: "retain" },
+      artifactRefs: "malformed",
+      retryable: "malformed",
+      unrelatedOutput: "discard",
+    };
+    const { path } = fixture(
+      JSON.stringify({
+        commands: [
+          {
+            type: "semantic_tool.result",
+            payload: {
+              ...semantic,
+              isError: false,
+              result: { success: true, output: "discard" },
+              sourceEventId: "event-1",
+            },
+            result: {
+              status: "completed",
+              result: { callId: "call-1", output: "discard" },
+            },
+          },
+        ],
+        committedEvents: [
+          event("semantic_tool.input", { semantic_tool: semantic }),
+          event("session.reconciled", {
+            processId: 11,
+            providerAccountSessionId: "account-session",
+            previousProcessId: 10,
+            providerDescriptor: { agentPid: 12 },
+            providerIdentity: { processGroupId: 13 },
+            runtimeIdentity: { sidecarPid: 14 },
+            output: "discard",
+          }),
+        ],
+      }),
+    );
+    const proof = readNativeJournalProjection(path);
+    expect(proof.value).toMatchObject({
+      commands: [
+        {
+          payload: {
+            input: semantic.input,
+            correlation: semantic.correlation,
+            isError: false,
+            result: { success: true },
+          },
+          result: { result: { callId: "call-1" } },
+        },
+      ],
+      committedEvents: [
+        {
+          envelope: {
+            payload: {
+              payload: {
+                semantic_tool: {
+                  input: semantic.input,
+                  artifactRefs: "malformed",
+                  retryable: "malformed",
+                  correlation: semantic.correlation,
+                },
+              },
+            },
+          },
+        },
+        {
+          envelope: {
+            payload: {
+              payload: {
+                processId: 11,
+                providerAccountSessionId: "account-session",
+                previousProcessId: 10,
+                providerDescriptor: { agentPid: 12 },
+                providerIdentity: { processGroupId: 13 },
+                runtimeIdentity: { sidecarPid: 14 },
+              },
+            },
+          },
+        },
+      ],
+    });
+    expect(JSON.stringify(proof.value)).not.toContain("discard");
   });
   it("keeps the turn identity without materializing unrelated turn result text", () => {
     const { path } = fixture(
