@@ -95,6 +95,7 @@ export async function runProbe(packInput, output, scenario, token) {
     exitPromise = new Promise(resolve => child.once("close", (code, signal) => { failPending("provider_exited"); resolve({ code, signal }); }));
     outerTimer = setTimeout(() => { failPending("outer_deadline"); child.kill("SIGTERM"); }, 180_000);
     child.once("error", () => failPending("provider_spawn_failure"));
+    child.stdin.on("error", () => failPending("provider_stdin_failure"));
     child.stderr.on("data", () => {});
     child.stdout.on("data", chunk => {
       bytes += chunk.length;
@@ -155,11 +156,12 @@ export async function runProbe(packInput, output, scenario, token) {
     process.removeListener("SIGTERM", onShutdown); process.removeListener("SIGINT", onShutdown);
     if (child) {
       child.stdin.end();
-      const killGroup = signal => { try { process.kill(-child.pid, signal); } catch (error) { if (error.code !== "ESRCH") throw error; } };
+      const groupId = Number.isSafeInteger(child.pid) && child.pid > 0 ? child.pid : null;
+      const killGroup = signal => { if (groupId === null) return; try { process.kill(-groupId, signal); } catch (error) { if (error.code !== "ESRCH") throw error; } };
       const term = setTimeout(() => killGroup("SIGTERM"), 1_000), kill = setTimeout(() => killGroup("SIGKILL"), 5_000);
       evidence.providerExit = await exitPromise;
       clearTimeout(term); clearTimeout(kill); killGroup("SIGTERM");
-      const groupAlive = () => { try { process.kill(-child.pid, 0); return true; } catch (error) { if (error.code !== "ESRCH") throw error; return false; } };
+      const groupAlive = () => { if (groupId === null) return false; try { process.kill(-groupId, 0); return true; } catch (error) { if (error.code !== "ESRCH") throw error; return false; } };
       for (let index = 0; index < 20 && groupAlive(); index++) await new Promise(resolve => setTimeout(resolve, 50));
       if (groupAlive()) killGroup("SIGKILL");
       for (let index = 0; index < 20 && groupAlive(); index++) await new Promise(resolve => setTimeout(resolve, 50));

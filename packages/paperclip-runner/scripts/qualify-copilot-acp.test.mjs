@@ -55,7 +55,7 @@ createInterface({input:process.stdin}).on('line', line => {
  if(m.method==='session/prompt'){promptId=m.id;send({id:0,method:'session/request_permission',params:{sessionId:'fixture-session',toolCall:{kind:'edit',rawInput:{path:process.cwd()+'/qualification-marker.txt'}},options:${JSON.stringify(options)}}});return;}
  send({id:m.id,result});
 }).on('close',()=>process.exit(0));`);
-    await writeFile(join(moduleRoot, "profile-installation.js"), `import { spawn } from 'node:child_process'; export const assertAcpxProfileEnvironment=()=>{}; export const verifyAcpxProfileInstallation=async()=>({commandDigest:'fixture-only',openCommand:async()=>({spawn:(_args,options)=>spawn(${JSON.stringify(process.execPath)},[${JSON.stringify(childScript)}],options),close:async()=>{}})});`);
+    await writeFile(join(moduleRoot, "profile-installation.js"), `import { spawn } from 'node:child_process'; export const assertAcpxProfileEnvironment=()=>{}; export const verifyAcpxProfileInstallation=async()=>({commandDigest:'fixture-only',openCommand:async()=>({spawn:(_args,options)=>spawn(options.env.COPILOT_GITHUB_TOKEN === "fixture-spawn-failure" ? "/paperclip-fixture-missing-executable" : ${JSON.stringify(process.execPath)},[${JSON.stringify(childScript)}],options),close:async()=>{}})});`);
     const output = join(root, "output.json");
     const result = await runProbe(root, output, "deny-write", "fixture-token-never-used-for-network");
     const evidence = JSON.parse(await readFile(output, "utf8"));
@@ -65,5 +65,12 @@ createInterface({input:process.stdin}).on('line', line => {
     assert.equal(evidence.cleanupComplete, true);
     assert.ok(evidence.markerSamples.every(sample => !sample.exists));
     assert.equal(evidence.providerReportedCostUsd, null);
+    const failedOutput = join(root, "spawn-failure.json");
+    const failed = await runProbe(root, failedOutput, "deny-write", "fixture-spawn-failure");
+    const failedEvidence = JSON.parse(await readFile(failedOutput, "utf8"));
+    assert.equal(failed.passed, false);
+    assert.equal(failedEvidence.promptRequestsSent, 0);
+    assert.equal(failedEvidence.cleanupComplete, true);
+    assert.match(failedEvidence.failureCode, /provider_(spawn|stdin)_failure/);
   } finally { await rm(root, { recursive: true, force: true }); }
 });
