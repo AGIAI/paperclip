@@ -406,8 +406,19 @@ every field in Pi's native event stream. These are explicit follow-ups:
 
 ## Authenticated local qualification progress
 
+The first [v4 plan attempt](../../packages/paperclip-runner/test-fixtures/pi-acp/product-plan-infrastructure-failure.v4.darwin-arm64.json)
+failed before provider startup: embedded PostgreSQL could not initialize the
+Product fixture. Canonical classification is `transient_infrastructure`, with
+zero provider prompts and two unchanged post-attempt key-billing observations.
+The fixture directory is gone and no matching process remains. A later read-only
+host snapshot shows 87,263 of 87,381 SysV semaphores in use, supporting a resource
+constraint; the original bootstrap stderr is unavailable, so its exact cause is
+not claimed. No unrelated database or IPC object was changed. Further paid
+qualification is held until a supported database resource path is available.
+
+
 The [sanitized attempt ledger](../../packages/paperclip-runner/test-fixtures/pi-acp/paid-qualification-progress.darwin-arm64.json)
-retains all seventeen attempts, including seven failures before a model prompt. One
+retains all eighteen attempts, including eight failures before a model prompt. One
 Runner protocol turn reached the exact model and successfully called `get_task_context`, `get_task_history`,
 `list_documents`, and `read_document`. The canonical case permits those extra
 orientation reads, but also requires a completed turn; it timed out after 120s

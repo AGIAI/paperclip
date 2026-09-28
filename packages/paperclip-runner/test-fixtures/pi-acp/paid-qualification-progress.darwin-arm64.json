@@ -649,6 +649,25 @@
       },
       "diagnosis": "All three distinct resumed semantic executions reuse native call_0. Owned extension forwards it as MCP JSON-RPC id, causing shared exact-call dedupe to reject later corrected/different requests.",
       "evidence": "product-plan-resume-failure.darwin-arm64.json"
+    },
+    {
+      "attemptId": "pi-product-plan-03",
+      "family": "Product E2E",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.plan-approve-complete",
+      "sourceRevision": "92bcd6f07ae9a3905333dbaa2542b1401945f5fa",
+      "runtimeSourceRevision": "f556110d588a9de9fefe676a9a62bf09e98afb85",
+      "profileVersion": 4,
+      "profileDigest": "sha256:2324d9b47650c12b16f8e2c44dc33637d52f1b22ba8e914623eac4049e7e1991",
+      "providerPackDigest": "sha256:4df7e9fa164929c7ae7d8e8711f0bf7d587d9fa6a246d0a8340f318f57168855",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "status": "failed",
+      "failureClass": "transient_infrastructure",
+      "failurePhase": "embedded PostgreSQL fixture bootstrap",
+      "providerPromptCalls": 0,
+      "billingDeltaUsd": 0,
+      "terminalUsage": null,
+      "automaticRetries": 0,
+      "evidence": "product-plan-infrastructure-failure.v4.darwin-arm64.json"
     }
   ],
   "observedSemanticOperations": {
@@ -716,6 +735,17 @@
       "nativeRustTestsPassed": 16,
       "offlineProof": "offline-provider-pack-proof.darwin-arm64.json",
       "linuxInitializeProof": "offline-native-proof.linux-x64.v3.json"
+    },
+    "version4": {
+      "source": "f556110d588a9de9fefe676a9a62bf09e98afb85",
+      "offlineProof": "offline-provider-pack-proof.v4.darwin-arm64.json",
+      "recursiveTypecheck": "passed",
+      "fullBuild": "passed",
+      "focusedTypeScriptTestsPassed": 49,
+      "optionalInstallationSuitePassed": 5,
+      "installedPackageAndMaterializerTestsPassed": 24,
+      "nativeRustTestsPassed": 13,
+      "authenticatedQualification": "blocked before provider startup by local database fixture infrastructure"
     }
   },
   "publicationBoundary": {
@@ -726,7 +756,7 @@
   },
   "remaining": [
     "Successful canonical Runner protocol completion",
-    "Semantic plan approval with canonical write boundary, pending-input restart, and refreshed version3 Product hello",
+    "Semantic plan approval with canonical write boundary, pending-input restart, and refreshed version4 Product hello",
     "Durable native pending-request reconnect/recovery beyond direct ACP controls",
     "Complete token and price/billing coverage, separate from catalog estimates",
     "Linux x64 Daytona authenticated qualification"
