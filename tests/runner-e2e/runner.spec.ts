@@ -1551,6 +1551,7 @@ for (const execution of executions) {
                 stateRoot: path.join(process.env.PAPERCLIP_HOME!, "instances", process.env.PAPERCLIP_INSTANCE_ID!, "runtime", "paperclip-runner", "durable-sessions"),
                 runId: chronologicalRuns.at(-1)!.id,
                 minimumBytes: 2 * 1024 * 1024,
+                minimumCompletedStimulusCalls: 240,
               })
             : undefined;
           if (journalEvidence) {
