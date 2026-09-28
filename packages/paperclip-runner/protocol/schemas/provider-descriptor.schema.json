@@ -18,7 +18,7 @@
     "endpointQualifier": { "type": "string", "minLength": 1, "maxLength": 240 },
     "memoryId": { "type": "string", "minLength": 1, "maxLength": 240 },
     "eventExpiryDays": { "const": 90 },
-    "agent": { "enum": ["pi", "claude", "codex"] },
+    "agent": { "enum": ["pi", "claude", "codex", "cursor", "copilot"] },
     "requestedModel": { "type": "string", "minLength": 1, "maxLength": 240 },
     "acpProtocolVersion": { "const": 1 },
     "agentServerPackage": { "type": "string", "minLength": 1, "maxLength": 240 },

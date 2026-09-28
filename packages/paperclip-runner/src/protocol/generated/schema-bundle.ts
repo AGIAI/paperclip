@@ -650,7 +650,9 @@ export const providerDescriptorSchema = {
       "enum": [
         "pi",
         "claude",
-        "codex"
+        "codex",
+        "cursor",
+        "copilot"
       ]
     },
     "requestedModel": {

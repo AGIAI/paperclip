@@ -125,7 +125,7 @@ export const PAPERCLIP_RUNNER_PERMISSION_CAPABILITIES = {
         value: "approve-reads",
         label: "Allow Paperclip reads",
         description:
-          "Automatically allow assigned Paperclip read tools. Other operations stop with an approval-required message because this runner has no interactive approval handler.",
+          "Automatically allow assigned Paperclip read tools. Other operations request a supported permission decision. Company permissions and execution boundaries still apply.",
       },
       {
         value: "deny-all",

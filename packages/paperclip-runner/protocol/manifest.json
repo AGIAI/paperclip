@@ -65,7 +65,7 @@
     {
       "path": "schemas/provider-descriptor.schema.json",
       "id": "https://paperclip.dev/schemas/prp/v1/provider-descriptor.schema.json",
-      "sha256": "a56c0c8501171c34bb72f6fba08d3872839a8b45bbc10daa93620afc9dc2b669"
+      "sha256": "cb0f96f789536bb330aa6a773d8e5726fbbb844e6d5e2bad918ea9a5c18ff024"
     },
     {
       "path": "schemas/provider-event.schema.json",

@@ -84,7 +84,7 @@ describe("ACPX driver profile", () => {
       }),
     ).toMatchObject({
       ok: false,
-      issues: [{ path: "agent", code: "invalid_agent" }],
+      issues: [{ path: "agent", code: "qualification_pending" }],
     });
     expect(
       validateAcpxDriverConfig({
