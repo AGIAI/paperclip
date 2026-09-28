@@ -3,6 +3,8 @@ import { and, desc, eq, getTableColumns, lt, or, sql } from "drizzle-orm";
 import {
   activityLog,
   agents,
+  plugins,
+  pluginManagedResources,
   agentInstructionHeads as heads,
   agentInstructionRevisions as revisions,
   type Db,
@@ -39,6 +41,8 @@ import {
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Revision = typeof revisions.$inferSelect;
+type PluginResetActor = { type: "plugin"; pluginId: string; pluginKey: string; agentKey: string };
+type RevisionActor = AuthorizationActor | PluginResetActor;
 const { contentBase64: _contentColumn, ...revisionMetadataColumns } =
   getTableColumns(revisions);
 export type InstructionTarget = { companyId: string; agentId: string };
@@ -129,6 +133,31 @@ export function agentInstructionRevisionService(db: Db) {
       );
     return bound;
   }
+  // Trusted host-only reset authority. No HTTP or agent tool accepts this actor.
+  async function authorizePluginReset(tx: Tx, actor: PluginResetActor, target: InstructionTarget, agent: typeof agents.$inferSelect) {
+    const [plugin] = await tx.select().from(plugins).where(and(eq(plugins.id, actor.pluginId), eq(plugins.pluginKey, actor.pluginKey)));
+    const marker = agent.metadata?.paperclipManagedResource as Record<string, unknown> | undefined;
+    const [binding] = await tx.select().from(pluginManagedResources).where(and(
+      eq(pluginManagedResources.pluginId, actor.pluginId), eq(pluginManagedResources.pluginKey, actor.pluginKey),
+      eq(pluginManagedResources.companyId, target.companyId), eq(pluginManagedResources.resourceKind, "agent"),
+      eq(pluginManagedResources.resourceKey, actor.agentKey), eq(pluginManagedResources.resourceId, target.agentId),
+    ));
+    if (!plugin || plugin.status !== "ready" || !plugin.manifestJson.capabilities.includes("agents.managed")
+      || !plugin.manifestJson.agents?.some((declaration) => declaration.agentKey === actor.agentKey)
+      || !binding || marker?.pluginId !== actor.pluginId || marker.pluginKey !== actor.pluginKey
+      || marker.resourceKind !== "agent" || marker.resourceKey !== actor.agentKey) {
+      throw forbidden("Plugin reset is limited to its declared, bound managed agent");
+    }
+    return actor;
+  }
+  async function readForPluginReset(target: InstructionTarget, actor: PluginResetActor) {
+    return db.transaction(async (tx) => {
+      const state = await lockTarget(tx, target);
+      await authorizePluginReset(tx, actor, target, state.agent);
+      const row = await seed(tx, target, state, actor);
+      return row ? snapshot(row) : null;
+    });
+  }
   async function head(tx: Tx, target: InstructionTarget, entryFile: string) {
     const [result] = await tx
       .select({ revision: revisions })
@@ -142,7 +171,7 @@ export function agentInstructionRevisionService(db: Db) {
     target: InstructionTarget,
     entryFile: string,
     bytes: Buffer,
-    actor: AuthorizationActor,
+    actor: RevisionActor,
     source: AgentInstructionSource,
     parentRevisionId: string | null,
     baseRevisionId: string | null,
@@ -163,8 +192,8 @@ export function agentInstructionRevisionService(db: Db) {
         actorAgentId: actor.type === "agent" ? actor.agentId : null,
         actorUserId: actor.type === "board" ? actor.userId : null,
         responsibleUserId:
-          actor.type === "board" ? actor.userId : actor.onBehalfOfUserId,
-        sourceRunId: actor.runId,
+          actor.type === "board" ? actor.userId : actor.type === "agent" ? actor.onBehalfOfUserId : null,
+        sourceRunId: actor.type === "plugin" ? null : actor.runId,
       })
       .returning();
     await tx
@@ -176,16 +205,17 @@ export function agentInstructionRevisionService(db: Db) {
       });
     await tx.insert(activityLog).values({
       companyId: target.companyId,
-      actorType: actor.type === "board" ? "user" : "agent",
-      actorId: (actor.type === "board" ? actor.userId : actor.agentId)!,
+      actorType: actor.type === "plugin" ? "plugin" : actor.type === "board" ? "user" : "agent",
+      actorId: (actor.type === "plugin" ? actor.pluginId : actor.type === "board" ? actor.userId : actor.agentId)!,
       agentId: actor.type === "agent" ? actor.agentId : null,
-      runId: actor.runId,
+      runId: actor.type === "plugin" ? null : actor.runId,
       responsibleUserId: row.responsibleUserId,
       action: "agent.instructions_revision_committed",
       entityType: "agent",
       entityId: target.agentId,
       details: {
         revisionId: row.id,
+        ...(actor.type === "plugin" ? { pluginKey: actor.pluginKey, managedAgentKey: actor.agentKey } : {}),
         entryFile,
         source,
         parentRevisionId,
@@ -200,7 +230,7 @@ export function agentInstructionRevisionService(db: Db) {
     tx: Tx,
     target: InstructionTarget,
     state: Awaited<ReturnType<typeof lockTarget>>,
-    actor: AuthorizationActor,
+    actor: RevisionActor,
   ) {
     const current = await head(tx, target, state.entryFile);
     if (current) return current;
@@ -271,13 +301,15 @@ export function agentInstructionRevisionService(db: Db) {
       | (Omit<InstructionCommitInput, "content" | "source"> & {
           restoreRevisionId: string;
         }),
-    actor: AuthorizationActor,
+    actor: RevisionActor,
   ): Promise<AgentInstructionCommitReceipt> {
     instructionPath(input.entryFile);
     const bytes = "content" in input ? instructionBytes(input.content) : null;
     const result = await db.transaction(async (tx) => {
-      const state = await lockTarget(tx, input, actor);
-      const bound = await authorizeInstructionCommit(tx, actor, state.agent);
+      const state = await lockTarget(tx, input, actor.type === "plugin" ? undefined : actor);
+      const bound = actor.type === "plugin"
+        ? await authorizePluginReset(tx, actor, input, state.agent)
+        : await authorizeInstructionCommit(tx, actor, state.agent);
       if (state.entryFile !== input.entryFile)
         throw conflict(
           "Configured instruction entry changed; read the current entry and retry",
@@ -460,6 +492,9 @@ export function agentInstructionRevisionService(db: Db) {
   return {
     readCommittedForRuntime,
     readCurrent,
+    readForPluginReset,
+    commitPluginReset: (input: Omit<InstructionCommitInput, "source">, actor: PluginResetActor) =>
+      commitInternal({ ...input, source: "api" }, actor),
     readRevision,
     history,
     diff,

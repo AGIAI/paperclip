@@ -12,11 +12,12 @@ import type {
   PluginManagedAgentDeclaration,
   PluginManagedAgentResolution,
 } from "@paperclipai/shared";
-import { notFound } from "../errors.js";
+import { conflict, notFound } from "../errors.js";
 import { agentService } from "./agents.js";
 import { approvalService } from "./approvals.js";
 import { logActivity } from "./activity-log.js";
 import { agentInstructionsBundleMode, agentInstructionsService } from "./agent-instructions.js";
+import { agentInstructionRevisionService } from "./agent-instruction-revisions.js";
 
 const MANAGED_AGENT_ENTITY_TYPE = "managed_agent";
 const DEFAULT_MANAGED_AGENT_ADAPTER_TYPE = "process";
@@ -336,23 +337,41 @@ export function pluginManagedAgentService(
     const declared = declaredInstructionFiles(declaration, variables);
     if (!declared) return agent;
 
-    const materialized = await instructions.materializeManagedBundle(
-      agent,
-      declared.files,
-      {
-        entryFile: declared.entryFile,
-        replaceExisting: materializeOptions.replaceExisting,
-        clearLegacyPromptTemplate: true,
-      },
-    );
+    let adapterConfig: Record<string, unknown>;
+    if (materializeOptions.replaceExisting) {
+      const revisions = agentInstructionRevisionService(db);
+      const target = { companyId, agentId: agent.id };
+      const actor = { type: "plugin" as const, pluginId: options.pluginId, pluginKey: options.pluginKey, agentKey: declaration.agentKey };
+      const baseline = await revisions.readForPluginReset(target, actor);
+      const receipt = await revisions.commitPluginReset({ ...target, entryFile: declared.entryFile,
+        baseRevisionId: baseline?.revision.id ?? null, content: declared.files[declared.entryFile] ?? "" }, actor);
+      if (receipt.materialization === "pending") throw conflict("Instruction revision saved; retry reset to repair its disk copy", { revisionId: receipt.revision.id });
+      const refreshed = await agentSvc.getById(agent.id);
+      if (!refreshed) throw notFound("Managed agent not found");
+      for (const [file, content] of Object.entries(declared.files)) {
+        if (file !== declared.entryFile) await instructions.writeFile(refreshed, file, content);
+      }
+      const bundle = await instructions.getBundle(refreshed);
+      for (const file of bundle.files) {
+        if (!file.isEntryFile && !file.virtual && !(file.path in declared.files)) await instructions.deleteFile(refreshed, file.path);
+      }
+      adapterConfig = { ...refreshed.adapterConfig };
+      delete adapterConfig.promptTemplate;
+      delete adapterConfig.bootstrapPromptTemplate;
+    } else {
+      const materialized = await instructions.materializeManagedBundle(agent, declared.files, {
+        entryFile: declared.entryFile, replaceExisting: false, clearLegacyPromptTemplate: true,
+      });
+      adapterConfig = materialized.adapterConfig;
+    }
     const updated = await agentSvc.update(agent.id, {
-      adapterConfig: materialized.adapterConfig,
+      adapterConfig,
     }, {
       recordRevision: {
         source: `plugin:${optionsForRevisionSource()}:managed-agent-instructions`,
       },
     });
-    return (updated as Agent | null) ?? { ...agent, adapterConfig: materialized.adapterConfig };
+    return (updated as Agent | null) ?? { ...agent, adapterConfig };
   }
 
   async function managedInstructionDefaultDrift(
@@ -433,7 +452,7 @@ export function pluginManagedAgentService(
       spentMonthlyCents: 0,
       lastHeartbeatAt: null,
     }) as Agent;
-    created = await materializeDeclaredInstructions(companyId, created, declaration, { replaceExisting: true });
+    created = await materializeDeclaredInstructions(companyId, created, declaration, { replaceExisting: false });
 
     let approvalId: string | null = null;
     if (requiresApproval) {
@@ -596,8 +615,19 @@ export function pluginManagedAgentService(
         ? reconciled.agent.metadata
         : {};
       const adapterType = await resolveManagedAdapterType(companyId, declaration);
+      // Reset content through the canonical CAS path before changing defaults.
+      // A conflict must leave the existing adapter configuration untouched.
+      const withInstructions = await materializeDeclaredInstructions(companyId, reconciled.agent, declaration, { replaceExisting: true });
+      const defaults = declarationPatch(declaration, { adapterType });
+      const adapterConfig = { ...defaults.adapterConfig } as Record<string, unknown>;
+      if (declaration.instructions) {
+        for (const key of ["instructionsBundleMode", "instructionsRootPath", "instructionsEntryFile", "instructionsFilePath"]) {
+          if (withInstructions.adapterConfig[key] !== undefined) adapterConfig[key] = withInstructions.adapterConfig[key];
+        }
+      }
       const updated = await agentSvc.update(reconciled.agent.id, {
-        ...declarationPatch(declaration, { adapterType }),
+        ...defaults,
+        adapterConfig,
         metadata: managedMetadata(options.pluginId, options.pluginKey, declaration, currentMetadata),
       }, {
         recordRevision: {
@@ -605,7 +635,7 @@ export function pluginManagedAgentService(
         },
       });
       if (!updated) throw notFound("Managed agent not found");
-      const updatedAgent = await materializeDeclaredInstructions(companyId, updated as Agent, declaration, { replaceExisting: true });
+      const updatedAgent = updated as Agent;
       await upsertBinding(companyId, declaration, updatedAgent.id, {}, adapterType);
       await logActivity(db, {
         companyId,
