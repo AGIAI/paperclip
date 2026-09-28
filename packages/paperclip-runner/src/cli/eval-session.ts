@@ -250,19 +250,23 @@ export function boundedEvalSessionUsage(
   if (turn.status !== "completed") {
     return usageIfAvailable(request, turn.snapshot);
   }
-  const unavailable = request.provider === "acpx"
+  const candidate = request.provider === "acpx"
     && request.acpxAgent !== undefined
     && ["pi", "cursor", "copilot"].includes(request.acpxAgent)
     && turn.snapshot.config.provider === "acpx"
-    && turn.snapshot.config.acpxAgent === request.acpxAgent
-    && turn.snapshot.usageUnavailable?.some((entry) => entry.turnId === turn.turnId
-      && entry.agent === request.acpxAgent && entry.reason === "provider_did_not_report_usage");
-  const usage = unavailable
+    && turn.snapshot.config.acpxAgent === request.acpxAgent;
+  const measuredTurns = new Set(turn.snapshot.usageLedger?.map((entry) => entry.turnId));
+  const unavailableTurnIds = new Set(candidate
+    ? turn.snapshot.usageUnavailable?.filter((entry) => entry.agent === request.acpxAgent
+      && entry.reason === "provider_did_not_report_usage"
+      && entry.tokenUsage === null && entry.costNanodollars === null
+      && !measuredTurns.has(entry.turnId)).map((entry) => entry.turnId)
+    : []);
+  const unavailable = unavailableTurnIds.size > 0;
+  const usage = unavailable && (unavailableTurnIds.has(turn.turnId) || turn.snapshot.usageLedger?.length)
     ? usageIfAvailable(request, turn.snapshot)
     : evalSessionUsage(request.model, turn.snapshot);
-  const unavailableTurns = unavailable
-    ? new Set(turn.snapshot.usageUnavailable?.map((entry) => entry.turnId)).size
-    : 0;
+  const unavailableTurns = unavailableTurnIds.size;
   if ((usage?.agentTurns ?? 0) + unavailableTurns > request.limits.maxAgentTurns) {
     throw new Error("agent turn limit exceeded");
   }

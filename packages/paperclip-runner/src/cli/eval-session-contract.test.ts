@@ -305,6 +305,33 @@ describe("eval-session usage", () => {
     })).toThrow("agent turn limit exceeded");
   });
 
+  it("counts prior unavailable candidate turns alongside a later measured turn without claiming a complete total", () => {
+    const parsed = parseEvalSessionRequest(request({
+      provider: "acpx", acpxAgent: "cursor", model: "gpt-5.6-sol",
+    }), { candidateProfile: "cursor" });
+    const unavailable = {
+      turnId: "prior-turn", attemptId: "attempt-1", agent: "cursor" as const,
+      reason: "provider_did_not_report_usage" as const,
+      tokenUsage: null, costNanodollars: null, observedAt: "2026-09-28T19:18:10.000Z",
+    };
+    const snapshot = {
+      config: { provider: "acpx", acpxAgent: "cursor" },
+      usageUnavailable: [unavailable, { ...unavailable }],
+      usageLedger: [{
+        receiptId: "measured-receipt", turnId: "measured-turn", providerCalls: 1,
+        providerRequests: 1, inputTokens: 100, outputTokens: 10,
+        cachedInputTokens: 0, reasoningTokens: 0, costNanodollars: 0,
+      }],
+    } as unknown as CapabilityLiveSessionSnapshot;
+    const turn = { turnId: "measured-turn", status: "completed" as const, assistantText: "Done", snapshot };
+    expect(() => boundedEvalSessionUsage(parsed, turn)).toThrow("agent turn limit exceeded");
+    expect(boundedEvalSessionUsage({ ...parsed, limits: { ...parsed.limits, maxAgentTurns: 2 } }, turn)).toBeNull();
+    expect(boundedEvalSessionUsage(parsed, {
+      ...turn,
+      snapshot: { ...snapshot, usageUnavailable: [{ ...unavailable, turnId: "measured-turn" }] },
+    })).toMatchObject({ agentTurns: 1, inputTokens: 100, outputTokens: 10 });
+  });
+
   it("deduplicates receipts and applies the versioned model price", () => {
     const receipt = {
       receiptId: "receipt-1",
