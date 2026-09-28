@@ -184,6 +184,7 @@ function nativeProfile(input: {
       return commonAgent(buildInput, input.id, "paperclip_runner", {
         provider: input.provider,
         model: input.model,
+        ...(input.qualificationCandidate ? { timeoutSec: 120 } : {}),
         lifecycleMode: "per_turn",
         idleTimeoutMs: 300_000,
         ...permissionConfig,

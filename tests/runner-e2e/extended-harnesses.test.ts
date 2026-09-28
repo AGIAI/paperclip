@@ -24,7 +24,7 @@ describe("extended ACP harness qualification", () => {
       expect(profile.modelQualification.source).toBe("candidate_runner_profile");
       const secretRef = { type: "secret_ref" as const, secretId: "11111111-1111-4111-8111-111111111111", version: "latest" as const };
       const payload = profile.buildAgent({ executionId: "fixture", environmentId: "local", environmentFixtureId: "local", workspacePath: "/tmp/workspace", secretRefs: { [profile.credential]: secretRef } });
-      expect(payload.adapterConfig).toMatchObject({ provider: "acpx", model: profile.model, acpxAgent: profile.qualificationCandidate, env: { [profile.credential]: secretRef } });
+      expect(payload.adapterConfig).toMatchObject({ provider: "acpx", model: profile.model, timeoutSec: 120, acpxAgent: profile.qualificationCandidate, env: { [profile.credential]: secretRef } });
     }
   });
   it("replaces ambient admission with the selected exact pairs and strips raw provider credentials from server", () => {
