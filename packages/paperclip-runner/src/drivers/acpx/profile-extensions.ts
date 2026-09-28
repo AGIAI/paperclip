@@ -77,7 +77,7 @@ export function bindAcpxExtensionTurn(input: {
   adapter: AcpxProfileExtensionAdapter | null;
   active(): boolean;
   sessionId: string;
-  waitForInput(input: AcpxExtensionInput, context: { requestId: string | number; signal: AbortSignal }): Promise<Record<string, unknown>>;
+  waitForInput(input: AcpxExtensionInput, context: { requestId: string | number; signal: AbortSignal; responseDelivery?: Promise<void> }): Promise<Record<string, unknown>>;
   emit(event: CanonicalProviderEvent): void;
 }) {
   let queue = Promise.resolve();
@@ -110,7 +110,7 @@ export function bindAcpxExtensionTurn(input: {
     if (!input.adapter) throw new Error("ACP extension adapter is unavailable");
   };
   return {
-    async onExtensionRequest(method: string, params: Record<string, unknown>, context: { requestId: string | number; signal: AbortSignal }) {
+    async onExtensionRequest(method: string, params: Record<string, unknown>, context: { requestId: string | number; signal: AbortSignal; responseDelivery?: Promise<void> }) {
       assertSession(params);
       if (context.signal.aborted) throw new Error("ACP extension was cancelled");
       const result = await enqueue(() => input.adapter!.request(method, params));

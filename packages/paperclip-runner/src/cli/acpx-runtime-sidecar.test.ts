@@ -643,7 +643,7 @@ function loadWaitForTool(input: {
     "utf8",
   );
   const start = source.indexOf("async function waitForTool");
-  const end = source.indexOf("\nasync function waitForInput", start);
+  const end = source.indexOf("\nasync function waitForPermission", start);
   if (start < 0 || end < 0) throw new Error("waitForTool source not found");
   const functionSource = source
     .slice(start, end)

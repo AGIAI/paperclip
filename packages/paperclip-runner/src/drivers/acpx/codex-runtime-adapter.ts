@@ -324,7 +324,7 @@ export async function openQualifiedAcpxRuntime(
       // Cursor's native extensions omit sessionId. Only after admission may
       // that omission inherit this exact prompt's ACP wire session identity.
       const boundParams = params.sessionId === undefined ? { ...params, sessionId: active.sessionId } : params;
-      const response = await abortableExtensionResult(active.onRequest(method, boundParams, { requestId: context.requestId, signal }), signal);
+      const response = await abortableExtensionResult(active.onRequest(method, boundParams, { requestId: context.requestId, signal, responseDelivery: context.responseDelivery }), signal);
       signal.throwIfAborted();
       if (!ownsExtensionTurn(active, params)) throw new Error("ACPX extension request turn expired");
       return response;
@@ -377,6 +377,7 @@ export async function openQualifiedAcpxRuntime(
           // callback must never acquire the next turn's approval authority.
           const decision = await handler(request, {
             signal: AbortSignal.any([active.signal, context.signal]),
+            responseDelivery: context.responseDelivery,
           });
           if (permissionBoundary.active !== active || active.signal.aborted || context.signal.aborted) {
             return { outcome: "cancel" };

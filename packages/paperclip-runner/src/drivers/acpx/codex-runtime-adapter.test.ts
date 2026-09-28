@@ -44,8 +44,10 @@ describe("Codex ACPX runtime adapter", () => {
       await expect(created.onPermissionRequest!(request as never, { signal })).resolves.toEqual({ outcome: "reject_once" });
     }
     expect(handler).not.toHaveBeenCalled();
-    await expect(created.onPermissionRequest!({ sessionId: "backend-1", raw: { sessionId: "backend-1" }, inferredKind: "edit" } as never, { signal })).resolves.toEqual({ outcome: "allow_once" });
+    const responseDelivery = Promise.resolve();
+    await expect(created.onPermissionRequest!({ sessionId: "backend-1", raw: { sessionId: "backend-1" }, inferredKind: "edit" } as never, { signal, responseDelivery })).resolves.toEqual({ outcome: "allow_once" });
     expect(handler).toHaveBeenCalledOnce();
+    expect(handler).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ responseDelivery }));
     options.permissionMode = "approve-all";
     await expect(created.onPermissionRequest!({ sessionId: "forged", raw: {}, inferredKind: "edit" } as never, { signal })).resolves.toEqual({ outcome: "reject_once" });
     pending.settle(); await turn.result; await port.close({ reason: "session checks complete" });
@@ -71,8 +73,9 @@ describe("Codex ACPX runtime adapter", () => {
     const signal = new AbortController().signal;
     await expect(created.onExtensionRequest!("cursor/ask_question", { sessionId: "backend-1" }, { requestId: 0, signal })).resolves.toEqual({ requestId: 0 });
     const sessionless = { toolCallId: "native-cursor-plan", plan: "Review the complete plan" };
-    await expect(created.onExtensionRequest!("cursor/create_plan", sessionless, { requestId: "plan", signal })).resolves.toEqual({ requestId: "plan" });
-    expect(request).toHaveBeenLastCalledWith("cursor/create_plan", { ...sessionless, sessionId: "backend-1" }, expect.objectContaining({ requestId: "plan" }));
+    const responseDelivery = Promise.resolve();
+    await expect(created.onExtensionRequest!("cursor/create_plan", sessionless, { requestId: "plan", signal, responseDelivery })).resolves.toEqual({ requestId: "plan" });
+    expect(request).toHaveBeenLastCalledWith("cursor/create_plan", { ...sessionless, sessionId: "backend-1" }, expect.objectContaining({ requestId: "plan", responseDelivery }));
     expect(sessionless).not.toHaveProperty("sessionId");
     await expect(created.onExtensionRequest!("pi/steer", {}, { requestId: 1, signal })).rejects.toThrow("admitted active turn");
     await expect(created.onExtensionRequest!("cursor/ask_question", { sessionId: "other" }, { requestId: 1, signal })).rejects.toThrow("admitted active turn");

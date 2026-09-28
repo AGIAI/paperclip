@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
+import { deliverAcpxResponse, requireAcpxResponseDelivery } from "./acpx-response-delivery.js";
 
 import type {
   AcpElicitationContext,
@@ -123,6 +124,7 @@ interface PendingTool {
 
 interface PendingInput {
   turnId: string;
+  responseDelivery: Promise<void>;
   questionSet: PaperclipQuestionSet;
   prepareResolution(resolution: HarnessRuntimeRequestResolution): () => void;
   cancel(): void;
@@ -131,6 +133,7 @@ interface PendingInput {
 
 interface PendingPermission {
   turnId: string;
+  responseDelivery: Promise<void>;
   normalized: NormalizedAcpxPermission;
   settle(response: AcpPermissionDecision): void;
   cleanup(): void;
@@ -372,7 +375,7 @@ async function dispatch(
         onElicitation: (providerRequest, context) =>
           waitForInput(currentTurnId, providerRequest, context),
         onPermissionRequest: (providerRequest, context) =>
-          waitForPermission(currentTurnId, providerRequest, context.signal),
+          waitForPermission(currentTurnId, providerRequest, context),
       });
     } catch (error) {
       turnId = null;
@@ -419,8 +422,7 @@ async function dispatch(
     const decision = pending.normalized.resolve(resolution);
     if (!permissions.delete(requestId)) throw new Error("permission request lost its settlement race");
     pending.cleanup();
-    pending.settle(decision);
-    return { resolved: true };
+    return await deliverAcpxResponse(pending.responseDelivery, () => pending.settle(decision));
   }
   if (request.command === "input.resolve") {
     const requestId = boundedIdentity(request.params.requestId, "requestId");
@@ -442,8 +444,7 @@ async function dispatch(
     if (!inputs.delete(requestId))
       throw new Error("input request lost its settlement race");
     pending.cleanup();
-    deliver();
-    return { resolved: true };
+    return await deliverAcpxResponse(pending.responseDelivery, deliver);
   }
   if (request.command === "tool.resolve") {
     const callId = boundedIdentity(request.params.callId, "callId");
@@ -731,12 +732,14 @@ async function waitForTool(call: RunnerToolCall): Promise<unknown> {
 async function waitForPermission(
   activeTurnId: string,
   request: AcpPermissionRequest,
-  signal: AbortSignal,
+  context: { signal: AbortSignal; responseDelivery?: Promise<void> },
 ): Promise<AcpPermissionDecision> {
+  const { signal } = context;
   if (turnId !== activeTurnId || signal.aborted || permissions.size >= MAX_PENDING_INPUTS) {
     return { outcome: "cancel" };
   }
   const normalized = normalizeAcpxPermission(request, openParams?.agent === "pi" ? { allowAlwaysScope: "session" } : {});
+  const responseDelivery = requireAcpxResponseDelivery(context);
   const requestId = stableRequestId(activeTurnId, ++requestSequence, normalized.toolCallId);
   return await new Promise((settle) => {
     const abort = () => {
@@ -745,7 +748,7 @@ async function waitForPermission(
       settle({ outcome: "cancel" });
     };
     permissions.set(requestId, {
-      turnId: activeTurnId, normalized, settle,
+      turnId: activeTurnId, normalized, settle, responseDelivery,
       cleanup: () => signal.removeEventListener("abort", abort),
     });
     signal.addEventListener("abort", abort, { once: true });
@@ -807,9 +810,10 @@ async function waitForInput(
 async function waitForExtensionInput(
   activeTurnId: string,
   input: AcpxExtensionInput,
-  context: { requestId: string | number | null; signal: AbortSignal },
+  context: { requestId: string | number | null; signal: AbortSignal; responseDelivery?: Promise<void> },
 ): Promise<Record<string, unknown>> {
   if (turnId !== activeTurnId || context.signal.aborted || inputs.size >= MAX_PENDING_INPUTS) return input.cancel();
+  const responseDelivery = requireAcpxResponseDelivery(context);
   const requestId = stableRequestId(activeTurnId, ++requestSequence, context.requestId);
   return await new Promise((settle) => {
     const abort = () => {
@@ -819,7 +823,7 @@ async function waitForExtensionInput(
       settle(input.cancel());
     };
     inputs.set(requestId, {
-      turnId: activeTurnId, questionSet: input.questionSet,
+      turnId: activeTurnId, questionSet: input.questionSet, responseDelivery,
       prepareResolution: resolution => {
         const response = input.resolve(resolution);
         return () => settle(response);
