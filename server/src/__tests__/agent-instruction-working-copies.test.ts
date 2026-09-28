@@ -8,7 +8,7 @@ const execFile = promisify(execFileCallback);
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { agents, companies, authUsers, companyMemberships, principalPermissionGrants, heartbeatRuns, agentInstructionWorkingCopies, createDb } from "@paperclipai/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -120,6 +120,36 @@ describe("registered run instruction copies", () => {
     expect(await fs.readFile(path.join(warm.localRoot, entryFile), "utf8")).toBe(initial);
     expect((await copies.collectStopped({ companyId, runId: stopped.runId }))?.state).toBe("conflict");
     expect((await revisions.readCurrent(target(), board()))?.content).toBe("board change");
+  });
+
+  it.each(["before replacement", "after replacement"])("preserves the completed receipt when retry staging fails %s", async (point) => {
+    const copy = await run();
+    await fs.writeFile(path.join(copy.localRoot, entryFile), "completed turn");
+    const saved = (await copies.collectStopped({ companyId, runId: copy.runId }))!;
+    expect(saved.state).toBe("saved");
+    const prior = (await revisions.readCurrent(target(), board()))!;
+    const current = await revisions.commit({ ...target(), entryFile, baseRevisionId: prior.revision.id, content: "new board instructions", source: "api" }, board());
+    const originalMkdir = fs.mkdir.bind(fs);
+    const originalChmod = fs.chmod.bind(fs);
+    const mkdir = vi.spyOn(fs, "mkdir").mockImplementation(async (...args: Parameters<typeof fs.mkdir>) => {
+      if (point === "before replacement" && args[0] === copy.localRoot) throw new Error("retry staging failed");
+      return originalMkdir(...args);
+    });
+    const chmod = vi.spyOn(fs, "chmod").mockImplementation(async (...args) => {
+      if (point === "after replacement" && args[0] === path.join(copy.localRoot, entryFile)) throw new Error("retry staging failed");
+      return originalChmod(...args);
+    });
+    try {
+      await expect(copies.prepare({ ...target(), runId: copy.runId, cwd: home })).rejects.toThrow("retry staging failed");
+    } finally { mkdir.mockRestore(); chmod.mockRestore(); }
+    expect(await copies.get(companyId, copy.runId)).toEqual(saved);
+    copies = agentInstructionWorkingCopyService(db);
+    await copies.recoverStopped();
+    expect(await copies.get(companyId, copy.runId)).toEqual(saved);
+    expect((await revisions.readCurrent(target(), board()))?.revision.id).toBe(current.revision.id);
+    const retried = (await copies.prepare({ ...target(), runId: copy.runId, cwd: home }))!;
+    expect(retried).toMatchObject({ state: "prepared", baseRevisionId: current.revision.id, processStoppedAt: null });
+    expect(await fs.readFile(path.join(retried.localRoot, entryFile), "utf8")).toBe(current.content);
   });
 
   it("reads an existing canonical runtime snapshot without seeding or changing instruction bytes", async () => {
