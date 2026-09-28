@@ -1,5 +1,5 @@
 import { dirname, join } from "node:path";
-import { assertAcpxProfileWorkspace, classifyAcpxProfileError, verifyAcpxProfileInstallation } from "./profile-installation.js";
+import { assertAcpxProfileEnvironment, assertAcpxProfileWorkspace, classifyAcpxProfileError, verifyAcpxProfileInstallation } from "./profile-installation.js";
 import { createAcpxRuntimeSkillLease } from "./runtime-skill-lease.js";
 import { claudeNativeSkillPrompt } from "./native-skill-prompt.js";
 import { nativeMcpLaunchBinding } from "../native-mcp.js";
@@ -442,6 +442,7 @@ export class AcpxRuntimeHost {
             dependencies.reportRetainedCleanupFailure(failure),
         });
       }
+      assertAcpxProfileEnvironment(options.agent, sandbox.launchEnvironment);
       let launchEnvironment = sandbox.launchEnvironment;
       if (options.agent === "pi") {
         const skills = await acquireAbortableAdmissionResource({
