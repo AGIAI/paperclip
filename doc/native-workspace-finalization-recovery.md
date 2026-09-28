@@ -141,3 +141,18 @@ Daytona stop-only preservation disables provider auto-delete and refreshes the p
 New ephemeral native allocations receive an acquisition-time workspace sentinel bound to their run and provider allocation. Export-only resume requires that proof and the unchanged durable intent. A legacy ephemeral allocation without this proof remains blocked; recovery never creates a sentinel or accepts a replacement during resume. The reusable workspace identity hash is unchanged.
 
 Disabling auto-delete retains provider storage while repair waits. No automatic lease-age sweep deletes these released, confirmed-stopped allocations. Storage costs can continue until committed copyback applies the original cleanup policy or an operator explicitly deletes the allocation.
+
+### Generic stop-only cleanup
+
+An explicit sandbox `stop_and_retain` also requires the dedicated provider hook
+when no export repair is involved, including successful per-turn reusable runs
+and startup cancellation. Before dispatch, the controller stores a separate
+`sandboxStopAndRetain` intent bound to the company, run, lease, provider allocation,
+and original plugin. The initial cleanup and restart sweep both require that
+plugin to advertise `environmentStopLease`. Missing capability or failed stop
+leaves pending cleanup; ordinary release and destroy are never fallback methods.
+
+A matching stopped receipt clears the pending intent, leaves the lease released
+and resumable, and saves `sandboxStopAndRetainReceipt`. Its request identity,
+original plugin and `method: "environmentStopLease"` attest this dispatch route.
+The accepted-result export intent and its commitment requirements are unchanged.
