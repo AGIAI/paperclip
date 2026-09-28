@@ -5,6 +5,7 @@ import { stripTypeScriptTypes } from "node:module";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { gunzipSync } from "node:zlib";
 import { PI_DISTRIBUTION_CLOSURE_SHA256 } from "../src/drivers/acpx/pi-closure-pins.ts";
 import { PI_NODE_DISTRIBUTIONS, PI_NODE_VERSION } from "../src/drivers/acpx/pi-node-pins.ts";
 import { QUALIFIED_ACPX_PROFILES } from "../src/drivers/acpx/qualified-profiles.ts";
@@ -17,13 +18,79 @@ const lockDirectory = join(packageRoot, "scripts/pi-distribution");
 const patchPath = join(workspaceRoot, "patches/pi-acp@0.0.33.patch");
 const supportedTargets = new Set(["darwin-arm64", "darwin-x64", "linux-x64"]);
 export const PI_DISTRIBUTION_PINS = Object.freeze({
-  wrapper: "0.0.33", runtime: "0.84.2", sdk: "0.26.0", zod: "3.25.76", nodeVersion: PI_NODE_VERSION,
+  wrapper: "0.0.33", runtime: "0.84.2", sdk: "0.26.0", zod: "3.25.76", nodeVersion: PI_NODE_VERSION, undici: "8.10.2", nodeBundledUndici: "7.29.1",
   wrapperSha256: "dc4786faff30942e82106c87a8984a75fb979a925ff1d62648500a642b920cac",
   helperSha256: "9e50b60644d0d00b3fb2660eb78ad616dd01395775bcb05974d2bdeadc7f7e57",
 });
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-/** npm ci honors the committed graph and Pi's published nested shrinkwrap. */
+/** The sole reviewed departure from Pi 0.84.2's published shrinkwrap.
+ * npm ci reifies that upstream shrinkwrap even when the outer lock and override
+ * request the fixed version. Keep the published metadata intact, replace this
+ * exact package explicitly, and bind the resulting files in all closure pins.
+ * https://github.com/advisories/GHSA-3wwx-pv8p-q78v
+ */
+export const PI_UNDICI_SECURITY_OVERRIDE = Object.freeze({
+  path: "node_modules/@earendil-works/pi-coding-agent/node_modules/undici",
+  upstreamPath: "node_modules/undici",
+  previous: Object.freeze({ version: "8.9.0", resolved: "https://registry.npmjs.org/undici/-/undici-8.9.0.tgz", integrity: "sha512-aWZpUj7XoGonMClx4gdDRfgBjqeA+F473aDmROQQbM9n6PRfK/u1q/a0X4wMTgcHfT8H6fpbt98PFuDUwFg2YA==" }),
+  fixed: Object.freeze({ version: "8.10.2", resolved: "https://registry.npmjs.org/undici/-/undici-8.10.2.tgz", integrity: "sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==" }),
+});
+const samePackagePin = (entry, pin) => entry?.version === pin.version && entry?.resolved === pin.resolved && entry?.integrity === pin.integrity;
+export function assertPiUndiciSecurityOverride(lock, shrinkwrap) {
+  const pin = PI_UNDICI_SECURITY_OVERRIDE;
+  if (shrinkwrap.version !== PI_DISTRIBUTION_PINS.runtime || shrinkwrap.lockfileVersion !== 3 ||
+      !samePackagePin(shrinkwrap.packages?.[pin.upstreamPath], pin.previous) ||
+      !samePackagePin(lock.packages?.[pin.path], pin.fixed)) throw new Error("Pi Undici security override differs from its exact reviewed old/new pins");
+}
+
+export function assertPiUndiciArchive(bytes) {
+  if (bytes.length > 4 * 1024 * 1024 || `sha512-${createHash("sha512").update(bytes).digest("base64")}` !== PI_UNDICI_SECURITY_OVERRIDE.fixed.integrity) throw new Error("Pi fixed Undici archive differs from its integrity pin");
+  // Bound the complete tar stream (headers and file payloads), not just gzip.
+  gunzipSync(bytes, { maxOutputLength: 4 * 1024 * 1024 });
+}
+
+export function assertPiUndiciArchiveEntries(paths, listing) {
+  const entries = paths.trim().split("\n");
+  if (entries.length < 2 || entries.length > 512 || entries.some(path => !path.startsWith("package/") || path.includes("\\") || path.split("/").some(part => part === ".." || part === ".") || /[\x00-\x1f\x7f]/.test(path)) ||
+      listing.trim().split("\n").length !== entries.length || listing.trim().split("\n").some(line => !/^[d-]/.test(line))) throw new Error("Pi fixed Undici archive has an unsafe entry");
+}
+
+export async function applyPiUndiciSecurityOverride(root, lock) {
+  root = await realpath(root);
+  const pin = PI_UNDICI_SECURITY_OVERRIDE;
+  const piRoot = join(root, "node_modules/@earendil-works/pi-coding-agent");
+  const shrinkwrap = JSON.parse(await readFile(join(piRoot, "npm-shrinkwrap.json"), "utf8"));
+  assertPiUndiciSecurityOverride(lock, shrinkwrap);
+  const installed = join(root, pin.path);
+  const metadata = JSON.parse(await readFile(join(installed, "package.json"), "utf8"));
+  if ((await lstat(installed)).isSymbolicLink() || await realpath(installed) !== installed || metadata.name !== "undici" || metadata.version !== pin.previous.version) throw new Error("Pi npm install did not produce the expected upstream Undici package");
+  const temporary = await mkdtemp(join(dirname(installed), ".paperclip-undici-fix-"));
+  try {
+    const response = await fetch(pin.fixed.resolved, { redirect: "error", signal: AbortSignal.timeout(60_000) });
+    if (!response.ok || !response.body) throw new Error("Pi fixed Undici download failed");
+    const chunks = []; let length = 0;
+    for await (const chunk of response.body) {
+      length += chunk.length; if (length > 4 * 1024 * 1024) throw new Error("Pi fixed Undici archive exceeds its bound");
+      chunks.push(Buffer.from(chunk));
+    }
+    const bytes = Buffer.concat(chunks); assertPiUndiciArchive(bytes);
+    const archive = join(temporary, "fixed.tgz"); await writeFile(archive, bytes);
+    const options = { env: { PATH: "/usr/bin:/bin" }, timeout: 30_000, maxBuffer: 1024 * 1024 };
+    const [paths, listing] = await Promise.all([run("tar", ["-tzf", archive], options), run("tar", ["-tvzf", archive], options)]);
+    assertPiUndiciArchiveEntries(paths.stdout, listing.stdout);
+    const extracted = join(temporary, "package"); await mkdir(extracted);
+    await run("tar", ["-xzf", archive, "-C", extracted, "--strip-components=1", "--no-same-owner"], options);
+    const fixed = JSON.parse(await readFile(join(extracted, "package.json"), "utf8"));
+    if (fixed.name !== "undici" || fixed.version !== pin.fixed.version) throw new Error("Pi fixed Undici package identity is invalid");
+    const files = await inventoryPiRuntimeFiles(extracted);
+    if (files.length !== 214 || files.some(file => file.kind !== "file")) throw new Error("Pi fixed Undici package payload is invalid");
+    await rm(installed, { recursive: true });
+    await rename(extracted, installed);
+  } finally { await rm(temporary, { recursive: true, force: true }); }
+}
+
+/** npm ci honors Pi's published nested shrinkwrap; the exact security fix follows. */
 export function piDistributionInstallCommand() {
   return ["ci", "--ignore-scripts", "--include=optional", "--omit=dev", "--no-audit", "--no-fund", "--registry=https://registry.npmjs.org", "--userconfig=.npmrc", "--globalconfig=.npmrc-global"];
 }
@@ -55,6 +122,7 @@ export async function verifyLockedPiPackageGraph(root, lock, target = { platform
   for (const [path, entry] of Object.entries(shrinkwrap.packages)) {
     if (!path) continue;
     const pinned = lock.packages[`${piPath}/${path}`];
+    if (path === PI_UNDICI_SECURITY_OVERRIDE.upstreamPath) { assertPiUndiciSecurityOverride(lock, shrinkwrap); continue; }
     if (!pinned || pinned.version !== entry.version || (entry.integrity !== undefined && pinned.integrity !== entry.integrity) || pinned.resolved !== entry.resolved) throw new Error(`Pi distribution dropped or changed shrinkwrapped package ${path}`);
   }
   return verified;
@@ -142,6 +210,7 @@ export async function materializePiDistribution({ outputRoot, nodeExecutable, np
     if (hash(await readFile(node)) !== nodePin.executableSha256 || (await lstat(node)).size !== nodePin.executableSize) throw new Error("Pi Node executable does not match its target release pin");
     const version = (await run(node, ["--version"], { env: {}, timeout: 10_000 })).stdout.trim();
     if (version !== `v${PI_NODE_VERSION}`) throw new Error("Pi distribution requires exact pinned Node version");
+    if ((await run(node, ["-p", "process.versions.undici"], { env: {}, timeout: 10_000 })).stdout.trim() !== PI_DISTRIBUTION_PINS.nodeBundledUndici) throw new Error("Pi Node bundled Undici differs from its reviewed security pin");
     await mkdir(runtimeRoot);
     await Promise.all(["package.json", "package-lock.json"].map((name) => copyFile(join(lockDirectory, name), join(runtimeRoot, name))));
     await writeFile(join(runtimeRoot, ".npmrc"), "registry=https://registry.npmjs.org/\nignore-scripts=true\naudit=false\nfund=false\n");
@@ -155,6 +224,7 @@ export async function materializePiDistribution({ outputRoot, nodeExecutable, np
     const installedLockBytes = await readFile(join(runtimeRoot, "package-lock.json"));
     if (!installedLockBytes.equals(await readFile(join(lockDirectory, "package-lock.json")))) throw new Error("Pi installation changed its committed lock");
     const lock = JSON.parse(installedLockBytes.toString("utf8"));
+    await applyPiUndiciSecurityOverride(runtimeRoot, lock);
     const packageCount = await verifyLockedPiPackageGraph(runtimeRoot, lock);
     const wrapper = join(runtimeRoot, "node_modules/pi-acp");
     await run("git", ["apply", "--check", patchPath], { cwd: wrapper, env: environment, timeout: 10_000 });

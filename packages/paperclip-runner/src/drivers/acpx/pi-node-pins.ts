@@ -1,7 +1,8 @@
-/** Official Node release SHASUMS256.txt, version 24.19.0, reviewed 2026-09-28. */
-export const PI_NODE_VERSION = "24.19.0" as const;
+/** Official Node release SHASUMS256.txt, version 24.21.0, reviewed 2026-09-28.
+ * https://nodejs.org/dist/v24.21.0/SHASUMS256.txt — bundled Undici 7.29.1. */
+export const PI_NODE_VERSION = "24.21.0" as const;
 export const PI_NODE_DISTRIBUTIONS = Object.freeze({
-  "darwin-arm64": Object.freeze({ archiveSha256: "8294b7aa9b03997481c06babf1e8b270c859358f27da57a11509afe537ac381d", executableSha256: "27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1", executableSize: 121306800 }),
-  "darwin-x64": Object.freeze({ archiveSha256: "d1b5e999db158c62fe8f7267a4476b035d8bd93b1a605bac24a3f0dd166e3316", executableSha256: "1052eb9c7d6c60a79b968e09f75af55a73462b0f6dff0964336d63b5e13eb63c", executableSize: 123666640 }),
-  "linux-x64": Object.freeze({ archiveSha256: "f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4", executableSha256: "bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12", executableSize: 125989464 }),
+  "darwin-arm64": Object.freeze({ archiveSha256: "bed7eea5325e1108f32ce5228ddd6a5f0f08a499ee42aa7442aea583702f6057", executableSha256: "e4b5a3af0e05c75de2eae013904145f40fe7fc2a6e6f17510128bf45cca4e79b", executableSize: 122129232 }),
+  "darwin-x64": Object.freeze({ archiveSha256: "1462cb3b3046b815cf8ea436d3da450ec1a9f11dac7e5a46b0ada5305d7e8097", executableSha256: "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49", executableSize: 125270960 }),
+  "linux-x64": Object.freeze({ archiveSha256: "6e1db87ef58b8819e5d5402eff1536491b18edd8eb7bee5ef7897876e88dc5ff", executableSha256: "7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c", executableSize: 126595440 }),
 });

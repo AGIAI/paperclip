@@ -10,7 +10,7 @@ import { QUALIFIED_ACPX_PROFILES, type QualifiedAcpxProfile } from "./qualified-
 
 const roots: string[] = [];
 afterEach(async () => { vi.unstubAllEnvs(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
-const candidate = (): QualifiedAcpxProfile => ({ ...QUALIFIED_ACPX_PROFILES.pi, agentProfileVersion: 4 });
+const candidate = (): QualifiedAcpxProfile => ({ ...QUALIFIED_ACPX_PROFILES.pi, agentProfileVersion: 5 });
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "pi-installation-test-")); roots.push(root);
@@ -24,7 +24,7 @@ async function fixture() {
 
 describe("Pi installation factory", () => {
   it("binds the profile declaration to the reviewed patch and platform closure pins", async () => {
-    const digest = createHash("sha256").update("paperclip.pi.rich-acp.profile.v4\0")
+    const digest = createHash("sha256").update("paperclip.pi.rich-acp.profile.v5\0")
       .update(await readFile(new URL("../../../../../patches/pi-acp@0.0.33.patch", import.meta.url)))
       .update("\0").update(await readFile(new URL("./pi-closure-pins.ts", import.meta.url))).digest("hex");
     expect(QUALIFIED_ACPX_PROFILES.pi.commandDigest).toBe(`sha256:${digest}`);
@@ -32,9 +32,10 @@ describe("Pi installation factory", () => {
 
   it("rejects legacy profiles and caller-selected identities", () => {
     expect(() => assertPiInstallationProfile(candidate())).not.toThrow();
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 1 })).toThrow("version 4");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 2 })).toThrow("version 4");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 3 })).toThrow("version 4");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 1 })).toThrow("version 5");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 2 })).toThrow("version 5");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 3 })).toThrow("version 5");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 4 })).toThrow("version 5");
     for (const changed of [{ agentServerVersion: "latest" }, { commandDigest: `sha256:${"0".repeat(64)}` }, { reportedModelId: "different" }, { agentRuntimePackage: "ambient-pi" }]) {
       expect(() => assertPiInstallationProfile({ ...candidate(), ...changed })).toThrow("trusted declaration");
     }
@@ -43,8 +44,8 @@ describe("Pi installation factory", () => {
     const { assets } = await fixture();
     await writeFile(join(assets, "pi-distribution.json"), JSON.stringify({
       schema: "paperclip.pi-distribution.v1", runtimeRoot: "runtime", nativeClosureSha256: "0".repeat(64),
-      target: { platform: process.platform, architecture: process.arch, nodeVersion: "24.19.0" },
-      pins: { nodeVersion: "24.19.0", wrapper: "0.0.33", runtime: "0.84.2", sdk: "0.26.0", zod: "3.25.76" },
+      target: { platform: process.platform, architecture: process.arch, nodeVersion: "24.21.0" },
+      pins: { nodeVersion: "24.21.0", wrapper: "0.0.33", runtime: "0.84.2", sdk: "0.26.0", zod: "3.25.76" },
     }));
     await expect(verifyPiInstallation(candidate())).rejects.toThrow("trusted target pin");
   });

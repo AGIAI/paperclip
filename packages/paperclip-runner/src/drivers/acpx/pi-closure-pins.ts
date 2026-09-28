@@ -1,12 +1,12 @@
 /**
- * Candidate closure pins from the isolated npm lock and official Node 24.19.0.
+ * Candidate closure pins from the isolated npm lock and official Node 24.21.0.
  * The non-Node graph is identical across targets, including platform resources.
  * macOS arm64 executed admission tests; x64 target execution remains pending.
  * Changing any package, helper, extension or bootstrap requires regenerating all
  * three pins. Never accept a digest supplied only by an installed manifest.
  */
 export const PI_DISTRIBUTION_CLOSURE_SHA256 = Object.freeze({
-  "darwin-arm64": "b0e02ed16d27fd1d90a5e91d6309f1c47d6cf55f8937a8f680baeee19646d320",
-  "darwin-x64": "a79b55d7773f4f67d1c6d87fe67346852df5a23e36e8c55d1e84f80d4b668f22",
-  "linux-x64": "fc7464cb5ea5af2a2d2519f3a67f7471ca3185110f33eaaea3785043709ad3b2",
+  "darwin-arm64": "0010175e4bc200f145386e59f7a824cf7532ad273e9db6824d22c4f82cdcd6ff",
+  "darwin-x64": "9dd49bd1341a6e3438db56cc6b3dc772964ebcdd0552bcfbf2e5e621b2970ab6",
+  "linux-x64": "91169667544764764e2e402868fbb76a9a429575cfdb1b312b8ed8ae669ebc89",
 });

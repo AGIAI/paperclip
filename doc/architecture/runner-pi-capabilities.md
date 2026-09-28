@@ -1,9 +1,10 @@
 # Pi rich ACP runtime
 
-Status: implementation candidate, 2026-09-28. Profile version 4 repairs native
-tool ID reuse across model iterations and warm prompts. Its deterministic bridge,
-SDK ordering, lifecycle and history regressions pass; authenticated v4
-qualification is pending. Historical version 3 passes cover local Product file
+Status: implementation candidate, 2026-09-28. Profile version 5 repairs the
+Undici dependency and bundled Node runtime affected by GHSA-3wwx-pv8p-q78v.
+Authenticated v5 qualification is pending. Historical version 4 repairs native
+tool ID reuse across model iterations and warm prompts; its native steering,
+queued follow-up and denied-write probe passes. Historical version 3 passes cover local Product file
 delivery, typed question continuation and native steering, queued follow-up and
 denied-write controls. Its semantic plan journey exposed two defects: the shared
 MCP display projection, now repaired, followed by a resumed-turn ID collision,
@@ -81,10 +82,11 @@ cached validation errors, concurrent exact retries, changed-payload rejection,
 and a corrected invocation in the next iteration. Installed-wrapper tests verify
 lifecycle correlation and stable, disjoint historical replay identities.
 
-The v4 command digest is
-`sha256:2324d9b47650c12b16f8e2c44dc33637d52f1b22ba8e914623eac4049e7e1991`.
-Versions 1, 2 and 3 cannot reopen under this identity. Older paid and image proofs
-below remain evidence of their recorded versions, not v4 qualification.
+The current v5 command digest is
+`sha256:020d96ccbd3c45c3f62680814776394ed5a56d9572a1a4dccda56a74d16c7803`.
+Versions 1–4 cannot reopen under this identity. Paid and image proofs below remain
+evidence of their recorded versions, not v5 qualification. The historical v4
+digest is `sha256:2324d9b47650c12b16f8e2c44dc33637d52f1b22ba8e914623eac4049e7e1991`.
 
 ## Lifetime and recovery
 
@@ -221,7 +223,7 @@ Primary references reviewed:
 Run `node packages/paperclip-runner/scripts/materialize-pi-distribution.mjs
 /absolute/new-output` on the target build host. Supported targets are macOS arm64,
 macOS x64 and Linux x64; no cross-platform qualification is inferred. The builder
-uses exact official Node 24.19.0, pinned archive SHA-256 and executable SHA-256
+uses exact official Node 24.21.0, pinned archive SHA-256 and executable SHA-256
 for each target. `--node=/absolute/portable-node` reuses a matching binary; without
 it the builder downloads the pinned official archive. It rejects non-system
 dynamic-library dependencies and executes the copied interpreter after relocation.
@@ -234,9 +236,33 @@ preserves Pi's upstream nested shrinkwrap, and adds npm registry SHA-512 integri
 for the six exact 0.84.2 Pi family packages whose published shrinkwrap omitted it.
 Installation uses `npm ci --ignore-scripts`, public registry access, private npm
 configuration and an environment without npm or provider credentials. The builder
-checks every locked installed version and upstream shrinkwrap entry, applies the
+checks every locked installed version and upstream shrinkwrap entry (with the
+exact security exception below), applies the
 owned ACP patch, verifies the helper matches its TypeScript source, and compiles
 the owned extension to `runtime/extensions/paperclip.js`.
+
+Profile v5 replaces only the nested `undici@8.9.0` with `8.10.2`. Both an
+existing-lock resolution and a fresh resolution ignore npm's scoped override
+inside Pi's published shrinkwrap; `npm ci` also installs 8.9.0 despite the fixed
+outer lock. The materializer therefore checks the exact original nested path,
+version, registry URL and SHA-512, plus the installed vulnerable package identity,
+before fetching the exact fixed tarball. It verifies the pinned SHA-512 before
+extraction, bounds both gzip and inflated tar bytes to 4 MiB, rejects traversal,
+links and unexpected entry types, and requires the 214 regular-file payload.
+The published Pi package metadata and shrinkwrap remain unchanged; only this exact
+old-to-new tuple is an exception. Every other package retains its previous lock
+entry. Installed version checks and the complete source-pinned closure then make
+it impossible for npm's old copy to survive admission.
+
+Node 24.21.0 also replaces bundled Undici 7.29.0 with 7.29.1, covering the global
+WebSocket implementation as well as the nested npm copy. The materializer checks
+`process.versions.undici` explicitly. Sources: [official advisory](https://github.com/advisories/GHSA-3wwx-pv8p-q78v),
+[fixed Undici release](https://github.com/nodejs/undici/releases/tag/v8.10.2),
+[Node 24.21.0 release](https://nodejs.org/en/blog/release/v24.21.0) and
+[official archive checksums](https://nodejs.org/dist/v24.21.0/SHASUMS256.txt).
+Only Pi's declarations and three closure pins change; sibling provider pins
+remain unchanged. The containing provider pack must be rebuilt with the patched
+portable interpreter and retains its own manifest identity.
 
 The result contains `runtime/` and a sibling `pi-distribution.json`. Keeping the
 manifest outside its inventoried root avoids a self-referential file digest. The
@@ -295,7 +321,7 @@ The first authenticated local Runner snapshot verified the exact configured
 model ID. It did not settle or produce a terminal usage receipt; complete local
 and Linux/Daytona receipt qualification remains outstanding.
 
-Historical profile version 3 declaration digest: `sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472`. The current v4 digest above hashes its versioned
+Historical profile version 3 declaration digest: `sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472`. The current v5 digest above hashes its versioned
 profile domain, patched wrapper source and platform closure pins. Every native
 closure remains independently checked at launch. Version 1, 2 and 3 warm sessions cannot
 be reused with this integration.
@@ -418,9 +444,10 @@ attempt at $0.000546502; Pi's separate catalog estimate is $0.000803936. Initial
 unchanged billing reads are retained and were not treated as free inference.
 
 A newly indexed [Undici advisory](https://github.com/advisories/GHSA-3wwx-pv8p-q78v)
-also affects the current isolated npm Undici 8.9.0 and Node 24.19.0's bundled
-Undici 7.29.0. Further paid work is held while the provider-local v5 dependency
-repair is prepared. This paid v4 proof remains bound to its original bytes.
+affects the historical v4 isolated npm Undici 8.9.0 and Node 24.19.0's bundled
+Undici 7.29.0. Profile v5 fixes both copies as described above. Further paid work
+remains held until fresh pack proofs and a new bounded authorization. This paid
+v4 proof remains bound to its original bytes.
 
 The first [v4 plan attempt](../../packages/paperclip-runner/test-fixtures/pi-acp/product-plan-infrastructure-failure.v4.darwin-arm64.json)
 failed before provider startup: embedded PostgreSQL could not initialize the
