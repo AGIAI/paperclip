@@ -1253,12 +1253,18 @@ impl AcpxCommandExecutor {
             .as_mut()
             .expect("ACPX state exists after turn start");
         state.lifecycle = "turn_active".to_owned();
+        let previous_turn_controls = state.turn_controls;
         state.turn_controls = self
             .session
             .as_ref()
             .expect("live ACPX session")
             .turn_control_capabilities();
-        let capabilities = json!({"sessionGoals": state.goal_projection["sessionGoals"], "turnControls":state.turn_controls});
+        // session.open already published these capabilities. Preserve legacy
+        // turn ordering when nothing changed, while exposing lazy discovery
+        // and capability loss after a provider process replacement.
+        let capabilities = (state.turn_controls != previous_turn_controls).then(|| {
+            json!({"sessionGoals": state.goal_projection["sessionGoals"], "turnControls":state.turn_controls})
+        });
         self.save_state()?;
         let mut events = Vec::with_capacity(if provider_process_will_be_replaced {
             2
@@ -1281,11 +1287,13 @@ impl AcpxCommandExecutor {
                 ),
             ));
         }
-        events.push((
-            "session.capabilities.updated".to_owned(),
-            EventPriority::P0,
-            capabilities,
-        ));
+        if let Some(capabilities) = capabilities {
+            events.push((
+                "session.capabilities.updated".to_owned(),
+                EventPriority::P0,
+                capabilities,
+            ));
+        }
         events.push((
             "turn.started".to_owned(),
             EventPriority::P0,

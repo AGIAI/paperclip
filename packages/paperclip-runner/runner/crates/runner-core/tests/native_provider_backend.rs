@@ -16,6 +16,8 @@ use sha2::{Digest, Sha256};
 
 const CODEX_ACPX_DIGEST: &str =
     "sha256:c4538599d1ab767db5dff50934f13bb5ba313a59d9c4a83e993fac4617ea63d3";
+const PI_ACPX_DIGEST: &str =
+    "sha256:8c696f38296d53d0061fa11534570c5ddd951b63532aed30e0f1fcc676dc169f";
 
 fn temporary_directory(label: &str) -> PathBuf {
     let nonce = SystemTime::now()
@@ -73,6 +75,18 @@ fn acpx_config(state_dir: &Path, mode: &str) -> DurableRunnerConfig {
             path: command,
         }],
     });
+    config
+}
+
+fn pi_acpx_config(state_dir: &Path, mode: &str) -> DurableRunnerConfig {
+    let mut config = acpx_config(state_dir, mode);
+    *config
+        .acpx_launch_profile
+        .as_mut()
+        .unwrap()
+        .args
+        .last_mut()
+        .unwrap() = PI_ACPX_DIGEST.to_owned();
     config
 }
 
@@ -209,6 +223,20 @@ fn prepare_payload_with_mode(directory: &Path, agent: &str, mode: &str) -> Value
             "runtimeContext": null,
         },
     })
+}
+
+fn pi_prepare_payload(directory: &Path, mode: &str) -> Value {
+    let mut payload = prepare_payload_with_mode(directory, "pi", mode);
+    let provider = &mut payload["provider"];
+    provider["model"] = json!("openrouter/deepseek/deepseek-v4-flash-0731");
+    provider["agentServerPackage"] = json!("pi-acp");
+    provider["agentServerVersion"] = json!("0.0.33");
+    provider["agentRuntimePackage"] = json!("@earendil-works/pi-coding-agent");
+    provider["agentRuntimeVersion"] = json!("0.84.2");
+    provider["commandDigest"] = json!(PI_ACPX_DIGEST);
+    provider["sidecarArgs"][3] = json!(PI_ACPX_DIGEST);
+    provider["providerPolicy"] = json!({"readOnly":true});
+    payload
 }
 
 #[test]
@@ -820,18 +848,83 @@ fn rejects_opencode_launch_profile_drift_across_fresh_recovery() {
 }
 
 #[test]
-fn rejects_pi_before_starting_a_sidecar() {
-    let directory = temporary_directory("pi");
-    let config = config(&directory);
+fn rejects_pi_with_an_unqualified_model_before_starting_a_sidecar() {
+    let directory = temporary_directory("pi-model");
+    let config = pi_acpx_config(&directory, "bootstrap");
+    let mut payload = pi_prepare_payload(&directory, "bootstrap");
+    // All Pi distribution and policy fields are correct. Admission must reject
+    // the model itself, not rely on the old blanket exclusion of this harness.
+    payload["provider"]["model"] = json!("gpt-5.6-sol");
     let mut executor = NativeProviderCommandExecutor::with_runner_config(&directory, &config);
     let error = executor
-        .execute(&command(
-            1,
-            "run.prepare",
-            prepare_payload(&directory, "pi"),
-        ))
+        .execute(&command(1, "run.prepare", payload))
         .unwrap_err();
-    assert!(error.to_string().contains("agent pi is not executable"));
+    assert!(error
+        .to_string()
+        .contains("does not match a qualified immutable profile"));
     assert!(!directory.join("acpx-runtime").exists());
+    assert!(!directory.join("acpx-provider-state.json").exists());
     fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn publishes_only_changed_pi_controls_before_the_new_turn() {
+    for (mode, initially_available, turn_available) in [
+        ("controls-lazy", false, true),
+        ("controls-downgrade", true, false),
+        ("controls", true, true),
+    ] {
+        let directory = temporary_directory(mode);
+        let config = pi_acpx_config(&directory, mode);
+        let mut executor = NativeProviderCommandExecutor::with_runner_config(&directory, &config);
+        executor
+            .execute(&command(
+                1,
+                "run.prepare",
+                pi_prepare_payload(&directory, mode),
+            ))
+            .unwrap();
+        let opened = executor
+            .execute(&command(2, "session.open", json!({})))
+            .unwrap();
+        assert_eq!(
+            opened.events[0].2["providerDescriptor"]["turnControls"],
+            json!({"steering":initially_available, "queuedFollowUp":initially_available})
+        );
+
+        let started = executor
+            .execute(&command(
+                3,
+                "turn.start",
+                json!({
+                    "text":"Work", "turnId":"provider-turn-controls"
+                }),
+            ))
+            .unwrap();
+        assert_eq!(started.result["providerTurnId"], "provider-turn-controls");
+        let expected_types = if initially_available != turn_available {
+            vec!["session.capabilities.updated", "turn.started"]
+        } else {
+            vec!["turn.started"]
+        };
+        assert_eq!(
+            started
+                .events
+                .iter()
+                .map(|event| event.0.as_str())
+                .collect::<Vec<_>>(),
+            expected_types
+        );
+        if initially_available != turn_available {
+            assert_eq!(
+                started.events[0].2["turnControls"],
+                json!({"steering":turn_available, "queuedFollowUp":turn_available})
+            );
+        }
+        let turn = &started.events.last().unwrap().2;
+        assert_eq!(turn["providerTurnId"], "provider-turn-controls");
+        assert_eq!(turn["turn"]["id"], "provider-turn-controls");
+        executor.shutdown().unwrap();
+        fs::remove_dir_all(directory).unwrap();
+    }
 }

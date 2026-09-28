@@ -208,6 +208,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             | "controls"
             | "controls-wrong-ack"
             | "controls-lazy"
+            | "controls-downgrade"
             | "turns"
             | "turns-wrong-turn"
             | "turns-wrong-cancel"
@@ -732,7 +733,7 @@ fn bootstrap_success(
                     "providerLifetimeFenceCandidates": [60001, 60002, 60003],
                 },
                 "status": {},
-                "turnControls": {"steering": matches!(mode, "controls" | "controls-wrong-ack"), "queuedFollowUp":matches!(mode, "controls" | "controls-wrong-ack")},
+                "turnControls": {"steering": matches!(mode, "controls" | "controls-wrong-ack" | "controls-downgrade"), "queuedFollowUp":matches!(mode, "controls" | "controls-wrong-ack" | "controls-downgrade")},
             })
         }
         "run.attach" => json!({
