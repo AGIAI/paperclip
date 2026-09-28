@@ -243,6 +243,15 @@ export function agentInstructionRevisionService(db: Db) {
       return row ? snapshot(row) : null;
     });
   }
+  /** Trusted orchestration read for the already authorized run target. This
+   * never seeds or writes, and is not exposed through HTTP or model tools. */
+  async function readCommittedForRuntime(target: InstructionTarget): Promise<AgentInstructionSnapshot | null> {
+    return db.transaction(async (tx) => {
+      const state = await lockTarget(tx, target);
+      const current = await head(tx, target, state.entryFile);
+      return current ? snapshot(current) : null;
+    });
+  }
   /** Rebuild disk from the current committed head under the same lock as commits. Safe after restart. */
   async function materializeCurrent(target: InstructionTarget): Promise<void> {
     await db.transaction(async (tx) => {
@@ -449,6 +458,7 @@ export function agentInstructionRevisionService(db: Db) {
     };
   }
   return {
+    readCommittedForRuntime,
     readCurrent,
     readRevision,
     history,

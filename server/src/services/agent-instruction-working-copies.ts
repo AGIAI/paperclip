@@ -90,6 +90,7 @@ export function agentInstructionWorkingCopyService(db: Db) {
   }
   async function prepare(input: { companyId: string; agentId: string; runId: string; target?: AdapterExecutionTarget | null; cwd: string }) {
     const existing = await get(input.companyId, input.runId);
+    let refreshStoppedCopy = false;
     const workspace = await fs.realpath(input.cwd);
     const expectedLocalRoot = path.join(workspace, ".paperclip-runtime", `instruction-edits-${input.runId}`, "instructions");
     if (existing && existing.localRoot !== expectedLocalRoot) throw conflict("The registered instruction copy belongs to a different run workspace");
@@ -97,25 +98,33 @@ export function agentInstructionWorkingCopyService(db: Db) {
     if (existing && (existing.agentId !== input.agentId || existing.location !== location)) {
       throw conflict("The registered instruction copy belongs to a different run environment");
     }
-    // Same-run retries preserve the working bytes and original CAS baseline.
+    // Preserve in-flight bytes and their CAS baseline. A completed, stopped copy
+    // can start a fresh lifecycle only after its recorded bytes are accounted for.
     if (existing && existing.state !== "preparing") {
       if (["conflict", "pending_commit", "unavailable"].includes(existing.state)) {
         throw conflict("Resolve this run's preserved instruction candidate before editing its working copy again");
       }
       if (input.target) liveTargets.set(targetKey(input.companyId, input.runId), input.target);
-      if (completed.has(existing.state) || existing.state === "unchanged_turn") {
-        const revision = existing.receipt?.revision as { id?: string; contentHash?: string } | undefined;
-        return patch(existing, { state: "prepared", baseRevisionId: revision?.id ?? existing.baseRevisionId,
-          baseHash: revision?.contentHash ?? existing.baseHash, candidateBase64: null, candidateHash: null,
-          receipt: null, processStoppedAt: null, attempts: 0, nextAttemptAt: null });
+      if (completed.has(existing.state) && existing.processStoppedAt) {
+        const privateBytes = await readCandidate(existing, input.target);
+        // Refresh only bytes whose previous lifecycle is complete. A changed
+        // private file must keep its old CAS fence; never silently rebase edits.
+        refreshStoppedCopy = privateBytes === null || hash(privateBytes) === (existing.candidateHash ?? existing.baseHash);
       }
-      return existing;
+      if (!refreshStoppedCopy) {
+        if (completed.has(existing.state) || existing.state === "unchanged_turn") {
+          // unchanged_turn is a live warm-owner observation, not stop proof.
+          return patch(existing, { state: "prepared", candidateBase64: null, candidateHash: null,
+            receipt: null, processStoppedAt: null, attempts: 0, nextAttemptAt: null });
+        }
+        return existing;
+      }
     }
     const [agent] = await db.select().from(agents).where(and(eq(agents.id, input.agentId), eq(agents.companyId, input.companyId)));
     if (!agent) throw notFound("Agent not found");
     if (agentInstructionsBundleMode(agent) !== "managed") return null;
     const bound = await resolveInstructionActor(db, { type: "agent", companyId: input.companyId, agentId: input.agentId, runId: input.runId });
-    const baseline = existing?.baseRevisionId
+    const baseline = existing?.baseRevisionId && !refreshStoppedCopy
       ? await revisions.readRevision({ companyId: input.companyId, agentId: input.agentId, entryFile: existing.entryFile, revisionId: existing.baseRevisionId }, bound)
       : await revisions.readCurrent({ companyId: input.companyId, agentId: input.agentId }, bound);
     if (!baseline) return null;
@@ -135,7 +144,12 @@ export function agentInstructionWorkingCopyService(db: Db) {
         localRoot, executionRoot, location, state: "preparing",
       });
     }
-    const row = (await get(input.companyId, input.runId))!;
+    let row = (await get(input.companyId, input.runId))!;
+    if (refreshStoppedCopy) {
+      row = await patch(row, { state: "preparing", entryFile, baseRevisionId: baseline.revision.id,
+        baseHash: hash(content), candidateBase64: null, candidateHash: null, receipt: null,
+        processStoppedAt: null, attempts: 0, nextAttemptAt: null, errorCode: null, errorMessage: null });
+    }
     await assertInstructionPathSafe(localRoot, entryFile);
     await execFile(process.execPath, ["-e", instructionGitExcludeProgram, workspace], { timeout: 15_000 });
     await fs.mkdir(localRoot, { recursive: true, mode: 0o700 });
