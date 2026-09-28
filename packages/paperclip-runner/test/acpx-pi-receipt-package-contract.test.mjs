@@ -22,9 +22,9 @@ async function recordReceipt(metadata, usage = { inputTokens: 12, outputTokens: 
 }
 
 test("Pi prompt receipts preserve exact per-request provenance and USD cost including zero", async () => {
-  for (const costUsd of [0, 0.0025]) {
-    const { conversation, promptMessageId } = await recordReceipt({ provenance: "assistant_message_receipts", costUsd, extra: "DROP_ME" });
-    assert.deepEqual(conversation.request_token_usage[promptMessageId].paperclip_pi, { provenance: "assistant_message_receipts", cost_usd: costUsd });
+  for (const provenance of ["assistant_message_receipts", "assistant_message_and_compaction_receipts"]) for (const costUsd of [0, 0.0025]) {
+    const { conversation, promptMessageId } = await recordReceipt({ provenance, costUsd, extra: "DROP_ME" });
+    assert.deepEqual(conversation.request_token_usage[promptMessageId].paperclip_pi, { provenance, cost_usd: costUsd });
     assert.equal(conversation.cumulative_token_usage.paperclip_pi, undefined);
     assert.equal(conversation.cumulative_cost, undefined);
     assert.equal(JSON.stringify(conversation).includes("DROP_ME"), false);
@@ -34,14 +34,14 @@ test("Pi prompt receipts preserve exact per-request provenance and USD cost incl
 test("missing cost stays missing and untrusted provenance or invalid costs never become receipts", async () => {
   const missing = await recordReceipt({ provenance: "assistant_message_receipts" }, {});
   assert.deepEqual(missing.conversation.request_token_usage[missing.promptMessageId].paperclip_pi, { provenance: "assistant_message_receipts" });
-  for (const metadata of [{ provenance: "estimated", costUsd: 1 }, { provenance: "assistant_message_receipts", costUsd: -1 }, { provenance: "assistant_message_receipts", costUsd: Infinity }, { provenance: "assistant_message_receipts", costUsd: "0.01" }]) {
+  for (const metadata of [{ provenance: "estimated", costUsd: 1 }, { provenance: "compaction_receipts", costUsd: 1 }, { provenance: "assistant_message_and_compaction_receipts", costUsd: -1 }, { provenance: "assistant_message_receipts", costUsd: -1 }, { provenance: "assistant_message_receipts", costUsd: Infinity }, { provenance: "assistant_message_receipts", costUsd: "0.01" }]) {
     const { conversation, promptMessageId } = await recordReceipt(metadata);
     assert.equal(conversation.request_token_usage[promptMessageId].paperclip_pi, undefined);
   }
 });
 
-test("receipts survive canonical disk serialization/reload with a closed metadata shape", async () => {
-  const { conversation, promptMessageId } = await recordReceipt({ provenance: "assistant_message_receipts", costUsd: 0.01 });
+for (const provenance of ["assistant_message_receipts", "assistant_message_and_compaction_receipts"]) test(`${provenance} survives canonical disk serialization/reload with a closed metadata shape`, async () => {
+  const { conversation, promptMessageId } = await recordReceipt({ provenance, costUsd: 0.01 });
   const record = {
     schema: "acpx.session.v1", acpxRecordId: "record-1", acpSessionId: "session-1", agentCommand: "verified-pi",
     cwd: "/workspace", createdAt: "2026-09-28T00:00:00Z", lastUsedAt: "2026-09-28T00:00:00Z", lastSeq: 0,
@@ -52,6 +52,6 @@ test("receipts survive canonical disk serialization/reload with a closed metadat
   disk.request_token_usage[promptMessageId].paperclip_pi.extra = "DROP_ME";
   const restored = parse(JSON.parse(JSON.stringify(disk)));
   assert.ok(restored);
-  assert.deepEqual(restored.request_token_usage[promptMessageId].paperclip_pi, { provenance: "assistant_message_receipts", cost_usd: 0.01 });
+  assert.deepEqual(restored.request_token_usage[promptMessageId].paperclip_pi, { provenance, cost_usd: 0.01 });
   assert.equal(JSON.stringify(restored).includes("DROP_ME"), false);
 });

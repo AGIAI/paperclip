@@ -437,10 +437,10 @@ diff --git a/dist/live-checkpoint-BSIrfgVo.js b/dist/live-checkpoint-BSIrfgVo.js
  }
 +function parsePaperclipPiReceipt(raw, costField = "cost_usd") {
 +	const receipt = asRecord$4(raw);
-+	if (receipt?.provenance !== "assistant_message_receipts") return;
++	if (receipt?.provenance !== "assistant_message_receipts" && receipt?.provenance !== "assistant_message_and_compaction_receipts") return;
 +	const cost = receipt[costField];
 +	if (cost !== void 0 && !isNonNegativeFiniteNumber(cost)) return;
-+	return { provenance: "assistant_message_receipts", ...cost !== void 0 ? { cost_usd: cost } : {} };
++	return { provenance: receipt.provenance, ...cost !== void 0 ? { cost_usd: cost } : {} };
 +}
  function recordPromptResponseUsage(conversation, usage, promptMessageId, timestamp = isoNow()) {
  	const tokenUsage = sourceToTokenUsage(usage);
@@ -905,7 +905,7 @@ diff --git a/dist/session-options-DwRDODlr.d.ts b/dist/session-options-DwRDODlr.
    cumulative_cost?: SessionUsageCost;
 -  request_token_usage: Record<string, SessionTokenUsage>;
 +  request_token_usage: Record<string, SessionTokenUsage & {
-+    paperclip_pi?: { provenance: "assistant_message_receipts"; cost_usd?: number };
++    paperclip_pi?: { provenance: "assistant_message_receipts" | "assistant_message_and_compaction_receipts"; cost_usd?: number };
 +  }>;
    acpx?: SessionAcpxState;
    importedFrom?: SessionImportedFrom;
