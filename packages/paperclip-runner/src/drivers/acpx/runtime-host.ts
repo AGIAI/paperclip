@@ -1,4 +1,6 @@
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { assertAcpxProfileWorkspace, verifyAcpxProfileInstallation } from "./profile-installation.js";
+import { createAcpxRuntimeSkillLease } from "./runtime-skill-lease.js";
 import { claudeNativeSkillPrompt } from "./native-skill-prompt.js";
 import { nativeMcpLaunchBinding } from "../native-mcp.js";
 
@@ -26,7 +28,6 @@ import {
   type AcpxProviderLifetimeLease,
 } from "./codex-credentials.js";
 import {
-  verifyQualifiedAcpxInstallation,
   type VerifiedAcpxCommandLease,
   type VerifiedAcpxInstallation,
 } from "./installation-integrity.js";
@@ -51,6 +52,7 @@ import {
 import {
   prepareAcpxRuntimeSandbox,
   type AcpxRuntimeSandbox,
+  type AcpxProviderRuntimePolicy,
 } from "./runtime-sandbox.js";
 import type { AcpxExpectedSessionIdentity } from "./sidecar-protocol.js";
 
@@ -179,7 +181,7 @@ export type AcpxSemanticToolSession = Omit<RunnerToolBridgeOptions, "secret">;
 
 export interface AcpxRetainedCleanupFailure {
   resource:
-    "credential" | "provider_lifetime" | "command" | "runtime" | "tool_bridge";
+    "credential" | "provider_lifetime" | "command" | "runtime" | "tool_bridge" | "skills";
   attempt: number;
   error: unknown;
 }
@@ -211,6 +213,8 @@ export interface AcpxRuntimeHostDependencies {
 }
 
 export interface OpenAcpxRuntimeHostOptions {
+  /** Explicit task execution policy; never inferred from auto-approval. Required for Pi. */
+  providerPolicy?: AcpxProviderRuntimePolicy;
   /** Never persisted as session options or recovery identity. */
   clientCapabilities?: Record<string, unknown>;
   runtimeDirectory: string;
@@ -303,10 +307,8 @@ export class AcpxRuntimeHost {
     dependencies: AcpxRuntimeHostDependencies,
   ): Promise<AcpxRuntimeHost> {
     options.signal?.throwIfAborted();
-    if (options.agent === "pi") {
-      throw new Error(
-        "ACPX pi is unavailable until its runtime has descriptor-confined verified launch",
-      );
+    if (options.agent === "pi" && typeof options.providerPolicy?.readOnly !== "boolean") {
+      throw new Error("Pi admission requires an explicit task execution policy");
     }
     const nativeMcp = nativeMcpLaunchBinding(options.environment);
     if (nativeMcp?.name === "paperclip") {
@@ -345,7 +347,7 @@ export class AcpxRuntimeHost {
     const installation = await runAbortableAdmissionStage(
       options.signal,
       () =>
-        (dependencies.verifyInstallation ?? verifyQualifiedAcpxInstallation)(
+        (dependencies.verifyInstallation ?? verifyAcpxProfileInstallation)(
           profile,
         ),
       dependencies.retainAdmissionCleanup,
@@ -403,6 +405,11 @@ export class AcpxRuntimeHost {
             agent: options.agent,
             environment: options.environment,
             tools: options.semanticTools?.tools,
+            ...(options.providerPolicy === undefined ? {} : { providerPolicy: {
+              ...options.providerPolicy,
+              systemInstructions: boundedInstructions(options.systemInstructions),
+              protectedPaths: [...(options.providerPolicy.protectedPaths ?? []), dirname(installation.agentServerPackageJsonPath)],
+            } }),
           }),
         dependencies.retainAdmissionCleanup,
       );
@@ -431,6 +438,29 @@ export class AcpxRuntimeHost {
           releaseLate: (lateLifetime) => lateLifetime.close(),
           reportFailure: (failure) =>
             dependencies.reportRetainedCleanupFailure(failure),
+        });
+      }
+      let launchEnvironment = sandbox.launchEnvironment;
+      if (options.agent === "pi") {
+        const skills = await acquireAbortableAdmissionResource({
+          signal: options.signal,
+          acquire: () => createAcpxRuntimeSkillLease(options.runtimeContext ?? null),
+          resource: "skills", releaseLate: value => value.close(),
+          reportFailure: dependencies.reportRetainedCleanupFailure,
+        });
+        const providerLifetime = credential;
+        credential = {
+          lifetimeFenceCandidates: providerLifetime.lifetimeFenceCandidates,
+          lifetimeFenceFds: providerLifetime.lifetimeFenceFds,
+          activateLifetimeOwner: pid => providerLifetime.activateLifetimeOwner(pid),
+          async close() {
+            // Only release assigned files after the provider lifetime quorum closes.
+            await providerLifetime.close();
+            await skills.close();
+          },
+        };
+        launchEnvironment = Object.freeze({ ...sandbox.launchEnvironment,
+          PAPERCLIP_PI_READ_ROOTS: JSON.stringify([...(options.providerPolicy?.readRoots ?? []), ...skills.readRoots]),
         });
       }
       if (options.agent === "claude") {
@@ -474,8 +504,9 @@ export class AcpxRuntimeHost {
       }
       runtime = await acquireAbortableAdmissionResource({
         signal: options.signal,
-        acquire: () => {
+        acquire: async () => {
           options.assertWorkspaceHeld?.();
+          await assertAcpxProfileWorkspace(options.agent, binding.workspacePath);
           return dependencies.openRuntime({
             ...(options.clientCapabilities === undefined ? {} : {
               clientCapabilities: structuredClone(options.clientCapabilities),
@@ -490,7 +521,7 @@ export class AcpxRuntimeHost {
             permissionPolicy: acpxRuntimePermissionPolicy(
               binding.permissionMode,
             ),
-            launchEnvironment: sandbox.launchEnvironment,
+            launchEnvironment,
             credentialFenceFds: admittedLifetime.lifetimeFenceFds,
             activateCredentialFenceOwner:
               admittedLifetime.activateLifetimeOwner.bind(admittedLifetime),

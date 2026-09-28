@@ -713,7 +713,7 @@ describe("ACPX runtime host", () => {
     ).rejects.toThrow();
   });
 
-  it("rejects Pi before installation or runtime launch", async () => {
+  it("rejects Pi without an explicit task policy before installation or runtime launch", async () => {
     const fixture = await hostFixture();
     const verifyInstallation = vi.fn();
     const openRuntime = vi.fn();
@@ -731,9 +731,35 @@ describe("ACPX runtime host", () => {
           reportRetainedCleanupFailure: vi.fn(),
         },
       ),
-    ).rejects.toThrow("descriptor-confined verified launch");
+    ).rejects.toThrow("explicit task execution policy");
     expect(verifyInstallation).not.toHaveBeenCalled();
     expect(openRuntime).not.toHaveBeenCalled();
+  });
+
+  it("binds Pi task policy independently of permissions and rejects an uninstalled candidate", async () => {
+    const fixture = await hostFixture();
+    const model = "openrouter/deepseek/deepseek-v4-flash-0731";
+    const profile = resolveQualifiedAcpxProfile("pi", model);
+    const openRuntime = vi.fn(async (options: AcpxRuntimePortOpenOptions) => {
+      expect(options.launchEnvironment.PAPERCLIP_PI_READ_ONLY).toBe("1");
+      expect(options.launchEnvironment.PAPERCLIP_PI_SYSTEM_INSTRUCTIONS).toBe("Bound instructions");
+      expect(JSON.parse(options.launchEnvironment.PAPERCLIP_PI_READ_ROOTS!)).toEqual([]);
+      expect(options.permissionMode).toBe("approve-all");
+      return runtimePort({ getStatus: async () => ({ models: { currentModelId: model } }) });
+    });
+    const options = { ...fixture.options, agent: "pi" as const, model,
+      permissionMode: "approve-all" as const, providerPolicy: { readOnly: true }, systemInstructions: "Bound instructions" };
+    await expect(AcpxRuntimeHost.open(options, { openRuntime, reportRetainedCleanupFailure: vi.fn() }))
+      .rejects.toThrow("verified candidate distribution is not installed");
+    expect(openRuntime).not.toHaveBeenCalled();
+    const host = await AcpxRuntimeHost.open(options, fixture.dependencies({
+      verifyInstallation: async () => ({ commandDigest: profile.commandDigest,
+        agentServerPackageJsonPath: join(fixture.root, "package.json"), agentRuntimePackageJsonPath: null,
+        openCommand: async () => ({ spawn: () => { throw new Error("not used"); }, close: async () => {} }),
+      }), openRuntime,
+    }));
+    await host.close({ reason: "policy verified" });
+    expect(openRuntime).toHaveBeenCalledOnce();
   });
 
   it("selects and verifies Claude's qualified reported model", async () => {

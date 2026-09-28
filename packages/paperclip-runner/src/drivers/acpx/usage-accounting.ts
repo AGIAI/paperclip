@@ -1,3 +1,4 @@
+import type { CanonicalProviderEvent } from "../../provider-events.js";
 import type { QualifiedAcpxAgent } from "./qualified-profiles.js";
 
 function record(value: unknown): Record<string, unknown> {
@@ -37,6 +38,7 @@ export function persistedAcpxTurnUsage(
   before: unknown,
   after: unknown,
   requestId: string,
+  agent: QualifiedAcpxAgent | null = null,
 ): Record<string, unknown> | null {
   const current = record(after);
   if (current.lastRequestId !== requestId) return null;
@@ -47,11 +49,19 @@ export function persistedAcpxTurnUsage(
   );
   if (added.length !== 1) return null;
   const usage = record(receipts[added[0]!]);
+  const piReceipt = agent === "pi" ? record(usage.paperclip_pi) : {};
+  const piReceiptVerified = piReceipt.provenance === "assistant_message_receipts";
+  const estimate = piReceiptVerified && typeof piReceipt.cost_usd === "number"
+    && Number.isFinite(piReceipt.cost_usd) && piReceipt.cost_usd >= 0 ? piReceipt.cost_usd : undefined;
   return {
     type: "status",
     tag: "usage_update",
     text: "terminal prompt usage",
-    cost: current.usageCost,
+    // Pi calculates cost from catalog prices, not billing receipts. Never feed
+    // this estimate into the authoritative/cumulative provider spend channel.
+    cost: agent === "pi" ? undefined : current.usageCost,
+    ...(piReceiptVerified ? { usageProvenance: "pi_assistant_message_receipts" } : {}),
+    ...(estimate === undefined ? {} : { pricingEstimateUsd: estimate }),
     breakdown: {
       inputTokens: usage.input_tokens,
       outputTokens: usage.output_tokens,
@@ -59,6 +69,25 @@ export function persistedAcpxTurnUsage(
       cachedWriteTokens: usage.cache_creation_input_tokens,
       thoughtTokens: usage.thought_tokens,
       totalTokens: usage.total_tokens,
+    },
+  };
+}
+
+/** Preserve the estimate for inspection while keeping billing authority separate. */
+export function acpxUsageEstimateNotice(usage: Record<string, unknown>, itemId: string): CanonicalProviderEvent | null {
+  if (usage.usageProvenance !== "pi_assistant_message_receipts"
+    || typeof usage.pricingEstimateUsd !== "number" || !Number.isFinite(usage.pricingEstimateUsd)
+    || usage.pricingEstimateUsd < 0) return null;
+  return {
+    eventType: "provider.notice.recorded", itemId,
+    payload: {
+      schema: "paperclip.provider.notice.v1", noticeId: itemId,
+      severity: "info", category: "pi_usage_pricing_estimate", scope: "turn",
+      recoverable: true, userActionable: false,
+      summary: `Pi estimates this turn at $${usage.pricingEstimateUsd.toFixed(6)} from its model prices. Billing cost is unverified.`,
+      details: [{ name: "Cost source", value: "Pi model catalog pricing estimate" },
+        { name: "Usage source", value: "Assistant message receipts for this prompt" },
+        { name: "Estimated USD", value: String(usage.pricingEstimateUsd) }],
     },
   };
 }

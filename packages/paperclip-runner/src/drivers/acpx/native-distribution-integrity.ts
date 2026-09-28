@@ -36,7 +36,7 @@ const validPath = (value: unknown): value is string => typeof value === "string"
 export function parseNativeAcpxDistributionEntries(value: unknown, expectedSha256: string): NativeAcpxDistributionEntry[] {
   if (!/^[a-f0-9]{64}$/.test(expectedSha256)) throw new Error("Native ACPX closure pin is invalid");
   const entries = value !== null && typeof value === "object" ? (value as { entries?: unknown }).entries : undefined;
-  if (!Array.isArray(entries) || entries.length === 0 || entries.length > 10_000) throw new Error("Native ACPX closure inventory is invalid");
+  if (!Array.isArray(entries) || entries.length === 0 || entries.length > 30_000) throw new Error("Native ACPX closure inventory is invalid");
   let total = 0;
   let previous = "";
   const parsed = entries.map(raw => {

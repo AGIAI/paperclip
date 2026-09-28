@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   persistedAcpxTurnUsage,
+  acpxUsageEstimateNotice,
   qualifiedAcpxUsageBreakdown,
 } from "./usage-accounting.js";
 
@@ -128,5 +129,32 @@ describe("persisted terminal ACPX usage", () => {
         cachedReadTokens: undefined,
       },
     });
+  });
+});
+
+describe("Pi prompt accounting authority", () => {
+  const after = { lastRequestId: "turn", usageCost: { amount: 999, currency: "USD" }, requestTokenUsage: {
+    message: { input_tokens: 12, paperclip_pi: { provenance: "assistant_message_receipts", cost_usd: 0.123 } },
+  } };
+  it("preserves an exact new Pi receipt estimate without charging it as billed spend", () => {
+    const usage = persistedAcpxTurnUsage({}, after, "turn", "pi")!;
+    expect(usage.cost).toBeUndefined();
+    expect(usage.pricingEstimateUsd).toBe(0.123);
+    expect(acpxUsageEstimateNotice(usage, "turn:pricing")?.payload).toMatchObject({
+      category: "pi_usage_pricing_estimate", summary: expect.stringContaining("Billing cost is unverified"),
+    });
+    expect(persistedAcpxTurnUsage(after, after, "turn", "pi")).toBeNull();
+  });
+  it("ignores foreign, missing, invalid and unproven estimates", () => {
+    expect(persistedAcpxTurnUsage({}, after, "turn", "copilot")?.pricingEstimateUsd).toBeUndefined();
+    for (const receipt of [{}, { provenance: "other", cost_usd: 2 },
+      { provenance: "assistant_message_receipts", cost_usd: -1 },
+      { provenance: "assistant_message_receipts", cost_usd: Infinity }]) {
+      const usage = persistedAcpxTurnUsage({}, { ...after, requestTokenUsage: {
+        message: { input_tokens: 12, paperclip_pi: receipt },
+      } }, "turn", "pi")!;
+      expect(usage.cost).toBeUndefined();
+      expect(acpxUsageEstimateNotice(usage, "turn:pricing")).toBeNull();
+    }
   });
 });
