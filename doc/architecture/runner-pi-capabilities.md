@@ -334,14 +334,14 @@ every field in Pi's native event stream. These are explicit follow-ups:
 ## Authenticated local qualification progress
 
 The [sanitized attempt ledger](../../packages/paperclip-runner/test-fixtures/pi-acp/paid-qualification-progress.darwin-arm64.json)
-retains all sixteen attempts, including seven failures before a model prompt. One
+retains all seventeen attempts, including seven failures before a model prompt. One
 Runner protocol turn reached the exact model and successfully called `get_task_context`, `get_task_history`,
 `list_documents`, and `read_document`. The canonical case permits those extra
 orientation reads, but also requires a completed turn; it timed out after 120s
 without terminal usage. The later Product hello journey passes; the canonical
 Runner protocol case has not yet passed.
 
-Exclusive OpenRouter key billing increased by **$0.025720049**, including
+Exclusive OpenRouter key billing increased by **$0.028160131**, including
 $0.000351509 from the sleep-interrupted Product attempt and $0.000654767
 from the successful hello journey, plus $0.010995043 across the restrictive-denial
 and file-edit batch. A delayed charge crossed the latter attempt baselines, so
@@ -550,3 +550,15 @@ uses profile version 3 at source `06cf356a8…`, image
 It launches the verified native wrapper, initializes ACP protocol 1 and exits
 cleanly on EOF with network disabled and no credentials or model prompts. This
 proves Linux executable admission; authenticated Daytona behavior remains pending.
+
+The explicit [plan02 follow-up](../../packages/paperclip-runner/test-fixtures/pi-acp/product-plan-resume-failure.darwin-arm64.json)
+uses combined pack `0800f101…` from source `7ab463697…` and fresh daemon
+`955d0714…` from `e35b11db2…`. It passes the repaired Plan presentation boundary
+and accepts the exact revision. The resumed run then fails after 120 seconds.
+Its first finish request receives a precise completion-criterion correction, but
+the next finish and context read fail with duplicate call identity conflicts.
+All three distinct operations reuse native ID `call_0`; the extension forwards
+that ID unchanged into the shared MCP dedupe boundary. This is a further
+integration defect. The shared dedupe guard and canonical grader remain intact.
+Both runs lack terminal usage; measured billing is $0.002440082 and cleanup
+passes. Restart and refreshed hello are held until this defect is repaired.

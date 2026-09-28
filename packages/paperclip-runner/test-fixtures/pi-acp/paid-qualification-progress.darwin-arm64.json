@@ -1,6 +1,6 @@
 {
   "schema": "paperclip.pi-paid-qualification-progress.v1",
-  "recordedAt": "2026-09-28T21:34:16.545526+00:00",
+  "recordedAt": "2026-09-28T21:49:52.124380+00:00",
   "qualificationStatus": "pending",
   "environment": {
     "platform": "darwin",
@@ -17,7 +17,7 @@
   "budget": {
     "authorizedMaximumUsd": 25,
     "reservedPerBatchUsd": 2,
-    "measuredSpendUsd": 0.025720049,
+    "measuredSpendUsd": 0.028160131,
     "measurement": "exclusive OpenRouter key billing delta; model catalog estimates are not provider billing",
     "billingGroups": [
       {
@@ -612,6 +612,43 @@
         "providerPromptMaximum": 1
       },
       "earlyObservedKeyDeltaUsd": 0
+    },
+    {
+      "attemptId": "pi-product-plan-02",
+      "family": "product-e2e",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.plan-approve-complete",
+      "startedAt": "2026-09-28T21:39:55.842556+00:00",
+      "finishedAt": "2026-09-28T21:44:44.425729+00:00",
+      "durationSeconds": 288.581,
+      "sourceRevision": "e35b11db21b8da8527fa0b6c6f5fe186bdced111",
+      "packSourceRevision": "7ab463697037c9456a4ad2b83ea0e9c28b353f8a",
+      "providerPackDigest": "sha256:0800f10114e3d8e2e981ea27f0ab47f1da9349dbcc22bf55a76ebbc4af00601d",
+      "runnerdDigest": "sha256:955d0714472a0a8727aaac55c357425b4157cba54f37483ded58217e8859a26d",
+      "profileDigest": "sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472",
+      "exitCode": 1,
+      "retainedStatus": "failed",
+      "retainedMachineDisposition": "candidate_failure",
+      "cleanup": "passed",
+      "submittedProviderTurns": 2,
+      "providerRequestCount": null,
+      "billingDeltaUsd": 0.002440082,
+      "billingCoverage": "exclusive OpenRouter key delta; two spaced post-attempt observations",
+      "terminalUsage": null,
+      "automaticRetries": 0,
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "activeTimeoutSeconds": 120,
+        "outerTimeoutSeconds": 300,
+        "deadlineClocks": [
+          "wall",
+          "monotonic"
+        ],
+        "sleepAssertion": "caffeinate -i",
+        "automaticRetries": 0
+      },
+      "diagnosis": "All three distinct resumed semantic executions reuse native call_0. Owned extension forwards it as MCP JSON-RPC id, causing shared exact-call dedupe to reject later corrected/different requests.",
+      "evidence": "product-plan-resume-failure.darwin-arm64.json"
     }
   ],
   "observedSemanticOperations": {
