@@ -1,5 +1,4 @@
--- Keep pre-release or renumbered migration replay safe without replacing stored instruction bytes.
-CREATE TABLE IF NOT EXISTS "agent_instruction_working_copies" (
+CREATE TABLE "agent_instruction_working_copies" (
 	"run_id" uuid PRIMARY KEY NOT NULL,
 	"company_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
@@ -23,13 +22,7 @@ CREATE TABLE IF NOT EXISTS "agent_instruction_working_copies" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-DO $$ BEGIN
-ALTER TABLE "agent_instruction_working_copies" ADD CONSTRAINT "agent_instruction_working_copies_run_id_heartbeat_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."heartbeat_runs"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;--> statement-breakpoint
-DO $$ BEGIN
-ALTER TABLE "agent_instruction_working_copies" ADD CONSTRAINT "agent_instruction_working_copies_company_id_agent_id_agents_company_id_id_fk" FOREIGN KEY ("company_id","agent_id") REFERENCES "public"."agents"("company_id","id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "agent_instruction_copies_pending_idx" ON "agent_instruction_working_copies" USING btree ("state","next_attempt_at");--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "agent_instruction_copies_agent_idx" ON "agent_instruction_working_copies" USING btree ("company_id","agent_id","created_at");
+ALTER TABLE "agent_instruction_working_copies" ADD CONSTRAINT "agent_instruction_working_copies_run_id_heartbeat_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."heartbeat_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_instruction_working_copies" ADD CONSTRAINT "agent_instruction_working_copies_company_id_agent_id_agents_company_id_id_fk" FOREIGN KEY ("company_id","agent_id") REFERENCES "public"."agents"("company_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "agent_instruction_copies_pending_idx" ON "agent_instruction_working_copies" USING btree ("state","next_attempt_at");--> statement-breakpoint
+CREATE INDEX "agent_instruction_copies_agent_idx" ON "agent_instruction_working_copies" USING btree ("company_id","agent_id","created_at");

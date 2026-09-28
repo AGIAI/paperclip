@@ -1,5 +1,4 @@
--- Keep pre-release or renumbered migration replay safe without replacing stored instruction bytes.
-CREATE TABLE IF NOT EXISTS "agent_instruction_heads" (
+CREATE TABLE "agent_instruction_heads" (
 	"company_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
 	"entry_file" text NOT NULL,
@@ -8,7 +7,7 @@ CREATE TABLE IF NOT EXISTS "agent_instruction_heads" (
 	CONSTRAINT "agent_instruction_heads_identity_uq" UNIQUE("company_id","agent_id","entry_file")
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "agent_instruction_revisions" (
+CREATE TABLE "agent_instruction_revisions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"company_id" uuid NOT NULL,
 	"agent_id" uuid NOT NULL,
@@ -28,12 +27,6 @@ CREATE TABLE IF NOT EXISTS "agent_instruction_revisions" (
 	CONSTRAINT "agent_instruction_revisions_identity_uq" UNIQUE("company_id","agent_id","entry_file","id")
 );
 --> statement-breakpoint
-DO $$ BEGIN
-ALTER TABLE "agent_instruction_heads" ADD CONSTRAINT "agent_instruction_heads_company_id_agent_id_entry_file_revision_id_agent_instruction_revisions_company_id_agent_id_entry_file_id_fk" FOREIGN KEY ("company_id","agent_id","entry_file","revision_id") REFERENCES "public"."agent_instruction_revisions"("company_id","agent_id","entry_file","id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;--> statement-breakpoint
-DO $$ BEGIN
-ALTER TABLE "agent_instruction_revisions" ADD CONSTRAINT "agent_instruction_revisions_company_id_agent_id_agents_company_id_id_fk" FOREIGN KEY ("company_id","agent_id") REFERENCES "public"."agents"("company_id","id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;--> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "agent_instruction_revisions_history_idx" ON "agent_instruction_revisions" USING btree ("company_id","agent_id","entry_file","created_at","id");
+ALTER TABLE "agent_instruction_heads" ADD CONSTRAINT "agent_instruction_heads_company_id_agent_id_entry_file_revision_id_agent_instruction_revisions_company_id_agent_id_entry_file_id_fk" FOREIGN KEY ("company_id","agent_id","entry_file","revision_id") REFERENCES "public"."agent_instruction_revisions"("company_id","agent_id","entry_file","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "agent_instruction_revisions" ADD CONSTRAINT "agent_instruction_revisions_company_id_agent_id_agents_company_id_id_fk" FOREIGN KEY ("company_id","agent_id") REFERENCES "public"."agents"("company_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "agent_instruction_revisions_history_idx" ON "agent_instruction_revisions" USING btree ("company_id","agent_id","entry_file","created_at","id");
