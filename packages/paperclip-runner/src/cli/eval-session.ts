@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -254,12 +255,14 @@ export function boundedEvalSessionUsage(
     throw new Error("agent turn limit exceeded");
   }
   if (
+    usage.estimatedCostNanodollars !== null &&
     usage.estimatedCostNanodollars >
     request.limits.maxEstimatedCostNanodollars
   ) {
     throw new Error("estimated cost limit exceeded");
   }
   if (
+    usage.providerReportedCostNanodollars !== null &&
     usage.providerReportedCostNanodollars >
     request.limits.maxEstimatedCostNanodollars
   ) {
@@ -467,10 +470,18 @@ export async function runEvalSessionCli(
   }
 }
 
-if (
-  process.argv[1] !== undefined &&
-  resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))
-) {
+function isEvalSessionEntrypoint(): boolean {
+  if (process.argv[1] === undefined) return false;
+  try {
+    // Node resolves module URLs through symlinks, including /tmp on macOS and
+    // package-manager bin links. Compare the same physical paths on both sides.
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+if (isEvalSessionEntrypoint()) {
   void runEvalSessionCli(process.argv.slice(2))
     .then((code) => {
       process.exitCode = code;

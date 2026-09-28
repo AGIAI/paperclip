@@ -1321,8 +1321,8 @@ function requireHost(
 }
 
 function requireQualifiedAgent(value: unknown): QualifiedAcpxAgent {
-  if (value !== "codex" && value !== "claude") {
-    throw new Error("ACPX agent must be claude or codex");
+  if (value !== "codex" && value !== "claude" && value !== "pi" && value !== "cursor" && value !== "copilot") {
+    throw new Error("ACPX agent must be claude, codex, cursor, copilot, or pi");
   }
   return value;
 }

@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { normalizeAcpxPermission } from "../drivers/acpx/acp-permission-adapter.js";
+import { ACPX_CAPABILITY_PROFILES } from "../drivers/acpx/capability-profiles.js";
+import { resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.js";
 import { ACPX_SIDECAR_PROTOCOL_VERSION } from "../drivers/acpx/sidecar-protocol.js";
 import { canonicalProviderEventsFromAcpxRuntimeEvent } from "../provider-events.js";
 import {
@@ -552,12 +554,27 @@ describe("qualified ACPX runtime sidecar", () => {
     },
   );
 
+  it.each([
+    ["pi", "openrouter/deepseek/deepseek-v4-flash-0731"],
+    ["cursor", "explicit-cursor-model"],
+    ["copilot", "explicit-copilot-model"],
+  ] as const)("initializes the declared %s candidate without promoting its profile", async (agent, model) => {
+    const sidecar = startSidecar();
+    sidecar.write(initializeRequest(1, agent, model));
+    const frame = await sidecar.next((value) => value.id === 1);
+    expect(frame).toMatchObject({ id: 1, ok: true });
+    const result = frame.result as Record<string, unknown>;
+    expect(result.profile).toEqual(resolveQualifiedAcpxProfile(agent, model));
+    expect(result.profile).toMatchObject({ reportedModelId: model });
+    expect(ACPX_CAPABILITY_PROFILES[agent].qualification).toBe("pending");
+  });
+
   it("fails closed after an unsupported provider bootstrap", async () => {
     const sidecar = startSidecar();
     sidecar.write(
       initializeRequest(
         1,
-        "pi",
+        "unknown-provider",
         "openrouter/deepseek/deepseek-v4-flash-0731",
       ),
     );
@@ -569,7 +586,7 @@ describe("qualified ACPX runtime sidecar", () => {
       ok: false,
       error: {
         code: "acpx_sidecar_command_failed",
-        message: "ACPX agent must be claude or codex",
+        message: "ACPX agent must be claude, codex, cursor, copilot, or pi",
         retryable: false,
       },
     });
