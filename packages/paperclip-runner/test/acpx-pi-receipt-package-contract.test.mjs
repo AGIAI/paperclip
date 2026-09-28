@@ -40,6 +40,39 @@ test("missing cost stays missing and untrusted provenance or invalid costs never
   }
 });
 
+test("terminal failures preserve billable Pi receipts for the failing request before reporting failure", async () => {
+  for (const provenance of ["assistant_message_receipts", "assistant_message_and_compaction_receipts"]) {
+    const { conversation, promptMessageId: previousId } = await recordReceipt({ provenance, costUsd: 0.001 });
+    const promptMessageId = recordSubmission(conversation, "Fail after paid work");
+    let failureReceipt;
+    await assert.rejects(runPromptTurn({
+      client: { prompt: async () => ({
+        stopReason: "end_turn",
+        usage: { inputTokens: 21, outputTokens: 8, _meta: { paperclipPi: { provenance, costUsd: 0.003 }, secret: "DROP_ME" } },
+        _meta: { jetbrains: { air: { version: 1, sessionFailure: { severity: "error", category: "limit" } } } },
+      }) },
+      sessionId: "session-1", prompt: "Fail after paid work", conversation, promptMessageId,
+      onTerminalSessionFailure() { failureReceipt = structuredClone(conversation.request_token_usage[promptMessageId]); },
+    }), /ACP agent reported a terminal limit failure/);
+    assert.equal(failureReceipt?.input_tokens, 21);
+    assert.equal(failureReceipt?.output_tokens, 8);
+    assert.deepEqual(failureReceipt?.paperclip_pi, { provenance, cost_usd: 0.003 });
+    assert.equal(conversation.request_token_usage[previousId].paperclip_pi.cost_usd, 0.001);
+    const disk = serialize({
+      schema: "acpx.session.v1", acpxRecordId: "record-1", acpSessionId: "session-1", agentCommand: "verified-pi",
+      cwd: "/workspace", createdAt: "2026-09-28T00:00:00Z", lastUsedAt: "2026-09-28T00:00:00Z", lastSeq: 0,
+      ...conversation,
+    });
+    assertKeyPolicy(disk);
+    const restored = parse(JSON.parse(JSON.stringify(disk)));
+    assert.ok(restored);
+    assert.deepEqual(restored.request_token_usage[promptMessageId].paperclip_pi, { provenance, cost_usd: 0.003 });
+    assert.equal(restored.request_token_usage[promptMessageId].input_tokens, 21);
+    assert.equal(restored.request_token_usage[promptMessageId].output_tokens, 8);
+    assert.equal(JSON.stringify(restored).includes("DROP_ME"), false);
+  }
+});
+
 for (const provenance of ["assistant_message_receipts", "assistant_message_and_compaction_receipts"]) test(`${provenance} survives canonical disk serialization/reload with a closed metadata shape`, async () => {
   const { conversation, promptMessageId } = await recordReceipt({ provenance, costUsd: 0.01 });
   const record = {
