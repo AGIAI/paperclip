@@ -342,6 +342,293 @@
         "conservativeListCostUpperBoundUsd": 0.102,
         "listCostBoundBasis": "Rounded dashboard token count bounded conservatively at the maximum listed $1.20 per million token rate; not a billing receipt."
       }
+    },
+    {
+      "id": "cursor-product-question-merged-20260928",
+      "family": "product-e2e",
+      "case": "extended-harnesses.runner-acpx-cursor.local.question-resume-complete",
+      "runnerSourceRevision": "a7e01a0cec397dd5048f5d5b5825658dc6e91450",
+      "suiteDefinitionHash": "e75cb2222d2f52ec3a2a425211d195d36b95882de2cb9ed0ad93231b7c42768a",
+      "packSourceRevision": "19ac45c4fd87b8b9f28507b3ecd57803da3f7c73",
+      "providerPackDigest": "sha256:f9b1869c3d6822981518a4acfa5ffd0d8623ac555034754d92e57dabd56feadb",
+      "runnerdSha256": "dadafb10a6a02f2046798ae4104edc481d205e65724e0526a7f34ba50eb746d0",
+      "runnerdSourceRevision": "527ac0e31f45a613cba1f65c25b01547f176736d",
+      "requestedModel": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+      "startedAt": "2026-09-28T20:04:44.147Z",
+      "finishedAt": "2026-09-28T20:05:52.691Z",
+      "durationMs": 68544,
+      "providerSubmittedAt": [
+        "2026-09-28T20:05:00.738Z",
+        "2026-09-28T20:05:30.525Z"
+      ],
+      "providerTimeoutSec": 120,
+      "outerTimeoutSec": 300,
+      "result": "passed",
+      "automaticRetries": 0,
+      "submittedPrompts": 2,
+      "providerRuns": 2,
+      "matchers": [
+        {
+          "kind": "message_exact",
+          "passed": true
+        },
+        {
+          "kind": "message_occurrences",
+          "passed": true
+        },
+        {
+          "kind": "issue_status",
+          "passed": true
+        },
+        {
+          "kind": "run_status",
+          "passed": true
+        },
+        {
+          "kind": "runtime_mode",
+          "passed": true
+        },
+        {
+          "kind": "environment",
+          "passed": true
+        }
+      ],
+      "invariantFailures": [],
+      "taskStatus": "done",
+      "cleanup": "passed",
+      "resultSha256": "957fac7017a0059bbd222afa7e14b080fdea2e1c2409af5a6f0d852191ba7691",
+      "screenshots": [
+        {
+          "id": "question-pending",
+          "sha256": "6ac5022e20d275b1746a3b038dcf3949653f053523fccb395163b1cbc1766713",
+          "visuallyInspected": true
+        },
+        {
+          "id": "final-state",
+          "sha256": "2dc98776e6178c8f8a494ebb4bb66938fbfee2a41aa43b67e053b0bd8838fdc1",
+          "visuallyInspected": true
+        }
+      ],
+      "questionEvidence": {
+        "origin": "Paperclip request_human_input semantic tool",
+        "kind": "ask_user_questions",
+        "selectionMode": "single",
+        "pendingBeforeAnswer": true,
+        "requestedAt": "2026-09-28T20:05:10.459Z",
+        "resolvedAt": "2026-09-28T20:05:16.215Z",
+        "answer": "Cobalt",
+        "finalStatus": "answered",
+        "serverRestartedBeforeAnswer": false,
+        "continuationRunObserved": true,
+        "nativeCursorExtensionQualified": false
+      },
+      "usage": {
+        "nativeReceipt": null,
+        "tokenUsage": null,
+        "costUsd": null,
+        "coverage": "provider usage unavailable; two dashboard rows attributed"
+      },
+      "scope": "Real local browser question, answer, wake-assignee continuation and completion. Does not qualify cursor/ask_question native RPC, native plan decisions, restrictive permissions, restart recovery, or Daytona.",
+      "billing": {
+        "source": "parent-observed account Usage rows after bounded case",
+        "requests": [
+          {
+            "at": "2026-09-28T20:05:01Z",
+            "tokensDisplay": "35.5K"
+          },
+          {
+            "at": "2026-09-28T20:05:35Z",
+            "tokensDisplay": "42K"
+          }
+        ],
+        "modelLabel": "gpt-5.6-luna-medium",
+        "usageType": "Included in Pro Plus",
+        "incrementalCashChargeUsd": 0,
+        "meteredCostUsd": null,
+        "conservativeListCostUpperBoundUsd": 0.1,
+        "listCostBoundBasis": "Rounded display total bounded at80,000 tokens, maximum listed $1.20/M, rounded upward; not a billing receipt."
+      }
+    },
+    {
+      "id": "cursor-product-plan-merged-20260928",
+      "family": "product-e2e",
+      "case": "extended-harnesses.runner-acpx-cursor.local.plan-approve-complete",
+      "runnerSourceRevision": "a7e01a0cec397dd5048f5d5b5825658dc6e91450",
+      "suiteDefinitionHash": "e75cb2222d2f52ec3a2a425211d195d36b95882de2cb9ed0ad93231b7c42768a",
+      "packSourceRevision": "19ac45c4fd87b8b9f28507b3ecd57803da3f7c73",
+      "providerPackDigest": "sha256:f9b1869c3d6822981518a4acfa5ffd0d8623ac555034754d92e57dabd56feadb",
+      "runnerdSha256": "dadafb10a6a02f2046798ae4104edc481d205e65724e0526a7f34ba50eb746d0",
+      "runnerdSourceRevision": "527ac0e31f45a613cba1f65c25b01547f176736d",
+      "requestedModel": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+      "startedAt": "2026-09-28T20:09:56.429Z",
+      "finishedAt": "2026-09-28T20:10:49.114Z",
+      "durationMs": 52685,
+      "providerSubmittedAt": [
+        "2026-09-28T20:10:09.422Z",
+        "2026-09-28T20:10:33.832Z"
+      ],
+      "providerTimeoutSec": 120,
+      "outerTimeoutSec": 300,
+      "result": "passed",
+      "automaticRetries": 0,
+      "submittedPrompts": 2,
+      "providerRuns": 2,
+      "matchers": [
+        {
+          "kind": "message_exact",
+          "passed": true
+        },
+        {
+          "kind": "message_occurrences",
+          "passed": true
+        },
+        {
+          "kind": "issue_status",
+          "passed": true
+        },
+        {
+          "kind": "run_status",
+          "passed": true
+        },
+        {
+          "kind": "runtime_mode",
+          "passed": true
+        },
+        {
+          "kind": "environment",
+          "passed": true
+        }
+      ],
+      "invariantFailures": [],
+      "taskStatus": "done",
+      "cleanup": "passed",
+      "resultSha256": "3bfa8d5f62ae827e73bc0aabb496f8aefdf55338ada76985b9222485d4fd58d2",
+      "screenshots": [
+        {
+          "id": "plan-pending",
+          "sha256": "ef025fedfe201da0e2a8e31f8fdd2b14d9d9e4248e2c5f2a310410915e5ea98c",
+          "visuallyInspected": true
+        },
+        {
+          "id": "final-state",
+          "sha256": "bd7ad23c19903a4df63482a1b89642093fc74526fdae3331416986f5a0cd370f",
+          "visuallyInspected": true
+        }
+      ],
+      "usage": {
+        "nativeReceipt": null,
+        "tokenUsage": null,
+        "costUsd": null,
+        "coverage": "provider usage unavailable; two dashboard rows attributed"
+      },
+      "scope": "Real local browser Plan display, exact-revision approval, wake-assignee continuation and completion. Does not qualify cursor/create_plan native RPC, restrictive permissions, restart recovery, or Daytona.",
+      "planEvidence": {
+        "origin": "Paperclip write_document and request_human_input semantic tools",
+        "kind": "request_confirmation",
+        "revisionNumber": 1,
+        "pendingBeforeApproval": true,
+        "requestedAt": "2026-09-28T20:10:21.718Z",
+        "resolvedAt": "2026-09-28T20:10:25.286Z",
+        "finalStatus": "accepted",
+        "confirmationTargetsDisplayedRevision": true,
+        "continuationRunObserved": true,
+        "nativeCursorExtensionQualified": false
+      },
+      "billing": {
+        "source": "parent-observed account Usage rows after bounded case",
+        "requests": [
+          {
+            "at": "2026-09-28T20:10:09Z",
+            "tokensDisplay": "48.5K"
+          },
+          {
+            "at": "2026-09-28T20:10:34Z",
+            "tokensDisplay": "43.7K"
+          }
+        ],
+        "modelLabel": "gpt-5.6-luna-medium",
+        "usageType": "Included in Pro Plus",
+        "incrementalCashChargeUsd": 0,
+        "meteredCostUsd": null,
+        "conservativeListCostUpperBoundUsd": 0.114,
+        "listCostBoundBasis": "Rounded display total bounded at 95,000 tokens at the maximum listed $1.20/M; not a billing receipt."
+      }
+    },
+    {
+      "id": "cursor-product-question-restart-merged-20260928",
+      "family": "product-e2e",
+      "case": "extended-harnesses.runner-acpx-cursor.local.structured-question-restart-resume",
+      "runnerSourceRevision": "a7e01a0cec397dd5048f5d5b5825658dc6e91450",
+      "requestedModel": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+      "startedAt": "2026-09-28T20:12:21.993813+00:00",
+      "finishedAt": "2026-09-28T20:12:22.080838+00:00",
+      "result": "failed_before_harness_start",
+      "failureClass": "local_launcher_infrastructure",
+      "errorCode": "tsx_ipc_socket_path_einval",
+      "submittedPrompts": 0,
+      "providerRuns": 0,
+      "automaticRetries": 0,
+      "processCleanupVerified": true,
+      "billing": {
+        "incrementalCashChargeUsd": 0,
+        "evidence": "tsx failed to bind startup Unix socket before loading Product harness; no provider process or prompt."
+      },
+      "scope": "Task-owned temporary Unix socket path exceeded macOS length limit; no model or product behavior was measured."
+    },
+    {
+      "id": "cursor-restart-20260928",
+      "family": "product-e2e",
+      "case": "extended-harnesses.runner-acpx-cursor.local.structured-question-restart-resume",
+      "runnerSourceRevision": "a7e01a0cec397dd5048f5d5b5825658dc6e91450",
+      "suiteDefinitionHash": "e75cb2222d2f52ec3a2a425211d195d36b95882de2cb9ed0ad93231b7c42768a",
+      "packSourceRevision": "19ac45c4fd87b8b9f28507b3ecd57803da3f7c73",
+      "providerPackDigest": "sha256:f9b1869c3d6822981518a4acfa5ffd0d8623ac555034754d92e57dabd56feadb",
+      "runnerdSha256": "dadafb10a6a02f2046798ae4104edc481d205e65724e0526a7f34ba50eb746d0",
+      "requestedModel": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+      "startedAt": "2026-09-28T20:13:24.214Z",
+      "finishedAt": "2026-09-28T20:14:00.389Z",
+      "durationMs": 36175,
+      "result": "failed",
+      "failureClass": "transient_infrastructure",
+      "errorCode": "embedded_postgres_semaphore_exhaustion",
+      "automaticRetries": 0,
+      "authorizedInfrastructureRetryOf": "cursor-product-question-restart-merged-20260928",
+      "providerTimeoutSec": 120,
+      "outerTimeoutSec": 300,
+      "submittedPrompts": 1,
+      "providerRuns": 1,
+      "promptCountEvidence": "Pending question screenshot and graceful shutdown with no interrupted active runs; replacement server failed before an answer or continuation. Post-failure API snapshot could not recover exact submission time.",
+      "cleanup": "failed",
+      "processCleanupVerifiedSeparately": true,
+      "cleanupEvidence": "Original cleanup API check failed because server was down; subsequent task-path process inspection and replacement PostgreSQL PID check found no surviving owned processes.",
+      "resultSha256": "c74c3f5e96ffc7940d7d87ca05b7ff77d7cf9912a87ec340c9db38e19a06fcfd",
+      "screenshots": [
+        {
+          "id": "question-pending",
+          "sha256": "f575e57fc975175d7122893f3bf1110195b0dd2a68b82c5101838177932dd8d7",
+          "visuallyInspected": true
+        }
+      ],
+      "questionEvidence": {
+        "origin": "Paperclip request_human_input semantic tool",
+        "pendingQuestionVisible": true,
+        "options": [
+          "Cobalt",
+          "Amber"
+        ],
+        "serverRestartRequested": true,
+        "replacementServerStarted": false,
+        "answered": false,
+        "continuationRunObserved": false,
+        "nativeCursorExtensionQualified": false
+      },
+      "usage": {
+        "nativeReceipt": null,
+        "tokenUsage": null,
+        "costUsd": null,
+        "coverage": "provider usage unavailable; dashboard reconciliation pending"
+      },
+      "scope": "Infrastructure failure after one completed pending-question turn; does not qualify server-restart recovery. Original failed cleanup and evidence retained."
     }
   ],
   "newAccountDiscovery": {
