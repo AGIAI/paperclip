@@ -1,17 +1,22 @@
 import { createHash } from "node:crypto";
 import { once } from "node:events";
-import { chmod, copyFile, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, open, readFile, readdir, rm, stat, symlink, writeFile, type FileHandle } from "node:fs/promises";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { ChildProcess } from "node:child_process";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { awaitVerifiedAcpxProviderExit, awaitVerifiedAcpxProviderOwnership, verifyNativeAcpxInstallation } from "./installation-integrity.js";
-import { parseNativeAcpxDistributionEntries, type NativeAcpxDistributionInput, type NativeAcpxDistributionEntry } from "./native-distribution-integrity.js";
+import { createNativeAcpxDistributionSnapshot, readNativeAcpxDistributionEntries, parseNativeAcpxDistributionEntries, type NativeAcpxDistributionInput, type NativeAcpxDistributionEntry } from "./native-distribution-integrity.js";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const original = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...original, rm: vi.fn(original.rm) };
+});
 
 const roots: string[] = [];
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
-afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
+afterEach(async () => { vi.restoreAllMocks(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
 async function fixture(options: { node?: boolean; script?: string } = {}): Promise<NativeAcpxDistributionInput> {
   const root = await mkdtemp(join(tmpdir(), "native-acpx-test-")); roots.push(root);
@@ -39,6 +44,29 @@ async function fixture(options: { node?: boolean; script?: string } = {}): Promi
   await writeFile(manifestPath, JSON.stringify({ entries }));
   return { distributionRoot: root, manifestPath, expectedClosureSha256: hash(JSON.stringify(entries)), executable: "runtime", ...(options.node ? { entrypoint: "entry.cjs" } : {}), fixedArguments: options.node ? [] : ["fixed"] };
 }
+async function manyFileFixture(sizes: number[]) {
+  const declaration = await fixture();
+  const entries = await readNativeAcpxDistributionEntries(declaration);
+  for (let index = 0; index < sizes.length; index++) {
+    const path = `file-${String(index).padStart(2, "0")}`;
+    const bytes = Buffer.alloc(sizes[index]!, index + 1);
+    await writeFile(join(declaration.distributionRoot, path), bytes, { mode: 0o600 });
+    entries.push({ path, sha256: hash(bytes), size: bytes.length, executable: false });
+  }
+  entries.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  await writeFile(declaration.manifestPath, JSON.stringify({ entries }));
+  return { declaration: { ...declaration, expectedClosureSha256: hash(JSON.stringify(entries)) }, entries };
+}
+async function filePrototype(path: string): Promise<FileHandle> {
+  const probe = await open(path, "r"); const prototype = Object.getPrototypeOf(probe) as FileHandle;
+  await probe.close(); return prototype;
+}
+function gate() {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => { release = resolve; });
+  return { promise, release };
+}
+
 async function output(child: ChildProcess): Promise<{ text: string; error: string; code: number | null }> {
   let text = ""; let error = "";
   child.stdout!.on("data", value => { text += String(value); });
@@ -89,6 +117,96 @@ describe("native ACPX execution closure", () => {
     const denied = await output((await (await verifyNativeAcpxInstallation(evil)).openCommand()).spawn());
     expect(denied.code).not.toBe(0); expect(denied.error).toContain("escaped its closed distribution");
   }, 30_000);
+  it("copies concurrently within its descriptor bound and retains canonical manifest order", async () => {
+    const { declaration, entries } = await manyFileFixture(Array.from({ length: 12 }, (_, index) => 100 + index));
+    const prototype = await filePrototype(join(declaration.distributionRoot, "runtime"));
+    const originalRead = prototype.read;
+    const hold = gate(); const sizes: number[] = []; let active = 0; let peak = 0;
+    vi.spyOn(prototype, "read").mockImplementation(async function (this: FileHandle, ...args: any[]): Promise<any> {
+      sizes.push(args[0].length); active++; peak = Math.max(peak, active);
+      try { await hold.promise; return await originalRead.apply(this, args as never); }
+      finally { active--; }
+    });
+    const creating = createNativeAcpxDistributionSnapshot(declaration, entries);
+    try {
+      await vi.waitFor(() => expect(sizes).toHaveLength(8));
+      expect(sizes.toSorted()).toEqual(Array.from({ length: 8 }, (_, index) => 100 + index));
+    } finally { hold.release(); }
+    const created = await creating;
+    try {
+      expect(peak).toBe(8);
+      expect(Object.keys(created.snapshot.digests).slice(0, entries.length)).toEqual(entries.map(entry => join(created.snapshot.roots[0]!, entry.path)));
+      for (const entry of entries) expect(hash(await readFile(join(created.snapshot.roots[0]!, entry.path)))).toBe(entry.sha256);
+    } finally { await created.commandDirectory.close(); await created.snapshot.close(); }
+  });
+  it("bounds simultaneous buffers and gives an oversized admitted file exclusive capacity", async () => {
+    const mib = 1024 * 1024;
+    const { declaration, entries } = await manyFileFixture([17 * mib, 17 * mib, 33 * mib]);
+    const prototype = await filePrototype(join(declaration.distributionRoot, "runtime"));
+    const originalRead = prototype.read;
+    const retained = new Map<FileHandle, number>(); const observed: number[] = [];
+    vi.spyOn(prototype, "read").mockImplementation(async function (this: FileHandle, ...args: any[]): Promise<any> {
+      if (!retained.has(this)) {
+        const file = this; const originalClose = file.close.bind(file);
+        file.close = async () => { try { await originalClose(); } finally { retained.delete(file); } };
+      }
+      retained.set(this, args[0].length);
+      const total = [...retained.values()].reduce((sum, size) => sum + size, 0); observed.push(total);
+      expect(total).toBeLessThanOrEqual(Math.max(32 * mib, args[0].length));
+      if (args[0].length > 32 * mib) expect(retained.size).toBe(1);
+      return originalRead.apply(this, args as never);
+    });
+    const created = await createNativeAcpxDistributionSnapshot(declaration, entries);
+    try { expect(Math.max(...observed)).toBe(33 * mib); }
+    finally { await created.commandDirectory.close(); await created.snapshot.close(); }
+  });
+  it("drains every admitted copy before failed-snapshot cleanup and schedules no later batch", async () => {
+    const { declaration, entries } = await manyFileFixture(Array.from({ length: 10 }, (_, index) => 91 + index));
+    await writeFile(join(declaration.distributionRoot, "file-00"), Buffer.alloc(91, 99));
+    const prototype = await filePrototype(join(declaration.distributionRoot, "runtime"));
+    const originalRead = prototype.read;
+    const hold = gate(); const entered = gate(); const invalidClosed = gate();
+    const readSizes: number[] = []; const removalStart = vi.mocked(rm).mock.calls.length;
+    vi.spyOn(prototype, "read").mockImplementation(async function (this: FileHandle, ...args: any[]): Promise<any> {
+      const size = args[0].length; readSizes.push(size);
+      if (size === 91) {
+        const originalClose = this.close.bind(this);
+        this.close = async () => { await originalClose(); invalidClosed.release(); };
+        await entered.promise;
+      }
+      if (size === 92) { entered.release(); await hold.promise; }
+      return originalRead.apply(this, args as never);
+    });
+    const creating = createNativeAcpxDistributionSnapshot(declaration, entries);
+    let settled = false;
+    void creating.then(() => { settled = true; }, () => { settled = true; });
+    try {
+      await entered.promise; await invalidClosed.promise;
+      expect(settled).toBe(false);
+    } finally { hold.release(); }
+    await expect(creating).rejects.toThrow("digest mismatch: file-00");
+    expect(readSizes).not.toContain(99);
+    const removals = vi.mocked(rm).mock.calls.slice(removalStart).map(([path]) => String(path)).filter(path => /paperclip-acpx-native-/.test(path));
+    expect(removals).toHaveLength(1);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    await expect(stat(removals[0]!)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+  it("rejects a source mutation while another file is being copied", async () => {
+    const { declaration, entries } = await manyFileFixture([101, 102]);
+    const prototype = await filePrototype(join(declaration.distributionRoot, "runtime"));
+    const originalRead = prototype.read; const entered = gate(); const hold = gate();
+    vi.spyOn(prototype, "read").mockImplementation(async function (this: FileHandle, ...args: any[]): Promise<any> {
+      if (args[0].length === 101) { entered.release(); await hold.promise; }
+      return originalRead.apply(this, args as never);
+    });
+    const creating = createNativeAcpxDistributionSnapshot(declaration, entries);
+    const rejected = expect(creating).rejects.toThrow("changed while read");
+    try {
+      await entered.promise;
+      await writeFile(join(declaration.distributionRoot, "file-00"), Buffer.alloc(101, 7));
+    } finally { hold.release(); }
+    await rejected;
+  });
   it("uses the existing guardian ownership and provider-exit proof for native children", async () => {
     const declaration = await fixture({ script: '#!/bin/sh\nprintf "ready"\nwhile :; do sleep 1; done\n' });
     const fences = await Promise.all([listen(), listen()]);

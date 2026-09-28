@@ -26,6 +26,10 @@ export interface NativeAcpxDistributionSnapshot {
 const MAX_NATIVE_TREE_BYTES = 1024 * 1024 * 1024;
 const MAX_NATIVE_FILE_BYTES = 384 * 1024 * 1024;
 const MAX_NATIVE_MANIFEST_BYTES = 4 * 1024 * 1024;
+// Bound both file descriptors and buffers. A single larger admitted file runs
+// alone and remains subject to MAX_NATIVE_FILE_BYTES.
+const NATIVE_COPY_CONCURRENCY = 8;
+const NATIVE_COPY_BUFFER_BYTES = 32 * 1024 * 1024;
 const BOOTSTRAP = ".paperclip-native-entry.cjs";
 const GUARD = ".paperclip-native-module-guard.cjs";
 export const NATIVE_ACPX_BOOTSTRAP_NAME = BOOTSTRAP;
@@ -93,7 +97,7 @@ export async function createNativeAcpxDistributionSnapshot(input: NativeAcpxDist
     if (!same(rootBefore, await heldRoot.stat({ bigint: true }))) throw new Error("Native ACPX distribution root changed before snapshot");
     await mkdir(packageRoot, { mode: 0o700 });
     if (input.isolatedCacheEnvironmentName) await mkdir(cacheRoot, { mode: 0o700 });
-    for (const entry of entries) {
+    const copyEntry = async (entry: NativeAcpxDistributionEntry): Promise<void> => {
       const path = join(source, ...entry.path.split("/"));
       if (await realpath(path) !== path) throw new Error("Native ACPX closure contains a symbolic link");
       const before = await lstat(path, { bigint: true });
@@ -115,8 +119,26 @@ export async function createNativeAcpxDistributionSnapshot(input: NativeAcpxDist
         let directory = dirname(target);
         while (directory !== privateRoot) { directories.add(directory); directory = dirname(directory); }
         await writeFile(target, bytes, { mode: entry.executable ? 0o500 : 0o400, flag: "wx" });
-        digests[target] = entry.sha256;
       } finally { await file.close(); }
+    };
+    for (let start = 0; start < entries.length;) {
+      let end = start;
+      let bytes = 0;
+      while (end < entries.length && end - start < NATIVE_COPY_CONCURRENCY) {
+        const size = entries[end]!.size;
+        if (end > start && bytes + size > NATIVE_COPY_BUFFER_BYTES) break;
+        bytes += size;
+        end++;
+      }
+      const batch = entries.slice(start, end);
+      // Never clean the private root while another worker can still write or
+      // close a descriptor. Stop scheduling new batches after any rejection.
+      const copied = await Promise.allSettled(batch.map(copyEntry));
+      const failure = copied.find((result) => result.status === "rejected");
+      if (failure?.status === "rejected") throw failure.reason;
+      // Worker completion order must not change the module guard or manifest.
+      for (const entry of batch) digests[join(packageRoot, ...entry.path.split("/"))] = entry.sha256;
+      start = end;
     }
     if (!same(rootBefore, await heldRoot.stat({ bigint: true })) || !same(rootBefore, await lstat(source, { bigint: true }))) throw new Error("Native ACPX distribution root changed during snapshot");
     const executable = join(packageRoot, ...input.executable.split("/"));
