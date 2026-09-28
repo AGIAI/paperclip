@@ -1,3 +1,4 @@
+import { resolveAcpxQualification } from "./acpx-qualification.js";
 import {
   isSupportedRemoteCodexVersion,
   parseCodexCliVersion,
@@ -12258,6 +12259,8 @@ async function createRunnerdBackendWithinSessionClaim(
         ...(input.execution.provider.kind === "acpx"
           ? {
               acpxAgent: input.execution.provider.agent,
+              // Read only the server operator environment, never agent/runtime env.
+              acpxCandidateProfile: resolveAcpxQualification(input.execution.provider, process.env),
               acpxPermissionMode: input.execution.provider.permissionMode,
               acpxPermissionModePinned:
                 input.execution.schema ===

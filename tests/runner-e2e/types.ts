@@ -3,6 +3,8 @@ export const CREDENTIAL_NAMES = [
   "ANTHROPIC_API_KEY",
   "OPENROUTER_API_KEY",
   "DAYTONA_API_KEY",
+  "CURSOR_AUTH_TOKEN",
+  "COPILOT_GITHUB_TOKEN",
 ] as const;
 
 export type CredentialName = (typeof CREDENTIAL_NAMES)[number];
@@ -59,9 +61,11 @@ export interface RunnerProfileFixture {
     source:
       | "adapter_constant"
       | "qualified_runner_profile"
+      | "candidate_runner_profile"
       | "openrouter_rankings_snapshot";
     qualificationId: string;
   };
+  qualificationCandidate?: "cursor" | "copilot" | "pi";
   ranking?: {
     rank: number;
     canonicalModelId: string;

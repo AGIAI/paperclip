@@ -266,3 +266,9 @@ Continuation accounting has an explicit-only eight-cell Product E2E [baseline su
 The explicit-only Product E2E `api-response-reading` suite verifies retrieval of
 large saved API responses on local and Daytona native Codex runs. See the
 [Runner E2E guide](../tests/runner-e2e/README.md#bounded-api-response-reading).
+
+The explicit-only Product E2E `extended-harnesses` suite covers pending Cursor,
+Copilot and Pi ACP profiles on local and Daytona. See the
+[fixture admission, credentials and budget contract](../tests/runner-e2e/README.md#extended-acp-harnesses-explicit-only).
+The private Runner Evals campaign of the same name provides complementary
+semantic protocol cases; catalog membership is not live qualification.

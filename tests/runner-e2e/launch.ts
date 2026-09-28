@@ -1021,6 +1021,7 @@ async function runExecutionWithRetry(input: {
   });
   if (!firstResult) throw new Error(`No result produced for ${execution.id}`);
   if (
+    execution.profile.qualificationCandidate !== undefined ||
     options.ui ||
     options.debug ||
     firstResult.status !== "failed" ||

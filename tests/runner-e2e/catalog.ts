@@ -145,7 +145,8 @@ function nativeProfile(input: {
   provider: "codex" | "opencode" | "acpx";
   model: string;
   credential: RunnerProfileFixture["credential"];
-  acpxAgent?: "claude" | "codex";
+  acpxAgent?: "claude" | "codex" | "cursor" | "copilot" | "pi";
+  qualificationCandidate?: RunnerProfileFixture["qualificationCandidate"];
   supportedEnvironments?: readonly (typeof ENVIRONMENT_IDS)[number][];
   modelQualification?: RunnerProfileFixture["modelQualification"];
   ranking?: RunnerProfileFixture["ranking"];
@@ -293,6 +294,27 @@ export const runnerProfiles: readonly RunnerProfileFixture[] = [
     credential: "OPENAI_API_KEY",
   }),
 ] as const;
+
+// Explicit qualification choices from authenticated model discovery, not shipped
+// defaults or claims that these candidates have passed inference qualification.
+export const extendedHarnessProfiles: readonly RunnerProfileFixture[] = [
+  nativeProfile({
+    id: "runner-acpx-cursor", label: "Runner Cursor (candidate)", provider: "acpx", acpxAgent: "cursor",
+    qualificationCandidate: "cursor", credential: "CURSOR_AUTH_TOKEN",
+    model: "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+    modelQualification: { source: "candidate_runner_profile", qualificationId: "cursor:2026.09.26-dd393fe:discovery-2026-09-28" },
+  }),
+  nativeProfile({
+    id: "runner-acpx-copilot", label: "Runner Copilot (candidate)", provider: "acpx", acpxAgent: "copilot",
+    qualificationCandidate: "copilot", credential: "COPILOT_GITHUB_TOKEN", model: "gpt-5.6-luna",
+    modelQualification: { source: "candidate_runner_profile", qualificationId: "copilot:1.0.88:discovery-2026-09-28" },
+  }),
+  nativeProfile({
+    id: "runner-acpx-pi", label: "Runner Pi (candidate)", provider: "acpx", acpxAgent: "pi",
+    qualificationCandidate: "pi", credential: "OPENROUTER_API_KEY", model: QUALIFIED_ACPX_PROFILES.pi.qualificationModel,
+    modelQualification: { source: "candidate_runner_profile", qualificationId: "pi:0.0.33:0.84.2:openrouter" },
+  }),
+];
 
 export const openRouterBreadthExcludedModelIds = ["xiaomi/mimo-v2.5"] as const;
 export const openRouterBreadthExcludedExecutionIds = [
@@ -911,7 +933,34 @@ const everydayProfiles = [
   nativeProfile({ id: "runner-codex-mini", label: "Runner Codex Mini", provider: "codex", model: "gpt-5.4-mini", modelQualification: {source:"qualified_runner_profile",qualificationId:"everyday-codex-mini-pilot"}, credential: "OPENAI_API_KEY", supportedEnvironments: ["local"] }),
 ].map(productionStoryProfile);
 
+export const extendedHarnessFileTask: RunnerTaskFixture = {
+  id: "file-edit-validate", label: "Edit a file and validate its contents", groups: [],
+  workMode: "standard", flow: "single_turn", expectedRunCount: 1,
+  attemptTimeoutMs: { local: 180_000, daytona: 300_000 },
+  expectedTerminalState: { issue: "done", run: "succeeded" },
+  buildTitle: nonce => `Extended harness file validation ${nonce}`,
+  buildVisibleMarker: nonce => `EXTENDED-FILE-${nonce}`,
+  buildPrompt: nonce => [
+    `Create extended-${nonce}.txt in the current execution workspace with exactly ready-${nonce} followed by a newline.`,
+    `Edit that file to contain exactly verified-${nonce} followed by a newline, then run a command that reads it and fails unless those exact bytes match.`,
+    `After successful validation, call paperclip_finish with reportedWorkDisposition done, summary EXTENDED-FILE-${nonce}, the current completion contract revision and satisfied objective criterion, no remaining work, and the actual validation command and result.`,
+    `Wait for paperclip_finish to succeed, then emit exactly EXTENDED-FILE-${nonce} as your final response. Do not create unrelated files or work.`,
+  ].join("\n"),
+  buildMatchers: (nonce, execution) => [
+    ...terminalMatchers(`EXTENDED-FILE-${nonce}`, execution),
+    { kind: "file_exact", path: `extended-${nonce}.txt`, expected: `verified-${nonce}\n` },
+  ],
+};
+
 export const runnerSuites: readonly RunnerSuiteFixture[] = [
+  {
+    id: "extended-harnesses", label: "Extended ACP harnesses", manualOnly: true,
+    description: "Explicit candidate qualification through real Paperclip tools, browser interactions, file edits and restart recovery.",
+    groups: ["native"], profiles: extendedHarnessProfiles, environments: runnerEnvironments,
+    tasks: [...openRouterBreadthTasks, localIntegrityTasks[1]!, extendedHarnessFileTask],
+    expectedMatrixSize: 30,
+    definitionMetadata: { version: 1, qualification: "pending", scheduling: "explicit-only", admission: "host-exact-candidate-and-model", authenticatedDiscoveryDate: "2026-09-28" },
+  },
   {
     id: "api-response-reading", label: "Bounded API response reading", manualOnly: true,
     description: "Retrieve evidence beyond a saved API preview through authorized bounded text windows.",
@@ -1179,8 +1228,9 @@ function assertNoRawSecretValues(value: unknown, label: string) {
 }
 
 export function validateRunnerCatalog(): MatrixExecution[] {
-  const allProfiles = [...runnerProfiles, ...openRouterBreadthProfiles, ...everydayProfiles.filter(p => !runnerProfiles.some(existing => existing.id === p.id))];
+  const allProfiles = [...extendedHarnessProfiles, ...runnerProfiles, ...openRouterBreadthProfiles, ...everydayProfiles.filter(p => !runnerProfiles.some(existing => existing.id === p.id))];
   const allTasks = [
+    extendedHarnessFileTask,
     ...accountingTasks,
     ...lifecycleLiveTasks,
     ...continuationTasks,
@@ -1222,12 +1272,7 @@ export function validateRunnerCatalog(): MatrixExecution[] {
   }
 
   const sampleRefs = Object.fromEntries(
-    [
-      "OPENAI_API_KEY",
-      "ANTHROPIC_API_KEY",
-      "OPENROUTER_API_KEY",
-      "DAYTONA_API_KEY",
-    ].map((name, index) => [
+    CREDENTIAL_NAMES.map((name, index) => [
       name,
       {
         type: "secret_ref" as const,
