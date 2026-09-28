@@ -300,11 +300,13 @@ export class CodexHarnessSession
   }
 
   async steer(input: {
+    mode?: "steer" | "follow_up";
     turnId: string;
     message: NativeUserMessage;
     correlationId?: string;
   }): Promise<void> {
     this.assertProtocolIntegrity();
+    if (input.mode === "follow_up") throw this.unsupported("steering", "queued follow-up is not exposed by this driver");
     this.requireCapability("steering");
     this.requireActiveTurn(input.turnId, "steering");
     if (input.correlationId) {

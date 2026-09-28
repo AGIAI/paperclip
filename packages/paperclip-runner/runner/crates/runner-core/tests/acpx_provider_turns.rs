@@ -45,6 +45,7 @@ fn config(mode: &str) -> AcpxProviderSessionConfig {
         working_directory: std::env::temp_dir(),
         permission_mode: AcpxPermissionMode::ApproveReads,
         permission_mode_pinned: true,
+        provider_policy: None,
         system_instructions: "Complete the supplied task.".to_owned(),
         runtime_context: serde_json::Value::Null,
         tool_set: tool_set(),
@@ -692,4 +693,54 @@ fn fails_closed_before_returning_an_unauthorized_tool_call() {
     assert!(error.contains("unauthorized tool issues.delete"), "{error}");
     assert!(session.state().pending_tool("call-1").is_none());
     assert!(session.shutdown("already closed").is_ok());
+}
+
+#[test]
+fn turn_controls_preserve_mode_and_reject_stale_duplicate_and_oversized_delivery() {
+    let mut session = AcpxProviderSession::start(&config("controls")).unwrap();
+    assert!(session
+        .steer_turn("turn-1", "control-1", "steer", "message")
+        .is_err());
+    session
+        .start_turn("turn-1", "Work", &std::env::temp_dir())
+        .unwrap();
+    let first = session
+        .steer_turn("turn-1", "control-1", "steer", "Change focus")
+        .unwrap();
+    assert_eq!(first["mode"], "steer");
+    assert!(session
+        .steer_turn("turn-1", "control-1", "follow_up", "Duplicate")
+        .unwrap_err()
+        .to_string()
+        .contains("already attempted"));
+    let queued = session
+        .steer_turn("turn-1", "control-2", "follow_up", "Then validate")
+        .unwrap();
+    assert_eq!(queued["mode"], "follow_up");
+    assert!(session
+        .steer_turn("turn-2", "control-3", "steer", "Stale")
+        .is_err());
+    assert!(session
+        .steer_turn("turn-1", "control-3", "cancel", "Wrong")
+        .is_err());
+    assert!(session
+        .steer_turn("turn-1", "control-3", "steer", &"a".repeat(65_537))
+        .is_err());
+    session.shutdown("verified controls").unwrap();
+}
+
+#[test]
+fn turn_controls_fail_closed_on_mismatched_acknowledgement() {
+    let mut session = AcpxProviderSession::start(&config("controls-wrong-ack")).unwrap();
+    session
+        .start_turn("turn-1", "Work", &std::env::temp_dir())
+        .unwrap();
+    assert!(session
+        .steer_turn("turn-1", "control-1", "steer", "Change focus")
+        .unwrap_err()
+        .to_string()
+        .contains("exact turn control"));
+    assert!(session
+        .steer_turn("turn-1", "control-2", "follow_up", "Do not replay")
+        .is_err());
 }

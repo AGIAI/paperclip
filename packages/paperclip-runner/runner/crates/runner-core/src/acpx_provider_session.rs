@@ -51,6 +51,12 @@ pub struct AcpxProviderSessionIdentity {
     pub provider_lifetime_fence_candidates: [u16; 3],
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AcpxProviderRuntimePolicy {
+    pub read_only: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct AcpxProviderSessionConfig {
     pub transport: AcpxSidecarTransportConfig,
@@ -63,6 +69,7 @@ pub struct AcpxProviderSessionConfig {
     pub working_directory: PathBuf,
     pub permission_mode: AcpxPermissionMode,
     pub permission_mode_pinned: bool,
+    pub provider_policy: Option<AcpxProviderRuntimePolicy>,
     pub system_instructions: String,
     pub runtime_context: Value,
     pub tool_set: AuthorizedToolSet,
@@ -75,9 +82,11 @@ impl AcpxProviderSessionConfig {
         let qualified_model = match self.agent.as_str() {
             "claude" => "claude-sonnet-5",
             "codex" => "gpt-5.6-sol",
+            "pi" => "openrouter/deepseek/deepseek-v4-flash-0731",
+            "cursor" | "copilot" => self.model.as_str(),
             _ => {
                 return Err(LocalRunnerError::invalid(
-                    "ACPX agent must be claude or codex",
+                    "ACPX agent must name a known immutable profile",
                 ))
             }
         };
@@ -88,6 +97,13 @@ impl AcpxProviderSessionConfig {
             )));
         }
         validate_text(&self.model, MAX_MODEL_CHARS, "ACPX model")?;
+        if matches!(self.agent.as_str(), "pi" | "cursor" | "copilot")
+            && self.provider_policy.is_none()
+        {
+            return Err(LocalRunnerError::invalid(
+                "ACPX candidate requires explicit provider read-only policy",
+            ));
+        }
         validate_stable_id(&self.run_id, SHORT_STABLE_ID_CHARS, "ACPX run id")?;
         validate_stable_id(
             &self.normalized_session_id,
@@ -382,6 +398,44 @@ impl AcpxProviderSession {
         }
         self.tool_bridge = next_tool_bridge;
         self.reserved_tool_bridge = next_reserved_tool_bridge;
+        Ok(response)
+    }
+
+    pub fn steer_turn(
+        &mut self,
+        turn_id: &str,
+        control_id: &str,
+        mode: &str,
+        message: &str,
+    ) -> Result<Value, LocalRunnerError> {
+        self.ensure_open()?;
+        validate_stable_id(turn_id, DURABLE_STABLE_ID_CHARS, "ACPX turn id")?;
+        validate_stable_id(control_id, SHORT_STABLE_ID_CHARS, "ACPX control id")?;
+        if !matches!(mode, "steer" | "follow_up")
+            || message.trim().is_empty()
+            || message.len() > 65_536
+            || message.contains('\0')
+        {
+            return Err(LocalRunnerError::invalid(
+                "ACPX turn control violates its bounded contract",
+            ));
+        }
+        self.state.reserve_turn_control(turn_id, control_id)?;
+        // The sidecar checks the negotiated live capability. An error may follow
+        // delivery, so the reservation must never be released for automatic retry.
+        let response = self.transport.request(
+            GeneratedAcpxSidecarCommand::TurnSteer,
+            json!({"turnId": turn_id, "controlId": control_id, "mode": mode, "message": message}),
+        )?;
+        if response.get("accepted").and_then(Value::as_bool) != Some(true)
+            || response.get("turnId").and_then(Value::as_str) != Some(turn_id)
+            || response.get("controlId").and_then(Value::as_str) != Some(control_id)
+            || response.get("mode").and_then(Value::as_str) != Some(mode)
+        {
+            return Err(self.fail_closed(LocalRunnerError::invalid(
+                "ACPX sidecar did not acknowledge the exact turn control",
+            )));
+        }
         Ok(response)
     }
 
@@ -1107,6 +1161,7 @@ fn bootstrap(
             "model": config.model,
             "permissionMode": config.permission_mode,
             "permissionModePinned": config.permission_mode_pinned,
+            "providerPolicy": config.provider_policy,
             "systemInstructions": config.system_instructions,
             "runtimeContext": config.runtime_context,
             "tools": &sidecar_tools,

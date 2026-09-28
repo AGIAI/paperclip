@@ -7,6 +7,7 @@ export const GENERATED_ACPX_SIDECAR_COMMANDS = [
   "run.attach",
   "turn.start",
   "turn.cancel",
+  "turn.steer",
   "permission.resolve",
   "input.resolve",
   "tool.resolve",

@@ -11,7 +11,7 @@ import type {
   AcpPermissionDecision,
 } from "acpx/runtime";
 
-import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "../drivers/acpx/profile-extensions.js";
+import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "../drivers/acpx/profile-extensions.js";
 import type { PaperclipQuestionSet } from "../contracts/question-set.js";
 import { createAcpxToolEventNormalizer } from "../provider-events.js";
 import { parseNativeRuntimeContext } from "../contracts/runtime-context.js";
@@ -61,6 +61,7 @@ import {
 import { safeAcpxLocations } from "./acpx-sidecar-locations.js";
 import {
   persistedAcpxTurnUsage,
+  acpxUsageEstimateNotice,
   qualifiedAcpxUsageBreakdown,
 } from "../drivers/acpx/usage-accounting.js";
 import { validatePrpStructuredRunResult } from "../protocol/replay-contract.js";
@@ -85,6 +86,9 @@ import {
   verifyOpenedAcpxSidecarHost,
 } from "./acpx-sidecar-lifecycle.js";
 
+import { AcpxTurnControlLedger, parseAcpxTurnControl } from "../drivers/acpx/turn-controls.js";
+
+const turnControls = new AcpxTurnControlLedger();
 const MAX_PENDING_TOOLS = 512;
 const MAX_PENDING_INPUTS = 16;
 let goalSourceRevision = 0;
@@ -277,6 +281,7 @@ async function dispatch(
         clientCapabilities: acpxProfileClientCapabilities(params.agent),
         model: params.model,
         permissionMode: params.permissionMode,
+        providerPolicy: params.providerPolicy,
         systemInstructions: params.systemInstructions,
         runtimeContext: params.runtimeContext,
         environment: process.env,
@@ -345,13 +350,14 @@ async function dispatch(
     if (turnId) throw new Error("ACPX sidecar already has an active turn");
     const currentTurnId = boundedIdentity(request.params.turnId, "turnId");
     turnId = currentTurnId;
+    turnControls.begin(currentTurnId);
     let runtimeTurn: AcpxRuntimeTurn;
     const extensions = bindAcpxExtensionTurn({
       adapter: createAcpxProfileExtensionAdapter(openParams!.agent, {
-        workspacePath: openParams!.workingDirectory, sessionId: activeHost.identity().agentSessionId, turnId: currentTurnId,
+        workspacePath: openParams!.workingDirectory, sessionId: activeHost.identity().backendSessionId, turnId: currentTurnId,
       }),
       active: () => turnId === currentTurnId && host === activeHost,
-      sessionId: activeHost.identity().agentSessionId,
+      sessionId: activeHost.identity().backendSessionId,
       waitForInput: (input, context) => waitForExtensionInput(currentTurnId, input, context),
       emit: event => emit("runtime.rich_event", { ...event }, currentTurnId),
     });
@@ -374,6 +380,21 @@ async function dispatch(
     }
     void pumpTurn(currentTurnId, runtimeTurn, activeHost, usageBefore, extensions.drain);
     return { turnId: currentTurnId };
+  }
+  if (request.command === "turn.steer") {
+    const control = parseAcpxTurnControl(request.params);
+    const activeHost = requireHost();
+    if (!runId || control.turnId !== turnId) throw new Error("cannot control a stale ACPX turn");
+    const capability = activeHost.steeringCapability();
+    if (!(control.mode === "steer" ? capability?.steering : capability?.queuedFollowUp)) {
+      throw new Error("ACP provider did not negotiate this turn control");
+    }
+    turnControls.reserve(control, turnId);
+    const runtimeRequestId = `${runId}:${control.turnId}`;
+    if (control.mode === "steer") await activeHost.steerActiveTurn(control.message, runtimeRequestId);
+    else await activeHost.queueFollowUp(control.message, runtimeRequestId);
+    if (host !== activeHost || turnId !== control.turnId) throw new Error("ACP turn settled before control acknowledgement");
+    return { accepted: true, turnId: control.turnId, controlId: control.controlId, mode: control.mode };
   }
   if (request.command === "turn.cancel") {
     const expected = boundedIdentity(request.params.turnId, "turnId");
@@ -585,8 +606,11 @@ async function pumpTurn(
         usageBefore,
         await readSidecarHostStatusWithin(activeHost),
         runtimeTurn.requestId,
+        openParams?.agent,
       );
       if (usage) {
+        const estimate = acpxUsageEstimateNotice(usage, `${currentTurnId}:usage-estimate`);
+        if (estimate) { validateAcpxRichEvent(estimate); emit("runtime.rich_event", { ...estimate }, currentTurnId); }
         emit(
           "runtime.event",
           sanitizeRuntimeEvent(usage as unknown as AcpRuntimeEvent),
@@ -1118,6 +1142,7 @@ function parseOpenParams(
     model,
     permissionMode: requiredPermissionMode(value.permissionMode),
     permissionModePinned: value.permissionModePinned === true,
+    ...(value.providerPolicy == null ? {} : { providerPolicy: parseProviderPolicy(value.providerPolicy) }),
     systemInstructions: boundedText(
       value.systemInstructions,
       "systemInstructions",
@@ -1131,6 +1156,14 @@ function parseOpenParams(
       ? {}
       : { expectedIdentity: parseExpectedIdentity(value.expectedIdentity) }),
   };
+}
+
+function parseProviderPolicy(value: unknown): { readOnly: boolean } {
+  const policy = record(value);
+  if (typeof policy.readOnly !== "boolean" || Object.keys(policy).some(key => key !== "readOnly")) {
+    throw new Error("providerPolicy requires only an explicit readOnly boolean");
+  }
+  return { readOnly: policy.readOnly };
 }
 
 function parseTools(value: unknown): Readonly<Record<string, unknown>>[] {

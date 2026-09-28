@@ -1,4 +1,4 @@
-import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "./profile-extensions.js";
+import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "./profile-extensions.js";
 import { createHash, randomBytes } from "node:crypto";
 
 import type {
@@ -79,6 +79,9 @@ import {
   type AcpxRecoveryWorkspaceLease,
 } from "./runtime-sandbox.js";
 
+import { AcpxTurnControlLedger, parseAcpxTurnControl, type AcpxTurnControlMode } from "./turn-controls.js";
+import { acpxUsageEstimateNotice, persistedAcpxTurnUsage } from "./usage-accounting.js";
+
 const MAX_BUFFERED_EVENTS = 512;
 const TERMINAL_EVENT_RESERVE = 3;
 const TURN_START_EVENT_COUNT = 3;
@@ -133,6 +136,7 @@ export interface CodexAcpxDriverOptions {
   runtimeDirectory: string;
   model: string;
   permissionMode?: NativeAcpxPermissionMode;
+  providerPolicy?: { readOnly: boolean };
   systemInstructions?: string;
   environment?: NodeJS.ProcessEnv;
   managedCodexCredentialSourcePath?: string;
@@ -150,6 +154,9 @@ interface CodexAcpxHost {
   startTurn(
     input: Parameters<AcpxRuntimeHost["startTurn"]>[0],
   ): AcpxRuntimeTurn;
+  steeringCapability?: AcpxRuntimeHost["steeringCapability"];
+  steerActiveTurn?: AcpxRuntimeHost["steerActiveTurn"];
+  queueFollowUp?: AcpxRuntimeHost["queueFollowUp"];
   interruptActiveTurn(reason: string): Promise<void>;
   close(input: { reason: string }): Promise<void>;
 }
@@ -203,6 +210,7 @@ export async function probeQualifiedAcpxEnvironment(
     agent: options.agent,
     model: options.model,
     permissionMode: "deny-all",
+    providerPolicy: { readOnly: true },
     systemInstructions:
       "Paperclip Runner environment qualification probe. Do not execute a provider turn.",
     ...(options.environment === undefined
@@ -262,14 +270,13 @@ export class CodexAcpxDriver implements HarnessDriver {
     options: CodexAcpxDriverOptions,
     dependencies: CodexAcpxDriverDependencies = {},
   ) {
-    if (options.agent === "pi") {
-      throw new Error(
-        "Pi ACPX driver is unavailable until descriptor-confined verified launch is implemented",
-      );
+    if (["pi", "cursor", "copilot"].includes(options.agent ?? "codex") && typeof options.providerPolicy?.readOnly !== "boolean") {
+      throw new Error("ACP candidate requires an explicit provider read-only policy");
     }
     this.#options = {
       ...options,
       agent: options.agent ?? "codex",
+      ...(options.providerPolicy ? { providerPolicy: { readOnly: options.providerPolicy.readOnly } } : {}),
       ...(options.environment
         ? { environment: { ...options.environment } }
         : {}),
@@ -441,6 +448,7 @@ export class CodexAcpxDriver implements HarnessDriver {
         clientCapabilities: acpxProfileClientCapabilities(this.#options.agent ?? "codex"),
         model: this.#options.model,
         permissionMode: this.#options.permissionMode ?? "approve-all",
+        providerPolicy: this.#options.providerPolicy,
         systemInstructions: this.#options.systemInstructions,
         environment: this.#options.environment,
         managedCodexCredentialSourcePath:
@@ -764,6 +772,7 @@ class CodexAcpxSession implements HarnessSession {
     payload: Record<string, unknown>;
   } | null = null;
   #runtimeRequestSequence = 0;
+  readonly #turnControls = new AcpxTurnControlLedger();
 
   constructor(input: {
     host: CodexAcpxHost;
@@ -856,16 +865,17 @@ class CodexAcpxSession implements HarnessSession {
     }
     const turnId = `turn-${randomBytes(12).toString("hex")}`;
     this.#activeTurnId = turnId;
+    this.#turnControls.begin(turnId);
     this.#assistantText = "";
     this.#emit("turn.submitted", { text: input.message.text }, { turnId });
     this.#emit("turn.accepted", { turnId }, { turnId });
     this.#emit("turn.started", { status: "inProgress" }, { turnId });
     const extensions = bindAcpxExtensionTurn({
       adapter: createAcpxProfileExtensionAdapter(this.#agent, {
-        workspacePath: this.#input.workingDirectory, sessionId: this.ids().providerSessionId, turnId,
+        workspacePath: this.#input.workingDirectory, sessionId: this.#host.identity().backendSessionId, turnId,
       }),
       active: () => this.#activeTurnId === turnId && !this.#closingStarted,
-      sessionId: this.ids().providerSessionId,
+      sessionId: this.#host.identity().backendSessionId,
       waitForInput: (input, context) => this.#handleExtensionInput(turnId, input, context),
       emit: event => {
         if (!this.#emit(event.eventType, event.payload, { turnId, itemId: event.itemId })) {
@@ -874,7 +884,10 @@ class CodexAcpxSession implements HarnessSession {
       },
     });
     let turn: AcpxRuntimeTurn;
+    const usageBefore = await readUsageStatus(this.#host);
     try {
+      this.#assertOpen();
+      if (this.#activeTurnId !== turnId) throw new HarnessStaleTurnError(turnId);
       turn = this.#host.startTurn({
         text: input.message.text,
         requestId: `${safeId(this.#input.runId, "run")}:${turnId}`,
@@ -894,7 +907,7 @@ class CodexAcpxSession implements HarnessSession {
       );
       throw error;
     }
-    const pump = this.#pumpTurn(turnId, turn, extensions.drain);
+    const pump = this.#pumpTurn(turnId, turn, extensions.drain, usageBefore);
     this.#activePump = pump;
     void pump
       .finally(() => {
@@ -902,6 +915,25 @@ class CodexAcpxSession implements HarnessSession {
       })
       .catch(() => undefined);
     return { turnId };
+  }
+
+  async steer(input: { turnId: string; message: NativeUserMessage; correlationId?: string; mode?: AcpxTurnControlMode }): Promise<void> {
+    this.#assertOpen();
+    if (input.turnId !== this.#activeTurnId || this.#pendingTerminal) throw new HarnessStaleTurnError(input.turnId);
+    const mode = input.mode ?? "steer";
+    const capability = this.#host.steeringCapability?.();
+    const operation = mode === "steer" ? this.#host.steerActiveTurn : this.#host.queueFollowUp;
+    if (!(mode === "steer" ? capability?.steering : capability?.queuedFollowUp) || !operation) {
+      throw new HarnessCapabilityUnavailableError(mode, "the ACP provider did not negotiate this turn control");
+    }
+    const control = parseAcpxTurnControl({ turnId: input.turnId, message: input.message.text, mode,
+      controlId: input.correlationId ?? `control-${randomBytes(12).toString("hex")}` });
+    this.#turnControls.reserve(control, this.#activeTurnId);
+    await operation.call(this.#host, control.message, `${safeId(this.#input.runId, "run")}:${control.turnId}`);
+    if (this.#activeTurnId !== control.turnId || this.#closingStarted) throw new HarnessStaleTurnError(control.turnId);
+    this.#emit("item.completed", { kind: "steering_acknowledgement", mode,
+      text: mode === "steer" ? "Steering acknowledged for the active turn." : "Follow-up queued after the active work.", status: "acknowledged" },
+      { turnId: control.turnId, itemId: stableId("acpx-control", `${control.turnId}:${control.controlId}`) });
   }
 
   async interrupt(input: { turnId?: string; reason?: string }): Promise<void> {
@@ -1369,7 +1401,7 @@ class CodexAcpxSession implements HarnessSession {
       .catch(() => undefined);
   }
 
-  async #pumpTurn(turnId: string, turn: AcpxRuntimeTurn, drainExtensions: () => Promise<void>): Promise<void> {
+  async #pumpTurn(turnId: string, turn: AcpxRuntimeTurn, drainExtensions: () => Promise<void>, usageBefore: unknown): Promise<void> {
     try {
       let index = 0;
       const normalizeToolEvent =
@@ -1379,6 +1411,12 @@ class CodexAcpxSession implements HarnessSession {
       }
       const result = await turn.result;
       await drainExtensions();
+      const receipt = persistedAcpxTurnUsage(usageBefore, await readUsageStatus(this.#host), turn.requestId, this.#agent);
+      if (receipt) {
+        this.#mapRuntimeEvent(receipt as unknown as AcpRuntimeEvent, turnId, ++index);
+        const estimate = acpxUsageEstimateNotice(receipt, `${turnId}:usage-estimate`);
+        if (estimate) { validateAcpxRichEvent(estimate); this.#emit(estimate.eventType, estimate.payload, { turnId, itemId: estimate.itemId }); }
+      }
       this.#cancelPendingRuntimeRequests("provider turn settled", turnId);
       if (this.#terminalTurns.has(turnId)) return;
       if (result.status === "completed") {
@@ -2411,4 +2449,16 @@ async function settlesWithin(
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+/** Accounting failure cannot replace the provider's terminal result. */
+async function readUsageStatus(host: CodexAcpxHost): Promise<unknown> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => host.status()),
+      new Promise<undefined>(resolve => { timer = setTimeout(() => resolve(undefined), 1_000); timer.unref?.(); }),
+    ]);
+  } catch { return undefined; }
+  finally { if (timer) clearTimeout(timer); }
 }

@@ -16,6 +16,7 @@
         "run.attach",
         "turn.start",
         "turn.cancel",
+        "turn.steer",
         "permission.resolve",
         "input.resolve",
         "tool.resolve",
@@ -50,7 +51,11 @@
         "command": { "$ref": "#/$defs/command" },
         "params": { "type": "object" }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [{
+        "if": { "properties": { "command": { "const": "turn.steer" } } },
+        "then": { "properties": { "params": { "$ref": "#/$defs/turnControl" } } }
+      }]
     },
     "response": {
       "type": "object",
@@ -168,6 +173,41 @@
         },
         "payload": {
           "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    "turnControl": {
+      "type": "object",
+      "required": [
+        "turnId",
+        "controlId",
+        "mode",
+        "message"
+      ],
+      "properties": {
+        "turnId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+        },
+        "controlId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+        },
+        "mode": {
+          "enum": [
+            "steer",
+            "follow_up"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
         }
       },
       "additionalProperties": false

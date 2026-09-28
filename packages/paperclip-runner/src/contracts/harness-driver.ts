@@ -512,6 +512,8 @@ export interface HarnessSession {
     effectiveCollaborationMode?: "default" | "plan";
   }>;
   steer?(input: {
+    /** Queued follow-ups remain distinct from active-turn steering. */
+    mode?: "steer" | "follow_up";
     turnId: string;
     message: NativeUserMessage;
     correlationId?: string;

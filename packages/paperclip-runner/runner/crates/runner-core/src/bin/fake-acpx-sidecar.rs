@@ -204,6 +204,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             | "goals"
             | "bootstrap-wrong-model"
             | "bootstrap-wrong-run"
+            | "controls"
+            | "controls-wrong-ack"
             | "turns"
             | "turns-wrong-turn"
             | "turns-wrong-cancel"
@@ -736,6 +738,10 @@ fn bootstrap_success(
         }),
         "turn.start" => json!({
             "turnId": if mode == "turns-wrong-turn" { "wrong-turn" } else { params.get("turnId").and_then(Value::as_str).unwrap_or("missing") },
+        }),
+        "turn.steer" => json!({
+            "accepted": true, "turnId": params.get("turnId"), "controlId": params.get("controlId"),
+            "mode": if mode == "controls-wrong-ack" { json!("wrong") } else { params["mode"].clone() },
         }),
         "turn.cancel" => json!({"cancelled":mode != "turns-wrong-cancel"}),
         "session.suspend" => json!({

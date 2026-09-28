@@ -14,6 +14,7 @@ import {
   type CodexAcpxDriverOptions,
 } from "./codex-acpx-driver.js";
 import type {
+  AcpxRuntimeSteeringCapability,
   AcpxRuntimeTurnInput,
   AcpxRuntimeTurn,
   OpenAcpxRuntimeHostOptions,
@@ -21,6 +22,46 @@ import type {
 import type { AcpxRecoveryWorkspaceLease } from "./runtime-sandbox.js";
 
 describe("Codex ACPX harness driver", () => {
+  it("delivers negotiated steering and follow-up distinctly, once, for the active turn", async () => {
+    const fixture = driverFixture({ providerPolicy: { readOnly: true } });
+    fixture.host.steeringCapability.mockReturnValue({ steering: true, queuedFollowUp: true });
+    const session = await fixture.driver.openSession({ runId: "run-controls", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
+    expect(fixture.hostOptions?.providerPolicy).toEqual({ readOnly: true });
+    const { turnId } = await session.startTurn({ message: { text: "Work" } });
+    const turnInput = fixture.host.startTurn.mock.calls[0]![0];
+    const context = { requestId: 0, signal: new AbortController().signal };
+    await expect(turnInput.onExtensionRequest!("provider/request", { sessionId: "agent-1" }, context)).rejects.toThrow(/session mismatch/);
+    await expect(turnInput.onExtensionRequest!("provider/request", { sessionId: "backend-1" }, context)).rejects.toThrow(/adapter is unavailable/);
+    await session.steer!({ turnId, correlationId: "control-1", message: { text: "Change focus" } });
+    await session.steer!({ turnId, correlationId: "control-2", mode: "follow_up", message: { text: "Then validate" } });
+    expect(fixture.host.steerActiveTurn).toHaveBeenCalledExactlyOnceWith("Change focus", `run-controls:${turnId}`);
+    expect(fixture.host.queueFollowUp).toHaveBeenCalledExactlyOnceWith("Then validate", `run-controls:${turnId}`);
+    expect(fixture.host.interruptActiveTurn).not.toHaveBeenCalled();
+    await expect(session.steer!({ turnId, correlationId: "control-2", message: { text: "Duplicate" } })).rejects.toThrow(/already attempted/);
+    await expect(session.steer!({ turnId: "wrong-turn", message: { text: "Stale" } })).rejects.toThrow();
+    fixture.finishTurn({ status: "completed" });
+    const events = await collectUntil(session.events(), "turn.completed");
+    expect(events.filter(event => event.payload.kind === "steering_acknowledgement").map(event => event.payload.mode)).toEqual(["steer", "follow_up"]);
+    for (const event of events) expect(validatePrpEvent(event).ok).toBe(true);
+    await expect(session.steer!({ turnId, message: { text: "Already settled" } })).rejects.toThrow();
+    await session.close({ reason: "controls verified" });
+  });
+
+  it("rejects unnegotiated controls and retains ambiguous delivery attempts", async () => {
+    const fixture = driverFixture();
+    const session = await fixture.driver.openSession({ runId: "run-controls", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
+    const { turnId } = await session.startTurn({ message: { text: "Work" } });
+    await expect(session.steer!({ turnId, message: { text: "No handshake" } })).rejects.toThrow(/did not negotiate/);
+    expect(fixture.host.steerActiveTurn).not.toHaveBeenCalled();
+    fixture.host.steeringCapability.mockReturnValue({ steering: true, queuedFollowUp: false });
+    fixture.host.steerActiveTurn.mockRejectedValueOnce(new Error("delivery acknowledgement lost"));
+    const input = { turnId, correlationId: "ambiguous", message: { text: "Maybe delivered" } };
+    await expect(session.steer!(input)).rejects.toThrow(/acknowledgement lost/);
+    await expect(session.steer!(input)).rejects.toThrow(/already attempted/);
+    expect(fixture.host.steerActiveTurn).toHaveBeenCalledOnce();
+    await session.close({ reason: "ambiguous control verified" });
+  });
+
   it.each([
     ["claude", "claude-sonnet-5"], ["codex", "gpt-5.6-sol"],
   ] as const)("launches %s in full auto when no mode is supplied", async (agent, model) => {
@@ -2758,6 +2799,9 @@ function fakeHost(createTurn: () => AcpxRuntimeTurn, onClose: () => void) {
       },
     })),
     startTurn: vi.fn((_input: AcpxRuntimeTurnInput) => createTurn()),
+    steeringCapability: vi.fn<() => AcpxRuntimeSteeringCapability | null>(() => null),
+    steerActiveTurn: vi.fn(async (_text: string, _requestId?: string) => undefined),
+    queueFollowUp: vi.fn(async (_text: string, _requestId?: string) => undefined),
     interruptActiveTurn: vi.fn(async () => undefined),
     close: vi.fn(async () => {
       onClose();

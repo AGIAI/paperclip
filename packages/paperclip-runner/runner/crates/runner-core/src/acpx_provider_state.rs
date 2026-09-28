@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::Value;
 
@@ -105,6 +105,7 @@ pub struct AcpxProviderState {
     pending_inputs: BTreeMap<String, PendingInput>,
     pending_runtime_request_bytes: usize,
     semantic_result: Option<AcpxSemanticResult>,
+    attempted_turn_controls: BTreeSet<String>,
 }
 
 impl AcpxProviderState {
@@ -121,6 +122,7 @@ impl AcpxProviderState {
             pending_inputs: BTreeMap::new(),
             pending_runtime_request_bytes: 0,
             semantic_result: None,
+            attempted_turn_controls: BTreeSet::new(),
         })
     }
 
@@ -165,6 +167,28 @@ impl AcpxProviderState {
             || !self.pending_inputs.is_empty()
     }
 
+    pub(crate) fn reserve_turn_control(
+        &mut self,
+        turn_id: &str,
+        control_id: &str,
+    ) -> Result<(), LocalRunnerError> {
+        if self.active_turn_id() != Some(turn_id) {
+            return Err(LocalRunnerError::invalid(
+                "ACPX turn control named a stale or inactive turn",
+            ));
+        }
+        if self.attempted_turn_controls.contains(control_id) {
+            return Err(LocalRunnerError::invalid(
+                "ACPX turn control was already attempted",
+            ));
+        }
+        if self.attempted_turn_controls.len() >= 1024 {
+            return Err(LocalRunnerError::invalid("ACPX turn control limit reached"));
+        }
+        self.attempted_turn_controls.insert(control_id.to_owned());
+        Ok(())
+    }
+
     pub fn begin_turn(&mut self, turn_id: impl Into<String>) -> Result<(), LocalRunnerError> {
         if self.scope.active_turn_id().is_some()
             || !self.pending_tools.is_empty()
@@ -185,6 +209,7 @@ impl AcpxProviderState {
         self.assistant_text.clear();
         self.assistant_message_id = None;
         self.semantic_result = None;
+        self.attempted_turn_controls.clear();
         Ok(())
     }
 

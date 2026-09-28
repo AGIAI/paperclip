@@ -124,3 +124,14 @@ function error() {
     retryable: false,
   };
 }
+
+test("turn control schema preserves explicit modes and rejects open-ended dispatch", () => {
+  const message = { protocolVersion, id: 1, command: "turn.steer", params: {
+    turnId: "turn-1", controlId: "control-1", mode: "follow_up", message: "Then validate",
+  } };
+  assert.equal(validate(message), true, JSON.stringify(validate.errors));
+  for (const params of [ { ...message.params, mode: "cancel" }, { ...message.params, method: "arbitrary" },
+    { ...message.params, controlId: "" }, { ...message.params, turnId: "wrong turn" }, { ...message.params, mode: undefined } ]) {
+    assert.equal(validate({ ...message, params }), false);
+  }
+});
