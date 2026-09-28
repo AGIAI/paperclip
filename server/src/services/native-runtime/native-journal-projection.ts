@@ -33,25 +33,31 @@ const stateFields = new Set([
   "freshBootstraps",
   "malformedFrames",
 ]);
-const essentialEvents = new Set([
-  "session.started",
-  "session.resumed",
-  "session.reconciled",
-  "turn.accepted",
-  "semantic_tool.input",
-  "semantic_tool.result",
-  "mcp_app.tool_input",
-  "harness.diagnostic",
-]);
-
-/** One synchronous scanner can execute at a time. All retained nodes/strings,
- * including later materialized spans, share the same conservative byte budget. */
+/** Bound the retained JSON representation, not cumulative parsing work or an
+ * engine-specific guess at object overhead. The worker separately bounds heap
+ * and concurrency. Keys inspected
+ * only to discard a field, replaced duplicate values, and deferred spans do not
+ * keep consuming memory after their replacement. */
 class Budget {
   used = 0;
+  private sizes = new WeakMap<object, number>();
   charge(bytes: number) {
     this.used += bytes;
     if (this.used > NATIVE_JOURNAL_PROJECTION_BUDGET)
       throw new Error("native_journal_projection_budget_exceeded");
+  }
+  size(value: unknown): number {
+    return value !== null && typeof value === "object"
+      ? (this.sizes.get(value) ?? 0)
+      : typeof value === "string"
+        ? Buffer.byteLength(JSON.stringify(value))
+        : (JSON.stringify(value)?.length ?? 4);
+  }
+  remember(value: object, bytes: number) {
+    this.sizes.set(value, bytes);
+  }
+  release(value: unknown) {
+    this.used -= this.size(value);
   }
 }
 
@@ -96,7 +102,10 @@ class JsonScanner {
     const size = end - start;
     if (key && size > 4096)
       throw new Error("native_journal_projection_budget_exceeded");
-    this.budget.charge(size * 3 + 64);
+    // A key is transient until its selected child is retained. Bound decoding
+    // before allocating, then account its retained JSON bytes after decoding.
+    const reserved = key ? 0 : size;
+    this.budget.charge(reserved);
     const bytes = Buffer.allocUnsafe(size);
     let count = 0;
     while (count < size) {
@@ -104,7 +113,9 @@ class JsonScanner {
       if (!read) throw new Error("native_state_file_changed");
       count += read;
     }
-    return JSON.parse(bytes.toString("utf8"));
+    const value: unknown = JSON.parse(bytes.toString("utf8"));
+    if (!key) this.budget.charge(this.budget.size(value) - reserved);
+    return value;
   }
   private string(capture: boolean, key = false): unknown {
     const start = this.offset;
@@ -120,13 +131,11 @@ class JsonScanner {
         if (escape === 117) {
           for (let n = 0; n < 4; n++) {
             const hex = this.peek();
-            if (
-              !(
-                (hex >= 48 && hex <= 57) ||
-                (hex >= 65 && hex <= 70) ||
-                (hex >= 97 && hex <= 102)
-              )
-            )
+            if (!(
+              (hex >= 48 && hex <= 57) ||
+              (hex >= 65 && hex <= 70) ||
+              (hex >= 97 && hex <= 102)
+            ))
               throw new Error("native_journal_invalid_json");
             this.offset++;
           }
@@ -145,13 +154,16 @@ class JsonScanner {
       c = this.peek();
     if (mode === "span") {
       this.value(path, select, depth, "skip");
-      this.budget.charge(96);
-      return { [REF]: true, start, end: this.offset } satisfies Span;
+      this.budget.charge(48);
+      const span = { [REF]: true, start, end: this.offset } satisfies Span;
+      this.budget.remember(span, 48);
+      return span;
     }
     const keep = mode === "keep";
-    if (keep) this.budget.charge(64);
     if (c === 34) return this.string(keep);
     if (c === 123 || c === 91) {
+      const before = this.budget.used;
+      if (keep) this.budget.charge(2);
       const array = c === 91;
       this.offset++;
       this.space();
@@ -159,6 +171,7 @@ class JsonScanner {
       const close = array ? 93 : 125;
       if (this.peek() === close) {
         this.offset++;
+        if (keep) this.budget.remember(result, this.budget.used - before);
         return keep ? result : OMIT;
       }
       let index = 0;
@@ -178,16 +191,21 @@ class JsonScanner {
           depth + 1,
           keep ? undefined : "skip",
         );
-        if (keep && child !== OMIT)
+        if (keep && child !== OMIT) {
+          if (Object.hasOwn(result, key))
+            this.budget.release((result as Record<string, unknown>)[key]);
+          else this.budget.charge(array ? 1 : this.budget.size(key) + 2);
           Object.defineProperty(result, key, {
             value: child,
             configurable: true,
             enumerable: true,
             writable: true,
           });
+        }
         this.space();
         if (this.peek() === close) {
           this.offset++;
+          if (keep) this.budget.remember(result, this.budget.used - before);
           return keep ? result : OMIT;
         }
         this.expect(44);
@@ -200,6 +218,7 @@ class JsonScanner {
     ] as const) {
       if (c === first) {
         for (const ch of literal) this.expect(ch.charCodeAt(0));
+        if (keep) this.budget.charge(literal.length);
         return keep ? value : OMIT;
       }
     }
@@ -214,6 +233,7 @@ class JsonScanner {
     }
     if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(number))
       throw new Error("native_journal_invalid_json");
+    if (keep) this.budget.charge(this.budget.size(JSON.parse(number)));
     return keep ? JSON.parse(number) : OMIT;
   }
   parse(select: Select): unknown {
@@ -241,7 +261,10 @@ export function readNativeJournalProjection(
   path: string,
   purpose: "identity" | "evidence" = "evidence",
 ) {
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const fd = openSync(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
   try {
     const before = fstatSync(fd);
     if (
@@ -267,55 +290,174 @@ export function readNativeJournalProjection(
         return "span";
       if (
         parts[0] === "committedEvents" &&
-        parts.length === 5 &&
-        parts.slice(2).join("/") === "envelope/payload/payload"
+        parts.length === 4 &&
+        parts.slice(2).join("/") === "envelope/payload"
       )
         return "span";
+      if (parts[0] === "committedEvents") {
+        if (
+          parts.length === 3 &&
+          ![
+            "sourceSeq",
+            "sourceEventId",
+            "eventType",
+            "priority",
+            "envelope",
+            "deliveryCount",
+            "logicalEffectCount",
+          ].includes(parts[2]!)
+        )
+          return "skip";
+        if (
+          parts.length === 4 &&
+          parts[2] === "envelope" &&
+          !["runId", "normalizedSessionId", "payload"].includes(parts[3]!)
+        )
+          return "skip";
+      }
       return "keep";
     };
     const value = new JsonScanner(fd, before.size, budget, 0, digest).parse(
       select,
     );
-    const materialize = (v: unknown, selection: Select): unknown =>
-      isSpan(v)
-        ? new JsonScanner(fd, v.end, budget, v.start).parse(selection)
-        : v;
+    const materialize = (v: unknown, selection: Select): unknown => {
+      if (!isSpan(v)) return v;
+      budget.release(v);
+      return new JsonScanner(fd, v.end, budget, v.start).parse(selection);
+    };
     // A projection preserves original primitive/array/object types. It must not
     // turn malformed authority into a valid empty object.
     const fields =
       (names: string[]): Select =>
       (parts) =>
         parts.length === 1 && !names.includes(parts[0]!) ? "skip" : "keep";
+    const inspect = (v: unknown, selection: Select): unknown =>
+      isSpan(v)
+        ? new JsonScanner(fd, v.end, new Budget(), v.start).parse(selection)
+        : v;
+    const finishOperation = (v: unknown) =>
+      object(v) && v.operationId === "paperclip_finish";
+    const semanticOperation: Select = (parts) =>
+      (parts.length === 1 && parts[0] !== "semantic_tool") ||
+      (parts.length === 2 && parts[1] !== "operationId")
+        ? "skip"
+        : "keep";
+    // These fields participate in validatePrpEvent's semantic envelope schema.
+    // In particular optional receipt/reference fields must remain available to
+    // validation; deleting invalid optional fields could invent valid proof.
+    const semanticFields = new Set([
+      "schema",
+      "schemaVersion",
+      "phase",
+      "operationId",
+      "callId",
+      "correlation",
+      "idempotencyKey",
+      "content",
+      "outcome",
+      "code",
+      "retryable",
+      "authorizationBoundary",
+      "operationReceiptId",
+      "auditReceiptId",
+      "currentRevision",
+      "duplicateOfReceiptId",
+      "artifactRefs",
+      "targets",
+      "causalRefs",
+    ]);
+    const eventCommon = [
+      "processId",
+      "channel",
+      "providerPhase",
+      "providerMethod",
+    ];
+    const proofEvents = new Set([
+      "session.started",
+      "session.resumed",
+      "session.reconciled",
+      "turn.accepted",
+      "semantic_tool.input",
+      "semantic_tool.result",
+    ]);
+    const eventFields = new Set([
+      "schema",
+      "sourceEventId",
+      "sourceSeq",
+      "sourceInstanceId",
+      "sourceKind",
+      "runId",
+      "normalizedSessionId",
+      "turnId",
+      "itemId",
+      "eventType",
+      "schemaVersion",
+      "priority",
+      "emittedAt",
+      "observedAt",
+      "payload",
+      "debug",
+    ]);
     if (object(value)) {
       if (Array.isArray(value.commands))
         for (const command of value.commands) {
           if (!object(command)) continue;
-          const complete =
-            command.type === "run.attach" ||
-            command.type === "semantic_tool.result";
+          const complete = command.type === "run.attach";
+          const finish =
+            command.type === "semantic_tool.result" &&
+            finishOperation(inspect(command.payload, fields(["operationId"])));
           if ("payload" in command)
             command.payload = materialize(
               command.payload,
               complete
                 ? full
-                : fields(
-                    command.type === "run.prepare"
-                      ? ["completionContract"]
-                      : [],
-                  ),
+                : finish
+                  ? (parts) =>
+                      (parts.length === 1 &&
+                        ![
+                          "callId",
+                          "operationId",
+                          "isError",
+                          "sourceEventId",
+                          "sourceEventType",
+                          "input",
+                          "correlation",
+                          "result",
+                        ].includes(parts[0]!)) ||
+                      (parts.length === 2 &&
+                        parts[0] === "result" &&
+                        parts[1] !== "success")
+                        ? "skip"
+                        : "keep"
+                  : fields(
+                      command.type === "run.prepare"
+                        ? ["completionContract"]
+                        : command.type === "semantic_tool.result"
+                          ? ["operationId", "callId"]
+                          : [],
+                    ),
             );
           if ("result" in command)
             command.result = materialize(
               command.result,
               complete
                 ? full
-                : command.type === "turn.start"
+                : finish
                   ? (parts) =>
-                      (parts.length === 1 && parts[0] !== "result") ||
-                      (parts.length === 2 && parts[1] !== "providerTurnId")
+                      (parts.length === 1 &&
+                        !["status", "result"].includes(parts[0]!)) ||
+                      (parts.length === 2 &&
+                        parts[0] === "result" &&
+                        parts[1] !== "callId")
                         ? "skip"
                         : "keep"
-                  : fields([]),
+                  : command.type === "turn.start"
+                    ? (parts) =>
+                        (parts.length === 1 && parts[0] !== "result") ||
+                        (parts.length === 2 && parts[1] !== "providerTurnId")
+                          ? "skip"
+                          : "keep"
+                    : fields([]),
             );
         }
       if (Array.isArray(value.committedEvents))
@@ -323,17 +465,92 @@ export function readNativeJournalProjection(
           if (
             !object(entry) ||
             !object(entry.envelope) ||
-            !object(entry.envelope.payload)
+            !("payload" in entry.envelope)
           )
             continue;
-          const event = entry.envelope.payload;
-          if ("payload" in event)
-            event.payload = materialize(
-              event.payload,
-              essentialEvents.has(String(event.eventType))
-                ? full
-                : fields(["processId"]),
-            );
+          const rawEvent = entry.envelope.payload;
+          const event = inspect(rawEvent, (parts) =>
+            parts[0] === "payload"
+              ? semanticOperation(parts.slice(1))
+              : fields(["eventType", "payload"])(parts),
+          );
+          if (object(event)) {
+            let selection: Select;
+            if (
+              ["semantic_tool.input", "semantic_tool.result"].includes(
+                String(event.eventType),
+              )
+            ) {
+              const finish =
+                object(event.payload) &&
+                finishOperation(event.payload.semantic_tool);
+              selection = (parts) =>
+                (parts.length === 1 &&
+                  ![...eventCommon, "semantic_tool"].includes(parts[0]!)) ||
+                (parts.length === 2 &&
+                  parts[0] === "semantic_tool" &&
+                  !(finish
+                    ? semanticFields.has(parts[1]!) ||
+                      (parts[1] === "input" &&
+                        event.eventType === "semantic_tool.input")
+                    : parts[1] === "operationId"))
+                  ? "skip"
+                  : "keep";
+            } else if (
+              [
+                "session.started",
+                "session.resumed",
+                "session.reconciled",
+              ].includes(String(event.eventType))
+            ) {
+              // Every recorded process owner remains a stop requirement.
+              selection = fields([
+                ...eventCommon,
+                "providerSessionId",
+                "providerAccountSessionId",
+                "driverSessionId",
+                "previousProcessId",
+                "process_id",
+                "processGroupId",
+                "providerPid",
+                "codexPid",
+                "sidecarPid",
+                "agentPid",
+                "agentProcessId",
+                "providerDescriptor",
+                "providerIdentity",
+                "runtimeIdentity",
+              ]);
+            } else if (event.eventType === "turn.accepted") {
+              selection = fields([
+                ...eventCommon,
+                "providerTurnId",
+                "providerSessionId",
+              ]);
+            } else if (event.eventType === "harness.diagnostic") {
+              selection = fields([...eventCommon, "pid"]);
+            } else {
+              // MCP/runtime inputs remain as events: their presence alone denies
+              // effect-free replay. Generic tool output is not cleanup authority.
+              selection = fields(["processId"]);
+            }
+            entry.envelope.payload = materialize(rawEvent, (parts) => {
+              if (parts[0] === "payload") return selection(parts.slice(1));
+              // Only authority-bearing events are passed to validatePrpEvent.
+              // Generic event identities/text are not authority; retain their
+              // durable headers, raw type and process owner as negative evidence.
+              if (
+                parts.length === 1 &&
+                !(proofEvents.has(String(event.eventType))
+                  ? eventFields.has(parts[0]!)
+                  : parts[0] === "eventType")
+              )
+                return "skip";
+              // debug is schema-checked only as an object, never proof content.
+              if (parts[0] === "debug" && parts.length > 1) return "skip";
+              return "keep";
+            });
+          } else entry.envelope.payload = materialize(rawEvent, fields([]));
         }
     }
     unchanged(before, fstatSync(fd));
@@ -354,7 +571,10 @@ export function scanNativeStateFile(
   maximum: number,
   consume?: (chunk: Buffer) => void,
 ) {
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  const fd = openSync(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
   try {
     const before = fstatSync(fd);
     if (!before.isFile() || before.size > maximum)
