@@ -1222,6 +1222,40 @@ fn normalize_acpx_status(
     )]
 }
 
+/// Matches the TypeScript ACP display-name parser. This is presentation metadata;
+/// semantic dispatch and the preclassified operation never derive authority from it.
+fn acpx_mcp_tool_identity(value: &str) -> Option<(&str, &str)> {
+    let has_line_terminator = |text: &str| text.contains(['\n', '\r', '\u{2028}', '\u{2029}']);
+    if value
+        .get(..5)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("mcp__"))
+    {
+        let rest = &value[5..];
+        if !has_line_terminator(rest) {
+            // The namespace is nonempty and the first eligible separator wins,
+            // including overlapping separators when the namespace starts with `_`.
+            for (index, _) in rest.char_indices().skip(1) {
+                if let Some(name) = rest[index..]
+                    .strip_prefix("__")
+                    .filter(|name| !name.is_empty())
+                {
+                    return Some((&rest[..index], name));
+                }
+            }
+        }
+    }
+    if value
+        .get(..4)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("mcp."))
+    {
+        let (namespace, name) = value[4..].split_once('.')?;
+        if !namespace.is_empty() && !name.is_empty() && !has_line_terminator(name) {
+            return Some((namespace, name));
+        }
+    }
+    None
+}
+
 fn normalize_acpx_tool_call(
     payload: &Value,
     item_id: &str,
@@ -1230,8 +1264,9 @@ fn normalize_acpx_tool_call(
     let native_status = string(payload.get("status"));
     let status = provider_status(native_status, native_status == "completed");
     let terminal = status != "running";
-    let raw_title = string(payload.get("title"));
-    let title = bounded_text(raw_title, 240);
+    let raw_title = string(payload.get("title")).trim();
+    let mcp = acpx_mcp_tool_identity(raw_title);
+    let name = bounded_text(mcp.map_or(raw_title, |(_, name)| name), 240);
     let output = match payload.get("rawOutput").or_else(|| payload.get("output")) {
         Some(Value::String(value)) => value.clone(),
         Some(value) => serde_json::to_string(value).unwrap_or_default(),
@@ -1240,11 +1275,11 @@ fn normalize_acpx_tool_call(
     let mut normalized = json!({
         "schema": "paperclip.tool.execution.v1",
         "executionId": item_id,
-        "transport": "builtin",
+        "transport": if mcp.is_some() { "mcp" } else { "builtin" },
         "operation": operation,
-        "name": if title.is_empty() { Value::Null } else { Value::String(title) },
+        "name": if name.is_empty() { Value::Null } else { Value::String(name) },
         "target": safe_acpx_location(payload.pointer("/locations/0"), operation == "edit"),
-        "namespace": Value::Null,
+        "namespace": mcp.map(|(namespace, _)| bounded_text(namespace, 240)),
         "readOnly": matches!(operation, "read" | "search" | "list"),
         "status": status,
         "durationMs": Value::Null,
