@@ -632,6 +632,35 @@ describe("TaskChatProtocolCard", () => {
     expect(container.textContent).toContain("Submitting…");
   });
 
+  it("keeps complete provider plan Markdown while making image references inert", () => {
+    const prefix = '# Release plan\n\n**Preserve every instruction.**\n\n![Evidence](https://provider.invalid/track.png "Provider image")\n\n![Local image](/api/attachments/untrusted/content)\n\n';
+    const suffix = '\n\n```mermaid\nflowchart LR\n  A@{ img: "https://provider.invalid/diagram.png" }\n```\n\nFINAL_PLAN_BOUNDARY';
+    const fullInstructions = "x".repeat(100_000 - prefix.length - suffix.length);
+    const description = prefix + fullInstructions + suffix;
+    expect(description).toHaveLength(100_000);
+    renderCard(root, {
+      id: "provider-plan", kind: "protocol", surface: "runtime_request", runId: "run-1",
+      requestId: "plan-revision-7", requestKind: "runtime", turnId: "turn-1",
+      requestType: "input", status: "pending", prompt: "Review the complete plan.", choices: [], fields: [],
+      questionSet: {
+        schema: "paperclip.question_set.v1", description,
+        questions: [{ id: "decision", prompt: "Accept this plan?", required: true, answerMode: "single_select",
+          options: [{ id: "accept", label: "Accept" }, { id: "reject", label: "Reject" }] }],
+      },
+    });
+
+    const context = container.querySelector('[role="region"][aria-label="Question context"]');
+    expect(context?.querySelector("h1")?.textContent).toBe("Release plan");
+    expect(context?.querySelector("strong")?.textContent).toBe("Preserve every instruction.");
+    expect(context?.textContent).toContain(fullInstructions);
+    expect(context?.textContent).toContain("FINAL_PLAN_BOUNDARY");
+    expect(context?.textContent).toContain("Evidence");
+    expect(context?.textContent).toContain("https://provider.invalid/track.png");
+    expect(context?.querySelector("img, video, audio, iframe, object, embed, image, link")).toBeNull();
+    expect(context?.querySelector('.language-mermaid')?.textContent).toContain('https://provider.invalid/diagram.png');
+    expect(context?.querySelector('.paperclip-mermaid')).toBeNull();
+  });
+
   it("submits the canonical response from a v2 harness question set", async () => {
     const onDecision = vi.fn().mockResolvedValue(undefined);
     renderCard(
