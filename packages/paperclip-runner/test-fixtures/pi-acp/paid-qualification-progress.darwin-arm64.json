@@ -1,0 +1,221 @@
+{
+  "schema": "paperclip.pi-paid-qualification-progress.v1",
+  "recordedAt": "2026-09-28T19:36:32.051800+00:00",
+  "qualificationStatus": "pending",
+  "environment": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "execution": "local"
+  },
+  "declaredModel": "openrouter/deepseek/deepseek-v4-flash-0731",
+  "observedModel": {
+    "attemptId": "pi-context-paid-04",
+    "id": "openrouter/deepseek/deepseek-v4-flash-0731",
+    "provider": "openrouter",
+    "source": "actual runtime snapshot providerModel"
+  },
+  "budget": {
+    "authorizedMaximumUsd": 25,
+    "reservedPerBatchUsd": 2,
+    "measuredSpendUsd": 0.005748807,
+    "measurement": "exclusive OpenRouter key billing delta; model catalog estimates are not provider billing"
+  },
+  "attempts": [
+    {
+      "attemptId": "pi-context-paid-01",
+      "family": "runner-protocol",
+      "caseId": "get-task-context",
+      "startedAt": "2026-09-28T19:06:12.910826+00:00",
+      "finishedAt": "2026-09-28T19:06:20.148262+00:00",
+      "durationSeconds": 7.237,
+      "sourceRevision": "58511d79d9c4a1525d98e219d027654902b704e1",
+      "providerPackDigest": "sha256:a9728fe4298a5eee00555382af01e85550820a294957caf2eba0c79bf33c4388",
+      "runnerdDigest": "sha256:2138cc9dd7898d284f5761719112079666dd013e035d705aba73e965faf2fd86",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "exitCode": 0,
+      "retainedMachineDisposition": "infrastructure_failure",
+      "diagnosis": "CLI main guard did not recognize the /tmp symlink path; no artifact or provider prompt. Fixed by shared commit ac17430b0.",
+      "submittedProviderTurns": 0,
+      "providerRequestCount": 0,
+      "billingDeltaUsd": 0,
+      "billingCoverage": "exclusive OpenRouter key usage delta, two spaced post-attempt observations",
+      "terminalUsage": null,
+      "automaticRetries": 0,
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "outerDeadlineSeconds": 120
+      }
+    },
+    {
+      "attemptId": "pi-context-paid-02",
+      "family": "runner-protocol",
+      "caseId": "get-task-context",
+      "startedAt": "2026-09-28T19:06:45.550028+00:00",
+      "finishedAt": "2026-09-28T19:07:03.655460+00:00",
+      "durationSeconds": 18.103,
+      "sourceRevision": "58511d79d9c4a1525d98e219d027654902b704e1",
+      "providerPackDigest": "sha256:a9728fe4298a5eee00555382af01e85550820a294957caf2eba0c79bf33c4388",
+      "runnerdDigest": "sha256:2138cc9dd7898d284f5761719112079666dd013e035d705aba73e965faf2fd86",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "exitCode": 2,
+      "retainedMachineDisposition": "infrastructure_failure",
+      "diagnosis": "Sidecar initialization accepted only Claude/Codex and rejected Pi before prompting. Fixed by shared commit ac17430b0.",
+      "submittedProviderTurns": 0,
+      "providerRequestCount": 0,
+      "billingDeltaUsd": 0,
+      "billingCoverage": "exclusive OpenRouter key usage delta, two spaced post-attempt observations",
+      "terminalUsage": null,
+      "automaticRetries": 0,
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "outerDeadlineSeconds": 120
+      }
+    },
+    {
+      "attemptId": "pi-context-paid-03",
+      "family": "runner-protocol",
+      "caseId": "get-task-context",
+      "startedAt": "2026-09-28T19:19:10.856746+00:00",
+      "finishedAt": "2026-09-28T19:19:18.160151+00:00",
+      "durationSeconds": 7.279,
+      "sourceRevision": "788105248a3ba594b30b5bcec3fa266d8a51d8d4",
+      "providerPackDigest": "sha256:4de47c31a8131424495366741bd491ff5fa10723ab9a3918c07a3e42982dbe3c",
+      "runnerdDigest": "sha256:2138cc9dd7898d284f5761719112079666dd013e035d705aba73e965faf2fd86",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "exitCode": 1,
+      "retainedMachineDisposition": "infrastructure_failure",
+      "diagnosis": "Supervisor invoked Python3.9; canonical eval uses a newer TemporaryDirectory API. Switched supervisor to its Python3.14 executable before retry.",
+      "submittedProviderTurns": 0,
+      "providerRequestCount": 0,
+      "billingDeltaUsd": 0,
+      "billingCoverage": "exclusive OpenRouter key usage delta, two spaced post-attempt observations",
+      "terminalUsage": null,
+      "automaticRetries": 0,
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "outerDeadlineSeconds": 420
+      }
+    },
+    {
+      "attemptId": "pi-context-paid-04",
+      "family": "runner-protocol",
+      "caseId": "get-task-context",
+      "startedAt": "2026-09-28T19:19:52.195195+00:00",
+      "finishedAt": "2026-09-28T19:22:45.531217+00:00",
+      "durationSeconds": 173.331,
+      "sourceRevision": "788105248a3ba594b30b5bcec3fa266d8a51d8d4",
+      "providerPackDigest": "sha256:4de47c31a8131424495366741bd491ff5fa10723ab9a3918c07a3e42982dbe3c",
+      "runnerdDigest": "sha256:2138cc9dd7898d284f5761719112079666dd013e035d705aba73e965faf2fd86",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "exitCode": 1,
+      "retainedMachineDisposition": "infrastructure_failure",
+      "diagnosis": "Canonical scorer retained timeout after120000ms without terminal turn or usage. Four semantic operations succeeded. The canonical reasoning delta was incorrectly projected as assistant text; shared commit a978d1bc5 repairs that distinct projection defect. Provider completion remains unproven.",
+      "submittedProviderTurns": 1,
+      "providerRequestCount": null,
+      "billingDeltaUsd": 0.005748807,
+      "billingCoverage": "exclusive OpenRouter key usage delta, two spaced post-attempt observations",
+      "terminalUsage": null,
+      "automaticRetries": 0,
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "outerDeadlineSeconds": 420
+      }
+    },
+    {
+      "attemptId": "pi-product-hello-01",
+      "family": "product-e2e",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.hello-complete",
+      "startedAt": "2026-09-28T19:33:28.605392+00:00",
+      "finishedAt": "2026-09-28T19:33:46.814523+00:00",
+      "durationSeconds": 18.208,
+      "sourceRevision": "68fde1eb5779838518e322ced202a3e454548d34",
+      "providerPackDigest": "sha256:6e257bfd54dcb6e9d6263cfd408b3087ccd2f6eb91941ec38bd9ddd4b26b5c0b",
+      "runnerdDigest": "sha256:79d49c3cef01f328742651f62a449661695d0955741a1c37bd89abf54cbc8c2b",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "exitCode": 1,
+      "retainedMachineDisposition": "transient_infrastructure",
+      "diagnosis": "Embedded PostgreSQL lifecycle symlink hydration was missing; initdb failed before browser/provider startup. Package hydration and a fresh disposable initdb check passed before deliberate repeat.",
+      "submittedProviderTurns": 0,
+      "providerRequestCount": 0,
+      "billingDeltaUsd": 0,
+      "billingCoverage": "exclusive OpenRouter key usage delta, two spaced post-attempt observations",
+      "terminalUsage": null,
+      "automaticRetries": 0,
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "outerDeadlineSeconds": 300
+      }
+    },
+    {
+      "attemptId": "pi-product-hello-02",
+      "family": "product-e2e",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.hello-complete",
+      "startedAt": "2026-09-28T19:35:51.721674+00:00",
+      "finishedAt": "2026-09-28T19:36:32.051800+00:00",
+      "durationSeconds": 40.33,
+      "sourceRevision": "a6167ce3a7804c31f4f9990a9ba6761c1d91f27c",
+      "providerPackDigest": "sha256:0ed45bf84d172aa7087baec3d662275206e8121b0ba142aaa9039dcfbf4402a2",
+      "runnerdDigest": "sha256:79d49c3cef01f328742651f62a449661695d0955741a1c37bd89abf54cbc8c2b",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "exitCode": 1,
+      "retainedMachineDisposition": "setup_failure",
+      "diagnosis": "The real server rejected candidate agent creation422 before any provider prompt. Host-only qualification was wired at launch but not the earlier provider-profile resolver. Shared correction pending.",
+      "submittedProviderTurns": 0,
+      "providerRequestCount": 0,
+      "billingDeltaUsd": 0,
+      "billingCoverage": "exclusive OpenRouter key usage delta, two spaced post-attempt observations",
+      "terminalUsage": null,
+      "automaticRetries": 0,
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "outerDeadlineSeconds": 300
+      }
+    }
+  ],
+  "observedSemanticOperations": {
+    "attemptId": "pi-context-paid-04",
+    "succeeded": [
+      "get_task_context",
+      "get_task_history",
+      "list_documents",
+      "read_document"
+    ],
+    "terminalTurnObserved": false,
+    "terminalUsageAvailable": false,
+    "realPaperclipRequests": 0
+  },
+  "verification": {
+    "sharedReasoningProjection": {
+      "commit": "a978d1bc5",
+      "regressionsFailedBefore": 3,
+      "focusedTestsPassedAfter": 20,
+      "additionalCodexEventTestsPassed": 8,
+      "sourceTypecheck": "passed"
+    },
+    "productPrerequisites": {
+      "source": "68fde1eb5779838518e322ced202a3e454548d34",
+      "typecheck": "passed after building missing workspace plugin-sdk artifact",
+      "unitTestsPassed": 585
+    },
+    "offlineProof": "offline-provider-pack-proof.darwin-arm64.json"
+  },
+  "publicationBoundary": {
+    "hiddenReasoningIncluded": false,
+    "rawTranscriptsIncluded": false,
+    "providerSessionIdsIncluded": false,
+    "credentialsIncluded": false
+  },
+  "remaining": [
+    "Successful protocol terminal settlement and complete usage receipt",
+    "Successful Product E2E agent admission and hello completion",
+    "File edit, typed question, plan and restart journeys",
+    "Native permissions and explicit steering acceptance/delivery",
+    "Linux x64 Daytona qualification"
+  ]
+}

@@ -1,8 +1,9 @@
 # Pi rich ACP runtime
 
 Status: implementation candidate, 2026-09-28. Deterministic protocol tests and an
-uncredentialed admission probe pass. Paid local inference and Linux x64 Daytona
-qualification are pending; this document does not promote the candidate to a
+uncredentialed admission probe pass. One paid local Runner turn reached semantic
+tools but timed out; Product E2E setup exposed a separate candidate-admission gap.
+Local and Linux x64 Daytona qualification remain pending; this document does not promote the candidate to a
 qualified production runtime.
 
 The runner pins `pi-acp@0.0.33` and
@@ -221,8 +222,9 @@ receipt boundary. `usage.cost` is a Pi catalog pricing estimate, never an invoic
 
 The closed snapshot has been exercised against actual pinned Pi through ACP
 initialization and the missing-credential admission path without a model call.
-The exact reported `currentModelId` and billable receipt still need credentialed
-local and Linux/Daytona qualification.
+The first authenticated local Runner snapshot verified the exact configured
+model ID. It did not settle or produce a terminal usage receipt; complete local
+and Linux/Daytona receipt qualification remains outstanding.
 
 Profile version 2 declaration digest: `sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1`. It hashes the versioned
 profile domain, patched wrapper source and platform closure pins. Every native
@@ -239,24 +241,29 @@ helper discards failed-attempt usage, so any retry or missing compaction receipt
 invalidates complete-turn token/cost totals instead of inventing complete coverage.
 
 The retained [macOS ARM64 provider-pack admission proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.json)
-records source `58511d79d9c4a1525d98e219d027654902b704e1`, after final-spawn
+records source `a6167ce3a7804c31f4f9990a9ba6761c1d91f27c`, after final-spawn
 credential-marker preservation and direct candidate-admission gating. It includes
 the Node engine, Pi v2 fixture, assigned HTTPS gateway, and failed-turn receipt
 repairs. Its manifest digest is
-`sha256:a9728fe4298a5eee00555382af01e85550820a294957caf2eba0c79bf33c4388`.
+`sha256:0ed45bf84d172aa7087baec3d662275206e8121b0ba142aaa9039dcfbf4402a2`.
+This refresh also includes candidate initialization, canonical CLI paths, usage
+provenance and reasoning projection repairs; the prior
+[58511d79d proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.58511d79d.json)
+remains a historical observation.
 The clean tracked-lock resolution matched Docker's reviewed
 `650e23d20e967bcfbfced888e131199b9a06e66a1ba4f64cfb68383b59def4a8` digest
 before a frozen install and pack build. The probe used the deployed generic
 installation registry and immutable snapshot. Every advertised capability was
 read and asserted from its actual initialize response. Session creation rejected
 the missing bound credential; no model prompt was submitted. The record contains
-no credentials or provider session IDs and records zero paid calls. It includes
-128 targeted backend/environment/control-plane checks, 31 installed-distribution
-checks, and 17 real/patched package checks at this source. The preceding full
-runner TypeScript suite (2,202 passed, 11 skipped) and all 13 native-provider Rust
-tests remain explicitly pinned to source `2e65b64d5`. It precedes only this
-evidence-retention/report commit. It proves no authenticated interaction,
-reported model ID, or Daytona qualification.
+no credentials or provider session IDs and records zero paid calls. This refreshed
+probe is an admission check, not an authenticated interaction test. The 128
+targeted backend/environment/control-plane checks, 31 installed-distribution
+checks and 17 patched-package checks remain recorded with the historical
+`58511d79d` proof. The preceding full Runner suite (2,202 passed, 11 skipped) and
+13 native-provider Rust tests remain pinned to source `2e65b64d5`; they are not
+relabeled as checks of the latest source. Current focused validation and the
+separate authenticated attempts are recorded below.
 
 The [pre-launch-boundary proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.2e65b64d5.darwin-arm64.json)
 retains source `2e65b64d5a2148583109b8157d6e72f54f5ad29b` and manifest
@@ -303,7 +310,9 @@ every field in Pi's native event stream. These are explicit follow-ups:
   `notify` retains a bounded message and severity, while interactive `select`,
   `confirm`, `input`, and `editor` have the explicit response bridge. Native
   session-name and thinking-level change events also lack a separate event
-  projection; existing ACP configuration responses remain the control surface.
+  projection. The wrapper advertises ACP thinking-level configuration, but the
+  current Runner host does not expose `set_mode` or `set_config_option`; no
+  reasoning-level override was applied during qualification.
 - File diffs are bounded text snapshots, not complete binary changes or durable
   artifact publication. Semantic artifact tools remain the supported publication
   path. Image prompting, model-triggered tools, approvals, typed questions,
@@ -311,7 +320,37 @@ every field in Pi's native event stream. These are explicit follow-ups:
   Linux x64 Daytona proof for the exact declared model. The reported model ID
   must be checked, rather than inferred from the configuration.
 
-No provider or Daytona credentials were available for this qualification.
-Provider calls, paid calls, and measured inference spend remain zero. Production
-admission must remain qualification-pending until the live matrix and spend
-receipt checks pass; catalog pricing estimates alone are not spend receipts.
+## Authenticated local qualification progress
+
+The [sanitized attempt ledger](../../packages/paperclip-runner/test-fixtures/pi-acp/paid-qualification-progress.darwin-arm64.json)
+retains all six attempts, including four pre-provider failures and the later
+Product agent-admission rejection. One Runner protocol turn reached the exact
+model and successfully called `get_task_context`, `get_task_history`,
+`list_documents`, and `read_document`. The canonical case permits those extra
+orientation reads, but also requires a completed turn; it timed out after 120s
+without terminal usage. No successful protocol or Product journey is claimed.
+
+Exclusive OpenRouter key billing increased by **$0.005748807**, confirmed again
+after diagnosis; all other attempts had two post-attempt observations with zero
+delta. This is measured provider spend, separate from Pi's stale catalog pricing
+estimate. A missing terminal receipt remains unknown, not free execution. Each
+attempt had no automatic retries, a $2 reservation and a $0.50 billing watchdog;
+the Product supervisor also imposed a 300s outer deadline.
+
+The paid trace exposed a shared projection defect: canonical `item.delta` events
+with `kind: reasoning` were relabeled as assistant messages by the TypeScript
+facade. Shared commit `a978d1bc5` preserves summary/detail reasoning channels,
+including mixed coalesced batches, so the existing private-reasoning redactor
+applies. Three regressions failed before the fix; 20 focused checks, 8 additional
+Codex event checks and source typecheck passed afterward. Hidden reasoning is
+excluded from this report and the published ledger. The provider timeout remains
+a separate unresolved result.
+
+Product hello first failed before startup because the local PostgreSQL package's
+symlink hydration had not run. Its bundled setup script repaired the installation
+and a fresh database initialization passed. The deliberate repeat reached the
+real browser/server, then candidate agent creation returned 422 because the
+provider-profile validator still rejected candidates before the host's explicit
+qualification admission boundary. The shared server correction is pending.
+Production admission remains qualification-pending until the live matrix and
+spend receipt checks pass.
