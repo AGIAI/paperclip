@@ -221,7 +221,8 @@ Catalog generation and production authorization are separate steps.
 The durable writer and controller accept the same 192 MiB raw journal limit.
 Identity, cleanup, warm-transition, and quiescent recovery reads scan the JSON
 off the API event loop with a fixed 48 KiB input buffer. A single worker admits
-at most 32 queued proofs and enforces a 30-second deadline including queue time.
+at most 32 queued proofs. Proofs waiting over 30 seconds are rejected as busy;
+each admitted proof gets a full, separate 30-second execution budget.
 An expired or failed worker is terminated and joined before another job starts.
 Its V8 heap is capped independently of the controller. Idle workers are unrefed
 and stopped after 15 seconds. They retain only the fields used to prove
