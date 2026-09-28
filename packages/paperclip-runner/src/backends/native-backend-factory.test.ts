@@ -1,3 +1,4 @@
+import { QUALIFIED_ACPX_PROFILES, resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.js";
 import { describe, expect, it } from "vitest";
 
 import type { NativeExecutionInput } from "../contracts/native-execution.js";
@@ -487,9 +488,15 @@ describe("native backend factory", () => {
     },
   );
 
-  it("constructs a Pi candidate descriptor while runtime installation remains separately gated", async () => {
-    const backend = createNativeSessionBackend(acpxExecution("pi"), { acpxRuntimeDirectory: "/runtime" });
-    await expect(backend.descriptor()).resolves.toMatchObject({ name: "acpx_runtime", version: "0.13.1" });
+  it.each(["pi", "cursor", "copilot"] as const)("rejects unqualified %s direct execution even with an exact persisted profile", agent => {
+    const input = acpxExecution();
+    if (input.provider.kind !== "acpx") throw new Error("invalid fixture");
+    const model = agent === "pi" ? QUALIFIED_ACPX_PROFILES.pi.qualificationModel : "explicit-fixture-model";
+    const profile = resolveQualifiedAcpxProfile(agent, model);
+    Object.assign(input.provider, { agent, model, profile });
+    expect(() => createNativeSessionBackend(input, { acpxRuntimeDirectory: "/runtime",
+      acpxEnvironment: { COPILOT_GITHUB_TOKEN: "explicit-fixture", CURSOR_API_KEY: "explicit-fixture", OPENROUTER_API_KEY: "explicit-fixture" },
+    })).toThrow("ACPX candidate direct execution requires completed qualification");
   });
 
   it("rejects a Codex ACPX snapshot that drifts from its qualified profile", () => {

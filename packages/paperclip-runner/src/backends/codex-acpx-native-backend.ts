@@ -5,6 +5,7 @@ import {
   type CodexAcpxDriverOptions,
 } from "../drivers/acpx/codex-acpx-driver.js";
 import { resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.js";
+import { ACPX_CAPABILITY_PROFILES } from "../drivers/acpx/capability-profiles.js";
 import { HarnessDriverBackend } from "./harness-driver-backend.js";
 import {
   nativeSystemInstructions,
@@ -51,6 +52,10 @@ export function createAcpxNativeSessionBackend(
         `Persisted ${input.provider.agent} ACPX profile does not match the qualified ${field}`,
       );
     }
+  }
+
+  if (ACPX_CAPABILITY_PROFILES[input.provider.agent].qualification !== "qualified") {
+    throw new Error("ACPX candidate direct execution requires completed qualification; use the host-controlled runnerd evaluation path");
   }
 
   const constraints = nativeTaskConstraints(input);

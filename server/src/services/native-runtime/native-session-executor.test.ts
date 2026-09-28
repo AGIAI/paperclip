@@ -31,6 +31,7 @@ import {
   validatePrpEvent,
   parseNativeExecutionInput,
   type NativeExecutionInputV1,
+  type NativeExecutionInput,
   type PrpEvent,
 } from "@paperclipai/paperclip-runner";
 import { createHash } from "node:crypto";
@@ -254,6 +255,7 @@ vi.mock("./native-codex-runner.js", () => ({
 import {
   continuingPendingInteractionIds,
   buildNativeProviderEnvironment,
+  resolveNativeProviderEnvironment,
   buildNativeHarnessBackupManifest,
   cancelNativeSession,
   closeWarmNativeSessionsForEnvironment,
@@ -2408,6 +2410,23 @@ describe("runtime question fallback", () => {
 });
 
 describe("native provider bootstrap environment", () => {
+  it.each(["pi", "cursor", "copilot"] as const)("does not promote ambient %s credentials when bindings are omitted", agent => {
+    const provider = { kind: "acpx", agent } as NativeExecutionInput["provider"];
+    const host = { PATH: "/host/bin", HOME: "/host/home", OPENROUTER_API_KEY: "ambient-pi",
+      CURSOR_API_KEY: "ambient-cursor", CURSOR_AUTH_TOKEN: "ambient-cursor-login", COPILOT_GITHUB_TOKEN: "ambient-copilot",
+      PAPERCLIP_ACPX_CREDENTIAL_BINDING: "ambient-forged-binding" };
+    expect(resolveNativeProviderEnvironment(provider, undefined, host)).toEqual({ PATH: "/host/bin", HOME: "/host/home" });
+    const explicit = { COPILOT_GITHUB_TOKEN: "explicit-company-binding" };
+    expect(resolveNativeProviderEnvironment(provider, explicit, host)).toBe(explicit);
+  });
+
+  it("preserves existing qualified and legacy missing-environment behavior", () => {
+    const host = { OPENAI_API_KEY: "existing-host-key", OPENROUTER_API_KEY: "existing-opencode-key" };
+    for (const provider of [{ kind: "codex" }, { kind: "opencode" }, { kind: "acpx", agent: "codex" }, { kind: "acpx", agent: "claude" }]) {
+      expect(resolveNativeProviderEnvironment(provider as NativeExecutionInput["provider"], undefined, host)).toBe(host);
+    }
+  });
+
   it("inherits the host executable and credential-home context", () => {
     expect(
       buildNativeProviderEnvironment(

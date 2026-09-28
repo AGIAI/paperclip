@@ -579,6 +579,19 @@ export function buildNativeProviderEnvironment(
   return environment;
 }
 
+/** Missing candidate bindings must not turn the controller's ambient credentials into explicit input. */
+export function resolveNativeProviderEnvironment(
+  provider: NativeExecutionInput["provider"],
+  configured: NodeJS.ProcessEnv | undefined,
+  host: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  if (configured !== undefined) return configured;
+  if (provider.kind === "acpx" && ["pi", "cursor", "copilot"].includes(provider.agent)) {
+    return buildNativeProviderEnvironment({}, host);
+  }
+  return host;
+}
+
 type PlanSynchronization = {
   eventId: string;
   planId: string;
@@ -8119,7 +8132,7 @@ async function executePaperclipNativeSessionWithinScope(
         scope: input.execution.binding,
         target: input.runnerExecutionTarget,
         cwd: input.execution.workspace.cwd,
-        env: input.runnerEnvironment ?? process.env,
+        env: resolveNativeProviderEnvironment(input.execution.provider, input.runnerEnvironment),
         resolveCredentials: (binding) => resolveGitHubOperationCredentials(input.db, binding),
         onLog: input.onLog,
       });
@@ -8184,8 +8197,8 @@ async function executePaperclipNativeSessionWithinScope(
               createNativeSessionBackend(input.execution, {
                 runnerInstanceId: input.runnerInstanceId,
                 onSpawn: input.onSpawn,
-                opencodeEnvironment: input.runnerEnvironment ?? process.env,
-                acpxEnvironment: input.runnerEnvironment ?? process.env,
+                opencodeEnvironment: resolveNativeProviderEnvironment(input.execution.provider, input.runnerEnvironment),
+                acpxEnvironment: resolveNativeProviderEnvironment(input.execution.provider, input.runnerEnvironment),
                 opencodeRuntimeDirectory: resolve(
                   resolvePaperclipInstanceRoot(),
                   "runtime",
@@ -12099,7 +12112,7 @@ async function createRunnerdBackendWithinSessionClaim(
       }
     : input.execution;
   const effectiveRunnerEnvironmentBase: NodeJS.ProcessEnv = {
-    ...(input.runnerEnvironment ?? process.env),
+    ...resolveNativeProviderEnvironment(input.execution.provider, input.runnerEnvironment),
   };
   if (relayAssignedMcp) {
     // The server-held tool authority owns this credential. Do not deliver a
@@ -12340,7 +12353,7 @@ async function createRunnerdBackendWithinSessionClaim(
         runnerBinary: controllerRunnerBinary,
         codexCommand: remoteCodexBinary ?? undefined,
         sourceCodexHome: remoteTarget
-          ? resolveSourceCodexHome(input.runnerEnvironment ?? process.env)
+          ? resolveSourceCodexHome(resolveNativeProviderEnvironment(input.execution.provider, input.runnerEnvironment))
           : undefined,
         runnerProcessLauncher: remoteProcessLauncher,
         runnerReconnectGraceMs: remoteTarget ? 120_000 : undefined,
