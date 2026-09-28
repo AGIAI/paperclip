@@ -33,6 +33,7 @@ import type {
 } from "../protocol/replay-contract.js";
 import { executeNativeSession } from "../native-session-runtime.js";
 import { NativeSessionCloseUnrecoverableError } from "../contracts/native-session-backend.js";
+import { parsePaperclipQuestionSet } from "../contracts/question-set.js";
 import { DurablePrpControlPlane } from "../control-plane/durable-prp-control-plane.js";
 import * as durableControlPlane from "../control-plane/durable-prp-control-plane.js";
 
@@ -3880,6 +3881,26 @@ it("bridges a runnerd-native question into the server request handler and resolv
       },
     });
     expect(methods).toContain("turn/completed");
+    // A terminal notification alone does not prove that the question reached
+    // durable storage or that its answer and provider suffix settled.
+    await bundle.transport.close();
+    const runnerState = JSON.parse(await readFile(
+      join(stateDirectory, "runner", "runner-state.json"), "utf8",
+    ));
+    expect(runnerState.lifecycle).toBe("suspended");
+    const controlState = JSON.parse(await readFile(
+      join(stateDirectory, "control-plane", "control-plane-state.json"), "utf8",
+    )) as {
+      committedEvents: Array<{ eventType: string; envelope: { payload: { payload: { request?: { input: unknown } } } } }>;
+      commands: Array<{ type: string; status: string }>;
+    };
+    const created = controlState.committedEvents.filter(event => event.eventType === "runtime_request.created");
+    expect(created).toHaveLength(1);
+    const input = parsePaperclipQuestionSet(created[0]!.envelope.payload.payload.request!.input);
+    expect(input.questions[0]!.options![0]!.description).toBe("Deploy safely.");
+    expect(input.questions[1]!.options![0]).not.toHaveProperty("description");
+    expect(controlState.commands.filter(command => command.type === "request.resolve"))
+      .toEqual([expect.objectContaining({ status: "completed" })]);
   } finally {
     await bundle.transport.close();
     await rm(stateDirectory, { recursive: true, force: true });
