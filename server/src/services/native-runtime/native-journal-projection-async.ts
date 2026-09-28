@@ -21,11 +21,13 @@ type Pending = {
 };
 
 /** One worker and a bounded queue cap CPU and memory independently of callers.
- * The deadline includes queue time; termination completes before another job starts. */
+ * Queue admission and execution have separate budgets. Termination completes
+ * before another job starts. */
 export function createNativeJournalProofReader(
-  options: { timeoutMs?: number; maxQueue?: number } = {},
+  options: { timeoutMs?: number; queueTimeoutMs?: number; maxQueue?: number } = {},
 ) {
   const timeoutMs = options.timeoutMs ?? 30_000;
+  const queueTimeoutMs = options.queueTimeoutMs ?? 30_000;
   const maxQueue = options.maxQueue ?? 32;
   const queue: Pending[] = [];
   let active: Pending | undefined;
@@ -107,9 +109,8 @@ export function createNativeJournalProofReader(
     if (closed || active || stopping) return;
     while (queue.length) {
       const pending = queue.shift()!;
-      const remaining = pending.deadline - performance.now();
-      if (remaining <= 0) {
-        pending.reject(new Error("native_journal_worker_timeout"));
+      if (pending.deadline <= performance.now()) {
+        pending.reject(new Error("native_journal_worker_busy"));
         continue;
       }
       clearTimeout(idleTimer);
@@ -119,7 +120,7 @@ export function createNativeJournalProofReader(
         worker.ref();
         timer = setTimeout(() => {
           void finish(new Error("native_journal_worker_timeout"));
-        }, remaining);
+        }, timeoutMs);
         worker.postMessage(pending.job);
       } catch {
         void finish(new Error("native_journal_worker_failed"));
@@ -132,7 +133,7 @@ export function createNativeJournalProofReader(
       if (closed || queue.length >= maxQueue)
         return Promise.reject(new Error("native_journal_worker_busy"));
       return new Promise((resolve, reject) => {
-        queue.push({ job, resolve, reject, deadline: performance.now() + timeoutMs });
+        queue.push({ job, resolve, reject, deadline: performance.now() + queueTimeoutMs });
         drain();
       });
     },
