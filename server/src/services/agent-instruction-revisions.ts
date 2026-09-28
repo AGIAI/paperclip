@@ -31,13 +31,9 @@ import {
 } from "./agent-instruction-files.js";
 import {
   authorizeInstructionCommit,
-  resolveInstructionActor,
+  authorizeInstructionRead,
 } from "./agent-instruction-authorization.js";
-import {
-  authorizationService,
-  authorizationDeniedDetails,
-  type AuthorizationActor,
-} from "./authorization.js";
+import type { AuthorizationActor } from "./authorization.js";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Revision = typeof revisions.$inferSelect;
@@ -116,22 +112,7 @@ export function agentInstructionRevisionService(db: Db) {
     actor: AuthorizationActor,
     target: InstructionTarget,
   ) {
-    const bound = await resolveInstructionActor(tx, actor);
-    const decision = await authorizationService(tx).decide({
-      actor: bound,
-      action: "agent:read",
-      resource: {
-        type: "agent",
-        companyId: target.companyId,
-        agentId: target.agentId,
-      },
-    });
-    if (!decision.allowed)
-      throw forbidden(
-        decision.explanation,
-        authorizationDeniedDetails(decision),
-      );
-    return bound;
+    return authorizeInstructionRead(tx, actor, { companyId: target.companyId, id: target.agentId });
   }
   // Trusted host-only reset authority. No HTTP or agent tool accepts this actor.
   async function authorizePluginReset(tx: Tx, actor: PluginResetActor, target: InstructionTarget, agent: typeof agents.$inferSelect) {

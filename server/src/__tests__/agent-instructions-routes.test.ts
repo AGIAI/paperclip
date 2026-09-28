@@ -30,6 +30,9 @@ vi.mock("../services/agent-instruction-working-copies.js", () => ({ agentInstruc
 const mockInstructionRevisions = vi.hoisted(() => ({ readCurrent: vi.fn(), commit: vi.fn(), restore: vi.fn(), history: vi.fn(), readRevision: vi.fn(), diff: vi.fn(), materializeCurrent: vi.fn() }));
 vi.mock("../services/agent-instruction-revisions.js", () => ({ agentInstructionRevisionService: () => mockInstructionRevisions }));
 
+const mockAuthorizeInstructionRead = vi.hoisted(() => vi.fn());
+vi.mock("../services/agent-instruction-authorization.js", () => ({ authorizeInstructionRead: mockAuthorizeInstructionRead }));
+
 const mockAccessService = vi.hoisted(() => ({
   canUser: vi.fn(),
   decide: vi.fn(),
@@ -208,6 +211,7 @@ describe("agent instructions bundle routes", () => {
     vi.doUnmock("../middleware/index.js");
     registerModuleMocks();
     vi.clearAllMocks();
+    mockAuthorizeInstructionRead.mockImplementation(async (_db, actor) => actor);
     mockInstructionRevisions.readCurrent.mockResolvedValue(null);
     mockInstructionRevisions.commit.mockResolvedValue({ revision: { id: "33333333-3333-4333-8333-333333333333", entryFile: "AGENTS.md", byteLength: 18 }, content: "# Updated Agent\n", changed: true, materialization: "current" });
     mockBuiltInAgentService.ensureCompanyDefaultAgentGrants.mockResolvedValue(0);
@@ -294,6 +298,8 @@ describe("agent instructions bundle routes", () => {
       entryFile: "AGENTS.md",
     });
     expect(mockAgentInstructionsService.getBundle).toHaveBeenCalled();
+    expect(mockAuthorizeInstructionRead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ type: "board" }),
+      expect.objectContaining({ companyId: "company-1", id: "11111111-1111-4111-8111-111111111111" }));
   });
 
   it("requires instance-admin access for every external instruction entry point", async () => {
@@ -339,6 +345,7 @@ describe("agent instructions bundle routes", () => {
     expect(mockAgentInstructionsService.updateBundle).not.toHaveBeenCalled();
     expect(mockAgentInstructionsService.writeFile).not.toHaveBeenCalled();
     expect(mockAgentInstructionsService.deleteFile).not.toHaveBeenCalled();
+    expect(mockAuthorizeInstructionRead).not.toHaveBeenCalled();
   });
 
   it("treats a host root mislabeled as managed as external", async () => {
@@ -391,6 +398,7 @@ describe("agent instructions bundle routes", () => {
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockAgentInstructionsService.getBundle).toHaveBeenCalled();
+    expect(mockAuthorizeInstructionRead).not.toHaveBeenCalled();
   });
 
   it("rejects a company admin that requests a new external instruction root", async () => {
@@ -492,7 +500,8 @@ describe("agent instructions bundle routes", () => {
     expect(mockAgentService.create).not.toHaveBeenCalled();
   });
 
-  it("denies instruction reads when the visibility policy denies access", async () => {
+  it.each(["", "/file?path=AGENTS.md", "/file?path=private-support.md"])(
+    "denies peer instruction reads before any data dispatch: %s", async (suffix) => {
     mockAgentService.getById.mockImplementation(async (id: string) => {
       if (id === "agent-reader") {
         return {
@@ -504,11 +513,10 @@ describe("agent instructions bundle routes", () => {
       }
       return makeAgent();
     });
-    mockAccessService.decide.mockResolvedValue({
-      allowed: false,
-      reason: "deny_no_grant",
-      explanation: "Missing permission: agents:configure or agents:suggest-changes.",
-    });
+    // General agent visibility is allowed. It must not authorize instruction
+    // metadata, canonical entry bytes, or supporting files from a peer.
+    const { forbidden } = await vi.importActual<typeof import("../errors.js")>("../errors.js");
+    mockAuthorizeInstructionRead.mockRejectedValue(forbidden("Missing permission to read peer instructions"));
 
     const res = await requestApp(
       await createApp({
@@ -518,20 +526,18 @@ describe("agent instructions bundle routes", () => {
         source: "agent_key",
       }),
       (baseUrl) => request(baseUrl)
-        .get("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle"),
+        .get(`/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle${suffix}`),
     );
 
     expect(res.status, JSON.stringify(res.body)).toBe(403);
     expect(res.body.error).toContain("Missing permission");
-    expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
-      action: "agent:read",
-      resource: {
-        type: "agent",
-        companyId: "company-1",
-        agentId: "11111111-1111-4111-8111-111111111111",
-      },
-    }));
+    expect(mockAuthorizeInstructionRead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      type: "agent", agentId: "agent-reader",
+    }), { companyId: "company-1", id: "11111111-1111-4111-8111-111111111111" });
     expect(mockAgentInstructionsService.getBundle).not.toHaveBeenCalled();
+    expect(mockAgentInstructionsService.readFile).not.toHaveBeenCalled();
+    expect(mockInstructionRevisions.readCurrent).not.toHaveBeenCalled();
+    expect(mockInstructionRevisions.materializeCurrent).not.toHaveBeenCalled();
   });
 
   it("allows agents to read their own instructions bundles", async () => {
@@ -548,9 +554,12 @@ describe("agent instructions bundle routes", () => {
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(mockAgentInstructionsService.getBundle).toHaveBeenCalled();
+    expect(mockAuthorizeInstructionRead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      type: "agent", agentId: "11111111-1111-4111-8111-111111111111",
+    }), { companyId: "company-1", id: "11111111-1111-4111-8111-111111111111" });
   });
 
-  it("allows agents with suggest grants to read peer instructions bundles", async () => {
+  it.each(["AGENTS.md", "private-support.md"])("allows an authorized peer to read instruction file %s", async (filePath) => {
     mockAccessService.decide.mockResolvedValue({
       allowed: true,
       reason: "allow_explicit_grant",
@@ -578,21 +587,16 @@ describe("agent instructions bundle routes", () => {
       }),
       (baseUrl) => request(baseUrl)
         .get("/api/agents/11111111-1111-4111-8111-111111111111/instructions-bundle/file")
-        .query({ path: "AGENTS.md" }),
+        .query({ path: filePath }),
     );
 
     expect(res.status, JSON.stringify(res.body)).toBe(200);
-    expect(mockAccessService.decide).toHaveBeenCalledWith(expect.objectContaining({
-      action: "agent:read",
-      resource: {
-        type: "agent",
-        companyId: "company-1",
-        agentId: "11111111-1111-4111-8111-111111111111",
-      },
-    }));
+    expect(mockAuthorizeInstructionRead).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      type: "agent", agentId: "coach-agent",
+    }), { companyId: "company-1", id: "11111111-1111-4111-8111-111111111111" });
     expect(mockAgentInstructionsService.readFile).toHaveBeenCalledWith(
       expect.objectContaining({ id: "11111111-1111-4111-8111-111111111111" }),
-      "AGENTS.md",
+      filePath,
     );
   });
 

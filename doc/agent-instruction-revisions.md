@@ -99,6 +99,13 @@ confirmation inside the commit transaction. Low-trust, task-bridge, and skill-te
 containment remains enforced. This path enforces the responsible-user ceiling even
 if the general responsible-user policy is configured in shadow mode.
 
+Peer instruction reads require the existing `agent_config:read` grant or the
+same strict delegated target content-edit authority. General same-company agent
+visibility is insufficient for bundle files, history, diffs, and candidates.
+Read checks do not bypass or consume protected-change consent. Self and board
+reads retain their existing company visibility rules; external host bundles keep
+their instance-admin and configuration-read restrictions.
+
 ## HTTP and editor
 
 Existing company-scoped agent URLs now support:
