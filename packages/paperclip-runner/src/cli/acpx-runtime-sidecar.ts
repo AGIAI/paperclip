@@ -11,6 +11,8 @@ import type {
   AcpPermissionDecision,
 } from "acpx/runtime";
 
+import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "../drivers/acpx/profile-extensions.js";
+import type { PaperclipQuestionSet } from "../contracts/question-set.js";
 import { createAcpxToolEventNormalizer } from "../provider-events.js";
 import { parseNativeRuntimeContext } from "../contracts/runtime-context.js";
 import {
@@ -117,8 +119,9 @@ interface PendingTool {
 
 interface PendingInput {
   turnId: string;
-  normalized: NormalizedAcpForm;
-  settle(response: AcpElicitationResponse): void;
+  questionSet: PaperclipQuestionSet;
+  prepareResolution(resolution: HarnessRuntimeRequestResolution): () => void;
+  cancel(): void;
   cleanup(): void;
 }
 
@@ -271,6 +274,7 @@ async function dispatch(
         normalizedSessionId: params.normalizedSessionId,
         workingDirectory: params.workingDirectory,
         agent: params.agent,
+        clientCapabilities: acpxProfileClientCapabilities(params.agent),
         model: params.model,
         permissionMode: params.permissionMode,
         systemInstructions: params.systemInstructions,
@@ -342,12 +346,23 @@ async function dispatch(
     const currentTurnId = boundedIdentity(request.params.turnId, "turnId");
     turnId = currentTurnId;
     let runtimeTurn: AcpxRuntimeTurn;
+    const extensions = bindAcpxExtensionTurn({
+      adapter: createAcpxProfileExtensionAdapter(openParams!.agent, {
+        workspacePath: openParams!.workingDirectory, sessionId: activeHost.identity().agentSessionId, turnId: currentTurnId,
+      }),
+      active: () => turnId === currentTurnId && host === activeHost,
+      sessionId: activeHost.identity().agentSessionId,
+      waitForInput: (input, context) => waitForExtensionInput(currentTurnId, input, context),
+      emit: event => emit("runtime.rich_event", { ...event }, currentTurnId),
+    });
     let usageBefore: unknown;
     try {
       usageBefore = await readSidecarHostStatusWithin(activeHost);
       runtimeTurn = activeHost.startTurn({
         requestId: `${runId}:${currentTurnId}`,
         text: boundedText(request.params.message, "message", 1024 * 1024),
+        onExtensionRequest: extensions.onExtensionRequest,
+        onExtensionNotification: extensions.onExtensionNotification,
         onElicitation: (providerRequest, context) =>
           waitForInput(currentTurnId, providerRequest, context),
         onPermissionRequest: (providerRequest, context) =>
@@ -357,7 +372,7 @@ async function dispatch(
       turnId = null;
       throw error;
     }
-    void pumpTurn(currentTurnId, runtimeTurn, activeHost, usageBefore);
+    void pumpTurn(currentTurnId, runtimeTurn, activeHost, usageBefore, extensions.drain);
     return { turnId: currentTurnId };
   }
   if (request.command === "turn.cancel") {
@@ -400,16 +415,13 @@ async function dispatch(
     const resolution = parseHarnessRuntimeRequestResolution(
       "elicitation",
       request.params.resolution,
-      pending.normalized.questionSet,
+      pending.questionSet,
     );
-    const providerResponse = elicitationResponse(
-      pending.normalized,
-      resolution,
-    );
+    const deliver = pending.prepareResolution(resolution);
     if (!inputs.delete(requestId))
       throw new Error("input request lost its settlement race");
     pending.cleanup();
-    pending.settle(providerResponse);
+    deliver();
     return { resolved: true };
   }
   if (request.command === "tool.resolve") {
@@ -549,6 +561,7 @@ async function pumpTurn(
   runtimeTurn: AcpxRuntimeTurn,
   activeHost: AcpxRuntimeHost,
   usageBefore: unknown,
+  drainExtensions: () => Promise<void>,
 ): Promise<void> {
   let terminal: Record<string, unknown>;
   try {
@@ -566,6 +579,7 @@ async function pumpTurn(
       );
     }
     const result = await runtimeTurn.result;
+    await drainExtensions();
     try {
       const usage = persistedAcpxTurnUsage(
         usageBefore,
@@ -698,7 +712,7 @@ async function waitForPermission(
   if (turnId !== activeTurnId || signal.aborted || permissions.size >= MAX_PENDING_INPUTS) {
     return { outcome: "cancel" };
   }
-  const normalized = normalizeAcpxPermission(request);
+  const normalized = normalizeAcpxPermission(request, openParams?.agent === "pi" ? { allowAlwaysScope: "session" } : {});
   const requestId = stableRequestId(activeTurnId, ++requestSequence, normalized.toolCallId);
   return await new Promise((settle) => {
     const abort = () => {
@@ -759,38 +773,41 @@ async function waitForInput(
     );
     return { action: "cancel" };
   }
-  const requestId = stableRequestId(
-    activeTurnId,
-    ++requestSequence,
-    context.requestId,
-  );
-  emit(
-    "runtime.input_requested",
-    {
-      requestId,
-      questionSet: normalized.questionSet,
-      origin: {
-        adapter: "acpx-runtime-sidecar",
-        provider: openParams?.agent ?? initializedAgent ?? "unknown",
-        method: "elicitation/create",
-      },
-    },
-    activeTurnId,
-  );
+  return await waitForExtensionInput(activeTurnId, {
+    method: "elicitation/create", questionSet: normalized.questionSet,
+    resolve: resolution => elicitationResponse(normalized, resolution) as unknown as Record<string, unknown>,
+    cancel: () => ({ action: "cancel" }),
+  }, context) as unknown as AcpElicitationResponse;
+}
+
+async function waitForExtensionInput(
+  activeTurnId: string,
+  input: AcpxExtensionInput,
+  context: { requestId: string | number | null; signal: AbortSignal },
+): Promise<Record<string, unknown>> {
+  if (turnId !== activeTurnId || context.signal.aborted || inputs.size >= MAX_PENDING_INPUTS) return input.cancel();
+  const requestId = stableRequestId(activeTurnId, ++requestSequence, context.requestId);
   return await new Promise((settle) => {
     const abort = () => {
       const pending = inputs.get(requestId);
       if (!pending || !inputs.delete(requestId)) return;
       pending.cleanup();
-      settle({ action: "cancel" });
+      settle(input.cancel());
     };
-    context.signal.addEventListener("abort", abort, { once: true });
     inputs.set(requestId, {
-      turnId: activeTurnId,
-      normalized,
-      settle,
+      turnId: activeTurnId, questionSet: input.questionSet,
+      prepareResolution: resolution => {
+        const response = input.resolve(resolution);
+        return () => settle(response);
+      },
+      cancel: () => settle(input.cancel()),
       cleanup: () => context.signal.removeEventListener("abort", abort),
     });
+    context.signal.addEventListener("abort", abort, { once: true });
+    emit("runtime.input_requested", {
+      requestId, questionSet: input.questionSet,
+      origin: { adapter: "acpx-runtime-sidecar", provider: openParams?.agent ?? initializedAgent ?? "unknown", method: input.method },
+    }, activeTurnId);
     if (context.signal.aborted) abort();
   });
 }
@@ -826,7 +843,7 @@ function rejectTurnWaiters(terminalTurnId: string, message: string): void {
     if (pending.turnId !== terminalTurnId || !inputs.delete(requestId))
       continue;
     pending.cleanup();
-    pending.settle({ action: "cancel" });
+    pending.cancel();
   }
 }
 

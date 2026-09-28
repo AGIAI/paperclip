@@ -1,3 +1,4 @@
+import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "./profile-extensions.js";
 import { createHash, randomBytes } from "node:crypto";
 
 import type {
@@ -437,6 +438,7 @@ export class CodexAcpxDriver implements HarnessDriver {
         normalizedSessionId: input.normalizedSessionId,
         workingDirectory: input.workingDirectory,
         agent: this.#options.agent ?? "codex",
+        clientCapabilities: acpxProfileClientCapabilities(this.#options.agent ?? "codex"),
         model: this.#options.model,
         permissionMode: this.#options.permissionMode ?? "approve-all",
         systemInstructions: this.#options.systemInstructions,
@@ -858,11 +860,26 @@ class CodexAcpxSession implements HarnessSession {
     this.#emit("turn.submitted", { text: input.message.text }, { turnId });
     this.#emit("turn.accepted", { turnId }, { turnId });
     this.#emit("turn.started", { status: "inProgress" }, { turnId });
+    const extensions = bindAcpxExtensionTurn({
+      adapter: createAcpxProfileExtensionAdapter(this.#agent, {
+        workspacePath: this.#input.workingDirectory, sessionId: this.ids().providerSessionId, turnId,
+      }),
+      active: () => this.#activeTurnId === turnId && !this.#closingStarted,
+      sessionId: this.ids().providerSessionId,
+      waitForInput: (input, context) => this.#handleExtensionInput(turnId, input, context),
+      emit: event => {
+        if (!this.#emit(event.eventType, event.payload, { turnId, itemId: event.itemId })) {
+          throw new Error("ACP rich activity could not be retained");
+        }
+      },
+    });
     let turn: AcpxRuntimeTurn;
     try {
       turn = this.#host.startTurn({
         text: input.message.text,
         requestId: `${safeId(this.#input.runId, "run")}:${turnId}`,
+        onExtensionRequest: extensions.onExtensionRequest,
+        onExtensionNotification: extensions.onExtensionNotification,
         onPermissionRequest: (request, context) =>
           this.#handlePermission(turnId, request, context.signal),
         onElicitation: (request, context) =>
@@ -877,7 +894,7 @@ class CodexAcpxSession implements HarnessSession {
       );
       throw error;
     }
-    const pump = this.#pumpTurn(turnId, turn);
+    const pump = this.#pumpTurn(turnId, turn, extensions.drain);
     this.#activePump = pump;
     void pump
       .finally(() => {
@@ -1352,7 +1369,7 @@ class CodexAcpxSession implements HarnessSession {
       .catch(() => undefined);
   }
 
-  async #pumpTurn(turnId: string, turn: AcpxRuntimeTurn): Promise<void> {
+  async #pumpTurn(turnId: string, turn: AcpxRuntimeTurn, drainExtensions: () => Promise<void>): Promise<void> {
     try {
       let index = 0;
       const normalizeToolEvent =
@@ -1361,6 +1378,7 @@ class CodexAcpxSession implements HarnessSession {
         this.#mapRuntimeEvent(normalizeToolEvent(event), turnId, ++index);
       }
       const result = await turn.result;
+      await drainExtensions();
       this.#cancelPendingRuntimeRequests("provider turn settled", turnId);
       if (this.#terminalTurns.has(turnId)) return;
       if (result.status === "completed") {
@@ -1581,6 +1599,46 @@ class CodexAcpxSession implements HarnessSession {
     }
   }
 
+  async #handleExtensionInput(
+    turnId: string,
+    input: AcpxExtensionInput,
+    context: { requestId: string | number; signal: AbortSignal },
+  ): Promise<Record<string, unknown>> {
+    if (this.#closed || this.#activeTurnId !== turnId || context.signal.aborted
+      || this.#pendingRuntimeRequests.size >= MAX_PENDING_RUNTIME_REQUESTS) return input.cancel();
+    const requestId = stableId("acpx-request", `${turnId}:${++this.#runtimeRequestSequence}:${typeof context.requestId}:${context.requestId}`);
+    const request: HarnessRuntimeRequest = {
+      requestId, requestKind: "elicitation", method: input.method, turnId, itemId: requestId,
+      status: "pending", prompt: boundedText(input.questionSet.title ?? "Provider needs input", 1_000),
+      details: input.details ?? {}, input: structuredClone(input.questionSet),
+      origin: { adapter: "acpx-runtime", provider: this.#agent, method: input.method },
+    };
+    return await new Promise((settle) => {
+      const cancel = () => {
+        const pending = this.#pendingRuntimeRequests.get(requestId);
+        if (!pending || pending.settling || !this.#pendingRuntimeRequests.delete(requestId)) return;
+        pending.cleanup();
+        this.#emit("runtime_request.cancelled", harnessRuntimeRequestOutcome(request, {
+          action: "cancel", reason: "provider request aborted",
+        }), { turnId, itemId: requestId });
+        settle(input.cancel());
+      };
+      this.#pendingRuntimeRequests.set(requestId, {
+        request,
+        prepareResolution: resolution => {
+          const response = input.resolve(resolution);
+          return () => settle(response);
+        },
+        cancel: () => settle(input.cancel()),
+        cleanup: () => context.signal.removeEventListener("abort", cancel),
+        settling: false,
+      });
+      context.signal.addEventListener("abort", cancel, { once: true });
+      if (!this.#emit("runtime_request.created", { request: runtimeInputProtocolPayload(request) },
+        { turnId, itemId: requestId }) || context.signal.aborted) cancel();
+    });
+  }
+
   async #handlePermission(
     turnId: string,
     request: AcpPermissionRequest,
@@ -1590,7 +1648,7 @@ class CodexAcpxSession implements HarnessSession {
       || this.#pendingRuntimeRequests.size >= MAX_PENDING_RUNTIME_REQUESTS) {
       return { outcome: "cancel" };
     }
-    const normalized = normalizeAcpxPermission(request);
+    const normalized = normalizeAcpxPermission(request, this.#agent === "pi" ? { allowAlwaysScope: "session" } : {});
     const requestId = stableId("acpx-permission", `${turnId}:${++this.#runtimeRequestSequence}:${normalized.toolCallId}`);
     const runtimeRequest: HarnessRuntimeRequest = {
       requestId, requestKind: "permission_approval", method: "session/request_permission",

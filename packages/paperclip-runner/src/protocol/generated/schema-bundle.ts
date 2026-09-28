@@ -1819,6 +1819,65 @@ export const providerEventSchema = {
         },
         "summary": {
           "$ref": "#/$defs/shortText"
+        },
+        "provenance": {
+          "type": "object",
+          "required": [
+            "method",
+            "eventType",
+            "sessionId",
+            "turnId"
+          ],
+          "properties": {
+            "method": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "eventType": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "sessionId": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "turnId": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "agentId": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "timestamp": {
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          "additionalProperties": false
+        },
+        "details": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "value"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "value": {
+                "type": "string",
+                "maxLength": 4000
+              }
+            },
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false

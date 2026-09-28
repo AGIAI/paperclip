@@ -20,6 +20,7 @@ import {
   PAPERCLIP_RUNNER_IDLE_TIMEOUT_DEFAULT_MS,
   PAPERCLIP_RUNNER_IDLE_TIMEOUT_MAX_MS,
   PAPERCLIP_RUNNER_PERMISSION_CAPABILITIES,
+  PAPERCLIP_RUNNER_ACPX_PROFILES,
   isPaperclipRunnerProvider,
   resolvePaperclipRunnerIdleTimeoutMs,
   resolvePaperclipRunnerPermissionMode,
@@ -232,7 +233,24 @@ export function CodexLocalConfigFields({
             <option value="opencode">OpenCode 1.18.29</option>
             <option value="claude_managed">Claude Managed</option>
             <option value="aws_agentcore">AWS AgentCore</option>
-            <option value="acpx">ACPX Claude</option>
+            <option value="acpx">ACP agents</option>
+          </select>
+        </Field>
+      )}
+      {runnerManaged && runnerProvider === "acpx" && (
+        <Field configSection="adapter" label="ACP agent" hint="Cursor, GitHub Copilot, and Pi are awaiting local and Daytona qualification.">
+          <select className={inputClass}
+            value={isCreate ? values!.adapterSchemaValues?.acpxAgent ?? "claude" : eff("adapterConfig", "acpxAgent", config.acpxAgent ?? "claude")}
+            onChange={(event) => {
+              const profile = PAPERCLIP_RUNNER_ACPX_PROFILES.find(entry => entry.value === event.target.value);
+              if (!profile?.qualified) return;
+              if (isCreate) set!({ model: profile.value === "claude" ? defaultAcpxClaudeModel : "",
+                adapterSchemaValues: { ...values!.adapterSchemaValues, acpxAgent: profile.value } });
+              else { mark("adapterConfig", "acpxAgent", profile.value); mark("adapterConfig", "model", profile.value === "claude" ? defaultAcpxClaudeModel : ""); }
+            }}>
+            {PAPERCLIP_RUNNER_ACPX_PROFILES.map(profile => <option key={profile.value} value={profile.value} disabled={!profile.qualified}>
+              {profile.label}{profile.qualified ? "" : " — qualification pending"}
+            </option>)}
           </select>
         </Field>
       )}

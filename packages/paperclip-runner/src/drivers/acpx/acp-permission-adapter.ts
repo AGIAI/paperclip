@@ -11,7 +11,7 @@ export interface NormalizedAcpxPermission {
 }
 
 /** Provider options describe choices, never authority to execute an operation. */
-export function normalizeAcpxPermission(request: AcpPermissionRequest): NormalizedAcpxPermission {
+export function normalizeAcpxPermission(request: AcpPermissionRequest, options: { allowAlwaysScope?: "session" } = {}): NormalizedAcpxPermission {
   const raw = request.raw;
   if (!raw || !Array.isArray(raw.options) || raw.options.length > 32) {
     throw new Error("ACP permission request has invalid options");
@@ -36,6 +36,7 @@ export function normalizeAcpxPermission(request: AcpPermissionRequest): Normaliz
     ["accept_for_session", "allow_always", "Allow for session"],
     ["decline", "reject_once", "Deny"],
   ] as const) {
+    if (kind === "allow_always" && options.allowAlwaysScope !== "session") continue;
     if (byKind.has(kind)) { bindings.set(key, kind); choices.push({ key, label }); }
   }
   // A permanent rejection is not silently substituted for a one-time denial.

@@ -1,3 +1,4 @@
+import { isAcpxCanonicalInputMethod } from "../drivers/acpx/profile-extensions.js";
 import { RunnerdTraceFrameIndex } from "./runnerd-trace-frame-index.js";
 import { codexExecutableReadOnlyRoots } from "../drivers/codex/codex-security-config.js";
 import { isCanonicalProviderEventType } from "../provider-events.js";
@@ -886,7 +887,7 @@ export function bridgedCodexQuestionParams(
   };
   // ACPX has already normalized and bound these IDs in Rust. Reconstructing a
   // Codex form here would change option IDs and break the answer's return path.
-  if (method === "elicitation/create") {
+  if (isAcpxCanonicalInputMethod(method)) {
     return { ...common, questionSet, origin: request.origin,
       message: questionSet.description ?? questionSet.title ?? "A tool needs your input" };
   }
@@ -5925,7 +5926,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
           (method === "item/tool/requestUserInput" ||
             method === "tool/requestUserInput" ||
             method === "mcpServer/elicitation/request" ||
-            method === "elicitation/create" || permission) &&
+            isAcpxCanonicalInputMethod(method) || permission) &&
           !this.#bridgedRuntimeInputs.has(requestId)
         ) {
           this.#bridgedRuntimeInputs.set(requestId, {

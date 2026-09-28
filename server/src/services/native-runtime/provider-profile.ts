@@ -1,6 +1,7 @@
 import {
   isPaperclipRunnerProvider,
   PAPERCLIP_RUNNER_PERMISSION_CAPABILITIES,
+  PAPERCLIP_RUNNER_ACPX_PROFILES,
   resolvePaperclipRunnerPermissionMode,
   type PaperclipRunnerProvider,
 } from "@paperclipai/adapter-utils";
@@ -404,10 +405,15 @@ export function resolvePaperclipRunnerProviderProfile(
   }
 
   const acpxAgent = config.acpxAgent ?? "claude";
+  const pendingAcpxProfile = PAPERCLIP_RUNNER_ACPX_PROFILES.find(profile => profile.value === acpxAgent && !profile.qualified);
+  if (pendingAcpxProfile) {
+    if (!model) throw new PaperclipRunnerProviderProfileError("paperclip_runner_acpx_model_required", `${pendingAcpxProfile.label} requires an explicit model ID; there is no default model.`);
+    throw new PaperclipRunnerProviderProfileError("paperclip_runner_acpx_agent_unavailable", `${pendingAcpxProfile.label} is awaiting local and Daytona qualification. Its profile is not enabled for production runs.`);
+  }
   if (acpxAgent !== "claude" && acpxAgent !== "codex") {
     throw new PaperclipRunnerProviderProfileError(
       "paperclip_runner_acpx_agent_unavailable",
-      "Paperclip Runner ACPX requires the qualified Claude or Codex agent profile; Pi is not available.",
+      "Paperclip Runner ACPX requires a qualified agent profile.",
     );
   }
   const qualifiedModel = QUALIFIED_ACPX_RUNNER_MODELS[acpxAgent];

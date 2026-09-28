@@ -18,9 +18,14 @@ describe("ACP permission normalization", () => {
     expect(() => value.resolve({ action: "submit", content: { accept: true } })).toThrow("offered choice");
   });
   it("maps once, session and denial distinctly", () => {
-    const value = normalizeAcpxPermission(request());
+    const value = normalizeAcpxPermission(request(), { allowAlwaysScope: "session" });
     expect(value.resolve({ action: "accept_for_session" })).toEqual({ outcome: "allow_always" });
     expect(value.resolve({ action: "decline" })).toEqual({ outcome: "reject_once" });
+  });
+  it("does not label an unverified persistent allowance as session-only", () => {
+    const value = normalizeAcpxPermission(request());
+    expect(value.choices.map(choice => choice.key)).toEqual(["accept", "decline", "cancel"]);
+    expect(() => value.resolve({ action: "accept_for_session" })).toThrow("offered choice");
   });
   it("does not turn a one-time denial into permanent rejection", () => {
     expect(normalizeAcpxPermission(request(["reject_always"])).choices).toEqual([{ key: "cancel", label: "Cancel" }]);
