@@ -68,6 +68,91 @@
         },
         "dashboardLimitation": "Aggregate display unchanged at coarse precision; this does not prove zero metered usage or zero charge."
       }
+    },
+    {
+      "id": "cursor-new-account-first-20260928",
+      "accountContext": "operator-selected replacement Pro+ account",
+      "case": "get-task-context",
+      "runnerSourceRevision": "01959b8a602683f13706807983f02c3cba9d36a0",
+      "providerPackDigest": "sha256:f0b622e9151c1c0886e6220c48ea71993b65887baa88b1600b27462074748ddb",
+      "runnerPackageSha256": "75ddd8bf9dd474a01df0879ea1ceda6d015e08a3364dc21c38ddfc9e65a60ec0",
+      "runnerdSha256": "986060810ba7377c6ddd64a5d89e322d0a434e1a9c80400e6d4acf5934bfc421",
+      "runnerdSourceRevision": "f77ae83aeb6d802c73f1c955760017ae272eba29",
+      "evalRevision": "b01676fdb7a2783f7b3635a90ba9583041e86338",
+      "requestedModel": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+      "observedModel": {
+        "id": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+        "provider": "cursor"
+      },
+      "startedAt": "2026-09-28T19:28:46.976Z",
+      "finishedAt": "2026-09-28T19:29:16.268Z",
+      "durationMs": 29291,
+      "limits": {
+        "turnTimeoutMs": 60000,
+        "maxAgentTurns": 1,
+        "maxEstimatedCostNanodollars": 500000000
+      },
+      "automaticRetries": 0,
+      "nativeTerminalStatus": "completed",
+      "assistantText": "I\u2019m assigned PAP-101, \u201cAdd task-context orientation eval,\u201d under PAP-100.\n\nThe immediate next step is to inspect the runner/evaluation harness and implement the smallest end-to-end check proving an agent reads its assigned task context before acting, while preserving inspectable evidence. The manager specifically asked to start with that smallest check. No task completion or blocking action is authorized yet.",
+      "semanticResults": [
+        {
+          "operationId": "get_task_context",
+          "ok": true
+        },
+        {
+          "operationId": "get_task_history",
+          "ok": true
+        }
+      ],
+      "runnerResult": "passed",
+      "oracleChecks": [
+        {
+          "id": "context-call",
+          "passed": true
+        },
+        {
+          "id": "terminal-completed",
+          "passed": true
+        },
+        {
+          "id": "transcript-complete",
+          "passed": true
+        },
+        {
+          "id": "mock-only",
+          "passed": true
+        }
+      ],
+      "scoreDigest": "sha256:0e39e3067a928b9ff4da7a70426f2e643bf9e869bbee514de8dd6a3661bc0942",
+      "networkEvidence": {
+        "childPaperclipEnvironmentKeys": [],
+        "realPaperclipRequests": 0
+      },
+      "cleanup": {
+        "runnerExited": true,
+        "runnerExitCode": 0
+      },
+      "usage": {
+        "submittedPrompts": 1,
+        "nativeReceipt": null,
+        "tokenUsage": null,
+        "costUsd": null,
+        "coverage": "provider usage unavailable; dashboard row attributed"
+      },
+      "billing": {
+        "source": "parent-observed account Usage row after bounded attempt",
+        "observedRequestAt": "2026-09-28T19:28:55Z",
+        "modelLabel": "gpt-5.6-luna-medium",
+        "tokensDisplay": "56K",
+        "usageType": "Included",
+        "chargeDisplay": "Included",
+        "incrementalCashChargeUsd": 0,
+        "meteredCostUsd": null,
+        "conservativeListCostUpperBoundUsd": 0.07,
+        "listCostBoundBasis": "At most 57,000 rounded-display tokens at the maximum listed $1.20 per million token rate; this is not a billing receipt."
+      },
+      "scope": "Runner Eval: authenticated local native-MCP semantic tools on mock control plane; not Product E2E or native interaction/recovery/Daytona qualification"
     }
   ],
   "newAccountDiscovery": {

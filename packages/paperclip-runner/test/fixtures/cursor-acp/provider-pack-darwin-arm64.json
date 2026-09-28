@@ -1,6 +1,6 @@
 {
   "schema": "paperclip-runner/remote-provider-pack/v1",
-  "digest": "sha256:3d36acd9adcfe049fdc30b93ee50f8ce35d59938362eb0c497b4e6b4fbcac028",
+  "digest": "sha256:f0b622e9151c1c0886e6220c48ea71993b65887baa88b1600b27462074748ddb",
   "payload": {
     "pins": {
       "nodeMinimum": "24.11.0",
@@ -14,9 +14,9 @@
       "platform": "darwin",
       "architecture": "arm64"
     },
-    "runnerSourceRevision": "a92d06ca5940a42d45cba937f19ba7e7e9c03018",
-    "distDigest": "sha256:78fc5189d6f8a441aa1060dc968b09cd423f03fb039ef33b17568bb44b7f6da6",
-    "bridgeDigest": "sha256:d58c15293fd44bad94d222b982da989af54621150c1f16fa7da53beb3bb16f9d",
+    "runnerSourceRevision": "01959b8a602683f13706807983f02c3cba9d36a0",
+    "distDigest": "sha256:6ac11b85a406f041e13a9896362cd78ebea5e9edef97527bffb7a8360f6a10bb",
+    "bridgeDigest": "sha256:e444f448c6fe3c7e0246dc0cc1dcb98c2f735479ba5576f9a9bbb7a3137061c1",
     "acpxProfileDigests": {
       "claude": "sha256:9d73d1f0f121fb96cc8badb28c22d5bff02d8582eb2e40360a81c189e1b9422a",
       "codex": "sha256:c4538599d1ab767db5dff50934f13bb5ba313a59d9c4a83e993fac4617ea63d3"
@@ -54,7 +54,7 @@
       },
       "acpxSidecar": {
         "path": "dist/cli/acpx-runtime-sidecar.cjs",
-        "sha256": "sha256:b0c2c42374f8f6dc7a9a4b3a31f3cc94cd8e9e74a5934441188c2ec1fc33e9f9"
+        "sha256": "sha256:f688c95784dc8d0422c8610251263e374e765d28d22b2f5eeeda509f6155e3e5"
       }
     }
   }
