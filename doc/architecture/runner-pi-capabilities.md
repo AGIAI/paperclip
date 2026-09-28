@@ -154,6 +154,18 @@ part of its verified package and must never be omitted from a copy or hash.
 
 ## Verification and maintenance
 
+The [v4 offline proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.v4.darwin-arm64.json)
+binds frozen source `f556110d588a9de9fefe676a9a62bf09e98afb85`, combined pack
+`sha256:4df7e9fa164929c7ae7d8e8711f0bf7d587d9fa6a246d0a8340f318f57168855`,
+and release Runner SHA-256
+`373848d2d7287b2c47b2cee422cb7bd25073a594a620a9ad574f2d3d51cd1670`.
+Recursive workspace typecheck and full build pass at that source. Full pack and
+all three closure inventories verify; the actual Pi registry launch initializes
+under a network-denying sandbox and exits cleanly on EOF. A separate full Runner
+startup rejects missing credentials in 11.083 seconds without a prompt. That is
+a timely admission rejection, not an authenticated success. The proof includes
+execution-tree identities and two matching clean dependency resolutions.
+
 The v4 focused verification passes 49 TypeScript tests plus the separately enabled
 actual-distribution installation test (all five installation cases), 24 installed
 wrapper/native-SDK/materializer cases, and 13 Rust native-provider backend tests.
