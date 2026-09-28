@@ -412,7 +412,12 @@ export class AcpxRuntimeHost {
             ...(options.providerPolicy === undefined ? {} : { providerPolicy: {
               ...options.providerPolicy,
               systemInstructions: boundedInstructions(options.systemInstructions),
-              protectedPaths: [...(options.providerPolicy.protectedPaths ?? []), dirname(installation.agentServerPackageJsonPath)],
+              protectedPaths: [
+                ...(options.providerPolicy.protectedPaths ?? []),
+                ...(installation.agentServerPackageJsonPath === null
+                  ? []
+                  : [dirname(installation.agentServerPackageJsonPath)]),
+              ],
             } }),
           }),
         dependencies.retainAdmissionCleanup,
