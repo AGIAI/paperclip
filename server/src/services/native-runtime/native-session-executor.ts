@@ -12369,8 +12369,8 @@ async function createRunnerdBackendWithinSessionClaim(
               acpxCandidateProfile: resolveAcpxQualification(input.execution.provider, process.env),
               acpxPermissionMode: input.execution.provider.permissionMode,
               acpxPermissionModePinned:
-                input.execution.schema ===
-                "paperclip.native-execution-input.v4",
+                input.execution.schema === "paperclip.native-execution-input.v4" ||
+                input.execution.schema === "paperclip.native-execution-input.v5",
               acpxRuntimeDirectory: remoteRunnerFilesystemRoot
                 ? posix.join(remoteRunnerFilesystemRoot, "acpx")
                 : resolve(
