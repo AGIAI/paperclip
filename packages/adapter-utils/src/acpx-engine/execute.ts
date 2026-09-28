@@ -5339,13 +5339,20 @@ export function createAcpxEngineExecutor(deps: AcpxEngineExecutorOptions = {}) {
           // A transport error or terminal narrative cannot authorize collecting
           // mutable provider files. Require the owned close or local OS handle.
           const stopped = runtimeStopConfirmed || (!prepared.processSessionBridge && capturedProcessExited(processIdentitySink?.localProcess));
-          if (stopped) await ctx.onProviderStopped?.();
-          await runRuntimeSpan("sandbox.syncBack", async () => {
-            const restoreOutcome = await syncBackManagedHome(prepared);
-            if (!restoreOutcome.ok) {
-              workspaceRestoreFailureField = { workspaceRestoreFailure: restoreOutcome.code };
-            }
-          });
+          try {
+            if (stopped) await ctx.onProviderStopped?.();
+          } catch {
+            // Match ACP's fail-soft teardown policy without describing this as
+            // a workspace restore failure or exposing paths from a raw error.
+            await recordTeardownError("instruction-collection", new Error("Instruction collection failed after provider stop. No instruction save is claimed."));
+          } finally {
+            await runRuntimeSpan("sandbox.syncBack", async () => {
+              const restoreOutcome = await syncBackManagedHome(prepared);
+              if (!restoreOutcome.ok) {
+                workspaceRestoreFailureField = { workspaceRestoreFailure: restoreOutcome.code };
+              }
+            });
+          }
         }),
         // The staging lease releases as the run's final act, AFTER the coordinator
         // reproduces the result, in the run root `finally` below. This step stays a
