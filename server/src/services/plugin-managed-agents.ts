@@ -2,6 +2,7 @@ import { and, eq, isNull, ne } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import {
   agents,
+  agentInstructionHeads,
   companies,
   pluginEntities,
   pluginManagedResources,
@@ -344,7 +345,7 @@ export function pluginManagedAgentService(
       const actor = { type: "plugin" as const, pluginId: options.pluginId, pluginKey: options.pluginKey, agentKey: declaration.agentKey };
       const baseline = await revisions.readForPluginReset(target, actor);
       const receipt = await revisions.commitPluginReset({ ...target, entryFile: declared.entryFile,
-        baseRevisionId: baseline?.revision.id ?? null, content: declared.files[declared.entryFile] ?? "" }, actor);
+        baseRevisionId: baseline.snapshot?.revision.id ?? null, configuredEntryFile: baseline.configuredEntryFile, content: declared.files[declared.entryFile] ?? "" }, actor);
       if (receipt.materialization === "pending") throw conflict("Instruction revision saved; retry reset to repair its disk copy", { revisionId: receipt.revision.id });
       const refreshed = await agentSvc.getById(agent.id);
       if (!refreshed) throw notFound("Managed agent not found");
@@ -352,8 +353,10 @@ export function pluginManagedAgentService(
         if (file !== declared.entryFile) await instructions.writeFile(refreshed, file, content);
       }
       const bundle = await instructions.getBundle(refreshed);
+      const historicalEntries = new Set((await db.select({ entryFile: agentInstructionHeads.entryFile }).from(agentInstructionHeads)
+        .where(and(eq(agentInstructionHeads.companyId, companyId), eq(agentInstructionHeads.agentId, agent.id)))).map((row) => row.entryFile));
       for (const file of bundle.files) {
-        if (!file.isEntryFile && !file.virtual && !(file.path in declared.files)) await instructions.deleteFile(refreshed, file.path);
+        if (!file.isEntryFile && !file.virtual && !historicalEntries.has(file.path) && !(file.path in declared.files)) await instructions.deleteFile(refreshed, file.path);
       }
       adapterConfig = { ...refreshed.adapterConfig };
       delete adapterConfig.promptTemplate;
@@ -394,8 +397,11 @@ export function pluginManagedAgentService(
       return { entryFile: declared.entryFile, changedFiles: [declared.entryFile] };
     }
 
+    const historicalEntries = new Set((await db.select({ entryFile: agentInstructionHeads.entryFile }).from(agentInstructionHeads)
+      .where(and(eq(agentInstructionHeads.companyId, companyId), eq(agentInstructionHeads.agentId, agent.id)))).map((row) => row.entryFile));
     const paths = new Set([...Object.keys(declared.files), ...Object.keys(exported.files)]);
     const changedFiles = [...paths]
+      .filter((filePath) => filePath in declared.files || !historicalEntries.has(filePath))
       .filter((filePath) => (exported.files[filePath] ?? null) !== (declared.files[filePath] ?? null))
       .sort((left, right) => left.localeCompare(right));
     if (exported.entryFile !== declared.entryFile && !changedFiles.includes(declared.entryFile)) {
