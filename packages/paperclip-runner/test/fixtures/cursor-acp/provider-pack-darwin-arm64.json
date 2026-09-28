@@ -1,6 +1,6 @@
 {
   "schema": "paperclip-runner/remote-provider-pack/v1",
-  "digest": "sha256:f9b1869c3d6822981518a4acfa5ffd0d8623ac555034754d92e57dabd56feadb",
+  "digest": "sha256:38bc6dd39c13b0f5478a1018e26deb61b0333ab0242f3d857e3c79d3a34b7682",
   "payload": {
     "pins": {
       "nodeMinimum": "24.11.0",
@@ -15,9 +15,9 @@
       "platform": "darwin",
       "architecture": "arm64"
     },
-    "runnerSourceRevision": "19ac45c4fd87b8b9f28507b3ecd57803da3f7c73",
-    "distDigest": "sha256:b381359f0b80cc15f437f8d98c616c2f230f2ede672e4faca6e8e42a373f84d6",
-    "bridgeDigest": "sha256:5bf5b2c89849aaf2501c5410b3d4037bc59183516be08b9e7264e9089c0da6fa",
+    "runnerSourceRevision": "25fb1b5b317e52a8ad50208d7681a1ee34bd939c",
+    "distDigest": "sha256:b849c70826bcc0fb353b319b55e779ac9a31a2007fd358ad16f3502ea3bc9160",
+    "bridgeDigest": "sha256:4093de09695e15878d1614ff73bdabd95600af1e996055c3c981a7cee67486e2",
     "acpxProfileDigests": {
       "grok": "sha256:f0b698395a3704ed2ffaf84ea19bdb20c36c8a0a70b7c629c7b6ffe144e59e55",
       "claude": "sha256:9d73d1f0f121fb96cc8badb28c22d5bff02d8582eb2e40360a81c189e1b9422a",
@@ -34,9 +34,9 @@
       }
     },
     "artifacts": {
-      "grokExecutable": {
-        "path": "node_modules/@paperclipai/grok-acp/bin/grok",
-        "sha256": "sha256:8669e0fdadceec25b8c159c355f427ffbd82583525d774b6ab1522197ea83b80"
+      "grokLauncher": {
+        "path": "dist/providers/grok/launcher.cjs",
+        "sha256": "sha256:f0b698395a3704ed2ffaf84ea19bdb20c36c8a0a70b7c629c7b6ffe144e59e55"
       },
       "nodeCommand": {
         "path": "node_modules/node/bin/node",
@@ -44,7 +44,7 @@
       },
       "productionLock": {
         "path": "pnpm-lock.yaml",
-        "sha256": "sha256:a9f7b2839491612675e9ec543143848e8b01343cbf8456098b3e9f4d7394eed1"
+        "sha256": "sha256:9eea60187c6c808efb4d936a234a8d8000beac45253091abd4c5348132bd1408"
       },
       "opencodeCommand": {
         "path": "node_modules/.bin/opencode",
@@ -60,7 +60,7 @@
       },
       "acpxSidecar": {
         "path": "dist/cli/acpx-runtime-sidecar.cjs",
-        "sha256": "sha256:dfc808bde4101915af8a7e5b304263862b50617cfbb5676fdf599711c2e65c66"
+        "sha256": "sha256:743f78a3bf8b5ba9632cbd8cd00f83d7f22dc2a5cffacbd022066bdefc67d837"
       }
     }
   }

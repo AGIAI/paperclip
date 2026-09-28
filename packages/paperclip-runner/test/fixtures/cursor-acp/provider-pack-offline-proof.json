@@ -1,8 +1,8 @@
 {
   "schema": "paperclip-cursor-offline-pack-proof/v1",
-  "capturedAt": "2026-09-28T20:03:07.326Z",
-  "runnerSourceRevision": "19ac45c4fd87b8b9f28507b3ecd57803da3f7c73",
-  "packDigest": "sha256:f9b1869c3d6822981518a4acfa5ffd0d8623ac555034754d92e57dabd56feadb",
+  "capturedAt": "2026-09-28T20:18:46.105Z",
+  "runnerSourceRevision": "25fb1b5b317e52a8ad50208d7681a1ee34bd939c",
+  "packDigest": "sha256:38bc6dd39c13b0f5478a1018e26deb61b0333ab0242f3d857e3c79d3a34b7682",
   "target": {
     "platform": "darwin",
     "architecture": "arm64"
@@ -15,7 +15,7 @@
     "path": "provider-assets/cursor/darwin-arm64",
     "sha256": "sha256:3b6de19114d4df62f648604025a0d71937dfa7c2b15b397cce5da2c5da268994"
   },
-  "productionLock": "sha256:a9f7b2839491612675e9ec543143848e8b01343cbf8456098b3e9f4d7394eed1",
+  "productionLock": "sha256:9eea60187c6c808efb4d936a234a8d8000beac45253091abd4c5348132bd1408",
   "launch": {
     "entrypoint": "verified bundled node + index.js",
     "arguments": [
