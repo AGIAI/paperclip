@@ -61,8 +61,40 @@
       "attemptFixtureRemoved": true,
       "scope": "read-only host capacity observation; unrelated IPC resources untouched"
     },
-    "inference": "Near-limit SysV semaphore usage supports host resource exhaustion, but the exact initdb cause is unproven without original stderr.",
-    "unrelatedProcessesOrIpcModified": false
+    "inference": "A later credential-free initdb invocation of the same pinned PostgreSQL binary reproduced semaphore exhaustion with16 free and17 required. The original Product bootstrap stderr remains unavailable.",
+    "unrelatedProcessesOrIpcModified": false,
+    "disposableReproduction": {
+      "nativePackage": "@embedded-postgres/darwin-arm64@18.1.0-beta.16",
+      "initdbSha256": "5a6ad92c2ce915b1a13aa2f8f2b2199996daf0cbe6b9f1d0044a387303b368ec",
+      "arguments": [
+        "--pgdata=<private disposable directory>",
+        "--username=paperclip_fixture",
+        "--auth=trust",
+        "--encoding=UTF8",
+        "--locale=C",
+        "--no-sync"
+      ],
+      "before": {
+        "sets": 5141,
+        "used": 87365,
+        "limit": 87381,
+        "recordedAt": "2026-09-28T22:17:28.611679+00:00"
+      },
+      "after": {
+        "sets": 5141,
+        "used": 87365,
+        "limit": 87381,
+        "recordedAt": "2026-09-28T22:17:29.168791+00:00"
+      },
+      "exitCode": 1,
+      "durationSeconds": 0.557,
+      "error": "FATAL: could not create semaphores: No space left on device",
+      "failedSystemCall": "semget(..., 17, 03600)",
+      "processGroupRemaining": false,
+      "temporaryDirectoryRemoved": true,
+      "providerCalls": 0,
+      "postgresServerStarted": false
+    }
   },
   "independentCleanup": {
     "fixtureDirectoryRemoved": true,

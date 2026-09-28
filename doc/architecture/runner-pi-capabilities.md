@@ -412,8 +412,12 @@ Product fixture. Canonical classification is `transient_infrastructure`, with
 zero provider prompts and two unchanged post-attempt key-billing observations.
 The fixture directory is gone and no matching process remains. A later read-only
 host snapshot shows 87,263 of 87,381 SysV semaphores in use, supporting a resource
-constraint; the original bootstrap stderr is unavailable, so its exact cause is
-not claimed. No unrelated database or IPC object was changed. Further paid
+constraint. A separate disposable diagnostic then reproduces the cause with the
+same pinned PostgreSQL binary: `semget(..., 17, 03600)` fails with `No space left
+on device` when only 16 semaphores are free. It exits in 0.557 seconds, removes
+its temporary directory, leaves no child process, and leaves IPC totals unchanged.
+The original Product bootstrap stderr remains unavailable. No unrelated database
+or IPC object was changed. Further paid
 qualification is held until a supported database resource path is available.
 
 
