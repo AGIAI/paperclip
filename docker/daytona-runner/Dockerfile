@@ -12,7 +12,7 @@ COPY packages/paperclip-runner/protocol ../protocol
 RUN cargo build --locked --release -j 2 -p paperclip-runner-core --bin paperclip-runnerd \
     && strip /workspace/packages/paperclip-runner/runner/target/release/paperclip-runnerd
 
-FROM node:24-bookworm@sha256:9137a20e25879e0b557227b57e3ee4e9af4bde29eb3db66134cd1723e84f830b AS provider-pack-build
+FROM node:24.21.0-bookworm@sha256:5a750d3be5e5c80275f8c9a5367c3aed99c2875656590c8d0701c7ee687f5f0a AS provider-pack-build
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /workspace
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./

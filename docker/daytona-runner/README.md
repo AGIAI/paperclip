@@ -94,6 +94,12 @@ full Git SHA as `PAPERCLIP_RUNNER_SOURCE_REVISION`.
 Do not bake provider credentials, Paperclip bootstrap tickets, or Daytona
 preview tokens into this image. They remain per-run secret material.
 
+The provider-pack build pins the official Linux x64 Node 24.21.0 image by
+manifest digest. Its bundled Undici is 7.29.1, which fixes
+[GHSA-3wwx-pv8p-q78v](https://github.com/advisories/GHSA-3wwx-pv8p-q78v).
+Pi separately verifies its private Node executable and nested npm dependency;
+changing the outer interpreter does not replace either provider-owned pin.
+
 Provider CLI updates are manifest-only changes: repository CI owns the root
 lockfile. Resolve the complete workspace manifest graph in the build context
 before invoking Docker, matching CI when a source commit precedes the lockfile
