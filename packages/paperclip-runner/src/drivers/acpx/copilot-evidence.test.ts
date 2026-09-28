@@ -7,6 +7,17 @@ function fixture(name: string) {
 }
 
 describe("Copilot pinned executable evidence", () => {
+  it("retains local Product failures separately from passed transport and accounting evidence", () => {
+    const evidence = fixture("copilot-product-merged-live-proof-2026-09-28.json");
+    expect(evidence.qualificationStatus).toBe("pending");
+    expect(evidence.modelProvider).toBe("github");
+    expect(evidence.cases[0]).toMatchObject({ caseId: "file-edit-validate", status: "passed", behaviorMatchersPassed: 7, costStatus: "unpriced", costUsdFieldPresent: false, billingComplete: false });
+    expect(evidence.cases[1]).toMatchObject({ caseId: "question-resume-complete", status: "failed", questionDelivered: true, answerOptionId: "cobalt", sameProviderSessionReused: true, observedFinalText: "[terminal marker]", originalEvidenceUnchanged: true });
+    expect(evidence.cases[2]).toMatchObject({ caseId: "plan-approve-complete", status: "failed", providerTurns: 0, qualificationEvidence: false });
+    expect(evidence.restartCase.status).toBe("not_executed");
+    expect(evidence.externalBilling.providerReportedCostUsd).toBeNull();
+    expect(JSON.stringify(evidence)).not.toMatch(/\/Users\/|\/tmp\/|github_pat_|accessToken/);
+  });
   it("retains authenticated exact model selection without promoting metadata to inference", () => {
     const evidence = fixture("copilot-authenticated-discovery-1.0.88.json");
     expect(evidence).toMatchObject({ harnessVersion: "1.0.88", promptSent: false, promptRequestsSent: 0, inferenceVerified: false, sessionClosed: true });

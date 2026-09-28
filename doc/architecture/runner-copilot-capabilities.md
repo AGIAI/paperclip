@@ -2,8 +2,10 @@
 
 Audited 2026-09-28 against repository base `c65fc9e3c81c41aafe421aa90a00514b84343285`.
 Status: **candidate, not qualified**. Authenticated model discovery and exact model
-selection now pass. One canonical local protocol case has passed through the real
-runner with authenticated semantic tools. Product E2E and Daytona remain pending.
+selection now pass. One canonical local protocol case and the local Product hello
+and file-edit cases passed through the real runner. A local question delivered and
+resumed, but failed its exact terminal-marker requirement. Plan, restart and
+Daytona qualification remain pending.
 Real executable offline probes cost $0; the live token receipt has no verified USD charge. The allocated live budget remains $25, subject to
 the shared $100 hard stop and verifiable spend. Do not expose this profile as
 supported until the required local and Daytona qualification passes.
@@ -390,8 +392,8 @@ It exposed a shared accounting defect: model-family inference labeled the biller
 `openai`, while missing provider cost became `costUsd: 0`, `costStatus: reported`
 and `billing.complete: true`. Those fields are invalid accounting evidence. The
 correct biller is GitHub, provider USD cost is unknown, and the retained behavioral
-pass must not be interpreted as accounting qualification. A shared server fix is
-in progress; paid follow-ups are paused pending that correction. The original
+pass must not be interpreted as accounting qualification. The shared server fix
+was incorporated before the following file and question cases. The original
 result also lacks source SHA fields; the independent launcher manifest records
 the exact committed source above.
 
@@ -408,3 +410,32 @@ is exceeded. The sibling scorer retains semantic assertions under
 `accounting_failure`; roster and campaign orchestration stop subsequent queued
 cases. External dashboard reconciliation does not override the CLI budget
 result. Profiles remain pending until the outstanding qualification matrix passes.
+
+## Merged-source local Product coverage (2026-09-28)
+
+The [retained merged-source proof](../../packages/paperclip-runner/test/fixtures/copilot-product-merged-live-proof-2026-09-28.json)
+records both successful behavior and failures without rewriting original results.
+The file and question cases used source `ee9536001fbe733b2386dd3379730a4e0be59488`,
+an immutable runnerd whose Rust tree matches that source, and verified native
+assets. A separate complete compiled pack has digest
+`sha256:809ea6bef2fc1122ef214840d119f37854598007ff7449189027294b0802a681`.
+Targeted validation passed 67 provider/contract tests, 11 packaging/script tests,
+93 Product harness tests, and the TypeScript/verified-sidecar build. The packaged
+offline registry launch also passed without a prompt or fixture HTTP request.
+
+| Local case | Retained result | Accounting and remaining limits |
+| --- | --- | --- |
+| File edit and validation | 7/7 matchers passed in 59.696s. Native shell output proves the file was edited and compared successfully; the downloadable file, exact marker and Done status were visually checked. | Correct GitHub biller, `unpriced`, absent USD field, incomplete billing. Native raw output contains exit code 0, but normalized typed `exitCode` is absent; follow-up P2 is preserving this structured result. |
+| Question and continuation | 4/6 matchers passed in 102.939s. Cobalt was selected through the real question card and continuation reused the same provider session. The final output was literally `[terminal marker]`, so the exact-marker checks failed. | Original run-log events and the browser screenshot confirm provider behavior, not public redaction. No retry or grader relaxation. Continuation is GitHub/unpriced. The paused first run incorrectly said `reported` with no cost and zero counters; separate fix `c276496e4` keeps absent cost unpriced and passed 13 accounting tests. |
+| Plan approval | Failed after 9.531s during embedded PostgreSQL bootstrap, before any provider call. | Host semaphore exhaustion was independently confirmed. The failed attempt is retained and does not qualify plan behavior. |
+| Controller restart | Not executed. | Held before launch because the same host resource exhaustion affected other Product and DB checks. |
+
+The two inference cases each had a 120-second active deadline, a 300-second outer
+deadline, a $2 reservation and zero automatic retries. GitHub's displayed included
+credits moved from 1 to 2 after the file case and from 2 to 3 after the question
+case. Additional paid usage stayed disabled with a $0 budget and $0 cash charge.
+Display deltas are not exact per-request credit receipts; provider USD remains
+unknown. Across all live work, five provider turns were observed; the underlying
+HTTP model-request count is unavailable. No additional paid attempt is running.
+The candidate remains pending because the failed question, unverified plan/restart,
+Daytona, restrictive-permission and full isolation cases still require evidence.
