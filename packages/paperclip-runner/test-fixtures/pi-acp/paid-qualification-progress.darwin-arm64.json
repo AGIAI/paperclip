@@ -1,6 +1,6 @@
 {
   "schema": "paperclip.pi-paid-qualification-progress.v1",
-  "recordedAt": "2026-09-28T21:49:52.124380+00:00",
+  "recordedAt": "2026-09-28T22:24:39.777300+00:00",
   "qualificationStatus": "pending",
   "environment": {
     "platform": "darwin",
@@ -17,7 +17,7 @@
   "budget": {
     "authorizedMaximumUsd": 25,
     "reservedPerBatchUsd": 2,
-    "measuredSpendUsd": 0.028160131,
+    "measuredSpendUsd": 0.028706633,
     "measurement": "exclusive OpenRouter key billing delta; model catalog estimates are not provider billing",
     "billingGroups": [
       {
@@ -668,6 +668,38 @@
       "terminalUsage": null,
       "automaticRetries": 0,
       "evidence": "product-plan-infrastructure-failure.v4.darwin-arm64.json"
+    },
+    {
+      "attemptId": "pi-native-controls-02",
+      "family": "native-acp",
+      "caseId": "active-steer-queued-follow-up-and-denied-write",
+      "profileVersion": 4,
+      "source": "f556110d588a9de9fefe676a9a62bf09e98afb85",
+      "packDigest": "sha256:4df7e9fa164929c7ae7d8e8711f0bf7d587d9fa6a246d0a8340f318f57168855",
+      "profileDigest": "sha256:2324d9b47650c12b16f8e2c44dc33637d52f1b22ba8e914623eac4049e7e1991",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "status": "passed",
+      "modelPromptRequests": 1,
+      "durationSeconds": 20.255,
+      "billingDeltaUsd": 0.000546502,
+      "earlyObservedKeyDeltaUsd": 0,
+      "billingCoverage": "exclusive key delta settled on later observation",
+      "terminalUsage": {
+        "inputTokens": 2030,
+        "outputTokens": 1293,
+        "cachedReadTokens": 5632,
+        "cachedWriteTokens": 0,
+        "totalTokens": 8955,
+        "_meta": {
+          "paperclipPi": {
+            "provenance": "assistant_message_receipts",
+            "costUsd": 0.000803936,
+            "costSource": "pi_pricing_estimate"
+          }
+        }
+      },
+      "automaticRetries": 0,
+      "evidence": "native-controls-proof.v4.darwin-arm64.json"
     }
   ],
   "observedSemanticOperations": {
@@ -745,7 +777,8 @@
       "optionalInstallationSuitePassed": 5,
       "installedPackageAndMaterializerTestsPassed": 24,
       "nativeRustTestsPassed": 13,
-      "authenticatedQualification": "blocked before provider startup by local database fixture infrastructure"
+      "authenticatedQualification": "blocked before provider startup by local database fixture infrastructure",
+      "nativeControlsProof": "native-controls-proof.v4.darwin-arm64.json"
     }
   },
   "publicationBoundary": {

@@ -406,6 +406,22 @@ every field in Pi's native event stream. These are explicit follow-ups:
 
 ## Authenticated local qualification progress
 
+The [v4 native controls proof](../../packages/paperclip-runner/test-fixtures/pi-acp/native-controls-proof.v4.darwin-arm64.json)
+passes on frozen `f556110d5` / pack `4df7e9fa…`: one native write request uses the
+same normalized invocation ID in its persisted decision and failed tool update;
+the original deny option is written only after both control acknowledgements.
+Visible output is exactly `STEERED_CURRENTQUEUED_NEXT`, stale steering is rejected,
+the forbidden file remains absent, and the prompt settles `end_turn`. Cleanup
+completes without a database. The terminal receipt contains 2,030 input, 1,293
+output and 5,632 cached-read tokens. A later billing observation settles this
+attempt at $0.000546502; Pi's separate catalog estimate is $0.000803936. Initial
+unchanged billing reads are retained and were not treated as free inference.
+
+A newly indexed [Undici advisory](https://github.com/advisories/GHSA-3wwx-pv8p-q78v)
+also affects the current isolated npm Undici 8.9.0 and Node 24.19.0's bundled
+Undici 7.29.0. Further paid work is held while the provider-local v5 dependency
+repair is prepared. This paid v4 proof remains bound to its original bytes.
+
 The first [v4 plan attempt](../../packages/paperclip-runner/test-fixtures/pi-acp/product-plan-infrastructure-failure.v4.darwin-arm64.json)
 failed before provider startup: embedded PostgreSQL could not initialize the
 Product fixture. Canonical classification is `transient_infrastructure`, with
@@ -422,14 +438,14 @@ qualification is held until a supported database resource path is available.
 
 
 The [sanitized attempt ledger](../../packages/paperclip-runner/test-fixtures/pi-acp/paid-qualification-progress.darwin-arm64.json)
-retains all eighteen attempts, including eight failures before a model prompt. One
+retains all nineteen attempts, including eight failures before a model prompt. One
 Runner protocol turn reached the exact model and successfully called `get_task_context`, `get_task_history`,
 `list_documents`, and `read_document`. The canonical case permits those extra
 orientation reads, but also requires a completed turn; it timed out after 120s
 without terminal usage. The later Product hello journey passes; the canonical
 Runner protocol case has not yet passed.
 
-Exclusive OpenRouter key billing increased by **$0.028160131**, including
+Exclusive OpenRouter key billing increased by **$0.028706633**, including
 $0.000351509 from the sleep-interrupted Product attempt and $0.000654767
 from the successful hello journey, plus $0.010995043 across the restrictive-denial
 and file-edit batch. A delayed charge crossed the latter attempt baselines, so
