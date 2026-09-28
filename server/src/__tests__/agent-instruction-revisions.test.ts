@@ -8,6 +8,7 @@ import { agents, agentApiKeys, companies, authUsers, companyMemberships, princip
   agentInstructionRevisions, agentInstructionHeads, issueThreadInteractions, issues, createDb } from "@paperclipai/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { agentInstructionRevisionService } from "../services/agent-instruction-revisions.js";
+import { agentInstructionWorkingCopyService } from "../services/agent-instruction-working-copies.js";
 import { instructionBytes, instructionPath, readInstructionBytes } from "../services/agent-instruction-files.js";
 import { agentInstructionsService, resolveManagedInstructionsRoot } from "../services/agent-instructions.js";
 import type { AuthorizationActor } from "../services/authorization.js";
@@ -60,6 +61,34 @@ describe("canonical instruction revisions", () => {
   async function save(content: string, baseRevisionId: string | null) {
     return service.commit({ ...target(), entryFile, content, baseRevisionId, source: "cleanup" }, actor);
   }
+  it.each(["current", "history", "revision", "diff", "candidates"])("denies peer %s reads without a configuration grant or responsible-user target access", async (operation) => {
+    const first = await base();
+    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, userId));
+    const read = () => {
+      if (operation === "current") return service.readCurrent(target(), actor);
+      if (operation === "history") return service.history({ ...target(), entryFile }, actor);
+      if (operation === "revision") return service.readRevision({ ...target(), entryFile, revisionId: first.revision.id }, actor);
+      if (operation === "diff") return service.diff({ ...target(), entryFile, fromRevisionId: first.revision.id, toRevisionId: first.revision.id }, actor);
+      return agentInstructionWorkingCopyService(db).list(companyId, agentId, actor);
+    };
+    await expect(read()).rejects.toMatchObject({ status: 403 });
+    await db.insert(principalPermissionGrants).values({ companyId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [actorId] } });
+    await expect(read()).rejects.toMatchObject({ status: 403 });
+  });
+  it("allows delegated peer content reads but preserves explicit agent target restrictions", async () => {
+    expect(await db.select().from(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, actorId))).toHaveLength(0);
+    expect((await base()).content).toBe(initial);
+    await db.insert(principalPermissionGrants).values({ companyId, principalType: "agent", principalId: actorId, permissionKey: "agents:configure", scope: { agentIds: [actorId] } });
+    await expect(service.readCurrent(target(), actor)).rejects.toMatchObject({ status: 403 });
+  });
+  it("allows self and board reads without requiring instruction edit permission", async () => {
+    await db.delete(principalPermissionGrants).where(eq(principalPermissionGrants.principalId, userId));
+    const selfRoot = resolveManagedInstructionsRoot({ id: actorId, companyId, name: "Writer", adapterConfig: {} });
+    await fs.mkdir(selfRoot, { recursive: true });
+    await fs.writeFile(path.join(selfRoot, "AGENTS.md"), "Self instructions");
+    expect((await service.readCurrent({ companyId, agentId: actorId }, actor))?.content).toBe("Self instructions");
+    expect((await service.readCurrent(target(), { type: "board", userId, source: "session" }))?.content).toBe(initial);
+  });
   it("seeds configured bytes, preserves immutable history, deduplicates, diffs and restores as a new revision", async () => {
     const first = await base();
     expect(first.content).toBe(initial);
@@ -171,6 +200,8 @@ describe("canonical instruction revisions", () => {
       payload: { version: 1, prompt: "Apply the instruction change?", detailsMarkdown: "```diff\n+approved\n```", target: { type: "custom", key: `agent:${agentId}:instructions`, revisionId: "proposal" } },
       result: { version: 1, outcome: "accepted" }, resolvedByUserId: userId, resolvedAt: new Date(),
     });
+    expect((await service.readCurrent(target(), actor))?.revision.id).toBe(first.revision.id);
+    expect((await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, interactionId)))[0].result).not.toHaveProperty("consumedAt");
     await expect(save("approved", randomUUID())).rejects.toMatchObject({ status: 409 });
     expect((await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, interactionId)))[0].result).not.toHaveProperty("consumedAt");
     const receipt = await save("approved", first.revision.id);

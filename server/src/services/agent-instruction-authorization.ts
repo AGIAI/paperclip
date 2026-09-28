@@ -134,6 +134,36 @@ export async function resolveInstructionActor(
   };
 }
 
+/** Instruction content is narrower than general same-company agent visibility. */
+export async function authorizeInstructionRead(
+  db: Connection,
+  actor: AuthorizationActor,
+  target: { companyId: string; id: string },
+) {
+  const bound = await resolveInstructionActor(db, actor);
+  const access = authorizationService(db);
+  const resource = { type: "agent" as const, companyId: target.companyId, agentId: target.id };
+  const peer = bound.type === "agent" && bound.agentId !== target.id;
+  let decision = await access.decide({
+    actor: bound,
+    action: peer ? "agent_config:read" : "agent:read",
+    resource,
+    scope: { targetAgentId: target.id },
+  });
+  if (!decision.allowed && peer) {
+    // Ordinary delegated instruction edits must remain possible without a new
+    // blanket agent-admin grant. The existing content-edit decision enforces
+    // current responsible-user target access and explicit agent containment.
+    // This is a read-only decision: no write, consent bypass, or consumption.
+    decision = await access.decide({
+      actor: bound, action: "agent_instructions:update", resource,
+      scope: { targetAgentId: target.id, requiresChangeGrant: true },
+    });
+  }
+  if (!decision.allowed) throw forbidden(decision.explanation, authorizationDeniedDetails(decision));
+  return bound;
+}
+
 /** Current target edit access + agent containment + protected-change consent, shared by all writers. */
 export async function authorizeInstructionCommit(
   db: Connection,

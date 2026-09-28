@@ -67,6 +67,7 @@ import { validate } from "../middleware/validate.js";
 import { inheritNativeRunnerAdapterConfig } from "../services/native-runtime/native-agent-runtime-inheritance.js";
 import { agentInstructionRevisionService } from "../services/agent-instruction-revisions.js";
 import { agentInstructionWorkingCopyService } from "../services/agent-instruction-working-copies.js";
+import { authorizeInstructionRead } from "../services/agent-instruction-authorization.js";
 import { instructionPath } from "../services/agent-instruction-files.js";
 import { agentInstructionsBundleMode, deriveBundleState } from "../services/agent-instructions.js";
 import {
@@ -5081,9 +5082,12 @@ export function agentRoutes(
     const id = req.params.id as string;
     const existing = await getAccessibleResource(req, res, svc.getById(id), "Agent not found");
     if (!existing) return;
-    const readDecision = await access.decide({ actor: req.actor, action: "agent:read", resource: { type: "agent", companyId: existing.companyId, agentId: existing.id } });
-    if (!readDecision.allowed) throw forbidden(readDecision.explanation, authorizationDeniedDetails(readDecision));
     assertExternalInstructionsAdmin(req, existing);
+    if (agentInstructionsBundleMode(existing) === "external") {
+      await assertCanReadAgent(req, existing);
+    } else {
+      await authorizeInstructionRead(db, req.actor, { companyId: existing.companyId, id: existing.id });
+    }
     if (agentInstructionsBundleMode(existing) !== "external") {
       const target = { companyId: existing.companyId, agentId: existing.id };
       const current = await instructionRevisions.readCurrent(target, req.actor);
@@ -5151,9 +5155,12 @@ export function agentRoutes(
     const id = req.params.id as string;
     const existing = await getAccessibleResource(req, res, svc.getById(id), "Agent not found");
     if (!existing) return;
-    const readDecision = await access.decide({ actor: req.actor, action: "agent:read", resource: { type: "agent", companyId: existing.companyId, agentId: existing.id } });
-    if (!readDecision.allowed) throw forbidden(readDecision.explanation, authorizationDeniedDetails(readDecision));
     assertExternalInstructionsAdmin(req, existing);
+    if (agentInstructionsBundleMode(existing) === "external") {
+      await assertCanReadAgent(req, existing);
+    } else {
+      await authorizeInstructionRead(db, req.actor, { companyId: existing.companyId, id: existing.id });
+    }
 
     const relativePath = typeof req.query.path === "string" ? req.query.path : "";
     if (!relativePath.trim()) {
