@@ -621,7 +621,8 @@ export function chatWebhookRoutes(
       windowMs: CHAT_WEBHOOK_RATE_LIMIT_WINDOW_MS,
       maxRequests: CHAT_WEBHOOK_RATE_LIMIT_MAX_REQUESTS,
     });
-  router.route("/api/chat-webhooks/:publicId/:provider").get(webhook).post(webhook);
+  router.get("/api/chat-webhooks/:publicId/:provider", webhook);
+  router.post("/api/chat-webhooks/:publicId/:provider", webhook);
   async function webhook(req: ExpressRequest, res: ExpressResponse) {
     if (req.method === "GET" && req.params.provider !== "x") throw badRequest("GET challenges are only supported for X");
     recordChatWebhookStage("handler_started");
