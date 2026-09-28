@@ -705,6 +705,114 @@
         "conservativeListCostUpperBoundUsd": 0.024,
         "listCostBoundBasis": "At most 20,000 rounded-display tokens at maximum listed $1.20/M; not a billing receipt."
       }
+    },
+    {
+      "id": "cursor-restart-final-20260928",
+      "family": "product-e2e",
+      "case": "extended-harnesses.runner-acpx-cursor.local.structured-question-restart-resume",
+      "runnerSourceRevision": "d35b83074a018537f5475568d7410e3b1d676789",
+      "suiteDefinitionHash": "e75cb2222d2f52ec3a2a425211d195d36b95882de2cb9ed0ad93231b7c42768a",
+      "packSourceRevision": "25fb1b5b317e52a8ad50208d7681a1ee34bd939c",
+      "providerPackDigest": "sha256:38bc6dd39c13b0f5478a1018e26deb61b0333ab0242f3d857e3c79d3a34b7682",
+      "runnerdSha256": "e6a9fb5170b76a49b8411834b3706e8edf8f1a1ae85ad13b55368158aa7f67a0",
+      "runnerdSourceRevision": "78360fa55adff11da9f200b228467eca782b81e1",
+      "requestedModel": "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
+      "startedAt": "2026-09-28T20:42:13.120Z",
+      "finishedAt": "2026-09-28T20:43:10.985Z",
+      "durationMs": 57865,
+      "providerSubmittedAt": [
+        "2026-09-28T20:42:26.185Z",
+        "2026-09-28T20:42:53.642Z"
+      ],
+      "providerTimeoutSec": 120,
+      "outerTimeoutSec": 300,
+      "result": "passed",
+      "automaticRetries": 0,
+      "submittedPrompts": 2,
+      "providerRuns": 2,
+      "matchers": [
+        {
+          "kind": "message_exact",
+          "passed": true
+        },
+        {
+          "kind": "message_occurrences",
+          "passed": true
+        },
+        {
+          "kind": "issue_status",
+          "passed": true
+        },
+        {
+          "kind": "run_status",
+          "passed": true
+        },
+        {
+          "kind": "runtime_mode",
+          "passed": true
+        },
+        {
+          "kind": "environment",
+          "passed": true
+        }
+      ],
+      "invariantFailures": [],
+      "taskStatus": "done",
+      "cleanup": "passed",
+      "resultSha256": "0ca2c23dd458b35ffb7c72f6e7a1855ffc31b990124347805330a34cc365dddc",
+      "screenshots": [
+        {
+          "id": "question-pending",
+          "sha256": "8d3d3fe7a3dfd28b5b4a950d12b2be7feb492d9c9b7112bb484f01e65f63c3a4",
+          "visuallyInspected": true
+        },
+        {
+          "id": "final-state",
+          "sha256": "eeb684b5a06f23703c4a76a7c81c05b6d7f640706fd12035e996e5dda1849b21",
+          "visuallyInspected": true
+        }
+      ],
+      "questionEvidence": {
+        "origin": "Paperclip request_human_input semantic tool",
+        "kind": "ask_user_questions",
+        "selectionMode": "single",
+        "pendingBeforeAnswer": true,
+        "requestedAt": "2026-09-28T20:42:32.665Z",
+        "resolvedAt": "2026-09-28T20:42:51.140Z",
+        "answer": "Cobalt",
+        "finalStatus": "answered",
+        "serverRestartedBeforeAnswer": true,
+        "continuationRunObserved": true,
+        "nativeCursorExtensionQualified": false
+      },
+      "usage": {
+        "nativeReceipt": null,
+        "tokenUsage": null,
+        "costUsd": null,
+        "coverage": "provider usage unavailable; two dashboard rows attributed"
+      },
+      "scope": "Real local browser/server restart while a semantic question is pending, persisted answer, wake-assignee continuation and completion. Does not qualify native cursor/ask_question pending-request restoration, restrictive permissions, or Daytona.",
+      "authorizedInfrastructureRetryOf": "cursor-restart-20260928",
+      "processCleanupVerifiedSeparately": true,
+      "billing": {
+        "source": "parent-observed account Usage rows within retained retry window",
+        "requests": [
+          {
+            "at": "2026-09-28T20:42:26Z",
+            "tokensDisplay": "23.8K"
+          },
+          {
+            "at": "2026-09-28T20:42:57Z",
+            "tokensDisplay": "41.7K"
+          }
+        ],
+        "modelLabel": "gpt-5.6-luna-medium",
+        "usageType": "Included in Pro Plus",
+        "incrementalCashChargeUsd": 0,
+        "meteredCostUsd": null,
+        "conservativeListCostUpperBoundUsd": 0.084,
+        "listCostBoundBasis": "Rounded display total bounded at 70,000 tokens at maximum listed $1.20/M; not a billing receipt."
+      }
     }
   ],
   "newAccountDiscovery": {
