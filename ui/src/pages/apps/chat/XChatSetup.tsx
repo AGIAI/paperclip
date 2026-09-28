@@ -109,7 +109,22 @@ export function XChatSetup() {
     else await advance(5);
   }
   async function exit() {
-    if (endpoint) await xChatApi.progress(endpoint.id, Math.max(1, step));
+    const draft =
+      endpoint ??
+      (selectedCompanyId && agentId
+        ? await chatEndpointsApi.create(selectedCompanyId, {
+            provider: "x",
+            assignedAgentId: agentId,
+          })
+        : null);
+    if (draft) {
+      setEndpoint(draft);
+      if (step === 1 && (client.clientId || client.clientSecret)) {
+        await xChatApi.authorize(draft.id, "bot", client);
+        setClient({ clientId: "", clientSecret: "" });
+      }
+      await xChatApi.progress(draft.id, Math.max(1, step));
+    }
     navigate("/apps");
   }
   async function copy(value: string, label: string) {
@@ -255,6 +270,12 @@ export function XChatSetup() {
             {copied === "callback" ? "Copied" : "Copy callback URL"}
           </Button>
           <Label htmlFor="x-client-id">OAuth 2.0 Client ID</Label>
+          {endpoint?.setup?.x?.clientConfigured && (
+            <p className="text-sm text-muted-foreground">
+              X app credentials are saved. Leave these fields blank to keep
+              them.
+            </p>
+          )}
           <Input
             id="x-client-id"
             autoComplete="off"

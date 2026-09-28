@@ -111,7 +111,12 @@ test("X setup resumes drafts, separates bot and human authorization, and permits
     .getByRole("button", { name: "Select agent…", exact: true })
     .click();
   await page.getByRole("button", { name: "Select Maya", exact: true }).click();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Save & exit", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/${seed.prefix}/apps$`));
+  expect(created).toBe(true);
+  await page.goto(
+    `/${seed.prefix}/apps/chat/connect?provider=x&resume=endpoint-x`,
+  );
   await expect(
     page.getByRole("heading", { name: "Configure X app", exact: true }),
   ).toBeVisible();
@@ -132,6 +137,20 @@ test("X setup resumes drafts, separates bot and human authorization, and permits
   await page
     .getByLabel("OAuth 2.0 Client Secret", { exact: true })
     .fill("fixture-secret");
+  await page.getByRole("button", { name: "Save & exit", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/${seed.prefix}/apps$`));
+  expect(endpoint.setup.x.clientConfigured).toBe(true);
+  await page.goto(
+    `/${seed.prefix}/apps/chat/connect?provider=x&resume=endpoint-x`,
+  );
+  await expect(
+    page.getByText(
+      "X app credentials are saved. Leave these fields blank to keep them.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("OAuth 2.0 Client Secret", { exact: true }),
+  ).toHaveValue("");
   await page.getByRole("button", { name: "Save app & continue" }).click();
   await page
     .getByRole("button", { name: "Authorize bot account on X" })
