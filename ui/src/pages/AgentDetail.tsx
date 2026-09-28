@@ -2201,6 +2201,7 @@ export function PromptsTab({
   const [draft, setDraft] = useState<string | null>(null);
   const draftBaseRevisionRef = useRef<string | null | undefined>(undefined);
   const [candidateRunId, setCandidateRunId] = useState<string | null>(null);
+  const [readOnlyCandidateRunId, setReadOnlyCandidateRunId] = useState<string | null>(null);
   const candidateAgentRef = useRef(agent.id);
   candidateAgentRef.current = agent.id;
   const [bundleDraft, setBundleDraft] = useState<{
@@ -2242,6 +2243,7 @@ export function PromptsTab({
     setInstructionMode("read");
     setShowFilePanel(false);
     setDraft(null);
+    setReadOnlyCandidateRunId(null);
     setBundleDraft(null);
     setNewFilePath("");
     setShowNewFileInput(false);
@@ -3022,10 +3024,27 @@ export function PromptsTab({
                   <span className="font-mono text-xs text-muted-foreground">{candidate.runId.slice(0, 8)}</span>
                   <span className="text-sm text-muted-foreground">{candidate.entryFile} · {formatDate(candidate.createdAt)}</span>
                   <Button type="button" variant="outline" size="sm"
-                    disabled={isDirty || isSaving || candidate.content === null || candidate.entryFile !== currentEntryFile}
-                    onClick={() => loadCandidate.mutate(candidate)}>Review preserved edits</Button>
+                    disabled={candidate.content === null || (candidate.entryFile === currentEntryFile && (isDirty || isSaving))}
+                    aria-expanded={candidate.entryFile !== currentEntryFile ? readOnlyCandidateRunId === candidate.runId : undefined}
+                    onClick={() => {
+                      if (candidate.entryFile !== currentEntryFile) {
+                        setReadOnlyCandidateRunId((current) => current === candidate.runId ? null : candidate.runId);
+                      } else {
+                        loadCandidate.mutate(candidate);
+                      }
+                    }}>Review preserved edits</Button>
                   {candidate.errorMessage && <p className="text-sm text-muted-foreground">{candidate.errorMessage}</p>}
                   {candidate.entryFile !== currentEntryFile && <p className="text-sm text-muted-foreground">The instruction entry changed. These edits remain preserved for the original file.</p>}
+                  {candidate.entryFile !== currentEntryFile && candidate.content !== null && readOnlyCandidateRunId === candidate.runId && (
+                    <div role="region" aria-label={`Preserved edits for ${candidate.entryFile}`} className="w-full space-y-3">
+                      <p className="text-sm text-muted-foreground">Read only: {candidate.entryFile}. To keep any of these edits in {currentEntryFile}, copy them and edit the current entry explicitly.</p>
+                      <CopyText text={candidate.content} ariaLabel={`Copy preserved edits for ${candidate.entryFile}`}
+                        className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">
+                        <Copy className="h-3.5 w-3.5" />Copy preserved edits
+                      </CopyText>
+                      <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted p-3 font-mono text-sm">{candidate.content}</pre>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

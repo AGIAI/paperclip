@@ -22,6 +22,9 @@ const mockAgentsApi = vi.hoisted(() => ({
 }));
 
 const markdownEditorRenderMock = vi.hoisted(() => vi.fn());
+const copyTextToClipboardMock = vi.hoisted(() => vi.fn(async (_text: string) => {}));
+
+vi.mock("../lib/clipboard", () => ({ copyTextToClipboard: copyTextToClipboardMock }));
 
 vi.mock("../api/agents", () => ({
   agentsApi: mockAgentsApi,
@@ -378,6 +381,41 @@ describe("PromptsTab instruction editor", () => {
     await act(async () => { saveAction?.(); });
     await waitFor(() => expect(mockAgentsApi.resolveInstructionCandidate).toHaveBeenCalledTimes(3));
     expect(mockAgentsApi.resolveInstructionCandidate.mock.lastCall?.[2].baseRevisionId).toBe("head-3");
+  });
+
+  it("keeps changed-entry preserved edits readable and copyable without enabling a save", async () => {
+    const summary = makeSummary("CURRENT.md", "CURRENT.md");
+    const revision = { id: "current-head", entryFile: "CURRENT.md" } as NonNullable<AgentInstructionsFileDetail["revision"]>;
+    const preserved = "# Original entry\nPreserve these exact edits.\n";
+    mockAgentsApi.instructionCandidates.mockResolvedValue([{ runId: "old-entry-run", entryFile: "OLD.md", baseRevisionId: "old-head", baseHash: "base-hash", state: "conflict", candidateHash: "candidate-hash", content: preserved, errorCode: "INSTRUCTION_ENTRY_CHANGED", errorMessage: "The instruction entry changed", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" }]);
+    await renderPromptsTab(makeBundle("CURRENT.md", [summary]), { "CURRENT.md": makeDetail(summary, "Current instructions", { revision }) });
+    await waitFor(() => expect(buttonByText(container, "Review preserved edits").disabled).toBe(false));
+    await act(async () => { buttonByText(container, "Review preserved edits").click(); });
+    const review = await waitFor(() => {
+      const region = container.querySelector<HTMLElement>('[aria-label="Preserved edits for OLD.md"]');
+      expect(region?.querySelector("pre")?.textContent).toBe(preserved);
+      return region!;
+    });
+    expect(review.textContent).toContain("Read only");
+    expect(review.textContent).toContain("CURRENT.md");
+    expect(review.querySelector("textarea, input, [contenteditable=true]")).toBeNull();
+    expect(saveAction).toBeNull();
+    expect(mockAgentsApi.instructionsFile.mock.calls.every((call) => call[1] === "CURRENT.md")).toBe(true);
+    await act(async () => { review.querySelector<HTMLButtonElement>('[aria-label="Copy preserved edits for OLD.md"]')!.click(); });
+    expect(copyTextToClipboardMock).toHaveBeenCalledWith(preserved);
+    expect(saveAction).toBeNull();
+    expect(mockAgentsApi.resolveInstructionCandidate).not.toHaveBeenCalled();
+    expect(mockAgentsApi.saveInstructionsFile).not.toHaveBeenCalled();
+
+    // Choosing to edit and paste into the current entry is a separate ordinary save.
+    await selectInstructionMode("Edit");
+    const editor = container.querySelector<HTMLTextAreaElement>('[data-testid="markdown-editor"]')!;
+    expect(editor.value).toBe("Current instructions");
+    await act(async () => { editor.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true })); setNativeValue(editor, preserved); });
+    await waitFor(() => expect(saveAction).toEqual(expect.any(Function)));
+    await act(async () => { saveAction?.(); });
+    await waitFor(() => expect(mockAgentsApi.saveInstructionsFile).toHaveBeenCalledWith("agent-1", { path: "CURRENT.md", content: preserved, baseRevisionId: "current-head", clearLegacyPromptTemplate: false }, "company-1"));
+    expect(mockAgentsApi.resolveInstructionCandidate).not.toHaveBeenCalled();
   });
 
   it("retains the draft and its base when a concurrent save conflicts", async () => {
