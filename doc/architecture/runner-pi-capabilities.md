@@ -242,17 +242,25 @@ helper discards failed-attempt usage, so any retry or missing compaction receipt
 invalidates complete-turn token/cost totals instead of inventing complete coverage.
 
 The retained [macOS ARM64 provider-pack admission proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.json)
-records source `dd78df1ef8b279c30c710c9b7a7f9fda22e321d6`, after foundation
-`f063fbf2b`, including bounded immutable snapshot copying. Its manifest digest is
-`sha256:f75d3de7814276508f3706edb6e4510ce1dcecbc3e8fa674991fd554e5a75273`.
-Both independent clean dependency resolutions matched
+records source `7710736ca3924c655c5b0efd172cfd3c0173766a`, with version 3
+runtime source `06cf356a8bc94f709fcd15606fe05e17933fe3b2`. The latter differs only
+by the capability report and Pi evidence JSON; all execution tree hashes match.
+Its manifest digest is
+`sha256:eb31cadae93805b901d2565912121fca6e79024c0120b1bd7982e05215b5aa5a`.
+Two independent clean dependency resolutions match
 `2c46a68811ba1d504a41b6f4d3f642bc93f4a1c615097754c9c6486881dba8e6`.
 The generic installation registry and immutable snapshot passed initialization
-and rejected the missing bound credential before any model prompt. Current-source
-verification passed the TypeScript and release Runner builds, 107 Vitest checks
-(with one optional installation case skipped), and 22 package/receipt/materializer
-checks using the newly built distribution. These checks do not constitute full
-repository verification or authenticated qualification.
+and rejected the exact missing-bound-credential error before any model prompt.
+Full Runner session.open terminated with typed rejection in 12.111 seconds,
+below the unchanged 30-second deadline; this is not authenticated success.
+
+Version 3 verification passes TypeScript and release Runner builds, 95 focused
+Vitest cases in seven files including actual-distribution launch, 25 installed
+package/receipt/materializer checks, and 16 native-provider Rust tests. These
+checks do not constitute full repository verification or paid qualification.
+The [version 2 dd78 proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.dd78df1e.json)
+retains the earlier pack used for hello, model admission and restrictive denial.
+Its 107 Vitest checks and 22 installed checks remain tied to that source.
 
 The [9f2d0420e proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.9f2d0420e.json)
 retains the earlier source and pack that reproduced the startup timeout. Its 97
@@ -469,8 +477,8 @@ These changes alter the immutable wrapper and owned extension. All three target
 closure pins and the versioned profile digest change; version 2 warm snapshots
 are rejected. Earlier local hello, restrictive-denial and Linux initialization
 proofs remain tied to their version 2 execution source. Version 3 must complete
-fresh immutable-pack checks and paid qualification before those behaviors can be
-claimed for its bytes.
+fresh paid qualification before those behaviors can be claimed for its bytes;
+the new immutable-pack checks above pass.
 
 
 The [restrictive-denial proof](../../packages/paperclip-runner/test-fixtures/pi-acp/native-denial-proof.darwin-arm64.json)

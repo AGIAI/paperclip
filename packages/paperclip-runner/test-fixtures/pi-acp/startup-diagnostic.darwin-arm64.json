@@ -81,5 +81,17 @@
     "credentials": "none",
     "promptCalls": 0,
     "providerCalls": 0
+  },
+  "version3CredentialFreeRunnerProbe": {
+    "sourceRevision": "7710736ca3924c655c5b0efd172cfd3c0173766a",
+    "runtimeCodeRevision": "06cf356a8bc94f709fcd15606fe05e17933fe3b2",
+    "providerPackDigest": "sha256:eb31cadae93805b901d2565912121fca6e79024c0120b1bd7982e05215b5aa5a",
+    "profileVersion": 3,
+    "profileDigest": "sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472",
+    "runnerdDigest": "sha256:2c8efdc99f988b1c8ab0e270677a3321af0fd6d5789dbf1b671faa921031b42f",
+    "durationIncludingCloseMs": 12111,
+    "result": "typed session_ensure_failed rejection before prompt; direct ACP probe separately verified missing-bound-credential error",
+    "authenticatedSessionSuccess": false,
+    "promptCalls": 0
   }
 }
