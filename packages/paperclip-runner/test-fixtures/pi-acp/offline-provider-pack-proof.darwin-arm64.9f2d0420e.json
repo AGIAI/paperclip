@@ -1,22 +1,13 @@
 {
   "schema": "paperclip.pi-provider-pack-offline-proof.v1",
-  "recordedAt": "2026-09-28T20:17:59.387Z",
+  "recordedAt": "2026-09-28T20:02:30.796Z",
   "classification": "offline_candidate_admission",
   "source": {
-    "runnerRevision": "dd78df1ef8b279c30c710c9b7a7f9fda22e321d6",
-    "distDigest": "sha256:2df3f6f348001bd1dcfc1c0a151533ebbc00295bc37518f83c68a73d3637e3f6",
-    "bridgeDigest": "sha256:a852df2c032b5f353db29012c397aa6070891116a699a459a94f044e3890f057",
+    "runnerRevision": "9f2d0420ed9a398e3bacd1d7e996614f3296ac56",
+    "distDigest": "sha256:3fb488c2a156f8ee1feab94f98985662da393bfeb516a19150638d6b45ec55cd",
+    "bridgeDigest": "sha256:f6c56eac02b7962f100add6c5ce2daeeae4ab2c70aaa39b046b8bb1fc584e175",
     "productionLockDigest": "sha256:e0c928a494f90ddad3c00791e83f09315ee8c82df2a0418a809dcf93649a8ab3",
-    "note": "Built from Pi source dd78df1e after foundation f063fbf2b, including bounded immutable snapshot copy, explicit candidate admission, exact completion instructions and paused-cost coverage. This probe executed the deployed generic installation registry and immutable snapshot. Every capability field was asserted from its actual initialize response. No prompt was sent.",
-    "executionTrees": {
-      "packages/paperclip-runner/src": "a8123cb4396c77ce0127d5ccf49d3584b63a9a58",
-      "packages/paperclip-runner/scripts": "9ede97769bb3f2bbfa8e02be220b5ce06e438a99",
-      "packages/paperclip-runner/runner": "2cc84e150aecbd5faf2c8bcecc4b6352c24dbca8",
-      "packages/paperclip-runner/protocol": "1d50458fb572d0c75f9a398f419209c52c23ba6f",
-      "patches": "1e2f846b8b2dda202b79ee83baeb0860a3b9ab64",
-      "server/src": "b267adc1e0ad36955b68314829cfd4256ab88d37",
-      "tests/runner-e2e": "5ff4b8a85a14e3e005e3e240c145899c0bc742b5"
-    }
+    "note": "Built from merged foundation c3b7e9ecd plus the Pi provider branch, including native candidate identity and visible completion-contract fixes. This probe executes the deployed generic registry and immutable snapshot without credentials or prompts. It predates shared copy-performance fix 2a30219f1; the public paid ledger separately retains the startup failure from this source."
   },
   "environment": {
     "platform": "darwin",
@@ -43,10 +34,10 @@
     "extensionDigest": "sha256:0a2ca138d6d87a85498bd982ee64543ea8b14f2ecceded96cfc27b0836cc4254"
   },
   "providerPack": {
-    "manifestDigest": "sha256:f75d3de7814276508f3706edb6e4510ce1dcecbc3e8fa674991fd554e5a75273",
+    "manifestDigest": "sha256:2a6f457205743487cdd35ed3634532028e6e0200001f70e087d0e084fc85d452",
     "portableNodeDigest": "sha256:27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1",
     "piNodeDigest": "sha256:27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1",
-    "acpxSidecarDigest": "sha256:f51286992633bc54b6b169c255d3620146dfa975b24f22aae69b73994a234aa9"
+    "acpxSidecarDigest": "sha256:aa71619ea0f5e08d78c13bbca1812038d4ab6fee8550177be210b5afeb26d01a"
   },
   "observed": {
     "closedSnapshotLaunch": true,

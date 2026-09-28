@@ -63,8 +63,23 @@
     ]
   },
   "limits": [
-    "The post-fix timing measures actual immutable snapshot creation, not a full authenticated Runner session.",
+    "The full post-fix credential-free Runner request settles within the unchanged deadline; this is not authenticated-session success.",
     "No paid prompt or provider request was issued by either diagnostic.",
     "Private process identifiers, credentials and raw traces are excluded."
-  ]
+  ],
+  "postFixCredentialFreeRunnerProbe": {
+    "sourceRevision": "dd78df1ef8b279c30c710c9b7a7f9fda22e321d6",
+    "providerPackDigest": "sha256:f75d3de7814276508f3706edb6e4510ce1dcecbc3e8fa674991fd554e5a75273",
+    "runnerdDigest": "sha256:f9aad049d57a2073ce4ec96b6577266afdba5b99db75bb8fc21825a5b7281e39",
+    "requestSettledMs": 10087,
+    "includingCloseMs": 10198,
+    "sessionOpenDeadlineMs": 30000,
+    "result": "terminal session_ensure_failed rejection",
+    "timedOut": false,
+    "underlyingErrorVisibility": "The outer PRP response does not preserve the missing-credential message. The independent immutable ACP launch from this exact pack asserted that message at session/new.",
+    "authenticatedSessionSuccess": false,
+    "credentials": "none",
+    "promptCalls": 0,
+    "providerCalls": 0
+  }
 }

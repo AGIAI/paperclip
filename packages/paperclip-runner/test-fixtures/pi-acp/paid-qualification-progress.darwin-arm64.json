@@ -1,6 +1,6 @@
 {
   "schema": "paperclip.pi-paid-qualification-progress.v1",
-  "recordedAt": "2026-09-28T20:04:32.924765+00:00",
+  "recordedAt": "2026-09-28T20:39:38.907308+00:00",
   "qualificationStatus": "pending",
   "environment": {
     "platform": "darwin",
@@ -17,7 +17,7 @@
   "budget": {
     "authorizedMaximumUsd": 25,
     "reservedPerBatchUsd": 2,
-    "measuredSpendUsd": 0.005748807,
+    "measuredSpendUsd": 0.006755083,
     "measurement": "exclusive OpenRouter key billing delta; model catalog estimates are not provider billing"
   },
   "attempts": [
@@ -259,6 +259,101 @@
         "outerDeadlineSeconds": 300,
         "configuredActiveTimeoutSeconds": 120
       }
+    },
+    {
+      "attemptId": "pi-product-hello-05",
+      "family": "product-e2e",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.hello-complete",
+      "startedAt": "2026-09-28T20:19:17.958518+00:00",
+      "finishedAt": "2026-09-28T20:35:14.566352+00:00",
+      "durationSeconds": 72.168,
+      "durationClock": "monotonic; host sleep does not advance this clock on this machine",
+      "canonicalWallDurationMs": 921632,
+      "sourceRevision": "dd78df1ef8b279c30c710c9b7a7f9fda22e321d6",
+      "providerPackDigest": "sha256:f75d3de7814276508f3706edb6e4510ce1dcecbc3e8fa674991fd554e5a75273",
+      "runnerdDigest": "sha256:f9aad049d57a2073ce4ec96b6577266afdba5b99db75bb8fc21825a5b7281e39",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "exitCode": 1,
+      "retainedMachineDisposition": "secret_leak",
+      "retainedInnerDisposition": "candidate_failure",
+      "retainedStatus": "failed",
+      "cleanup": "failed",
+      "diagnosis": "Authenticated session and provider turn admission succeeded. The host then entered Maintenance Sleep for888s. After wake, the canonical issue/run wait timed out, browser/API cleanup failed, and the scanner rejected an uninspectable incomplete ZIP. The scanner reported no credential-value match; its fail-closed secret_leak classification is retained. No terminal or semantic-tool event was observed before capture ended.",
+      "submittedProviderTurns": 1,
+      "providerRequestCount": null,
+      "billingDeltaUsd": 0.000351509,
+      "billingCoverage": "exclusive OpenRouter key usage delta; two spaced post-attempt observations plus later unchanged reconciliation",
+      "terminalUsage": null,
+      "retainedCostCoverage": "unavailable",
+      "automaticRetries": 0,
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "outerDeadlineSeconds": 300,
+        "configuredActiveTimeoutSeconds": 120,
+        "limitation": "Host sleep suspended the monotonic supervisor and billing polling; no assertion prevented idle sleep for this attempt."
+      },
+      "evidence": {
+        "authenticatedSessionStarted": true,
+        "sessionStartedAfterRunMs": 11631,
+        "turnSubmitted": true,
+        "turnAccepted": true,
+        "uniqueRetainedEvents": 32,
+        "semanticToolEvents": 0,
+        "terminalEvents": 0,
+        "reportedExactModelVerified": false,
+        "partialModelMetadata": "unknown/openrouter",
+        "pmsetSleepSeconds": 888,
+        "billingWallObservationGapSeconds": 887.495,
+        "zipScanReason": "zip could not be inspected: unzip exited with code9",
+        "credentialValueMatchDetected": false,
+        "exactAttemptProcessesRemaining": 0
+      }
+    },
+    {
+      "attemptId": "pi-product-hello-06",
+      "family": "product-e2e",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.hello-complete",
+      "startedAt": "2026-09-28T20:38:49.368264+00:00",
+      "finishedAt": "2026-09-28T20:39:38.907308+00:00",
+      "durationSeconds": 49.539,
+      "wallDurationSeconds": 49.539,
+      "sourceRevision": "dd78df1ef8b279c30c710c9b7a7f9fda22e321d6",
+      "providerPackDigest": "sha256:f75d3de7814276508f3706edb6e4510ce1dcecbc3e8fa674991fd554e5a75273",
+      "runnerdDigest": "sha256:f9aad049d57a2073ce4ec96b6577266afdba5b99db75bb8fc21825a5b7281e39",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "exitCode": 0,
+      "retainedMachineDisposition": null,
+      "retainedStatus": "passed",
+      "cleanup": "passed",
+      "diagnosis": "All six canonical hello matchers pass. Authenticated Pi executes paperclip_finish over semantic MCP; the provider turn completes, task becomes done, and native run succeeds. Sleep assertion and dual-clock supervision avoid the prior environmental interruption. USD remains unpriced; independent measured billing delta is separate.",
+      "submittedProviderTurns": 1,
+      "providerRequestCount": null,
+      "billingDeltaUsd": 0.000654767,
+      "billingCoverage": "exclusive OpenRouter key delta, two spaced post-attempt observations",
+      "terminalUsage": {
+        "inputTokens": 26867,
+        "outputTokens": 283,
+        "cachedInputTokens": 0,
+        "usageSource": "per_run",
+        "costStatus": "unpriced",
+        "billingType": "unknown"
+      },
+      "retainedCostCoverage": "unpriced",
+      "automaticRetries": 0,
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "activeTimeoutSeconds": 120,
+        "outerTimeoutSeconds": 300,
+        "outerClocks": [
+          "wall",
+          "monotonic"
+        ],
+        "sleepAssertion": "caffeinate -i",
+        "automaticRetries": 0
+      },
+      "evidence": "product-hello-proof.darwin-arm64.json"
     }
   ],
   "observedSemanticOperations": {
@@ -297,18 +392,24 @@
       "boundary": "Advisory native report does not mutate mock state or settle provider turn; stale revision, wrong turn, conflicting report and unauthorized create_task rejected"
     },
     "currentPiSource": {
-      "source": "9f2d0420ed9a398e3bacd1d7e996614f3296ac56",
+      "source": "dd78df1ef8b279c30c710c9b7a7f9fda22e321d6",
       "typescriptBuild": "passed",
       "releaseRunnerBuild": "passed",
-      "vitestPassed": 97,
+      "vitestPassed": 107,
       "vitestSkipped": 1,
       "installedPackageChecksPassed": 22,
-      "packageCheckInvocation": "The initial command lacked isolated Pi package locations and failed module resolution; all 22 passed after selecting the freshly built pack packages explicitly.",
       "deployedPackCredentialFreeProbe": "passed",
+      "fullCredentialFreeRunnerStartup": "terminal rejection within30s deadline; not authenticated success",
       "cleanDependencyResolution": "two independent runs from tracked manifest/config/patch inputs with pnpm9.15.4 --resolution-only --ignore-scripts --no-frozen-lockfile",
-      "cleanDependencyLockSha256": "9c163adf40fe1c6a65abda6207bd9f5acfc8196bc94f81348b8bf1b2769e050e"
+      "cleanDependencyLockSha256": "2c46a68811ba1d504a41b6f4d3f642bc93f4a1c615097754c9c6486881dba8e6"
     },
-    "startupDiagnosis": "startup-diagnostic.darwin-arm64.json"
+    "startupDiagnosis": "startup-diagnostic.darwin-arm64.json",
+    "authenticatedModelNoPrompt": {
+      "evidence": "model-admission-proof.darwin-arm64.json",
+      "actualSelectedCurrentModelId": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "promptRequests": 0,
+      "billingDeltaUsd": 0
+    }
   },
   "publicationBoundary": {
     "hiddenReasoningIncluded": false,
@@ -317,10 +418,10 @@
     "credentialsIncluded": false
   },
   "remaining": [
-    "Successful protocol terminal settlement and complete usage receipt",
-    "Successful Product E2E verified native backend admission and hello completion",
-    "File edit, typed question, plan and restart journeys",
-    "Native permissions and explicit steering acceptance/delivery",
+    "Successful canonical Runner protocol completion",
+    "File edit, typed question, plan and restart Product journeys",
+    "Native permissions and active steering/follow-up delivery",
+    "Complete price/billing coverage, separate from catalog estimates",
     "Linux x64 Daytona qualification"
   ]
 }
