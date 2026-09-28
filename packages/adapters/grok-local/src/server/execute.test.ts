@@ -847,6 +847,33 @@ describe("grok_local execute", () => {
       expect(await pathExists(stagedDir)).toBe(false);
     });
 
+    it("keeps collection failure separate from a successful workspace restore", async () => {
+      delete process.env.XAI_API_KEY;
+      mocks.state.isRemote = true;
+      await seedHostGrokAuth("{}");
+      const collectionError = new Error("instruction collection failed");
+      const order: string[] = [];
+      let stagedDir = "";
+      runProcessMock.mockImplementation(async (_run, _target, _command, _args, options) => {
+        options.onProcessStopped();
+        return makeSuccessfulRunResult();
+      });
+      prepareRuntimeMock.mockImplementationOnce(async (input: { assets?: Array<{ localDir: string }> }) => {
+        stagedDir = input.assets?.[0]?.localDir ?? "";
+        return {
+          workspaceRemoteDir: "/remote/workspace",
+          assetDirs: { home: "/remote/workspace/.paperclip-runtime/grok/home" },
+          restoreWorkspace: async () => { order.push("restore"); },
+        };
+      });
+      const ctx = await makeCtx("run-collection-reject", await makeTempRoot());
+      ctx.onProviderStopped = async () => { order.push("collect"); throw collectionError; };
+      await expect(execute(ctx)).rejects.toBe(collectionError);
+      expect(order).toEqual(["collect", "restore"]);
+      expect(stagedDir).not.toBe("");
+      expect(await pathExists(stagedDir)).toBe(false);
+    });
+
     it.each(["completed", "failed", "timed_out"])("preserves %s output and removes the staged home when restore fails", async (state) => {
       delete process.env.XAI_API_KEY;
       mocks.state.isRemote = true;
