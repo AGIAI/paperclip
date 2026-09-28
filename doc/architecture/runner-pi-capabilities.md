@@ -239,10 +239,10 @@ helper discards failed-attempt usage, so any retry or missing compaction receipt
 invalidates complete-turn token/cost totals instead of inventing complete coverage.
 
 The retained [macOS ARM64 provider-pack admission proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.json)
-records source `d039e1b7b072862b4c326ba7194dc42617fa5984`, after the assigned
-HTTPS gateway repair and shared failed-turn receipt and credential-provenance
-fixes. Its manifest digest is
-`sha256:5a47fc67b886c1e05d0f630ed89c1b9f5324610b649d1db020a3e036e36fc85d`.
+records source `2e65b64d5a2148583109b8157d6e72f54f5ad29b`, after the Node
+engine declaration and Pi v2 fixture corrections. It includes the assigned HTTPS
+gateway repair and shared failed-turn receipt and credential-provenance fixes. Its manifest digest is
+`sha256:7300b9c449c02b61d2f93ef765f371c277e39a58d04739c6c24dcf7939500701`.
 The clean tracked-lock resolution matched Docker's reviewed
 `650e23d20e967bcfbfced888e131199b9a06e66a1ba4f64cfb68383b59def4a8` digest
 before a frozen install and pack build. The probe used the deployed generic
@@ -250,9 +250,16 @@ installation registry and immutable snapshot. Every advertised capability was
 read and asserted from its actual initialize response. Session creation rejected
 the missing bound credential; no model prompt was submitted. The record contains
 no credentials or provider session IDs and records zero paid calls. It includes
-focused verification and the cleanup-timeout retry history, and precedes only
-this evidence-retention/report commit. It proves no authenticated interaction,
+focused verification, the full runner TypeScript suite (2,202 passed, 11
+skipped), and all 13 native-provider Rust tests. It precedes only this
+evidence-retention/report commit. It proves no authenticated interaction,
 reported model ID, or Daytona qualification.
+
+The [pre-policy proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.d039e1b7b.darwin-arm64.json)
+retains source `d039e1b7b072862b4c326ba7194dc42617fa5984` and manifest
+`sha256:5a47fc67b886c1e05d0f630ed89c1b9f5324610b649d1db020a3e036e36fc85d`,
+including its cleanup-timeout retry history. It predates the Node engine metadata
+and corresponding manifest/closure identities.
 
 The [previous integrated proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.f58cfa1cb.darwin-arm64.json)
 retains source `f58cfa1cbf4503b93a0be4480f51b492d8203b7c` and manifest
@@ -261,7 +268,7 @@ It covers the retry-status repair before the HTTPS and shared runtime fixes.
 The [earlier integrated proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.1e0d11c48.darwin-arm64.json)
 retains source `1e0d11c482f8ef50b6afc1430cb736579114b266` and manifest
 `sha256:f859e30e51326ff875d616e2bb3fd4c0246ce1f58a5988968b91bae176a68281`
-with its narrower capability assertions. Both files are historical evidence,
+with its narrower capability assertions. These files are historical evidence,
 not proof of the current executable bytes. Later runtime or foundation changes
 require a new pack build and source-pinned admission record.
 
