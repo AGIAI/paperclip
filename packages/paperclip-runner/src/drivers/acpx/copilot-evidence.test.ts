@@ -27,8 +27,8 @@ describe("Copilot pinned executable evidence", () => {
     expect(evidence.modelSelection.configEcho.configOptions.find((option: { id: string }) => option.id === "model").currentValue).toBe("gpt-5.6-luna");
     expect(JSON.stringify(evidence)).not.toMatch(/\/Users\/|\/tmp\/|github_pat_|gho_|sessionId|accessToken/);
   });
-  it("retains a complete packaged native launch without promoting offline proof to qualification", () => {
-    const evidence = fixture("copilot-provider-pack-darwin-arm64-1.0.88.json");
+  it.each(["copilot-provider-pack-darwin-arm64-1.0.88.json", "copilot-provider-pack-final-2026-09-28.json"])("retains a complete packaged native launch without promoting offline proof to qualification (%s)", (name) => {
+    const evidence = fixture(name);
     expect(evidence.sourceRevision).toMatch(/^[a-f0-9]{40}$/);
     expect(evidence.providerPackDigest).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(evidence.candidate).toMatchObject({ version: "1.0.88", qualification: "pending" });

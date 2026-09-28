@@ -439,3 +439,20 @@ unknown. Across all live work, five provider turns were observed; the underlying
 HTTP model-request count is unavailable. No additional paid attempt is running.
 The candidate remains pending because the failed question, unverified plan/restart,
 Daytona, restrictive-permission and full isolation cases still require evidence.
+
+## Final shared-source packaging checkpoint
+
+The [final pack proof](../../packages/paperclip-runner/test/fixtures/copilot-provider-pack-final-2026-09-28.json)
+uses committed source `8aa867b64d5fc2fd62cff110bd000addf5dc54de` on foundation
+`f063fbf2b`, including the paused-cost and bounded native-copy fixes. Pack digest
+is `sha256:627992ea80e8be7154d07cbc9925b781519199e25690b02d4a044f44342e6bd8`.
+Two clean resolutions from the tracked manifest graph and lock produced identical
+dependency bytes, SHA256 `aa97f89ba8a7c63573114dda54895523d316df67956c65eeccbc89d3166bb1b4`;
+the frozen filtered install passed and no generated lock is committed. The
+packaged registry probe again initialized numeric request 0 and closed cleanly,
+with no credential, prompt or fixture HTTP request. TypeScript and sidecar build,
+68 provider/contract tests, and 11 builder/script tests passed at this checkpoint.
+The refreshed immutable runnerd has the matching Rust tree and digest
+`sha256:e6a9fb5170b76a49b8411834b3706e8edf8f1a1ae85ad13b55368158aa7f67a0`.
+This packaging proof does not rerun or supersede the live results above. Additional
+Product starts are held while host PostgreSQL semaphore capacity is restored.
