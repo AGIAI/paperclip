@@ -2,12 +2,12 @@ import type { NativeExecutionInput } from "../../vendor/paperclip-runner/index.j
 
 /** Operator-only admission for an exact candidate/model during qualification. */
 export const ACPX_QUALIFICATION_ENV = "PAPERCLIP_RUNNER_ACPX_QUALIFICATION";
-type Candidate = "cursor" | "copilot" | "pi";
+export type AcpxQualificationCandidate = "cursor" | "copilot" | "pi";
 
 export function resolveAcpxQualification(
-  provider: NativeExecutionInput["provider"],
+  provider: NativeExecutionInput["provider"] | { kind: "acpx"; agent: string; model: string },
   hostEnvironment: NodeJS.ProcessEnv,
-): Candidate | undefined {
+): AcpxQualificationCandidate | undefined {
   if (provider.kind !== "acpx" || !["cursor", "copilot", "pi"].includes(provider.agent)) return undefined;
   const encoded = hostEnvironment[ACPX_QUALIFICATION_ENV];
   if (!encoded) return undefined;
@@ -28,5 +28,5 @@ export function resolveAcpxQualification(
   if (!entries.some(entry => entry.agent === provider.agent && entry.model === provider.model)) {
     throw new Error("ACPX qualification requires the explicitly authorized candidate and exact model");
   }
-  return provider.agent as Candidate;
+  return provider.agent as AcpxQualificationCandidate;
 }

@@ -7297,10 +7297,11 @@ async function executePaperclipNativeSessionWithinScope(
   }
   if (
     input.execution.provider.kind === "acpx" &&
-    input.execution.provider.agent === "pi"
+    ["pi", "cursor", "copilot"].includes(input.execution.provider.agent) &&
+    !resolveAcpxQualification(input.execution.provider, process.env)
   ) {
     throw new Error(
-      "paperclip_runner_provider_unsupported: ACPX Pi is unavailable until descriptor-confined verified launch is implemented",
+      "paperclip_runner_provider_unsupported: ACPX candidate requires exact host qualification authorization",
     );
   }
   const preparationSpans = input.preparationSpans ?? [];

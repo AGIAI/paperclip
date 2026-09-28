@@ -7639,11 +7639,11 @@ describe("native process ownership", () => {
     },
   );
 
-  it("rejects ACPX Pi before constructing a backend", async () => {
+  it.each(["pi", "cursor", "copilot"])("rejects ACPX candidate %s without host authorization before constructing a backend", async (agent) => {
     const piExecution = {
       ...execution,
       binding: { ...execution.binding, runId: "run-acpx-pi-rejected" },
-      provider: { kind: "acpx", agent: "pi", model: "pi-model" },
+      provider: { kind: "acpx", agent, model: "pi-model" },
       session: { ...execution.session, driverKind: "acpx_runtime" },
     } as unknown as NativeExecutionInputV1;
     state.createBackend.mockClear();
@@ -7654,7 +7654,7 @@ describe("native process ownership", () => {
         execution: piExecution,
         runnerInstanceId: "runner",
       }),
-    ).rejects.toThrow("descriptor-confined verified launch");
+    ).rejects.toThrow("exact host qualification authorization");
     expect(state.createBackend).not.toHaveBeenCalled();
   });
 });

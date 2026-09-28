@@ -404,6 +404,15 @@ const paperclipRunnerAdapter: ServerAdapterModule = {
       };
     }
     if (profile.provider === "acpx") {
+      if (["cursor", "copilot", "pi"].includes(profile.acpxAgent)) {
+        // The profile resolver already validated the isolated host's exact
+        // qualification pair. Do not report a production readiness pass.
+        return {
+          adapterType: "paperclip_runner", status: "warn" as const, testedAt: new Date().toISOString(),
+          checks: [{ code: "acpx_candidate_qualification_only", level: "warn" as const,
+            message: "This exact candidate and model are admitted for operator-controlled qualification only. Verified runtime installation, bound credentials, and model access are checked before execution; production support remains pending." }],
+        };
+      }
       try {
         if (profile.acpxAgent !== "claude") throw new Error("Select Codex to use the native Codex runner.");
         const target = context.executionTarget;
