@@ -9028,10 +9028,10 @@ async function executePaperclipNativeSessionWithinScope(
     summary: native.result.summary,
     sessionId: native.normalizedSessionId,
     sessionDisplayId: native.providerSessionId ?? native.normalizedSessionId,
-    provider: "openai",
+    provider: nativeUsageBiller(input.execution.provider),
     model: input.execution.provider.model,
     usage: normalizeNativeUsage(native.usage),
-    costUsd: nativeUsageCostUsd(native.usage),
+    costUsd: nativeUsageCostUsd(native.usage, input.execution.provider),
     usageBasis: "per_run",
     nativeFinalization: finalization,
   };
@@ -9087,7 +9087,23 @@ function nativeUsageMeasurement(usage: Record<string, unknown>) {
   );
 }
 
-export function nativeUsageCostUsd(usage: Record<string, unknown> | null) {
+export function nativeUsageBiller(provider: NativeExecutionInput["provider"]): string {
+  if (provider.kind === "acpx") {
+    if (provider.agent === "cursor") return "cursor";
+    if (provider.agent === "copilot") return "github";
+    if (provider.agent === "pi") return "openrouter";
+  }
+  return "openai";
+}
+
+export function nativeUsageCostUsd(
+  usage: Record<string, unknown> | null,
+  provider?: NativeExecutionInput["provider"],
+) {
+  // The ACP normalization contract fills absent per-turn cost with zero and
+  // reports actual cost cumulatively. Until it carries an authoritative run
+  // delta with provenance, neither value is a candidate's billed USD receipt.
+  if (provider?.kind === "acpx" && ["cursor", "copilot", "pi"].includes(provider.agent)) return undefined;
   if (!usage) return undefined;
   const measurement = nativeUsageMeasurement(usage);
   const direct =

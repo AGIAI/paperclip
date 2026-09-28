@@ -285,6 +285,7 @@ import {
   buildRemoteCodexLauncherCommand,
   mayUsePreinstalledRunnerArtifact,
   nativeUsageCostUsd,
+  nativeUsageBiller,
   normalizeNativeUsage,
   parseRemoteRunnerProcessIdentity,
   REMOTE_RUNNER_CHILD_LAUNCH_SCRIPT,
@@ -959,6 +960,13 @@ describe("native incomplete-bootstrap evidence", () => {
 });
 
 describe("native provider usage normalization", () => {
+  it.each([["cursor", "cursor"], ["copilot", "github"], ["pi", "openrouter"]] as const)("keeps %s cost unknown and attributes its actual biller", (agent, biller) => {
+    const provider = { kind: "acpx", agent, model: "exact-model" } as NativeExecutionInput["provider"];
+    expect(nativeUsageBiller(provider)).toBe(biller);
+    const usage = { runDelta: { inputTokens: 100, outputTokens: 12, providerCostUsd: 0 }, cumulative: { providerCostUsd: 0.44 } };
+    expect(nativeUsageCostUsd(usage, provider)).toBeUndefined();
+    expect(normalizeNativeUsage(usage)).toMatchObject({ inputTokens: 100, outputTokens: 12 });
+  });
   it("reads remote runner run-delta tokens and provider cost", () => {
     const usage = {
       total: {
