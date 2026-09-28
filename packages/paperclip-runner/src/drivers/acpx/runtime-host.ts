@@ -1,5 +1,5 @@
 import { dirname, join } from "node:path";
-import { assertAcpxProfileWorkspace, verifyAcpxProfileInstallation } from "./profile-installation.js";
+import { assertAcpxProfileWorkspace, classifyAcpxProfileError, verifyAcpxProfileInstallation } from "./profile-installation.js";
 import { createAcpxRuntimeSkillLease } from "./runtime-skill-lease.js";
 import { claudeNativeSkillPrompt } from "./native-skill-prompt.js";
 import { nativeMcpLaunchBinding } from "../native-mcp.js";
@@ -328,6 +328,8 @@ export class AcpxRuntimeHost {
           profile,
           requestedModel: options.model,
           permissionMode: options.permissionMode,
+          ...(["cursor", "copilot", "pi"].includes(options.agent) && options.providerPolicy !== undefined
+            ? { providerPolicy: options.providerPolicy } : {}),
         }),
       dependencies.retainAdmissionCleanup,
     );
@@ -605,6 +607,7 @@ export class AcpxRuntimeHost {
           : [],
       });
     } catch (error) {
+      error = classifyAcpxProfileError(options.agent, error) ?? error;
       const cleanup = cleanupRuntimeResources(
         runtime,
         toolBridge,

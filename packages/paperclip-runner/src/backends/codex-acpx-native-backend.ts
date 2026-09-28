@@ -13,7 +13,7 @@ import {
 
 export interface CodexAcpxNativeSessionBackendOptions extends Omit<
   CodexAcpxDriverOptions,
-  "model" | "permissionMode" | "systemInstructions"
+  "model" | "permissionMode" | "systemInstructions" | "providerPolicy"
 > {}
 
 export type AcpxNativeSessionBackendOptions =
@@ -29,11 +29,6 @@ export function createAcpxNativeSessionBackend(
 ): NativeSessionBackend {
   if (input.provider.kind !== "acpx") {
     throw new Error("ACPX backend requires provider kind acpx");
-  }
-  if (input.provider.agent === "pi") {
-    throw new Error(
-      "Pi ACPX backend is unavailable until descriptor-confined verified launch is implemented",
-    );
   }
   const qualifiedProfile = resolveQualifiedAcpxProfile(
     input.provider.agent,
@@ -73,6 +68,7 @@ export function createAcpxNativeSessionBackend(
       model: input.provider.model,
       permissionMode: input.provider.permissionMode ?? "approve-reads",
       systemInstructions,
+      providerPolicy: { readOnly: "executionMode" in input && input.executionMode === "plan" },
     }),
   );
 }

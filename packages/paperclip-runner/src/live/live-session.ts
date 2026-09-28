@@ -628,7 +628,7 @@ export function assertCapabilityLiveSessionSnapshot(
   }
   if (provider === "acpx") {
     const agent = config.acpxAgent;
-    if (agent !== "pi" && agent !== "claude" && agent !== "codex") {
+    if (agent !== "pi" && agent !== "claude" && agent !== "codex" && agent !== "cursor" && agent !== "copilot") {
       throw new Error("capability_live_checkpoint_corrupt: invalid config.acpxAgent");
     }
     const expected = resolveQualifiedAcpxProfile(agent, text(config.requestedModel));
@@ -861,8 +861,10 @@ export class CapabilityLiveSessionService {
   }
 
   async create(input: CreateCapabilityLiveSessionInput = {}): Promise<CapabilityLiveSession> {
-    if (input.provider === "acpx" && input.acpxAgent === "pi") {
-      throw new Error("The Pi ACPX profile is not available");
+    if (input.provider === "acpx" && input.acpxAgent !== undefined
+      && ["pi", "cursor", "copilot"].includes(input.acpxAgent)
+      && this.#transportOptions.acpxCandidateProfile !== input.acpxAgent) {
+      throw new Error("The candidate ACPX profile requires explicit evaluation opt-in");
     }
     if (input.provider === "claude_managed" && !input.managedProfile) {
       throw new Error("Claude Managed live sessions require a qualified managed profile");

@@ -1647,6 +1647,10 @@ it("uses file-backed AWS workload identity without forwarding access keys or Pap
 });
 
 it.each([
+  { agent: "cursor" as const, allowed: ["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"],
+    denied: ["COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"] },
+  { agent: "copilot" as const, allowed: ["COPILOT_GITHUB_TOKEN"],
+    denied: ["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"] },
   {
     agent: "pi" as const,
     allowed: ["OPENROUTER_API_KEY"],
@@ -1682,6 +1686,8 @@ it.each([
   "passes only $agent ACPX credentials and the durable runtime binding",
   ({ agent, allowed, denied }) => {
     const credentialEnvironment: Record<string, string> = {
+      CURSOR_API_KEY: "cursor-key-canary", CURSOR_AUTH_TOKEN: "cursor-token-canary",
+      COPILOT_GITHUB_TOKEN: "copilot-canary", GH_TOKEN: "ambient-gh-canary", GITHUB_TOKEN: "ambient-github-canary",
       OPENROUTER_API_KEY: "openrouter-canary",
       ANTHROPIC_API_KEY: "anthropic-canary",
       CLAUDE_CODE_OAUTH_TOKEN: "claude-oauth-canary",

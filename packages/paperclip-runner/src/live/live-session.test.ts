@@ -25,6 +25,17 @@ import { DurableCapabilityLiveSessionStore } from "./durable-live-session-store.
 import { defaultCapabilityRunnerdBinary } from "./runnerd-codex-transport.js";
 import { captureTurnRejection } from "../../test/capture-turn-rejection.js";
 
+it.each(["pi", "cursor", "copilot"] as const)("requires separately bound evaluation opt-in for %s", async (acpxAgent) => {
+  const service = new CapabilityLiveSessionService();
+  await expect(service.create({ provider: "acpx", acpxAgent, requestedModel: "explicit-model" }))
+    .rejects.toThrow("explicit evaluation opt-in");
+  const mismatched = new CapabilityLiveSessionService({ transportOptions: {
+    acpxCandidateProfile: acpxAgent === "pi" ? "cursor" : "pi",
+  } });
+  await expect(mismatched.create({ provider: "acpx", acpxAgent, requestedModel: "explicit-model" }))
+    .rejects.toThrow("explicit evaluation opt-in");
+});
+
 class AsyncNotifications implements AsyncIterable<CodexRpcNotification> {
   #values: CodexRpcNotification[] = [];
   #waiters: Array<(value: IteratorResult<CodexRpcNotification>) => void> = [];

@@ -55,9 +55,9 @@ describe("qualified ACPX usage", () => {
     expect(qualifiedAcpxUsageBreakdown("claude", null)).toBeNull();
   });
 
-  it("does not infer accounting semantics for Pi or an uninitialized agent", () => {
+  it("does not double count reasoning for the exact pinned Pi model and preserves unknown profiles", () => {
     const usage = { inputTokens: 12, outputTokens: 30, thoughtTokens: 20 };
-    expect(qualifiedAcpxUsageBreakdown("pi", usage)).toEqual(usage);
+    expect(qualifiedAcpxUsageBreakdown("pi", usage)).toEqual({ ...usage, thoughtTokens: 0 });
     expect(qualifiedAcpxUsageBreakdown(null, usage)).toEqual(usage);
   });
 });
@@ -156,5 +156,17 @@ describe("Pi prompt accounting authority", () => {
       expect(usage.cost).toBeUndefined();
       expect(acpxUsageEstimateNotice(usage, "turn:pricing")).toBeNull();
     }
+  });
+  it("preserves compaction receipt provenance without treating estimates as billing", () => {
+    const usage = persistedAcpxTurnUsage({}, { ...after, requestTokenUsage: {
+      message: { input_tokens: 12, paperclip_pi: {
+        provenance: "assistant_message_and_compaction_receipts", cost_usd: 0.25,
+      } },
+    } }, "turn", "pi")!;
+    expect(usage.cost).toBeUndefined();
+    expect(usage.usageProvenance).toBe("pi_assistant_message_and_compaction_receipts");
+    expect(acpxUsageEstimateNotice(usage, "turn:pricing")?.payload).toMatchObject({
+      details: expect.arrayContaining([{ name: "Usage source", value: "Assistant message and compaction receipts for this prompt" }]),
+    });
   });
 });

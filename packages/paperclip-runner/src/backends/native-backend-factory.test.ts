@@ -487,12 +487,9 @@ describe("native backend factory", () => {
     },
   );
 
-  it("rejects Pi before constructing an ACPX backend", () => {
-    expect(() =>
-      createNativeSessionBackend(acpxExecution("pi"), {
-        acpxRuntimeDirectory: "/runtime",
-      }),
-    ).toThrow("descriptor-confined verified launch");
+  it("constructs a Pi candidate descriptor while runtime installation remains separately gated", async () => {
+    const backend = createNativeSessionBackend(acpxExecution("pi"), { acpxRuntimeDirectory: "/runtime" });
+    await expect(backend.descriptor()).resolves.toMatchObject({ name: "acpx_runtime", version: "0.13.1" });
   });
 
   it("rejects a Codex ACPX snapshot that drifts from its qualified profile", () => {

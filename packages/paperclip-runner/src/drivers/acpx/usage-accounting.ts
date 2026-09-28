@@ -14,9 +14,10 @@ export function qualifiedAcpxUsageBreakdown(
 ): unknown {
   if (value === null || value === undefined) return value;
   const breakdown = record(value);
-  if (agent !== "claude" && agent !== "codex") return breakdown;
+  if (agent !== "claude" && agent !== "codex" && agent !== "pi") return breakdown;
   // Claude SDK aggregate output and Codex ACP toPromptUsage.outputTokens both
-  // INCLUDE reasoning. PRP folds thought into output, so its additive component
+  // INCLUDE reasoning. The exact pinned Pi OpenRouter model uses
+  // openai-completions, where completion_tokens also includes reasoning. PRP folds thought into output, so its additive component
   // is zero here, not the provider's diagnostic reasoning-token subset.
   return {
     ...breakdown,
@@ -50,7 +51,8 @@ export function persistedAcpxTurnUsage(
   if (added.length !== 1) return null;
   const usage = record(receipts[added[0]!]);
   const piReceipt = agent === "pi" ? record(usage.paperclip_pi) : {};
-  const piReceiptVerified = piReceipt.provenance === "assistant_message_receipts";
+  const piReceiptVerified = piReceipt.provenance === "assistant_message_receipts"
+    || piReceipt.provenance === "assistant_message_and_compaction_receipts";
   const estimate = piReceiptVerified && typeof piReceipt.cost_usd === "number"
     && Number.isFinite(piReceipt.cost_usd) && piReceipt.cost_usd >= 0 ? piReceipt.cost_usd : undefined;
   return {
@@ -60,7 +62,7 @@ export function persistedAcpxTurnUsage(
     // Pi calculates cost from catalog prices, not billing receipts. Never feed
     // this estimate into the authoritative/cumulative provider spend channel.
     cost: agent === "pi" ? undefined : current.usageCost,
-    ...(piReceiptVerified ? { usageProvenance: "pi_assistant_message_receipts" } : {}),
+    ...(piReceiptVerified ? { usageProvenance: `pi_${piReceipt.provenance}` } : {}),
     ...(estimate === undefined ? {} : { pricingEstimateUsd: estimate }),
     breakdown: {
       inputTokens: usage.input_tokens,
@@ -75,7 +77,8 @@ export function persistedAcpxTurnUsage(
 
 /** Preserve the estimate for inspection while keeping billing authority separate. */
 export function acpxUsageEstimateNotice(usage: Record<string, unknown>, itemId: string): CanonicalProviderEvent | null {
-  if (usage.usageProvenance !== "pi_assistant_message_receipts"
+  if ((usage.usageProvenance !== "pi_assistant_message_receipts"
+      && usage.usageProvenance !== "pi_assistant_message_and_compaction_receipts")
     || typeof usage.pricingEstimateUsd !== "number" || !Number.isFinite(usage.pricingEstimateUsd)
     || usage.pricingEstimateUsd < 0) return null;
   return {
@@ -86,7 +89,8 @@ export function acpxUsageEstimateNotice(usage: Record<string, unknown>, itemId: 
       recoverable: true, userActionable: false,
       summary: `Pi estimates this turn at $${usage.pricingEstimateUsd.toFixed(6)} from its model prices. Billing cost is unverified.`,
       details: [{ name: "Cost source", value: "Pi model catalog pricing estimate" },
-        { name: "Usage source", value: "Assistant message receipts for this prompt" },
+        { name: "Usage source", value: usage.usageProvenance === "pi_assistant_message_and_compaction_receipts"
+          ? "Assistant message and compaction receipts for this prompt" : "Assistant message receipts for this prompt" },
         { name: "Estimated USD", value: String(usage.pricingEstimateUsd) }],
     },
   };

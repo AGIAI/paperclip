@@ -1078,6 +1078,8 @@ export interface CapabilityRunnerdCodexTransportOptions {
   provider?: "codex" | "opencode" | "claude_managed" | "aws_agentcore" | "acpx";
   opencodePermissionMode?: NativeOpenCodePermissionMode;
   acpxAgent?: QualifiedAcpxAgent;
+  /** Explicit evaluation-only candidate selection, never derived from persisted session input. */
+  acpxCandidateProfile?: "pi" | "cursor" | "copilot";
   acpxPermissionMode?: NativeAcpxPermissionMode;
   acpxPermissionModePinned?: boolean;
   acpxSidecarPath?: string;
@@ -3100,8 +3102,7 @@ export function createCapabilityRunnerdProviderEnvironment(input: {
     const providerPackageAuthority = acpxProviderPackageAuthority(sidecarPath);
     // This is the trusted runner/sidecar boundary. The provider sandbox still
     // uses createSanitizedAcpxSpawnInput and does not inherit gateway tokens.
-    const assignedGateway = input.options.acpxAgent === "pi"
-      ? null : nativeMcpLaunchBinding(input.options.environment ?? {});
+    const assignedGateway = nativeMcpLaunchBinding(input.options.environment ?? {});
     return {
       ...(assignedGateway ? {
         PAPERCLIP_NATIVE_MCP_TOKEN: assignedGateway.token,
@@ -3351,8 +3352,10 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     if (options.adoptExistingRunner && !options.stateDirectory?.trim()) {
       throw new Error("native_adopted_runner_state_directory_required");
     }
-    if (options.provider === "acpx" && options.acpxAgent === "pi") {
-      throw new Error("The Pi ACPX profile is not available");
+    if (options.provider === "acpx" && options.acpxAgent !== undefined
+      && ["pi", "cursor", "copilot"].includes(options.acpxAgent)
+      && options.acpxCandidateProfile !== options.acpxAgent) {
+      throw new Error("The candidate ACPX profile requires explicit evaluation opt-in");
     }
     this.#failureSignal = new Promise<never>((_resolve, reject) => {
       this.#rejectFailureSignal = reject;
@@ -3466,6 +3469,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
           ? params.expectedTurnId
           : this.#turnId;
       if (!text.trim()) throw new Error("turn/steer requires a message");
+      if (params.mode !== undefined && params.mode !== "steer" && params.mode !== "follow_up") throw new Error("turn/steer mode is invalid");
       if (expectedTurnId !== this.#turnId)
         throw new Error("turn/steer named a stale turn");
       const correlationId =
@@ -3478,6 +3482,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
           text,
           turnId: this.#durableTurnId,
           providerTurnId: expectedTurnId,
+          ...(params.mode === "follow_up" ? { mode: "follow_up" } : {}),
           ...(correlationId ? { correlationId } : {}),
         },
         correlationId,
@@ -4524,6 +4529,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
               runId: identity.runId,
               cwd: String(params.cwd ?? tmpdir()),
               instructions: baseInstructions,
+              providerPolicy: { readOnly: params.permissions === "paperclip-runner-workspace-read-only" },
               permissionMode: resolveRunnerdAcpxPermissionMode(
                 this.options.acpxPermissionMode,
               ),
@@ -6185,7 +6191,9 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     if (
       descriptor.agent === "pi" ||
       descriptor.agent === "claude" ||
-      descriptor.agent === "codex"
+      descriptor.agent === "codex" ||
+      descriptor.agent === "cursor" ||
+      descriptor.agent === "copilot"
     )
       this.#evidence.acpxAgent = descriptor.agent;
     if (typeof descriptor.agentServerVersion === "string")
