@@ -7,7 +7,10 @@ import type {
   CodexRpcServerRequest,
 } from "../drivers/codex/app-server-transport.js";
 import { redactCodexDiagnostic } from "../drivers/codex/app-server-transport.js";
-import { createSkilllessCodexThreadConfig } from "../drivers/codex/codex-app-server-driver.js";
+import { codexSemanticToolSpecs, createSkilllessCodexThreadConfig } from "../drivers/codex/codex-app-server-driver.js";
+import { createCodexTaskEnvelope } from "../contracts/codex.js";
+import { codexToolAcceptsResult, isCodexSemanticTool, isRetainableCodexPayload, rejectedCodexToolCall } from "../drivers/codex/codex-boundaries.js";
+import { validateCodexResultProposal } from "../mock-core/codex-runner.js";
 import {
   resolveQualifiedAcpxProfile,
   type QualifiedAcpxAgent,
@@ -57,6 +60,11 @@ const LIVE_SESSION_SCHEMA = "paperclip.capability.live-session.v1" as const;
 const LIVE_COMPLETION_CONTRACT = Object.freeze({
   revision: "paperclip-capability-live-v1",
   criterionIds: ["objective"],
+});
+const LIVE_COMPLETION_ENVELOPE = createCodexTaskEnvelope({
+  objective: "Complete the current requested action without exceeding mock semantic authority.",
+  contractRevision: LIVE_COMPLETION_CONTRACT.revision,
+  criteria: LIVE_COMPLETION_CONTRACT.criterionIds.map((id) => ({ id, requirement: "Complete the current requested action." })),
 });
 const LIVE_BASE_INSTRUCTIONS = [
   "You are operating one mock Paperclip issue through typed semantic tools.",
@@ -1187,6 +1195,7 @@ export class CapabilityLiveSession {
   #providerThreadId = "";
   #providerSessionId: string | null = null;
   #providerModel: { id: string; provider: string } | undefined;
+  #semanticResult: Record<string, CapabilityJsonValue> | null = null;
   #status: CapabilityLiveSessionStatus = "starting";
   #activeTurnId: string | null = null;
   #providerRunBinding: { runId: string; turnId: string; itemId: string } | null;
@@ -1251,6 +1260,11 @@ export class CapabilityLiveSession {
     this.#providerModel = options.snapshot?.providerModel === undefined
       ? undefined
       : structuredClone(options.snapshot.providerModel);
+    if (options.snapshot?.semanticResult) {
+      const validation = validateCodexResultProposal(options.snapshot.semanticResult, LIVE_COMPLETION_ENVELOPE);
+      if (validation.status !== "accepted") throw new Error("capability_live_invalid_semantic_result_checkpoint");
+      this.#semanticResult = jsonValue(validation.result) as Record<string, CapabilityJsonValue>;
+    }
     this.#activeTurnId = options.snapshot?.activeTurnId ?? null;
     this.#providerRunBinding = options.snapshot?.providerRunBinding === undefined
       ? null
@@ -1399,6 +1413,7 @@ export class CapabilityLiveSession {
       ...(this.#providerModel === undefined
         ? {}
         : { providerModel: structuredClone(this.#providerModel) }),
+      semanticResult: structuredClone(this.#semanticResult),
       status: this.#status,
       activeTurnId: this.#activeTurnId,
       ...(this.#providerRunBinding === null
@@ -1517,6 +1532,7 @@ export class CapabilityLiveSession {
       settle: () => settleAdmission(),
     };
     this.#pendingTurnAdmission = admission;
+    this.#semanticResult = null;
     this.#status = "running";
     this.#clearIdleTimer();
     this.#turnEventCount = 0;
@@ -2330,6 +2346,14 @@ export class CapabilityLiveSession {
       itemId: `item_lab_${identityDigest}`,
     };
     this.#providerRunBinding = providerRunBinding;
+    const authorizedTools = this.#dispatcher.listTools(this.#authority.runId);
+    const tools = (this.#config.toolExposure ?? "eager") === "lazy"
+      ? authorizedTools.filter((tool) => tool.annotations.exposure === "always")
+      : authorizedTools;
+    const semanticTools = [
+      ...tools.map(dynamicToolSpec),
+      ...((this.#config.toolExposure ?? "eager") === "lazy" ? discoveryToolSpecs() : []),
+    ];
     const transportBundle = this.#transportFactory({
       ...this.#transportOptions,
       provider,
@@ -2365,6 +2389,7 @@ export class CapabilityLiveSession {
         : {}),
       lifecyclePolicy: this.#config.lifecyclePolicy ?? { mode: "per_turn", idleTimeoutMs: null },
       resumeActiveTurnId: resume ? this.#activeTurnId : null,
+      ...(resume ? { resumeDynamicTools: semanticTools } : {}),
       stateDirectory: resolve(this.#config.workingDirectory, ".paperclip-runner-prp", identityDigest),
       prpIdentity: {
         runnerInstanceId: `runner_lab_${identityDigest}`,
@@ -2397,10 +2422,7 @@ export class CapabilityLiveSession {
       capabilities: { experimentalApi: true, requestAttestation: false },
     });
     this.#transport.notify("initialized");
-    const authorizedTools = this.#dispatcher.listTools(this.#authority.runId);
-    const tools = (this.#config.toolExposure ?? "eager") === "lazy"
-      ? authorizedTools.filter((tool) => tool.annotations.exposure === "always")
-      : authorizedTools;
+
     this.#appendEvidence("tool_exposure", null, {
       operationIds: tools.map((tool) => tool.name),
       scenarioId: this.#config.scenario.id,
@@ -2471,10 +2493,7 @@ export class CapabilityLiveSession {
         baseInstructions:
           this.#transportOptions.baseInstructions ?? LIVE_BASE_INSTRUCTIONS,
         completionContract: LIVE_COMPLETION_CONTRACT,
-        dynamicTools: [
-          ...tools.map(dynamicToolSpec),
-          ...((this.#config.toolExposure ?? "eager") === "lazy" ? discoveryToolSpecs() : []),
-        ],
+        dynamicTools: [...semanticTools, ...codexSemanticToolSpecs()],
         experimentalRawEvents: true,
         persistExtendedHistory: true,
       });
@@ -2564,6 +2583,25 @@ export class CapabilityLiveSession {
         success: false,
         contentItems: [{ type: "inputText", text: "Tool call was outside the active Capability thread and turn." }],
       };
+    }
+    if (isCodexSemanticTool(operationId)) {
+      // Native completion is an advisory run report. It cannot mutate the mock
+      // task, bypass semantic claims, or substitute for provider turn settlement.
+      if (terminalReplay || !isRetainableCodexPayload(request.params.arguments)) {
+        return rejectedCodexToolCall("Native completion requires a bounded active-turn report.");
+      }
+      const validation = validateCodexResultProposal(request.params.arguments, LIVE_COMPLETION_ENVELOPE);
+      if (validation.status !== "accepted" || !codexToolAcceptsResult(operationId, validation.result)) {
+        return rejectedCodexToolCall("Native completion must match the current completion contract and tool disposition.");
+      }
+      const result = jsonValue(validation.result) as Record<string, CapabilityJsonValue>;
+      if (this.#semanticResult !== null && JSON.stringify(this.#semanticResult) !== JSON.stringify(result)) {
+        return rejectedCodexToolCall("A different native completion report was already accepted for this turn.");
+      }
+      this.#semanticResult = result;
+      await this.#persist();
+      return { success: true, contentItems: [{ type: "inputText", text:
+        "Native run report accepted. This does not change mock task state. End this provider turn after your final response; task mutations require their separately authorized semantic tools." }] };
     }
     if (operationId === DISCOVER_TOOL) {
       const args = record(request.params.arguments);

@@ -892,6 +892,71 @@ describe("Capability live runnerd and Codex session", () => {
     await service.shutdown(session.id);
   });
 
+  it("exposes native completion consistently on fresh and resumed sessions without granting semantic mutations", async () => {
+    const state = providerState();
+    const store = new InMemoryCapabilityLiveSessionStore();
+    const authority: Array<Parameters<CapabilityLiveTransportFactory>[0]> = [];
+    const factory: CapabilityLiveTransportFactory = (options) => {
+      authority.push(options);
+      return fakeTransportFactory(state)(options);
+    };
+    const firstService = new CapabilityLiveSessionService({ store, transportFactory: factory });
+    const first = await firstService.create();
+    const opened = state.transports[0]!.requests.find((request) => request.method === "thread/start")!;
+    const names = (opened.params.dynamicTools as Array<{ name: string }>).map((tool) => tool.name);
+    expect(names.filter((name) => name === "paperclip_finish")).toHaveLength(1);
+    expect(names.filter((name) => name === "paperclip_block")).toHaveLength(1);
+    expect(names).not.toContain("create_task");
+    await first.suspend();
+    const restoredService = new CapabilityLiveSessionService({ store, transportFactory: factory });
+    const restored = await restoredService.restore(first.id);
+    // The facade appends native completion schemas to this admitted semantic list.
+    expect(authority[1]?.resumeDynamicTools?.map((tool) => tool.name)).toEqual(
+      names.filter((name) => name !== "paperclip_finish" && name !== "paperclip_block"),
+    );
+    await restoredService.shutdown(restored.id);
+    await firstService.shutdown(first.id);
+  });
+
+  it("accepts only revision-bound advisory completion while mock mutations keep their own authority", async () => {
+    const state = providerState();
+    const service = new CapabilityLiveSessionService({ transportFactory: fakeTransportFactory(state) });
+    const session = await service.create();
+    const before = session.mockState();
+    const result = {
+      schema: "paperclip.run_result.v1", reportedWorkDisposition: "done", summary: "Orientation complete",
+      completionClaim: { contractRevision: "paperclip-capability-live-v1", objectiveSatisfied: true,
+        criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [] }], remainingWork: [] },
+      evidence: [], verification: [],
+    };
+    const outcomes: Record<string, unknown>[] = [];
+    state.onTurnStart = async () => {
+      const transport = state.transports.at(-1)!;
+      const turnId = [...state.turns.keys()].at(-1)!;
+      const call = (tool: string, arguments_: unknown, overrideTurn = turnId) => transport.invokeServerRequest({
+        id: `call-${outcomes.length}`, method: "item/tool/call",
+        params: { threadId: state.threadId, turnId: overrideTurn, callId: `call-${outcomes.length}`, tool, arguments: arguments_ },
+      });
+      outcomes.push(await call("paperclip_finish", { ...result, completionClaim: { ...result.completionClaim, contractRevision: "stale" } }));
+      outcomes.push(await call("paperclip_finish", result, "wrong-turn"));
+      outcomes.push(await call("paperclip_block", result));
+      outcomes.push(await call("paperclip_finish", result));
+      outcomes.push(await call("paperclip_finish", { ...result, summary: "Conflicting report" }));
+      outcomes.push(await call("create_task", { title: "Unauthorized task", idempotencyKey: "unauthorized-task" }));
+      expect(session.snapshot().terminalTurns).toHaveLength(0);
+    };
+    await session.sendMessage("Orient to the assigned task.");
+    expect(outcomes.map((outcome) => outcome.success)).toEqual([false, false, false, true, false, false]);
+    expect(session.snapshot().semanticResult).toMatchObject(result);
+    expect(session.mockState().tasks).toEqual(before.tasks);
+    expect(session.snapshot().terminalTurns).toHaveLength(1);
+    expect(session.snapshot().authorizationRecords).toContainEqual(expect.objectContaining({ operationId: "create_task", allowed: false }));
+    state.onTurnStart = undefined;
+    await session.sendMessage("Read the task again without reporting completion.");
+    expect(session.snapshot().semanticResult).toBeNull();
+    await service.shutdown(session.id);
+  });
+
   it("passes caller-supplied native system instructions to the provider", async () => {
     const state = providerState();
     const service = new CapabilityLiveSessionService({
