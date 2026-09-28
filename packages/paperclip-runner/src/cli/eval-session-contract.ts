@@ -83,14 +83,19 @@ export interface EvalSessionRequest {
   includeCollaborationModeInstructions?: true;
 }
 
-export interface EvalSessionUsage extends EstimatedModelCost {
+export interface EvalSessionUsage {
   agentTurns: number;
   providerRequests: number;
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens: number;
   reasoningTokens: number;
-  providerReportedCostNanodollars: number;
+  providerReportedCostNanodollars: number | null;
+  providerReportedCostProvenance: "legacy_runner_usage_ledger" | "unavailable";
+  estimatedCostNanodollars: number | null;
+  pricingVersion: EstimatedModelCost["pricingVersion"] | null;
+  ratesUsdPerMillionTokens: EstimatedModelCost["ratesUsdPerMillionTokens"] | null;
+  costCoverage: "estimated" | "unpriced" | "legacy_ledger_and_estimate";
 }
 
 function object(value: unknown, path: string): Record<string, unknown> {
@@ -388,8 +393,28 @@ export function evalSessionUsage(
   if (unique.size === 0) {
     throw new Error("completed turn omitted usage accounting");
   }
+  const candidate = snapshot.config?.provider === "acpx"
+    && ["pi", "cursor", "copilot"].includes(snapshot.config.acpxAgent ?? "");
+  let estimate: EstimatedModelCost | null;
+  try {
+    estimate = estimateModelCostNanodollars(model, totals);
+  } catch (error) {
+    // An exact candidate model can be advertised before our pricing catalog
+    // contains it. Preserve unpriced usage for billing reconciliation instead
+    // of substituting a model or converting unknown spend into zero.
+    if (!candidate || !(error instanceof Error) || !error.message.startsWith("model pricing unavailable for ")) throw error;
+    estimate = null;
+  }
   return {
     ...totals,
-    ...estimateModelCostNanodollars(model, totals),
+    // Candidate ACP adapters do not supply authenticated USD receipts. The
+    // shared legacy ledger fills absent cost with zero, so its numeric value
+    // cannot establish an invoice amount for these profiles.
+    providerReportedCostNanodollars: candidate ? null : totals.providerReportedCostNanodollars,
+    providerReportedCostProvenance: candidate ? "unavailable" : "legacy_runner_usage_ledger",
+    estimatedCostNanodollars: estimate?.estimatedCostNanodollars ?? null,
+    pricingVersion: estimate?.pricingVersion ?? null,
+    ratesUsdPerMillionTokens: estimate?.ratesUsdPerMillionTokens ?? null,
+    costCoverage: candidate ? (estimate === null ? "unpriced" : "estimated") : "legacy_ledger_and_estimate",
   };
 }

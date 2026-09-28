@@ -314,4 +314,31 @@ describe("eval-session usage", () => {
       { usageLedger: [] } as unknown as CapabilityLiveSessionSnapshot,
     )).toThrow("omitted usage accounting");
   });
+
+  it.each(["pi", "cursor", "copilot"])("retains unpriced %s usage without inventing an invoice or substituting a model", (agent) => {
+    const snapshot = {
+      config: { provider: "acpx", acpxAgent: agent },
+      usageLedger: [{
+        receiptId: "candidate-turn-receipt", providerCalls: 1, providerRequests: 2,
+        inputTokens: 1_000, outputTokens: 100, cachedInputTokens: 400,
+        reasoningTokens: 50, costNanodollars: 0,
+      }],
+    } as unknown as CapabilityLiveSessionSnapshot;
+    expect(evalSessionUsage("exact-provider-model[context=272k]", snapshot)).toMatchObject({
+      agentTurns: 1, providerRequests: 2, inputTokens: 1_000, outputTokens: 100,
+      providerReportedCostNanodollars: null,
+      providerReportedCostProvenance: "unavailable",
+      estimatedCostNanodollars: null, pricingVersion: null, ratesUsdPerMillionTokens: null,
+      costCoverage: "unpriced",
+    });
+    const priced = evalSessionUsage("openrouter/deepseek/deepseek-v4-flash-0731", snapshot);
+    expect(priced.providerReportedCostNanodollars).toBeNull();
+    expect(priced.costCoverage).toBe("estimated");
+    expect(priced.estimatedCostNanodollars).toBeGreaterThan(0);
+    expect(priced.pricingVersion).toBe("provider-list-prices-2026-09-07-openrouter");
+    expect(priced.ratesUsdPerMillionTokens).toEqual({ input: 0.14, cachedInput: 0.028, output: 0.28 });
+    expect(() => evalSessionUsage("unpriced-qualified-model", {
+      ...snapshot, config: { provider: "codex" },
+    } as unknown as CapabilityLiveSessionSnapshot)).toThrow("model pricing unavailable");
+  });
 });
