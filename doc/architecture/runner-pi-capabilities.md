@@ -2,7 +2,8 @@
 
 Status: implementation candidate, 2026-09-28. Deterministic protocol tests and an
 uncredentialed admission probe pass. One paid local Runner turn reached semantic
-tools but timed out; Product E2E setup exposed a separate candidate-admission gap.
+tools but timed out; the latest Product attempt stopped before a prompt because
+verified snapshot preparation exceeded the startup deadline.
 Local and Linux x64 Daytona qualification remain pending; this document does not promote the candidate to a
 qualified production runtime.
 
@@ -241,29 +242,26 @@ helper discards failed-attempt usage, so any retry or missing compaction receipt
 invalidates complete-turn token/cost totals instead of inventing complete coverage.
 
 The retained [macOS ARM64 provider-pack admission proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.json)
-records source `a6167ce3a7804c31f4f9990a9ba6761c1d91f27c`, after final-spawn
-credential-marker preservation and direct candidate-admission gating. It includes
-the Node engine, Pi v2 fixture, assigned HTTPS gateway, and failed-turn receipt
-repairs. Its manifest digest is
-`sha256:0ed45bf84d172aa7087baec3d662275206e8121b0ba142aaa9039dcfbf4402a2`.
-This refresh also includes candidate initialization, canonical CLI paths, usage
-provenance and reasoning projection repairs; the prior
-[58511d79d proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.58511d79d.json)
-remains a historical observation.
-The clean tracked-lock resolution matched Docker's reviewed
-`650e23d20e967bcfbfced888e131199b9a06e66a1ba4f64cfb68383b59def4a8` digest
-before a frozen install and pack build. The probe used the deployed generic
-installation registry and immutable snapshot. Every advertised capability was
-read and asserted from its actual initialize response. Session creation rejected
-the missing bound credential; no model prompt was submitted. The record contains
-no credentials or provider session IDs and records zero paid calls. This refreshed
-probe is an admission check, not an authenticated interaction test. The 128
-targeted backend/environment/control-plane checks, 31 installed-distribution
-checks and 17 patched-package checks remain recorded with the historical
-`58511d79d` proof. The preceding full Runner suite (2,202 passed, 11 skipped) and
-13 native-provider Rust tests remain pinned to source `2e65b64d5`; they are not
-relabeled as checks of the latest source. Current focused validation and the
-separate authenticated attempts are recorded below.
+records source `9f2d0420ed9a398e3bacd1d7e996614f3296ac56`, including the
+merged Grok support, candidate identity and completion-contract fixes. Its manifest
+digest is `sha256:2a6f457205743487cdd35ed3634532028e6e0200001f70e087d0e084fc85d452`.
+Both clean dependency resolutions matched the reviewed Docker lock digest
+`9c163adf40fe1c6a65abda6207bd9f5acfc8196bc94f81348b8bf1b2769e050e`.
+The generic installation registry and immutable snapshot passed initialization
+and rejected the missing bound credential before any model prompt. Current-source
+verification passed the TypeScript and release Runner builds, 97 Vitest checks
+(with one optional installation case skipped), and 22 package/receipt/materializer
+checks using the newly built distribution. An initial package-test invocation
+omitted the isolated package locations; the corrected explicit pack invocation
+passed all 22 checks. These checks do not constitute full repository verification
+or authenticated qualification.
+
+The [a6167ce3a proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.a6167ce3a.json)
+and [58511d79d proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.58511d79d.json)
+remain historical observations. The 128 targeted checks, 31 installation checks
+and 17 package checks remain pinned to `58511d79d`; the full Runner suite
+(2,202 passed, 11 skipped) and 13 native-provider Rust tests remain pinned to
+`2e65b64d5`. They are not relabeled as checks of the latest source.
 
 The [pre-launch-boundary proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.2e65b64d5.darwin-arm64.json)
 retains source `2e65b64d5a2148583109b8157d6e72f54f5ad29b` and manifest
@@ -323,7 +321,7 @@ every field in Pi's native event stream. These are explicit follow-ups:
 ## Authenticated local qualification progress
 
 The [sanitized attempt ledger](../../packages/paperclip-runner/test-fixtures/pi-acp/paid-qualification-progress.darwin-arm64.json)
-retains all seven attempts, including six failures before a model prompt. One Runner protocol turn reached the exact
+retains all eight attempts, including seven failures before a model prompt. One Runner protocol turn reached the exact
 model and successfully called `get_task_context`, `get_task_history`,
 `list_documents`, and `read_document`. The canonical case permits those extra
 orientation reads, but also requires a completed turn; it timed out after 120s
@@ -353,7 +351,11 @@ provider-profile validator still rejected candidates before the host's explicit
 qualification admission boundary. Shared commit `26dde3cfe` corrected that gate. The next attempt created the agent
 and task, then found a dormant Pi-only rejection in the verified runnerd backend
 factory (`transportDriverIdentity`); it again submitted no model prompt and
-incurred zero measured billing delta. That shared identity correction is pending.
+incurred zero measured billing delta. The shared identity correction is included
+in foundation `c3b7e9ecd`. The next attempt passed those guards but stopped at
+`PRP command session.open timed out` after 36.5 seconds of run startup; cleanup
+passed and the measured key billing delta remained zero. It produced no terminal
+usage receipt or matcher success.
 
 The canonical live-eval completion contract had a separate defect: fresh sessions
 omitted native `paperclip_finish`/`paperclip_block` schemas, their callback rejected
@@ -365,6 +367,19 @@ turn early. Two declaration/acceptance regressions and one instruction-delivery
 regression failed before repair; 45 live-session tests and three focused follow-up
 checks passed, with source typecheck. This is a confirmed protocol defect, but
 its causal contribution to the earlier model timeout is not proven.
+
+The [startup diagnostic](../../packages/paperclip-runner/test-fixtures/pi-acp/startup-diagnostic.darwin-arm64.json)
+reproduces that failure without credentials through the deployed Runner transport.
+Its `run.prepare` command completes, while `session.open` remains pending at the
+unchanged 30-second deadline. Separately timing the same 13,827-file, 234 MB
+closure measured 5.168 seconds of verification and 37.423 seconds to construct
+its immutable snapshot, before any Pi process starts. Shared fix `2a30219f1`
+copies at most eight files and 32 MiB per batch, with larger admitted files alone.
+It retains every file identity, digest and confinement check and drains all copy
+promises before cleanup. The same tree then copied in 5.851 seconds; ten security
+and concurrency tests and both Runner TypeScript checks passed. This measurement
+is not yet proof of successful end-to-end startup after the fix; the pack and
+paid attempt above intentionally retain their earlier source identity.
 
 Production admission remains qualification-pending until the live matrix and
 spend receipt checks pass.

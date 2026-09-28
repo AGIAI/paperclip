@@ -1,6 +1,6 @@
 {
   "schema": "paperclip.pi-paid-qualification-progress.v1",
-  "recordedAt": "2026-09-28T19:45:32.427487+00:00",
+  "recordedAt": "2026-09-28T20:04:32.924765+00:00",
   "qualificationStatus": "pending",
   "environment": {
     "platform": "darwin",
@@ -171,7 +171,7 @@
       "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
       "exitCode": 1,
       "retainedMachineDisposition": "permanent_infrastructure",
-      "diagnosis": "The real server rejected candidate agent creation422 before any provider prompt. Host-only qualification was wired at launch but not the earlier provider-profile resolver. Shared correction pending.",
+      "diagnosis": "The real server rejected candidate agent creation422 before any provider prompt. Host-only qualification was wired at launch but not the earlier provider-profile resolver. Shared correction 26dde3cfe is included in the merged foundation.",
       "submittedProviderTurns": 0,
       "providerRequestCount": 0,
       "billingDeltaUsd": 0,
@@ -211,12 +211,47 @@
         "ref": "refs/heads/codex/runner-pi-acp",
         "workflowRunUrl": null
       },
-      "diagnosis": "Agent creation succeeded after shared admission repair; the actual verified runnerd backend factory then hit a dormant Pi-only transportDriverIdentity rejection before provider launch. Shared identity correction pending.",
+      "diagnosis": "Agent creation succeeded after shared admission repair; the actual verified runnerd backend factory then hit a dormant Pi-only transportDriverIdentity rejection before provider launch. The shared identity correction is included in foundation c3b7e9ecd.",
       "submittedProviderTurns": 0,
       "providerRequestCount": 0,
       "billingDeltaUsd": 0,
       "billingCoverage": "exclusive OpenRouter key usage delta, two spaced post-attempt observations",
       "terminalUsage": null,
+      "automaticRetries": 0,
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "outerDeadlineSeconds": 300,
+        "configuredActiveTimeoutSeconds": 120
+      }
+    },
+    {
+      "attemptId": "pi-product-hello-04",
+      "family": "product-e2e",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.hello-complete",
+      "startedAt": "2026-09-28T20:03:06.338199+00:00",
+      "finishedAt": "2026-09-28T20:04:32.924765+00:00",
+      "durationSeconds": 86.582,
+      "sourceRevision": "9f2d0420ed9a398e3bacd1d7e996614f3296ac56",
+      "providerPackDigest": "sha256:2a6f457205743487cdd35ed3634532028e6e0200001f70e087d0e084fc85d452",
+      "runnerdDigest": "sha256:3fdff11d17faf096fce29b57a8e762e6dd241ef5009771913eb4798d10a0deca",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "exitCode": 1,
+      "retainedMachineDisposition": "candidate_failure",
+      "retainedStatus": "failed",
+      "cleanup": "passed",
+      "fixtureReportedSource": {
+        "sha": "9f2d0420ed9a398e3bacd1d7e996614f3296ac56",
+        "ref": "refs/heads/codex/runner-pi-acp",
+        "workflowRunUrl": null
+      },
+      "diagnosis": "The earlier candidate and transport identity gates are corrected. PRP run.prepare succeeds, but session.open times out before prompt submission at its unchanged 30-second deadline. A credential-free deployed-pack reproduction and separate stage timing isolate immutable snapshot copying as exceeding that deadline. Shared fix 2a30219f1 reduces measured copy latency; end-to-end admission after that fix is not yet proven.",
+      "submittedProviderTurns": 0,
+      "providerRequestCount": 0,
+      "billingDeltaUsd": 0,
+      "billingCoverage": "exclusive OpenRouter key usage delta, two spaced post-attempt observations",
+      "terminalUsage": null,
+      "retainedCostCoverage": "unavailable",
       "automaticRetries": 0,
       "supervision": {
         "reservationUsd": 2,
@@ -260,7 +295,20 @@
       "instructionFollowupFocusedTestsPassed": 3,
       "sourceTypecheck": "passed",
       "boundary": "Advisory native report does not mutate mock state or settle provider turn; stale revision, wrong turn, conflicting report and unauthorized create_task rejected"
-    }
+    },
+    "currentPiSource": {
+      "source": "9f2d0420ed9a398e3bacd1d7e996614f3296ac56",
+      "typescriptBuild": "passed",
+      "releaseRunnerBuild": "passed",
+      "vitestPassed": 97,
+      "vitestSkipped": 1,
+      "installedPackageChecksPassed": 22,
+      "packageCheckInvocation": "The initial command lacked isolated Pi package locations and failed module resolution; all 22 passed after selecting the freshly built pack packages explicitly.",
+      "deployedPackCredentialFreeProbe": "passed",
+      "cleanDependencyResolution": "two independent runs from tracked manifest/config/patch inputs with pnpm9.15.4 --resolution-only --ignore-scripts --no-frozen-lockfile",
+      "cleanDependencyLockSha256": "9c163adf40fe1c6a65abda6207bd9f5acfc8196bc94f81348b8bf1b2769e050e"
+    },
+    "startupDiagnosis": "startup-diagnostic.darwin-arm64.json"
   },
   "publicationBoundary": {
     "hiddenReasoningIncluded": false,

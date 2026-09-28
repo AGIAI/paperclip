@@ -1,13 +1,13 @@
 {
   "schema": "paperclip.pi-provider-pack-offline-proof.v1",
-  "recordedAt": "2026-09-28T20:02:30.796Z",
+  "recordedAt": "2026-09-28T19:35:49.729Z",
   "classification": "offline_candidate_admission",
   "source": {
-    "runnerRevision": "9f2d0420ed9a398e3bacd1d7e996614f3296ac56",
-    "distDigest": "sha256:3fb488c2a156f8ee1feab94f98985662da393bfeb516a19150638d6b45ec55cd",
-    "bridgeDigest": "sha256:f6c56eac02b7962f100add6c5ce2daeeae4ab2c70aaa39b046b8bb1fc584e175",
+    "runnerRevision": "a6167ce3a7804c31f4f9990a9ba6761c1d91f27c",
+    "distDigest": "sha256:2d0c65ff3d859717cc27fd03739a5e639171d4c46804a1884b3e1301c865eaa8",
+    "bridgeDigest": "sha256:a81fb87bf2204b0fddac15f952724f691645d3ddbafb93b75b7776f61cbaa5a2",
     "productionLockDigest": "sha256:e0c928a494f90ddad3c00791e83f09315ee8c82df2a0418a809dcf93649a8ab3",
-    "note": "Built from merged foundation c3b7e9ecd plus the Pi provider branch, including native candidate identity and visible completion-contract fixes. This probe executes the deployed generic registry and immutable snapshot without credentials or prompts. It predates shared copy-performance fix 2a30219f1; the public paid ledger separately retains the startup failure from this source."
+    "note": "Built from the recorded source after candidate initialization, CLI canonical-path, usage provenance and canonical reasoning projection fixes. The generic registry launched the immutable snapshot, asserted every capability from its initialize response and verified missing-credential refusal. No prompt was sent by this offline probe."
   },
   "environment": {
     "platform": "darwin",
@@ -34,10 +34,10 @@
     "extensionDigest": "sha256:0a2ca138d6d87a85498bd982ee64543ea8b14f2ecceded96cfc27b0836cc4254"
   },
   "providerPack": {
-    "manifestDigest": "sha256:2a6f457205743487cdd35ed3634532028e6e0200001f70e087d0e084fc85d452",
+    "manifestDigest": "sha256:0ed45bf84d172aa7087baec3d662275206e8121b0ba142aaa9039dcfbf4402a2",
     "portableNodeDigest": "sha256:27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1",
     "piNodeDigest": "sha256:27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1",
-    "acpxSidecarDigest": "sha256:aa71619ea0f5e08d78c13bbca1812038d4ab6fee8550177be210b5afeb26d01a"
+    "acpxSidecarDigest": "sha256:cfdb2b53f8f4500205560cfc33ca12c2b6c4ffaf54e666250c184f655d095d13"
   },
   "observed": {
     "closedSnapshotLaunch": true,
