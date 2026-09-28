@@ -730,11 +730,28 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
   try {
     return await withWorkspaceRestore(
       async () => {
+        let result: AdapterExecutionResult;
+        let collectionFailed = false;
+        const collectionFailureMessage = "Instruction collection failed after provider stop. No instruction save is claimed.";
         try {
-          return await executeTurn();
+          result = await executeTurn();
         } finally {
-          await providerStop.collectBeforeRestore();
+          try {
+            await providerStop.collectBeforeRestore();
+          } catch {
+            collectionFailed = true;
+            await onLog("stderr", `[paperclip] ${collectionFailureMessage}\n`).catch(() => undefined);
+          }
         }
+        if (!collectionFailed) return result;
+        const providerFailed = result.timedOut || result.signal || result.errorCode
+          || (result.exitCode !== null && result.exitCode !== 0);
+        return {
+          ...result,
+          ...(!providerFailed ? { errorCode: "instruction_collection_failed" } : {}),
+          errorMessage: [result.errorMessage, collectionFailureMessage].filter(Boolean).join(" "),
+          resultJson: { ...result.resultJson, instructionCollectionFailure: "collection_failed" },
+        };
       },
       async () => { await restoreRemoteWorkspace?.(); },
     );
