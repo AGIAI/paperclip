@@ -1,6 +1,6 @@
 {
   "schema": "paperclip.pi-paid-qualification-progress.v1",
-  "recordedAt": "2026-09-28T19:36:32.051800+00:00",
+  "recordedAt": "2026-09-28T19:45:32.427487+00:00",
   "qualificationStatus": "pending",
   "environment": {
     "platform": "darwin",
@@ -149,6 +149,13 @@
         "reservationUsd": 2,
         "billingWatchdogUsd": 0.5,
         "outerDeadlineSeconds": 300
+      },
+      "retainedStatus": "failed",
+      "cleanup": "not_started",
+      "fixtureReportedSource": {
+        "sha": null,
+        "ref": null,
+        "workflowRunUrl": null
       }
     },
     {
@@ -163,7 +170,7 @@
       "runnerdDigest": "sha256:79d49c3cef01f328742651f62a449661695d0955741a1c37bd89abf54cbc8c2b",
       "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
       "exitCode": 1,
-      "retainedMachineDisposition": "setup_failure",
+      "retainedMachineDisposition": "permanent_infrastructure",
       "diagnosis": "The real server rejected candidate agent creation422 before any provider prompt. Host-only qualification was wired at launch but not the earlier provider-profile resolver. Shared correction pending.",
       "submittedProviderTurns": 0,
       "providerRequestCount": 0,
@@ -175,6 +182,47 @@
         "reservationUsd": 2,
         "billingWatchdogUsd": 0.5,
         "outerDeadlineSeconds": 300
+      },
+      "retainedStatus": "failed",
+      "cleanup": "passed",
+      "fixtureReportedSource": {
+        "sha": null,
+        "ref": null,
+        "workflowRunUrl": null
+      }
+    },
+    {
+      "attemptId": "pi-product-hello-03",
+      "family": "product-e2e",
+      "caseId": "extended-harnesses.runner-acpx-pi.local.hello-complete",
+      "startedAt": "2026-09-28T19:44:53.789569+00:00",
+      "finishedAt": "2026-09-28T19:45:32.427487+00:00",
+      "durationSeconds": 38.638,
+      "sourceRevision": "d6b0b97786a61e607291c656229bbb54a81dc061",
+      "providerPackDigest": "sha256:4ab928ff5fbc68b0b0e21733c4cdaebb3f9fb7197b1985d1094a21fd3d51b2fe",
+      "runnerdDigest": "sha256:79d49c3cef01f328742651f62a449661695d0955741a1c37bd89abf54cbc8c2b",
+      "profileDigest": "sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1",
+      "exitCode": 1,
+      "retainedMachineDisposition": "candidate_failure",
+      "retainedStatus": "failed",
+      "cleanup": "passed",
+      "fixtureReportedSource": {
+        "sha": "d6b0b97786a61e607291c656229bbb54a81dc061",
+        "ref": "refs/heads/codex/runner-pi-acp",
+        "workflowRunUrl": null
+      },
+      "diagnosis": "Agent creation succeeded after shared admission repair; the actual verified runnerd backend factory then hit a dormant Pi-only transportDriverIdentity rejection before provider launch. Shared identity correction pending.",
+      "submittedProviderTurns": 0,
+      "providerRequestCount": 0,
+      "billingDeltaUsd": 0,
+      "billingCoverage": "exclusive OpenRouter key usage delta, two spaced post-attempt observations",
+      "terminalUsage": null,
+      "automaticRetries": 0,
+      "supervision": {
+        "reservationUsd": 2,
+        "billingWatchdogUsd": 0.5,
+        "outerDeadlineSeconds": 300,
+        "configuredActiveTimeoutSeconds": 120
       }
     }
   ],
@@ -203,7 +251,16 @@
       "typecheck": "passed after building missing workspace plugin-sdk artifact",
       "unitTestsPassed": 585
     },
-    "offlineProof": "offline-provider-pack-proof.darwin-arm64.json"
+    "offlineProof": "offline-provider-pack-proof.darwin-arm64.json",
+    "liveCompletionContract": {
+      "schemaAndHandlerCommit": "dc58afb28",
+      "modelInstructionsCommit": "aa4b88b16",
+      "beforeFixFailures": 3,
+      "fullLiveSessionTestsPassed": 45,
+      "instructionFollowupFocusedTestsPassed": 3,
+      "sourceTypecheck": "passed",
+      "boundary": "Advisory native report does not mutate mock state or settle provider turn; stale revision, wrong turn, conflicting report and unauthorized create_task rejected"
+    }
   },
   "publicationBoundary": {
     "hiddenReasoningIncluded": false,
@@ -213,7 +270,7 @@
   },
   "remaining": [
     "Successful protocol terminal settlement and complete usage receipt",
-    "Successful Product E2E agent admission and hello completion",
+    "Successful Product E2E verified native backend admission and hello completion",
     "File edit, typed question, plan and restart journeys",
     "Native permissions and explicit steering acceptance/delivery",
     "Linux x64 Daytona qualification"

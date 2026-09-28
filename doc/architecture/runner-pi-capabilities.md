@@ -323,8 +323,7 @@ every field in Pi's native event stream. These are explicit follow-ups:
 ## Authenticated local qualification progress
 
 The [sanitized attempt ledger](../../packages/paperclip-runner/test-fixtures/pi-acp/paid-qualification-progress.darwin-arm64.json)
-retains all six attempts, including four pre-provider failures and the later
-Product agent-admission rejection. One Runner protocol turn reached the exact
+retains all seven attempts, including six failures before a model prompt. One Runner protocol turn reached the exact
 model and successfully called `get_task_context`, `get_task_history`,
 `list_documents`, and `read_document`. The canonical case permits those extra
 orientation reads, but also requires a completed turn; it timed out after 120s
@@ -351,6 +350,21 @@ symlink hydration had not run. Its bundled setup script repaired the installatio
 and a fresh database initialization passed. The deliberate repeat reached the
 real browser/server, then candidate agent creation returned 422 because the
 provider-profile validator still rejected candidates before the host's explicit
-qualification admission boundary. The shared server correction is pending.
+qualification admission boundary. Shared commit `26dde3cfe` corrected that gate. The next attempt created the agent
+and task, then found a dormant Pi-only rejection in the verified runnerd backend
+factory (`transportDriverIdentity`); it again submitted no model prompt and
+incurred zero measured billing delta. That shared identity correction is pending.
+
+The canonical live-eval completion contract had a separate defect: fresh sessions
+omitted native `paperclip_finish`/`paperclip_block` schemas, their callback rejected
+otherwise valid native reports, and ACP model instructions lacked the literal
+contract revision. Shared commits `dc58afb28` and `aa4b88b16` expose and validate
+those advisory reports and send the exact contract on fresh/resumed sessions.
+They cannot mutate mock tasks, grant semantic permissions or settle the provider
+turn early. Two declaration/acceptance regressions and one instruction-delivery
+regression failed before repair; 45 live-session tests and three focused follow-up
+checks passed, with source typecheck. This is a confirmed protocol defect, but
+its causal contribution to the earlier model timeout is not proven.
+
 Production admission remains qualification-pending until the live matrix and
 spend receipt checks pass.
