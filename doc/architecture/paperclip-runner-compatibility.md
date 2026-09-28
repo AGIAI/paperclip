@@ -216,6 +216,24 @@ Catalog generation and production authorization are separate steps.
   effect.
 - Receipts redact credentials, private provider payloads, and hidden identity.
 
+## Durable journal proof reads
+
+The durable writer and controller accept the same 192 MiB raw journal limit.
+Identity, cleanup, warm-transition, and quiescent recovery reads scan the JSON
+with a fixed 48 KiB input buffer. They retain only the fields used to prove
+ownership, completion, and settled side effects. Generic tool output and task
+text do not become a second in-memory journal. One synchronous scan runs at a
+time; every retained node and string shares an 8 MiB conservative allocation
+budget, including fields materialized after command or event classification.
+
+Proof reads validate discarded JSON as well as retained fields. They preserve
+original types, duplicate-key last-wins behavior, complete semantic evidence,
+and complete `run.attach` commands and results. The full raw file digest covers
+all omitted bytes. Warm-transition fingerprints keep their existing byte-exact
+algorithm. Symlinks, changing files, invalid JSON, excessive nesting, or excess
+essential evidence fail closed. A projection is read-only evidence and must
+never be written back as a replacement journal.
+
 ## Required compatibility matrix
 
 Each runner-related pull request updates only rows that it can execute. The
