@@ -705,7 +705,14 @@ it.each(["after_budget", "within_budget", "persistence_failure"] as const)(
     const bundle = createCapabilityRunnerdCodexTransport({
       runnerBinary: defaultCapabilityRunnerdBinary(),
       codexCommand: fakeCodex,
-      codexArgs: fakeCodexArgs(stateDirectory, "--split-event-burst"),
+      // Exercise a real output suffix around the held semantic callback.
+      // The default 96/48-frame stress burst spends seconds on unrelated
+      // durable text fsyncs before handler entry, consuming this barrier test's
+      // wall-clock budget under the full suite. Stress cases retain defaults.
+      codexArgs: fakeCodexArgs(
+        stateDirectory, "--split-event-burst",
+        "--split-event-prefix-count", "2", "--split-event-suffix-count", "2",
+      ),
       stateDirectory,
       closeGraceMs: 2_000,
       controlPlaneRegistration: async (authority) => {
