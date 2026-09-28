@@ -473,6 +473,16 @@ describe("native backend factory", () => {
       "requires an instance runtime directory",
     );
   });
+  it.each(["pi", "cursor", "copilot"] as const)("constructs %s identity on the supplied runnerd transport without starting a provider", async agent => {
+    const input = acpxExecution();
+    if (input.provider.kind !== "acpx") throw new Error("invalid fixture");
+    const model = agent === "pi" ? QUALIFIED_ACPX_PROFILES.pi.qualificationModel : "explicit-fixture-model";
+    Object.assign(input.provider, { agent, model, profile: resolveQualifiedAcpxProfile(agent, model) });
+    const backend = createNativeSessionBackend(input, {
+      codexTransportFactory: () => { throw new Error("descriptor must not launch the transport"); },
+    });
+    await expect(backend.descriptor()).resolves.toMatchObject({ name: "acpx_runtime", version: "0.13.1" });
+  });
 
   it.each(["claude" as const])(
     "constructs the qualified %s ACPX backend",

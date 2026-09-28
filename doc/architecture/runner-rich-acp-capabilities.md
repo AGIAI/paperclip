@@ -5,7 +5,8 @@ Mainline integration: `14795136f56c11ed83dc754791945bb5a0b8f7fd`.
 Status: implementation is available as four draft PRs; deterministic review and
 CI verification are in progress. All three new
 profiles remain **pending qualification**. Authenticated paid qualification is in
-progress. The first Pi request reached real semantic tools but did not settle;
+progress. Cursor and Copilot each passed the first authenticated semantic protocol case.
+The first Pi request reached real semantic tools but did not settle;
 no Daytona resources have been started. This report does not certify a provider
 from its ACP listing or a partial run.
 
@@ -47,7 +48,7 @@ Codex's row is the existing app-server integration, not the Codex ACP bridge.
 
 | Capability | Codex app-server benchmark | Cursor ACP candidate | Copilot ACP candidate | Pi ACP candidate |
 | --- | --- | --- | --- | --- |
-| Exact model | Selected and reported model | Explicit ID required; authenticated discovery and exact model echo observed; inference qualification pending | Explicit ID required; authenticated catalog and exact `gpt-5.6-luna` echo observed; end-to-end inference pending | Exact `openrouter/deepseek/deepseek-v4-flash-0731`; real paid response and four semantic tools observed; terminal settlement still unverified |
+| Exact model | Selected and reported model | Explicit ID required; exact model echo and first paid semantic protocol case passed; Product E2E pending | Explicit ID required; exact `gpt-5.6-luna` echo and first paid semantic protocol case passed; Product E2E pending | Exact `openrouter/deepseek/deepseek-v4-flash-0731`; real paid response and four semantic tools observed; terminal settlement still unverified |
 | Text and tools | Typed thread/turn/item events | Standard ACP updates; child activity kept separate | Standard ACP plus opt-in native session events | Wrapper text/tool updates and owned tool gates |
 | Active steering | Dedicated `turn/steer` | Concurrent prompt replaces/cancels, so it is not steering | Concurrent prompt replaces/cancels, so it is not steering | Owned `pi/steer` requires handshake, exact active turn and acknowledgment |
 | Queued follow-up | Product continuation controls | Controller can schedule a later prompt; native queue not established | Native pending-message activity exists; no qualified ACP queue responder | Owned `pi/follow_up`, separately named and ordered |
@@ -56,7 +57,7 @@ Codex's row is the existing app-server integration, not the Codex ACP bridge.
 | Questions | Typed input requests and response correlation | `cursor/ask_question`, option identity and multiple selection preserved | Native ask-user capability exists, but pinned ACP does not wire its responder; do not display a false answerable form | `select`, `confirm`, `input`, `editor` through typed form elicitation |
 | Permissions | Durable typed approvals | Standard ACP permission options; only supported decisions shown | Standard ACP; offline deny-before-marker proof; session decision scope inspected | Native pre-tool gate; allow once, exact-operation session grant, deny; paths rechecked after wait |
 | Plans | Typed plan and collaboration mode | `cursor/create_plan` includes full plan and revision-bound accept/reject/cancel; todo activity separate | Native plan events displayed; native plan-decision callback not exposed in ACP | No native structured plan event; authenticated Paperclip planning tools available |
-| Authenticated tools | Runner bridge and governed operations | ACP HTTP MCP binding; paid semantic cases pending | ACP HTTP MCP binding; paid semantic cases pending | Owned extension registers exact bound MCP tools; four authenticated semantic reads succeeded in a paid partial run; no ambient servers |
+| Authenticated tools | Runner bridge and governed operations | ACP HTTP MCP binding; paid context/history reads passed | ACP HTTP MCP binding; paid context read passed | Owned extension registers exact bound MCP tools; four authenticated semantic reads succeeded in a paid partial run; no ambient servers |
 | Delegation | Typed agent roles and lifecycle | Opt-in subagent lifecycle, nested ownership and bounded child activity; never parent transcript flattening | Native delegation/session events projected with role/model/agent provenance | No built-in ACP delegation protocol; arbitrary extensions are excluded |
 | Files/diffs | Typed file changes and artifact references | Standard tool changes plus validated image references | File/workspace events retained; provider session files are not silently treated as task files | Native read/write/edit diffs; semantic artifact tools |
 | Images/artifacts | Typed references and registered work products | Existing contained files only, provenance, `registered:false` | Contained task references only; external/session-store paths become descriptive notices | Image/resource tool blocks preserved by wrapper; dedicated artifact channel absent |
@@ -167,6 +168,35 @@ Earlier launch/interpreter failures are retained separately. The initial Cursor
 failure exposed a native wrapper gap: a typed entitlement error becomes an
 ordinary message and normal completion. The runner does not infer authorization
 from that message or fabricate a zero-cost usage receipt.
+
+The selected paid Cursor account passed canonical `get-task-context` at source
+`01959b8a602683f13706807983f02c3cba9d36a0`, pack
+`sha256:f0b622e9151c1c0886e6220c48ea71993b65887baa88b1600b27462074748ddb`,
+using exact `gpt-5.6-luna[context=272k,reasoning=medium,fast=false]`.
+Its context/history reads and all four semantic checks passed in 29.291 seconds.
+The account usage row attributes 56K tokens to this run, included in its existing
+Pro+ subscription; incremental cash is zero. ACP supplied no token or USD receipt.
+A conservative list-price bound of $0.07 is an estimate, not an invoice.
+
+Copilot's first real completed attempt used source `92fcaf0c`, the same immutable
+runnerd SHA-256 `986060810ba7377c6ddd64a5d89e322d0a434e1a9c80400e6d4acf5934bfc421`,
+and exact `gpt-5.6-luna`. One context read and all four canonical semantic checks
+passed. The original post-run package/provenance failure is retained; offline
+scoring recovered the same artifact with zero additional provider calls. Its
+24,258 input, 11,781 cached-input and 441 output tokens yield a $0.00326022 catalog
+estimate. GitHub still displayed 0/1,500 included credits and additional billing
+disabled with a $0 budget after the run. UI delay/rounding leaves the exact credit
+delta unverified; this is not a provider USD receipt. Neither protocol case proves
+Product E2E, restrictive permissions, restart recovery, or Daytona qualification.
+
+Initial Product attempts exposed local PostgreSQL postinstall hydration and a
+server candidate-admission gap before any model prompt. Both failed attempts are
+retained. The package's own hydration repairs local installation; exact host
+qualification now applies consistently at agent creation, runtime selection,
+native input and process construction. Agent configuration cannot grant itself
+qualification authority. The obsolete unconditional Pi executor rejection is
+replaced by the same closed host authorization. Candidate active turns are bounded
+to 120 seconds and automatic infrastructure retries remain disabled.
 
 The maintained Product E2E `extended-harnesses` suite covers local and Daytona
 completion, question/answer, semantic plan approval, pending-input restart and
