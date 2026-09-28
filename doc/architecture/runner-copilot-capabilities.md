@@ -371,3 +371,40 @@ as unavailable through this pinned integration (P1 follow-up: upstream ACP limit
 support). The 60-second deadline, $0.50 declared envelope and $2 reservation do
 not become a per-response hard cap. All profiles remain pending until the full
 local and Daytona qualification succeeds.
+
+
+## First local Product result and accounting defect (2026-09-28)
+
+The [retained local Product proof](../../packages/paperclip-runner/test/fixtures/copilot-product-live-proof-2026-09-28.json)
+records `extended-harnesses.runner-acpx-copilot.local.hello-complete` from committed
+source `bcc9c638a25b91b84065f12633f083bd4f7a689f`. The first attempt passed all six
+behavior matchers in 38.436 seconds, with one provider turn, no automatic retry,
+and successful cleanup. Browser evidence shows the exact completion marker once,
+the task marked Done, the Copilot agent, and expandable tool activity. The active
+turn deadline was 120 seconds within the existing $2 reservation. This is one
+basic Product case, not full local or Daytona qualification.
+
+The original result is retained unchanged with digest
+`sha256:92c8aff3960e443be0c009c891d49d285476c3d6b67999fe97bb323076c4dc8b`.
+It exposed a shared accounting defect: model-family inference labeled the biller
+`openai`, while missing provider cost became `costUsd: 0`, `costStatus: reported`
+and `billing.complete: true`. Those fields are invalid accounting evidence. The
+correct biller is GitHub, provider USD cost is unknown, and the retained behavioral
+pass must not be interpreted as accounting qualification. A shared server fix is
+in progress; paid follow-ups are paused pending that correction. The original
+result also lacks source SHA fields; the independent launcher manifest records
+the exact committed source above.
+
+After this case, GitHub displayed 1 of 1,500 included AI credits consumed across
+the successful protocol and Product turns together. Exact per-run credit use
+remains unknown. Additional usage is disabled, with $0 of the $0 cash budget
+spent; included-credit consumption is reported separately. The Product receipt
+contains 31,332 input, 15,451 cached input and 337 output tokens, without a verified
+USD receipt.
+
+The shared eval CLI now preserves completed provider outcomes while returning a
+separate nonzero accounting failure when cost coverage is unknown or its bound
+is exceeded. The sibling scorer retains semantic assertions under
+`accounting_failure`; roster and campaign orchestration stop subsequent queued
+cases. External dashboard reconciliation does not override the CLI budget
+result. Profiles remain pending until the outstanding qualification matrix passes.
