@@ -456,3 +456,26 @@ The refreshed immutable runnerd has the matching Rust tree and digest
 `sha256:e6a9fb5170b76a49b8411834b3706e8edf8f1a1ae85ad13b55368158aa7f67a0`.
 This packaging proof does not rerun or supersede the live results above. Additional
 Product starts are held while host PostgreSQL semaphore capacity is restored.
+
+## Real-service permission and detached-command probes
+
+Two subsequent single-turn probes used exact `gpt-5.6-luna` through the final
+pack's verified native command lease, with isolated configuration, no ambient
+credentials or MCP servers, and a dedicated explicitly bound token. Probe source
+`47eed960b380e8c8054eb19985aaefeabc6336c3` is retained in
+`scripts/qualify-copilot-acp.mjs`. Five credential-free probe tests include actual
+JSON-RPC framing, numeric request ID 0, native option identity and process reaping.
+Each live probe had a $2 reservation, 120-second prompt and 180-second outer
+deadline, an awake supervisor, and zero retries.
+
+- [Denied write](../../packages/paperclip-runner/test/fixtures/copilot-live-denial-2026-09-28.json): Copilot requested a native file edit at 7.177s. The client returned its exact `reject_once` option for request ID 0. The turn ended at 7.187s and all 79 filesystem observations through 12.837s remained absent. Native exit and owned process-group cleanup passed.
+- [Detached command](../../packages/paperclip-runner/test/fixtures/copilot-live-detached-2026-09-28.json): the native tool call explicitly requested `mode: async`, `detach: true`. Only the exact finite three-second marker command received `allow_once`. Native output confirmed the detached shell exited 0 at 10.083s; the marker was present before the 10.675s terminal response and remained correct through cleanup.
+
+These are actual GitHub-service results, distinct from the earlier loopback
+fixtures. They qualify these two narrow file/command oracles only. They do not
+prove all tools, an arbitrarily long detached process, governed Product approval
+surfaces or Daytona execution. Authoritative USD remains absent. GitHub's display
+was still 3/1,500 included credits after denial; display granularity or delay
+prevents a zero-use claim. The post-command dashboard also remained at 3/1,500 included credits,
+with additional usage disabled and $0 cash charges. Exact per-probe credit use
+remains unknown. The overall candidate remains pending.

@@ -7,6 +7,24 @@ function fixture(name: string) {
 }
 
 describe("Copilot pinned executable evidence", () => {
+  it("retains an actual detached command completing before the GitHub turn settles", () => {
+    const evidence = fixture("copilot-live-detached-2026-09-28.json");
+    expect(evidence).toMatchObject({ qualificationStatus: "pending", model: "gpt-5.6-luna", promptRequestsSent: 1, providerReportedCostUsd: null, detachedToolObserved: true, backgroundCompletionObservedBeforeTerminal: true, cleanupComplete: true, result: { passed: true } });
+    expect(evidence.nativeToolCall.rawInput).toMatchObject({ mode: "async", detach: true });
+    expect(evidence.permissions[0]).toMatchObject({ requestId: 0, outcome: { outcome: "selected", optionId: "allow_once" }, exactCommand: true });
+    expect(evidence.nativeCompletion.elapsedMs).toBeLessThan(evidence.terminalElapsedMs);
+    expect(evidence.markerOracle.terminal.matches).toBe(true);
+    expect(evidence.markerOracle.afterCleanup.matches).toBe(true);
+    expect(JSON.stringify(evidence)).not.toMatch(/\/Users\/|\/tmp\/|github_pat_|accessToken|apiCallId/);
+  });
+  it("retains the actual GitHub denied write with unknown USD and bounded scope", () => {
+    const evidence = fixture("copilot-live-denial-2026-09-28.json");
+    expect(evidence).toMatchObject({ qualificationStatus: "pending", model: "gpt-5.6-luna", promptRequestsSent: 1, providerReportedCostUsd: null, cleanupComplete: true, result: { passed: true } });
+    expect(evidence.permissions).toHaveLength(1);
+    expect(evidence.permissions[0]).toMatchObject({ requestId: 0, outcome: { outcome: "selected", optionId: "reject_once" }, writeAttempt: true });
+    expect(evidence.markerOracle).toMatchObject({ anySampleExisted: false, terminal: { exists: false }, afterCleanup: { exists: false } });
+    expect(JSON.stringify(evidence)).not.toMatch(/\/Users\/|\/tmp\/|github_pat_|accessToken|apiCallId/);
+  });
   it("retains local Product failures separately from passed transport and accounting evidence", () => {
     const evidence = fixture("copilot-product-merged-live-proof-2026-09-28.json");
     expect(evidence.qualificationStatus).toBe("pending");
