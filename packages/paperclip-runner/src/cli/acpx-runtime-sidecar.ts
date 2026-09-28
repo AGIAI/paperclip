@@ -2,6 +2,7 @@
 import { createHash } from "node:crypto";
 import { createInterface } from "node:readline";
 import { deliverAcpxResponse, requireAcpxResponseDelivery } from "../drivers/acpx/response-delivery.js";
+import { createAcpxSidecarHostEnvironment } from "../drivers/acpx/environment.js";
 
 import type {
   AcpElicitationContext,
@@ -287,7 +288,7 @@ async function dispatch(
         providerPolicy: params.providerPolicy,
         systemInstructions: params.systemInstructions,
         runtimeContext: params.runtimeContext,
-        environment: process.env,
+        environment: createAcpxSidecarHostEnvironment(process.env, params.agent, params.normalizedSessionId),
         expectedIdentity: params.expectedIdentity,
         semanticTools: {
           tools: params.tools,

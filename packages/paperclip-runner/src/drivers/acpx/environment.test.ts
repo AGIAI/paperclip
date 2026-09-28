@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => vi.unstubAllEnvs());
 
-import { createSanitizedAcpxSpawnInput } from "./environment.js";
+import { ACPX_CREDENTIAL_BINDING_ENV, createAcpxCredentialBinding, createAcpxSidecarHostEnvironment, createSanitizedAcpxSpawnInput } from "./environment.js";
 
 describe("ACPX launch environment", () => {
   it("projects only the selected agent's credentials and runtime allowlist", () => {
@@ -67,6 +67,42 @@ describe("ACPX launch environment", () => {
     expect(createSanitizedAcpxSpawnInput(source, "cursor").env).toEqual({ CURSOR_API_KEY: "cursor-key", CURSOR_AUTH_TOKEN: "cursor-token" });
     expect(createSanitizedAcpxSpawnInput(source, "copilot").env).toEqual({ COPILOT_GITHUB_TOKEN: "copilot-key" });
     expect(createSanitizedAcpxSpawnInput(source, "pi").env).toEqual({});
+  });
+
+  it.each([
+    ["pi", "OPENROUTER_API_KEY"], ["cursor", "CURSOR_API_KEY"],
+    ["cursor", "CURSOR_AUTH_TOKEN"], ["copilot", "COPILOT_GITHUB_TOKEN"],
+  ] as const)("admits only session-bound %s sidecar credentials for %s", (agent, name) => {
+    const source = { [name]: "task-secret" };
+    const binding = createAcpxCredentialBinding(source, agent, "session-1");
+    expect(binding).not.toContain("task-secret");
+    const explicit = createAcpxSidecarHostEnvironment({ ...source, [ACPX_CREDENTIAL_BINDING_ENV]: binding }, agent, "session-1");
+    expect(createSanitizedAcpxSpawnInput(explicit, agent).env).toEqual(source);
+    expect(explicit[ACPX_CREDENTIAL_BINDING_ENV]).toBeUndefined();
+    expect(() => createAcpxSidecarHostEnvironment(source, agent, "session-1")).toThrow("explicit matching session binding");
+    expect(() => createAcpxSidecarHostEnvironment({ ...source, [ACPX_CREDENTIAL_BINDING_ENV]: binding }, agent, "stale-session")).toThrow("explicit matching session binding");
+  });
+
+  it("rejects malformed, wrong-provider, duplicate and missing sidecar credential bindings", () => {
+    const source = { CURSOR_API_KEY: "do-not-include-in-errors" };
+    const valid = JSON.parse(createAcpxCredentialBinding(source, "cursor", "session-1")!);
+    for (const binding of ["invalid-json", JSON.stringify({ ...valid, agent: "copilot" }),
+      JSON.stringify({ ...valid, names: ["COPILOT_GITHUB_TOKEN"] }),
+      JSON.stringify({ ...valid, names: ["CURSOR_API_KEY", "CURSOR_API_KEY"] }),
+      JSON.stringify({ ...valid, names: [] }), JSON.stringify({ ...valid, extra: true })]) {
+      expect(() => createAcpxSidecarHostEnvironment({ ...source, [ACPX_CREDENTIAL_BINDING_ENV]: binding }, "cursor", "session-1"))
+        .toThrow(/^Candidate ACPX credentials require an explicit matching session binding$/);
+    }
+    expect(() => createAcpxSidecarHostEnvironment({ [ACPX_CREDENTIAL_BINDING_ENV]: JSON.stringify(valid) }, "cursor", "session-1")).toThrow("explicit matching session binding");
+    expect(() => createAcpxSidecarHostEnvironment({ ...source, CURSOR_AUTH_TOKEN: "unbound", [ACPX_CREDENTIAL_BINDING_ENV]: JSON.stringify(valid) }, "cursor", "session-1")).toThrow("explicit matching session binding");
+  });
+
+  it("does not reinterpret legacy profile credential environments", () => {
+    const source = { ANTHROPIC_API_KEY: "legacy", OPENAI_API_KEY: "legacy", [ACPX_CREDENTIAL_BINDING_ENV]: "irrelevant" };
+    for (const agent of ["claude", "codex"] as const) {
+      expect(createAcpxCredentialBinding(source, agent, "session-1")).toBeUndefined();
+      expect(createAcpxSidecarHostEnvironment(source, agent, "session-1")).toBe(source);
+    }
   });
 
   it("rejects unsafe or unbounded retained values", () => {

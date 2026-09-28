@@ -129,6 +129,11 @@ impl AcpxSidecarTransport {
             "PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT",
             "PAPERCLIP_ACPX_PROVIDER_PACKAGE_MANIFEST",
         ];
+        if matches!(agent, "pi" | "cursor" | "copilot") {
+            // Credential values alone are not proof of an explicit task binding.
+            // The sidecar checks this controller-minted provider/session marker.
+            keys.push("PAPERCLIP_ACPX_CREDENTIAL_BINDING");
+        }
         keys.extend_from_slice(credential_keys);
         Self::start_with_environment_keys(config, &keys)
     }

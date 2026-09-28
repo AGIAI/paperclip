@@ -34,6 +34,7 @@ import type {
 import { executeNativeSession } from "../native-session-runtime.js";
 import { NativeSessionCloseUnrecoverableError } from "../contracts/native-session-backend.js";
 import { parsePaperclipQuestionSet } from "../contracts/question-set.js";
+import { ACPX_CREDENTIAL_BINDING_ENV, createAcpxCredentialBinding, createAcpxSidecarHostEnvironment } from "../drivers/acpx/environment.js";
 import { DurablePrpControlPlane } from "../control-plane/durable-prp-control-plane.js";
 import * as durableControlPlane from "../control-plane/durable-prp-control-plane.js";
 
@@ -1713,6 +1714,7 @@ it.each([
         environment: {
           PATH: "/bin",
           ...credentialEnvironment,
+          [ACPX_CREDENTIAL_BINDING_ENV]: "untrusted-caller-marker",
           PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT: "/attacker/package-root",
           PAPERCLIP_ACPX_PROVIDER_PACKAGE_MANIFEST:
             "/attacker/package-root/package.json",
@@ -1748,10 +1750,35 @@ it.each([
     for (const key of allowed)
       expect(environment[key]).toBe(credentialEnvironment[key]);
     for (const key of denied) expect(environment[key]).toBeUndefined();
+    if (["cursor", "copilot", "pi"].includes(agent)) {
+      expect(JSON.parse(environment[ACPX_CREDENTIAL_BINDING_ENV]!)).toEqual({
+        schema: "paperclip.acpx_credential_binding.v1", agent, sessionId: "session-1", names: allowed,
+      });
+      const sidecar = createAcpxSidecarHostEnvironment(environment, agent, "session-1");
+      for (const key of allowed) expect(sidecar[key]).toBe(credentialEnvironment[key]);
+    } else expect(environment[ACPX_CREDENTIAL_BINDING_ENV]).toBeUndefined();
     expect(environment.PAPERCLIP_API_KEY).toBeUndefined();
     expect(environment.DATABASE_URL).toBeUndefined();
   },
 );
+
+it("does not bind ambient candidate credentials from an inherited or caller-supplied marker", () => {
+  const forged = createAcpxCredentialBinding({ CURSOR_API_KEY: "ambient-secret" }, "cursor", "session-1")!;
+  vi.stubEnv("CURSOR_API_KEY", "ambient-secret");
+  vi.stubEnv(ACPX_CREDENTIAL_BINDING_ENV, forged);
+  try {
+    for (const explicitEnvironment of [undefined, { [ACPX_CREDENTIAL_BINDING_ENV]: forged }]) {
+      const environment = createCapabilityRunnerdProviderEnvironment({
+        provider: "acpx", options: { provider: "acpx", acpxAgent: "cursor", environment: explicitEnvironment },
+        identity: { runnerInstanceId: "runner-1", environmentLeaseId: "lease-1", runId: "run-1", normalizedSessionId: "session-1", turnId: "turn-1", itemId: "item-1" },
+        codexHome: "/isolated/home", runtimeContextPath: "/isolated/context.json", hasRuntimeContext: false,
+      });
+      expect(environment.CURSOR_API_KEY).toBeUndefined();
+      expect(JSON.parse(environment[ACPX_CREDENTIAL_BINDING_ENV]!)).toMatchObject({ names: [] });
+      expect(createAcpxSidecarHostEnvironment(environment, "cursor", "session-1").CURSOR_API_KEY).toBeUndefined();
+    }
+  } finally { vi.unstubAllEnvs(); }
+});
 
 it.each(["opencode", "acpx"] as const)(
   "advertises runner-managed planning through the %s provider boundary",

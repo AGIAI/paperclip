@@ -61,7 +61,7 @@ import {
   resolveQualifiedAcpxProfile,
   type QualifiedAcpxAgent,
 } from "../drivers/acpx/qualified-profiles.js";
-import { createSanitizedAcpxSpawnInput } from "../drivers/acpx/environment.js";
+import { ACPX_CREDENTIAL_BINDING_ENV, createAcpxCredentialBinding, createSanitizedAcpxSpawnInput } from "../drivers/acpx/environment.js";
 import {
   createSanitizedAwsAgentCoreEnvironment,
   createSanitizedClaudeManagedEnvironment,
@@ -3115,6 +3115,9 @@ export function createCapabilityRunnerdProviderEnvironment(input: {
     // This is the trusted runner/sidecar boundary. The provider sandbox still
     // uses createSanitizedAcpxSpawnInput and does not inherit gateway tokens.
     const assignedGateway = nativeMcpLaunchBinding(input.options.environment ?? {});
+    const credentialBinding = createAcpxCredentialBinding(
+      input.options.environment, input.options.acpxAgent ?? "codex", input.identity.normalizedSessionId,
+    );
     return {
       ...(assignedGateway ? {
         PAPERCLIP_NATIVE_MCP_TOKEN: assignedGateway.token,
@@ -3123,6 +3126,7 @@ export function createCapabilityRunnerdProviderEnvironment(input: {
         input.options.environment,
         input.options.acpxAgent ?? "codex",
       ).env,
+      ...(credentialBinding === undefined ? {} : { [ACPX_CREDENTIAL_BINDING_ENV]: credentialBinding }),
       ...commonIdentity,
       // The verified sidecar bundle cannot use import.meta.url while Node
       // executes it through /proc/self/fd. Anchor its closed provider package

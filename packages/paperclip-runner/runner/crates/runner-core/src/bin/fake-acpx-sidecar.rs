@@ -148,6 +148,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                             "url": std::env::var("PAPERCLIP_NATIVE_MCP_URL").ok(),
                             "hasToken": std::env::var("PAPERCLIP_NATIVE_MCP_TOKEN").is_ok(),
                             "hasUnrelatedSecret": std::env::var("UNRELATED_EVAL_SECRET").is_ok(),
+                            "credentialBinding": std::env::var("PAPERCLIP_ACPX_CREDENTIAL_BINDING").ok(),
                             "credentialKeys": (["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY", "OPENROUTER_API_KEY", "CURSOR_API_KEY", "CURSOR_AUTH_TOKEN", "COPILOT_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"].into_iter().filter(|key| std::env::var(key).is_ok()).collect::<Vec<_>>()),
                         }
                     }),

@@ -233,6 +233,7 @@ fn assigned_gateway_binding_reaches_qualified_sidecar_without_unrelated_secrets(
                 "fixture-token-never-returned-in-test-output",
             )
             .env("UNRELATED_EVAL_SECRET", "must-not-cross-boundary")
+            .env("PAPERCLIP_ACPX_CREDENTIAL_BINDING", "controller-session-binding")
             .envs(
                 [
                     "ANTHROPIC_API_KEY",
@@ -285,6 +286,14 @@ fn assigned_gateway_binding_reaches_qualified_sidecar_without_unrelated_secrets(
             _ => unreachable!(),
         };
         assert_eq!(response["credentialKeys"], json!(expected));
+        assert_eq!(
+            response["credentialBinding"],
+            if matches!(agent, "pi" | "cursor" | "copilot") {
+                json!("controller-session-binding")
+            } else {
+                serde_json::Value::Null
+            }
+        );
         sidecar.shutdown().unwrap();
     }
 }
