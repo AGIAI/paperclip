@@ -250,25 +250,37 @@ export function boundedEvalSessionUsage(
   if (turn.status !== "completed") {
     return usageIfAvailable(request, turn.snapshot);
   }
-  const usage = evalSessionUsage(request.model, turn.snapshot);
-  if (usage.agentTurns > request.limits.maxAgentTurns) {
+  const unavailable = request.provider === "acpx"
+    && request.acpxAgent !== undefined
+    && ["pi", "cursor", "copilot"].includes(request.acpxAgent)
+    && turn.snapshot.config.provider === "acpx"
+    && turn.snapshot.config.acpxAgent === request.acpxAgent
+    && turn.snapshot.usageUnavailable?.some((entry) => entry.turnId === turn.turnId
+      && entry.agent === request.acpxAgent && entry.reason === "provider_did_not_report_usage");
+  const usage = unavailable
+    ? usageIfAvailable(request, turn.snapshot)
+    : evalSessionUsage(request.model, turn.snapshot);
+  const unavailableTurns = unavailable
+    ? new Set(turn.snapshot.usageUnavailable?.map((entry) => entry.turnId)).size
+    : 0;
+  if ((usage?.agentTurns ?? 0) + unavailableTurns > request.limits.maxAgentTurns) {
     throw new Error("agent turn limit exceeded");
   }
   if (
-    usage.estimatedCostNanodollars !== null &&
+    usage !== null && usage.estimatedCostNanodollars !== null &&
     usage.estimatedCostNanodollars >
     request.limits.maxEstimatedCostNanodollars
   ) {
     throw new Error("estimated cost limit exceeded");
   }
   if (
-    usage.providerReportedCostNanodollars !== null &&
+    usage !== null && usage.providerReportedCostNanodollars !== null &&
     usage.providerReportedCostNanodollars >
     request.limits.maxEstimatedCostNanodollars
   ) {
     throw new Error("provider-reported cost limit exceeded");
   }
-  return usage;
+  return unavailable ? null : usage;
 }
 
 async function closeSession(

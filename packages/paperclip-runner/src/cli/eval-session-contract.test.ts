@@ -278,6 +278,33 @@ describe("eval-session usage", () => {
     })).toThrow("agent turn limit exceeded");
   });
 
+  it.each(["pi", "cursor", "copilot"] as const)("keeps %s oracle results when the current turn explicitly has unavailable usage", (agent) => {
+    const parsed = parseEvalSessionRequest(request({
+      provider: "acpx", acpxAgent: agent, model: "exact-provider-model",
+    }), { candidateProfile: agent });
+    const unavailable = {
+      turnId: "turn-candidate", attemptId: "attempt-1", agent,
+      reason: "provider_did_not_report_usage" as const,
+      tokenUsage: null, costNanodollars: null, observedAt: "2026-09-28T19:18:10.000Z",
+    };
+    const snapshot = {
+      config: { provider: "acpx", acpxAgent: agent },
+      usageLedger: [], usageUnavailable: [unavailable],
+    } as unknown as CapabilityLiveSessionSnapshot;
+    const turn = { turnId: unavailable.turnId, status: "completed" as const, assistantText: "Upgrade your plan to continue", snapshot };
+    expect(boundedEvalSessionUsage(parsed, turn)).toBeNull();
+    expect(turn.assistantText).toBe("Upgrade your plan to continue");
+    expect(snapshot.usageLedger).toEqual([]);
+    expect(() => boundedEvalSessionUsage(parsed, { ...turn, turnId: "other-turn" }))
+      .toThrow("omitted usage accounting");
+    expect(() => boundedEvalSessionUsage(parsed, {
+      ...turn, snapshot: { ...snapshot, usageUnavailable: [{ ...unavailable, agent: agent === "pi" ? "cursor" : "pi" }] },
+    })).toThrow("omitted usage accounting");
+    expect(() => boundedEvalSessionUsage(parsed, {
+      ...turn, snapshot: { ...snapshot, usageUnavailable: [unavailable, { ...unavailable, turnId: "second-turn" }] },
+    })).toThrow("agent turn limit exceeded");
+  });
+
   it("deduplicates receipts and applies the versioned model price", () => {
     const receipt = {
       receiptId: "receipt-1",

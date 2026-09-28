@@ -199,6 +199,16 @@ export interface CapabilityLiveUsageReceipt {
   observedAt: string;
 }
 
+export interface CapabilityLiveUnavailableUsage {
+  turnId: string;
+  attemptId: string;
+  agent: "pi" | "cursor" | "copilot";
+  reason: "provider_did_not_report_usage";
+  tokenUsage: null;
+  costNanodollars: null;
+  observedAt: string;
+}
+
 export interface CapabilityLiveStateRevision {
   revision: number;
   at: string;
@@ -266,6 +276,8 @@ export interface CapabilityLiveSessionSnapshot {
   terminalTurns?: CapabilityLiveTurnTerminalFact[];
   /** Exact-once provider usage/cost receipts retained across every attempt. */
   usageLedger?: CapabilityLiveUsageReceipt[];
+  /** Candidate turns without a provider receipt; these are never zero-valued receipts. */
+  usageUnavailable?: CapabilityLiveUnavailableUsage[];
   /** Process-level evidence for an interrupted Codex semantic-call resume. */
   nativeResume?: {
     schema: "paperclip.runner.native-resume-proof/v1";
@@ -768,6 +780,24 @@ export function assertCapabilityLiveSessionSnapshot(
     }
     usageReceiptIds.add(receiptId);
   }
+  if (snapshot.usageUnavailable !== undefined && !Array.isArray(snapshot.usageUnavailable)) {
+    throw new Error("capability_live_checkpoint_corrupt: invalid unavailable usage");
+  }
+  const unavailableTurnIds = new Set<string>();
+  for (const value of snapshot.usageUnavailable ?? []) {
+    const unavailable = record(value);
+    const turnId = text(unavailable.turnId);
+    if (config.provider !== "acpx" || unavailable.agent !== config.acpxAgent
+      || !["pi", "cursor", "copilot"].includes(text(unavailable.agent))
+      || !turnId || turnId.length > 512 || unavailableTurnIds.has(turnId)
+      || !text(unavailable.attemptId) || text(unavailable.attemptId).length > 512
+      || !text(unavailable.observedAt)
+      || unavailable.reason !== "provider_did_not_report_usage"
+      || unavailable.tokenUsage !== null || unavailable.costNanodollars !== null) {
+      throw new Error("capability_live_checkpoint_corrupt: invalid unavailable usage");
+    }
+    unavailableTurnIds.add(turnId);
+  }
   if (
     snapshot.stateHistory !== undefined &&
     (!Array.isArray(snapshot.stateHistory) || snapshot.stateHistory.length > 256)
@@ -1147,6 +1177,7 @@ export class CapabilityLiveSession {
   readonly #attempts: CapabilityLiveAttemptSnapshot[];
   readonly #terminalTurns: CapabilityLiveTurnTerminalFact[];
   readonly #usageLedger: CapabilityLiveUsageReceipt[];
+  readonly #usageUnavailable: CapabilityLiveUnavailableUsage[];
   readonly #stateHistory: CapabilityLiveStateRevision[];
   readonly #workspaceDiffs: CapabilityLiveWorkspaceDiffEntry[];
   readonly #workspaceFileReferences: CapabilityLiveWorkspaceFileReferenceEntry[];
@@ -1204,6 +1235,7 @@ export class CapabilityLiveSession {
     this.#currentAttemptId = initialAttemptId;
     this.#terminalTurns = structuredClone(options.snapshot?.terminalTurns ?? []);
     this.#usageLedger = structuredClone(options.snapshot?.usageLedger ?? []);
+    this.#usageUnavailable = structuredClone(options.snapshot?.usageUnavailable ?? []);
     this.#stateHistory = structuredClone(options.snapshot?.stateHistory ?? [{
       revision: this.#port.snapshot().revision,
       at: this.#createdAt,
@@ -1389,6 +1421,7 @@ export class CapabilityLiveSession {
       currentAttemptId: this.#currentAttemptId,
       terminalTurns: structuredClone(this.#terminalTurns),
       usageLedger: structuredClone(this.#usageLedger),
+      ...(this.#usageUnavailable.length === 0 ? {} : { usageUnavailable: structuredClone(this.#usageUnavailable) }),
       stateHistory: structuredClone(this.#stateHistory),
       workspaceDiffs: structuredClone(this.#workspaceDiffs),
       workspaceFileReferences: structuredClone(this.#workspaceFileReferences),
@@ -1772,10 +1805,29 @@ export class CapabilityLiveSession {
           ...selected,
           costNanodollars: Math.max(selected.costNanodollars, reported?.costNanodollars ?? 0),
         };
-    if (
-      (selectedWithReportedCost?.inputTokens ?? 0) + (selectedWithReportedCost?.outputTokens ?? 0) === 0
-      && !allowEmpty
-    ) {
+    const missingTokens = (selectedWithReportedCost?.inputTokens ?? 0)
+      + (selectedWithReportedCost?.outputTokens ?? 0) === 0;
+    const candidate = this.#config.acpxAgent;
+    if (missingTokens && this.#config.provider === "acpx"
+      && (candidate === "pi" || candidate === "cursor" || candidate === "copilot")
+      && this.#transportOptions.acpxCandidateProfile === candidate) {
+      // Native candidate wrappers can complete a turn without a usage receipt,
+      // including entitlement-denied turns. Retain the actual result for the
+      // oracle without inventing tokens, charges, or a successful model call.
+      if (!this.#usageUnavailable.some((entry) => entry.turnId === turnId)) {
+        this.#usageUnavailable.push({
+          turnId,
+          attemptId: this.#currentAttemptId,
+          agent: candidate,
+          reason: "provider_did_not_report_usage",
+          tokenUsage: null,
+          costNanodollars: null,
+          observedAt: this.#now().toISOString(),
+        });
+      }
+      return;
+    }
+    if (missingTokens && !allowEmpty) {
       throw new Error(`capability_live_usage_missing:${JSON.stringify({
         captured: captured !== undefined,
         needsRead,

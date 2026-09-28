@@ -75,6 +75,8 @@ interface FakeProviderState {
   holdAfterTool: boolean;
   closeError: Error | null;
   usageRunDelta: Record<string, unknown> | null;
+  omitReadUsage?: boolean;
+  assistantReply?: string;
   onTurnStart?: () => Promise<void>;
   onUsage?: (queue: AsyncNotifications, turnId: string) => void | Promise<void>;
   /** Delays the fake `turn/interrupt` reply, to model a slow transport round trip. */
@@ -116,14 +118,14 @@ class FakeCapabilityCodexTransport implements CodexAppServerTransport {
           id: this.state.threadId,
           sessionId: this.state.providerSessionId,
           turns: [...this.state.turns].map(([id, status]) => ({ id, status })),
-          tokenUsage: {
+          ...(this.state.omitReadUsage ? {} : { tokenUsage: {
             total: {
               inputTokens: this.state.nextTurn * 100,
               cachedInputTokens: this.state.nextTurn * 20,
               outputTokens: this.state.nextTurn * 10,
               reasoningOutputTokens: this.state.nextTurn * 2,
             },
-          },
+          } }),
         },
       };
     }
@@ -260,7 +262,7 @@ class FakeCapabilityCodexTransport implements CodexAppServerTransport {
       params: {
         threadId: this.state.threadId,
         turnId,
-        item: { id: `message-${turnId}`, type: "agentMessage", text: assistantText },
+        item: { id: `message-${turnId}`, type: "agentMessage", text: this.state.assistantReply ?? assistantText },
       },
     });
     this.state.turns.set(turnId, "completed");
@@ -1074,6 +1076,58 @@ describe("Capability live runnerd and Codex session", () => {
     });
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+    await service.shutdown(session.id);
+  });
+
+  it.each(["pi", "cursor", "copilot"] as const)("retains a completed %s result with explicit unavailable usage and no fabricated receipt", async (acpxAgent) => {
+    const state = providerState();
+    state.omitReadUsage = true;
+    state.assistantReply = "Upgrade your plan to continue";
+    state.onUsage = (queue, turnId) => queue.push({
+      method: "turn/completed",
+      params: { threadId: state.threadId, turn: { id: turnId, status: "completed" } },
+    });
+    const store = new InMemoryCapabilityLiveSessionStore();
+    const service = new CapabilityLiveSessionService({
+      store,
+      transportFactory: fakeTransportFactory(state),
+      transportOptions: { acpxCandidateProfile: acpxAgent },
+    });
+    const session = await service.create({
+      provider: "acpx", acpxAgent,
+      requestedModel: acpxAgent === "pi" ? "openrouter/deepseek/deepseek-v4-flash-0731" : "exact-model",
+    });
+    const result = await session.sendMessage("Orient to this task.");
+    expect(result.status).toBe("completed");
+    expect(result.assistantText).toBe(state.assistantReply);
+    expect(result.snapshot.usageLedger).toEqual([]);
+    expect(result.snapshot.usageUnavailable).toEqual([{
+      turnId: result.turnId,
+      attemptId: result.snapshot.currentAttemptId,
+      agent: acpxAgent,
+      reason: "provider_did_not_report_usage",
+      tokenUsage: null,
+      costNanodollars: null,
+      observedAt: expect.any(String),
+    }]);
+    expect(result.snapshot.authorizationRecords.filter((entry) => entry.phase !== "exposure")).toEqual([]);
+    await service.shutdown(session.id);
+    expect((await store.load(session.id))?.usageUnavailable).toEqual(result.snapshot.usageUnavailable);
+    expect((await store.load(session.id))?.process?.runnerExited).toBe(true);
+  });
+
+  it("still rejects missing usage for a qualified provider", async () => {
+    const state = providerState();
+    state.omitReadUsage = true;
+    state.onUsage = (queue, turnId) => queue.push({
+      method: "turn/completed",
+      params: { threadId: state.threadId, turn: { id: turnId, status: "completed" } },
+    });
+    const service = new CapabilityLiveSessionService({ transportFactory: fakeTransportFactory(state) });
+    const session = await service.create();
+    await expect(session.sendMessage("Orient to this task.")).rejects.toThrow("capability_live_usage_missing");
+    expect(session.snapshot().usageLedger).toEqual([]);
+    expect(session.snapshot().usageUnavailable).toBeUndefined();
     await service.shutdown(session.id);
   });
 
