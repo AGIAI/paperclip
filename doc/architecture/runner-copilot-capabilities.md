@@ -2,8 +2,9 @@
 
 Audited 2026-09-28 against repository base `c65fc9e3c81c41aafe421aa90a00514b84343285`.
 Status: **candidate, not qualified**. Authenticated model discovery and exact model
-selection now pass; real inference and Daytona execution remain unverified.
-Real executable offline probes cost $0; no model prompt has been sent. The allocated live budget remains $25, subject to
+selection now pass. One canonical local protocol case has passed through the real
+runner with authenticated semantic tools. Product E2E and Daytona remain pending.
+Real executable offline probes cost $0; the live token receipt has no verified USD charge. The allocated live budget remains $25, subject to
 the shared $100 hard stop and verifiable spend. Do not expose this profile as
 supported until the required local and Daytona qualification passes.
 
@@ -344,6 +345,29 @@ The initial paid qualification reservation is $2 within the provider's $25
 allocation and shared $100 budget. The account dashboard baseline is 0 of 1,500
 included AI credits; additional paid usage is disabled with a $0 cash budget.
 Included credit consumption must still be reconciled and reported separately
-from cash charges. One canonical `get-task-context` case with a 60-second turn,
-zero retries, and a $0.50 declared envelope is next. Neither that envelope nor
-Copilot's optional soft credit limit is a guaranteed per-response hard cap.
+from cash charges. The [sanitized first live proof](../../packages/paperclip-runner/test/fixtures/copilot-canonical-live-proof-2026-09-28.json)
+records one `get-task-context` turn completed in 33.383 seconds: one authenticated
+semantic call and successful result, completed terminal, complete transcript and
+mock-only boundary all pass the unchanged canonical scorer. The first attempt
+failed before prompting because a stale Rust binary omitted credential binding;
+the fresh source-built release binary fixed admission. The live attempt's
+post-turn package-provenance lookup failed, so the same retained artifact was
+scored offline after regenerating the exact source tarball. Both original
+failure records remain inspectable; recovery sent no additional model prompt.
+The sibling launcher now validates that tarball before paid work.
+
+The receipt reports 24,258 input tokens, 11,781 cached input tokens and 441 output
+tokens. Its $0.00326022 catalog estimate is not a GitHub charge. The runner's
+`providerRequests: 1` is a terminal receipt count, not an observed count of
+upstream HTTP requests. GitHub still displayed 0/1,500 credits after this small
+turn; lag or rounding prevents exact credit attribution. Additional paid usage remains disabled with a $0 budget; that billing boundary
+does not imply zero consumption of included credits.
+
+The pinned CLI documents `--max-ai-credits` as a soft cap, minimum 30 credits.
+Its ACP startup/session implementation does not propagate that option into
+`sessionLimits`, unlike the native interactive/server paths; ACP exposes no
+budget configuration option. Treat provider-enforced per-session credit limits
+as unavailable through this pinned integration (P1 follow-up: upstream ACP limit
+support). The 60-second deadline, $0.50 declared envelope and $2 reservation do
+not become a per-response hard cap. All profiles remain pending until the full
+local and Daytona qualification succeeds.
