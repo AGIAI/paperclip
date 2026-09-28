@@ -79,7 +79,9 @@ mutation or approval is automatically replayed into a replacement.
 
 Full plan documents have a bounded 100,000-character description and a 196 KiB
 question-set envelope. Oversized plans fail rather than approve an unseen suffix.
-Display redaction remains visible. The rich event channel has exact canonical
+Display redaction remains visible. Decision descriptions render image references as
+inert text and Mermaid diagrams as source, so reviewing a plan does not fetch
+provider-selected media. The rich event channel has exact canonical
 schemas and a bounded envelope. It cannot create terminal outcomes, dispatch a
 semantic tool, register an artifact, synchronize a durable plan, or supply source
 authority. Notices retain useful bounded fields and provenance in expandable UI
@@ -169,10 +171,17 @@ The local full root test attempt initially failed because embedded Postgres's
 install-time library links were missing. Its official package postinstall restored
 them; all 38 affected suites (743 tests) then passed. An unchanged workspace
 streaming stress test exceeds macOS path limits (`ENAMETOOLONG`); Linux CI retains
-the original case. The full runner TypeScript repeat and remaining workspace
-suites are recorded in the PR as they complete, including any failed attempt.
+the original case. The full runner TypeScript repeat passed 2,164 tests in 156 files, with ten
+skipped tests. The full UI and CLI suites passed 6,772 and 502 tests. Remaining
+source workspace checks passed 2,882 tests; two macOS path-alias fixture failures
+were corrected with an explicit injection assertion (all 89 sandbox tests pass),
+and a database timeout passed in an isolated repeat. Failed attempts and the
+latest CI state remain recorded in the PR. The decision-media review fix passes
+87 focused tests, UI typecheck, token gates and the UI build.
 
-Fresh macOS ARM64 candidate packs were independently built and launched through
+Initial macOS ARM64 candidate packs were independently built and launched through
 the generic installation registry: Cursor source `1055c13f8`, Copilot `5d8829add`,
-Pi `f58cfa1cb`. Each provider PR retains the exact source SHA, manifest/profile/
-closure digests and sanitized wire proof. These probes sent no model prompt.
+Pi `f58cfa1cb`. Review fixes that change execution bytes require fresh packs and
+launch proofs; the latest source SHA, manifest/profile/closure digests and
+sanitized wire evidence are retained in each provider PR. Earlier proofs retain
+their original source identity. These probes send no model prompt.
