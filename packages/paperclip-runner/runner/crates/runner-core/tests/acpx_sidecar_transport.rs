@@ -233,7 +233,10 @@ fn assigned_gateway_binding_reaches_qualified_sidecar_without_unrelated_secrets(
                 "fixture-token-never-returned-in-test-output",
             )
             .env("UNRELATED_EVAL_SECRET", "must-not-cross-boundary")
-            .env("PAPERCLIP_ACPX_CREDENTIAL_BINDING", "controller-session-binding")
+            .env(
+                "PAPERCLIP_ACPX_CREDENTIAL_BINDING",
+                "controller-session-binding",
+            )
             .envs(
                 [
                     "ANTHROPIC_API_KEY",

@@ -105,6 +105,10 @@ verifies the downloaded artifact, then passes that artifact's SHA-256 as the
 `PAPERCLIP_RUNNER_LOCK_SHA256` build argument. The Dockerfile checks the resolved
 lock against this value before installation. The fixed Dockerfile default is
 for standalone builds; it must not replace a campaign's verified lock digest.
+Refresh the default from the clean tracked lockfile using the exact
+`pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile` command,
+and verify a second resolution preserves the digest. A lockfile left by a
+filtered or incremental install can retain stale importer patch identities.
 Keep one latest stable CLI installation per provider; refresh exact runtime
 versions and qualification digests together, never install a private older copy
 or download dependencies when a task starts.
