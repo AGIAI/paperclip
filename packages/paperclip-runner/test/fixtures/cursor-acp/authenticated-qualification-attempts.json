@@ -626,9 +626,24 @@
         "nativeReceipt": null,
         "tokenUsage": null,
         "costUsd": null,
-        "coverage": "provider usage unavailable; dashboard reconciliation pending"
+        "coverage": "provider usage unavailable; one dashboard row attributed"
       },
-      "scope": "Infrastructure failure after one completed pending-question turn; does not qualify server-restart recovery. Original failed cleanup and evidence retained."
+      "scope": "Infrastructure failure after one completed pending-question turn; does not qualify server-restart recovery. Original failed cleanup and evidence retained.",
+      "billing": {
+        "source": "parent-observed account Usage row within retained attempt time window",
+        "requests": [
+          {
+            "at": "2026-09-28T20:13:38Z",
+            "tokensDisplay": "23.7K"
+          }
+        ],
+        "modelLabel": "gpt-5.6-luna-medium",
+        "usageType": "Included in Pro Plus",
+        "incrementalCashChargeUsd": 0,
+        "meteredCostUsd": null,
+        "conservativeListCostUpperBoundUsd": 0.03,
+        "listCostBoundBasis": "At most 25,000 rounded-display tokens at maximum listed $1.20/M; not a billing receipt."
+      }
     }
   ],
   "newAccountDiscovery": {
