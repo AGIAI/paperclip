@@ -1583,30 +1583,33 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       executionError = error;
       throw error;
     } finally {
-      await providerStop.collectBeforeRestore();
-      if (paperclipBridge) {
-        await paperclipBridge.stop();
-      }
-      if (restoreRemoteWorkspace) {
-        try {
-          await onLog(
-            "stdout",
-            `[paperclip] Restoring workspace changes from ${describeAdapterExecutionTarget(executionTarget)}.\n`,
-          );
-          await restoreRemoteWorkspace();
-        } catch (error) {
-          await Promise.resolve(
-            onLog(
-              "stderr",
-              `[paperclip] Failed to restore workspace changes from ${describeAdapterExecutionTarget(
-                executionTarget,
-              )}: ${error instanceof Error ? error.message : String(error)}\n`,
-            ),
-          ).catch(() => undefined);
-          // A provider failure remains the primary outcome. When provider work
-          // succeeded, however, silently accepting a failed copy-back can lose
-          // the only workspace edits before a replacement sandbox starts.
-          if (executionError === null) throw error;
+      try {
+        await providerStop.collectBeforeRestore();
+      } finally {
+        if (paperclipBridge) {
+          await paperclipBridge.stop();
+        }
+        if (restoreRemoteWorkspace) {
+          try {
+            await onLog(
+              "stdout",
+              `[paperclip] Restoring workspace changes from ${describeAdapterExecutionTarget(executionTarget)}.\n`,
+            );
+            await restoreRemoteWorkspace();
+          } catch (error) {
+            await Promise.resolve(
+              onLog(
+                "stderr",
+                `[paperclip] Failed to restore workspace changes from ${describeAdapterExecutionTarget(
+                  executionTarget,
+                )}: ${error instanceof Error ? error.message : String(error)}\n`,
+              ),
+            ).catch(() => undefined);
+            // A provider failure remains the primary outcome. When provider work
+            // succeeded, however, silently accepting a failed copy-back can lose
+            // the only workspace edits before a replacement sandbox starts.
+            if (executionError === null) throw error;
+          }
         }
       }
     }
