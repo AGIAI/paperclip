@@ -693,6 +693,9 @@ export const providerDescriptorSchema = {
         "null"
       ],
       "maxLength": 240
+    },
+    "turnControls": {
+      "$ref": "#/$defs/turnControls"
     }
   },
   "allOf": [
@@ -870,6 +873,24 @@ export const providerDescriptorSchema = {
       }
     }
   ],
+  "$defs": {
+    "turnControls": {
+      "type": "object",
+      "required": [
+        "steering",
+        "queuedFollowUp"
+      ],
+      "properties": {
+        "steering": {
+          "type": "boolean"
+        },
+        "queuedFollowUp": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
   "additionalProperties": false
 } as const;
 
@@ -1095,6 +1116,9 @@ export const providerEventSchema = {
             "boolean",
             "null"
           ]
+        },
+        "inputUpdated": {
+          "type": "boolean"
         },
         "status": {
           "enum": [
@@ -4441,6 +4465,9 @@ export const eventV2Schema = {
             "properties": {
               "sessionGoals": {
                 "$ref": "https://paperclip.dev/schemas/prp/v2/session-goal.schema.json#/$defs/capability"
+              },
+              "turnControls": {
+                "$ref": "https://paperclip.dev/schemas/prp/v1/provider-descriptor.schema.json#/$defs/turnControls"
               }
             },
             "additionalProperties": true

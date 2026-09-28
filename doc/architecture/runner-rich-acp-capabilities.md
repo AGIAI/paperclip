@@ -1,6 +1,7 @@
 # Rich ACP integration and qualification report
 
 Updated: 2026-09-28. Base: `c65fc9e3c81c41aafe421aa90a00514b84343285`.
+Mainline integration: `14795136f56c11ed83dc754791945bb5a0b8f7fd`.
 Status: implementation and deterministic verification in progress; all three new
 profiles remain **pending qualification**. No paid inference or Daytona resources
 have been used. This report does not certify a provider from its ACP listing.
@@ -49,7 +50,7 @@ Codex's row is the existing app-server integration, not the Codex ACP bridge.
 | Delegation | Typed agent roles and lifecycle | Opt-in subagent lifecycle, nested ownership and bounded child activity; never parent transcript flattening | Native delegation/session events projected with role/model/agent provenance | No built-in ACP delegation protocol; arbitrary extensions are excluded |
 | Files/diffs | Typed file changes and artifact references | Standard tool changes plus validated image references | File/workspace events retained; provider session files are not silently treated as task files | Native read/write/edit diffs; semantic artifact tools |
 | Images/artifacts | Typed references and registered work products | Existing contained files only, provenance, `registered:false` | Contained task references only; external/session-store paths become descriptive notices | Image/resource tool blocks preserved by wrapper; dedicated artifact channel absent |
-| Usage | Per-request receipt and model context | Native usage completeness unverified | ACP/native usage retained without inventing a billing charge | Assistant-message token receipts; dollar cost is a catalog pricing estimate, never authoritative billing |
+| Usage | Per-request receipt and model context | Native usage completeness unverified | ACP/native usage retained without inventing a billing charge | Assistant-message and compaction token receipts; dollar cost is a catalog pricing estimate, never authoritative billing |
 | Config/model changes | Typed configurable controls | Known modes/model interfaces researched; runtime policy cannot be changed by a display event | Model/reasoning/mode options exist; runtime policy remains authoritative | Exact qualified model; arbitrary slash commands/config/extensions disabled |
 | Reconnect/restart | Durable controller replay and qualified provider restoration | Live-process pending input only until exact restoration is proved | Same; history alone is not approval restoration | Same; wrapper explicitly advertises live-process-only pending-input recovery |
 
@@ -62,10 +63,10 @@ mismatch is rejected. Retired streams and inactive turns cannot emit new activit
 
 Requests enter durable runtime state before the UI presents them. The response
 must match an outstanding request and an offered action or valid typed answer.
-The sidecar validates and accepts delivery before Rust settles its durable record.
+The direct driver and sidecar await a receipt for the exact JSON-RPC pipe write before the runtime settles its durable record.
 Standard ACP does not acknowledge application of a permission reply; a lost
 transport acknowledgment is not proof of exactly-once external effects. A
-replacement provider process cannot inherit an old approval promise. No tool
+replacement provider process cannot inherit an old approval promise. A bounded durable ledger expires pending requests after provider loss or unsafe restart, including requests whose creation events were already acknowledged. No tool
 mutation or approval is automatically replayed into a replacement.
 
 Full plan documents have a bounded 100,000-character description and a 196 KiB
@@ -120,6 +121,7 @@ qualification gates, not claims that a JavaScript path check confines a shell.
 | P0 | Copilot denial and detached background settlement | Offline deny/attached-shell tests pass only their narrow fixtures. Exercise affected native tools and detached commands against real service; failing release stays unqualified. |
 | P0 | Exact Cursor/Copilot model reporting | Authentication/entitlement required; no guessed default and no fallback. Fail admission when effective model is unverified. |
 | P0 | Cursor project and remote hooks; native shell boundaries | Configuration flags do not cover every native source. Demonstrate policy cannot be bypassed before production qualification. |
+| P1 | Native Pi queue selection in the product UI | The runner API exposes negotiated `follow_up` separately from active steering. The current composer has no native queue selector; add one without confusing it with controller-scheduled later turns. |
 | P1 | Native Cursor/Copilot active steering and queues | ACP prompt replacement is not steering; native SDK capabilities may be richer. Require a dedicated bound method plus acknowledgment before advertising. |
 | P1 | Child tool media/diff/raw payloads | Bounded delegation summaries preserve lifecycle and identity. Large nested payloads need a child-owned canonical item model; current omission is a visible notice and provider report entry. |
 | P1 | Copilot session-store files and export/artifact URIs | Provider paths are not task-workspace paths. Add a separately authorized export flow with validated bytes and provenance; do not resolve arbitrary URLs or auto-register. |

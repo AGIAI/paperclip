@@ -25,7 +25,8 @@
     "agentServerVersion": { "type": "string", "minLength": 1, "maxLength": 120 },
     "agentRuntimePackage": { "type": ["string", "null"], "maxLength": 240 },
     "agentRuntimeVersion": { "type": ["string", "null"], "maxLength": 120 },
-    "acpxRecordId": { "type": ["string", "null"], "maxLength": 240 }
+    "acpxRecordId": { "type": ["string", "null"], "maxLength": 240 },
+    "turnControls": { "$ref": "#/$defs/turnControls" }
   },
   "allOf": [
     {
@@ -96,5 +97,16 @@
       }
     }
   ],
+  "$defs": {
+    "turnControls": {
+      "type": "object",
+      "required": ["steering", "queuedFollowUp"],
+      "properties": {
+        "steering": { "type": "boolean" },
+        "queuedFollowUp": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  },
   "additionalProperties": false
 }

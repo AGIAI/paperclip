@@ -1,9 +1,16 @@
+import { gradeApiResponsePaging, readResponseProof, responseEvidenceDescription } from "./api-response-reading.js";
+import { observeBrowserBootstrap } from "./browser-bootstrap-diagnostics.js";
+import { runAccountingFlow } from "./accounting-flow.js";
+import type { Issue } from "../../packages/shared/src/types/issue.js";
+import { lifecycleLiveCase, gradeLifecycleRepair } from "./lifecycle-live-cases.js";
 import { runContinuationFlow } from "./continuation-flow.js";
 import { runEverydayFlow } from "./everyday-flow.js";
 import { createTaskThroughUi, submitTaskReply } from "./user-actions.js";
 
 import { runFirstTaskFlow, setupFirstTaskFixtures } from "./first-task-flow.js";
 import { runChatFlow } from "./chat-flow.js";
+import { restartChatServer } from "./chat-restart.js";
+import { matchesRunCount, minimumRunCount } from "./run-count.js";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -15,9 +22,10 @@ import { classifyFailure } from "./failure-classifier.js";
 import { runnerE2EServerControlPaths } from "./harness-env.js";
 import { setupConnectionReview } from "./connection-reviews.js";
 import { setupLiveFixtures, type LiveFixtureValues } from "./live-fixtures.js";
-import { evaluateMatcher, type MatcherResult } from "./matchers.js";
+import { evaluateMatcher, persistedFinalRunMessage, type MatcherResult } from "./matchers.js";
 import {
   acceptedPlanSessionResetFailures,
+  collectRunEvents,
   hasTerminalMalformedPlanConfirmation,
   isControlPlaneGovernedResponseWait,
   isNonExecutingReviewFenceRun,
@@ -57,6 +65,8 @@ interface IssueRecord {
   executionWorkspaceId?: string | null;
   executionRunId?: string | null;
   checkoutRunId?: string | null;
+  scheduledRetry?: unknown;
+  monitorNextCheckAt?: string | null;
 }
 
 interface CommentRecord {
@@ -64,6 +74,7 @@ interface CommentRecord {
   body?: string | null;
   authorType?: string | null;
   authorAgentId?: string | null;
+  authorUserId?: string | null;
   createdByRunId?: string | null;
   createdAt?: string;
 }
@@ -523,19 +534,24 @@ for (const execution of executions) {
     const nonce = `${randomBytes(6).toString("hex")}-${attempt}`;
     const marker = execution.task.buildVisibleMarker(nonce);
     const title = execution.task.buildTitle(nonce);
-    const prompt = execution.task.buildPrompt(nonce);
+    let prompt = execution.task.buildPrompt(nonce);
+    let apiResponseSourceId: string | undefined;
+    let lifecycleBlockerId: string | null = null;
     const credentials = credentialValues();
     const secrets = normalizedSecrets(Object.values(credentials));
     const api = new RunnerApi(request);
-    const companyRunFlow = ["continuation", "agent_chat", "everyday_workflow", "first_task"].includes(execution.task.flow);
+    const companyRunFlow = ["continuation_accounting", "continuation", "agent_chat", "everyday_workflow", "first_task"].includes(execution.task.flow);
     const consoleDiagnostics: Array<Record<string, unknown>> = [];
     const networkDiagnostics: Array<Record<string, unknown>> = [];
+    const pageLifecycleDiagnostics: Array<Record<string, unknown>> = [];
+    const browserBootstrap = observeBrowserBootstrap(page);
     let fixtures: LiveFixtureValues | undefined;
     let reviewProvider: Awaited<ReturnType<typeof setupConnectionReview>> | undefined;
     let issue: IssueRecord | undefined;
     let selectedRuns: RunRecord[] = [];
     let runtimeLeases: EnvironmentLeaseRecord[] = [];
     let matcherResults: MatcherResult[] = [];
+    let downloadedResponseProof: Awaited<ReturnType<typeof readResponseProof>> | undefined;
     let firstTaskEvidence: RunnerE2EResult["firstTask"];
     let turnTimings: NonNullable<RunnerE2EResult["turnTimings"]> | undefined;
     const turnSubmissionTimesMs: number[] = [];
@@ -691,8 +707,8 @@ for (const execution of executions) {
             ),
           ),
           events: await capture(() =>
-            api.get<RunEventRecord[]>(
-              `/api/heartbeat-runs/${candidate.id}/events?limit=1000`,
+            collectRunEvents<RunEventRecord>((afterSeq, limit) =>
+              api.get(`/api/heartbeat-runs/${candidate.id}/events?afterSeq=${afterSeq}&limit=${limit}`),
             ),
           ),
         })),
@@ -720,6 +736,22 @@ for (const execution of executions) {
           location: message.location(),
         });
       }
+    });
+    page.on("pageerror", (error) => {
+      pageLifecycleDiagnostics.push({
+        type: "pageerror",
+        message: error.message,
+        stack: error.stack ?? null,
+        url: page.url(),
+      });
+    });
+    page.on("framenavigated", (frame) => {
+      if (frame === page.mainFrame())
+        pageLifecycleDiagnostics.push({
+          type: "navigation",
+          url: frame.url(),
+          at: new Date().toISOString(),
+        });
     });
     page.on("requestfailed", (requestEvent) => {
       networkDiagnostics.push({
@@ -765,11 +797,31 @@ for (const execution of executions) {
         daytonaImage: process.env.PAPERCLIP_E2E_DAYTONA_IMAGE,
       });
 
+      if (execution.suite.id === "api-response-reading") {
+        const source = await api.post<{ id: string }>(`/api/companies/${fixtures.company.id}/issues`, {
+          title: `Synthetic diagnostic evidence ${nonce}`,
+          description: responseEvidenceDescription(nonce), status: "backlog",
+        });
+        apiResponseSourceId = source.id;
+        prompt = prompt.replaceAll("{{API_RESPONSE_SOURCE_ID}}", source.id);
+      }
+
+      if (execution.suite.id === "lifecycle-baseline" && lifecycleLiveCase(execution.task.id)?.family === "blocker") {
+        const prerequisite = await api.post<{ id: string }>(`/api/companies/${fixtures.company.id}/issues`, {
+          title: `Supply dataset ${nonce}`,
+          description: "Fixture operator prerequisite: dataset has not been supplied.",
+          status: "backlog",
+        });
+        lifecycleBlockerId = prerequisite.id;
+        prompt = prompt.replaceAll("{{LIFECYCLE_BLOCKER_ID}}", prerequisite.id);
+      }
+
       await writeSanitizedJson(
         snapshotsDir,
         "fixtures.json",
         {
           executionId: execution.id,
+          lifecycleBlockerId,
           companyId: fixtures.company.id,
           environmentId: fixtures.environment.id,
           agentId: fixtures.agent.id,
@@ -789,7 +841,19 @@ for (const execution of executions) {
         secrets,
       );
 
-      if (execution.task.flow === "continuation") {
+      if (execution.task.flow === "continuation_accounting") {
+        const accounting = await runAccountingFlow({
+          page, api, fixtures, execution, nonce, deadlineAt: startedAtMs + deadlineMs - 60_000,
+          restart: () => restartIsolatedPaperclipServer({ api, requestId: `accounting-${nonce}`, deadlineAt: startedAtMs + deadlineMs }),
+          observe: (currentIssue, currentRuns, checks) => {
+            issue = currentIssue; selectedRuns = currentRuns;
+            matcherResults = checks.map(check => ({ matcher: { kind: "json_path" as const, path: `accounting.${check.id}`, expected: true }, passed: check.passed, detail: check.detail }));
+          },
+          capture: captureScreenshot,
+          evidence: (name, data) => writeSanitizedJson(snapshotsDir, name, data, secrets),
+        });
+        issue = accounting.issue as IssueRecord; selectedRuns = accounting.runs as RunRecord[];
+      } else if (execution.task.flow === "continuation") {
         const continuation = await runContinuationFlow({
           page, api, fixtures, execution, nonce, secrets, workspacePath, deadlineAt: startedAtMs + deadlineMs - 60_000,
           restart: () => restartIsolatedPaperclipServer({ api, requestId: `continuation-${nonce}`, deadlineAt: startedAtMs + deadlineMs }),
@@ -815,7 +879,7 @@ for (const execution of executions) {
       } else if (execution.task.flow === "agent_chat") {
         const chat = await runChatFlow({
           page, api, fixtures, execution, nonce, workspacePath,
-          restart: () => restartIsolatedPaperclipServer({ api, requestId: `chat-${nonce}`, deadlineAt: startedAtMs + deadlineMs }),
+          restart: () => restartChatServer(page, () => restartIsolatedPaperclipServer({ api, requestId: `chat-${nonce}`, deadlineAt: startedAtMs + deadlineMs })),
           observe: (chatIssue, chatRuns) => { issue = chatIssue; selectedRuns = chatRuns; },
           capture: captureScreenshot,
           evidence: (name, data) => writeSanitizedJson(snapshotsDir, name, data, secrets),
@@ -1531,7 +1595,7 @@ for (const execution of executions) {
         load: loadTaskState,
         accept: ({ currentIssue, taskRuns }) =>
           currentIssue.status === execution.task.expectedTerminalState.issue &&
-          taskRuns.length >= execution.task.expectedRunCount &&
+          taskRuns.length >= minimumRunCount(execution.task) &&
           taskRuns.every((run) => TERMINAL_RUN_STATUSES.has(run.status)),
         reject: ({ taskRuns }) => definitiveRunFailure(taskRuns),
       });
@@ -1548,7 +1612,7 @@ for (const execution of executions) {
           deadlineAt: Math.min(deadlineAt, Date.now() + 30_000),
           load: loadTaskState,
           accept: ({ taskRuns, comments }) => {
-            if (taskRuns.length !== execution.task.expectedRunCount) {
+            if (!matchesRunCount(execution.task, taskRuns.length)) {
               return false;
             }
             const finalRun = sortRunsChronologically(taskRuns).at(-1);
@@ -1564,13 +1628,18 @@ for (const execution of executions) {
 
       issue = terminal.currentIssue;
       selectedRuns = terminal.taskRuns;
+      if (lifecycleBlockerId && execution.profile.expectedRuntimeMode === "legacy") {
+        const blockedIssue = await api.get<Pick<Issue, "blockedBy">>(`/api/issues/${issue.id}`);
+        expect(blockedIssue.blockedBy?.map((blocker) => blocker.id)).toEqual([lifecycleBlockerId]);
+        expect((await api.get<{ status: string }>(`/api/issues/${lifecycleBlockerId}`)).status).toBe("backlog");
+      }
       if (reviewProvider) {
         expect(reviewProvider.invocationCount()).toBe(execution.task.toolReviewDecision === "decline" ? 0 : execution.task.toolReviewDecision === "always" ? 2 : 1);
         const pending = await api.get<{ actionRequests: unknown[] }>(`/api/companies/${fixtures.company.id}/tools/action-requests?status=pending`);
         expect(pending.actionRequests).toHaveLength(0);
         await writeSanitizedJson(snapshotsDir, "connection-review.json", { source: "local MCP fixture", connectionId: reviewProvider.connectionId, providerCalls: reviewProvider.invocationCount(), decision: execution.task.toolReviewDecision, issueId: issue.id }, secrets);
       }
-      if (selectedRuns.length !== execution.task.expectedRunCount) {
+      if (!matchesRunCount(execution.task, selectedRuns.length)) {
         const runLogs = await Promise.all(
           selectedRuns.map(async (candidate) => ({
             runId: candidate.id,
@@ -1591,7 +1660,7 @@ for (const execution of executions) {
           secrets,
         );
         throw new Error(
-          `Expected exactly ${execution.task.expectedRunCount} task heartbeat run(s); observed ${selectedRuns.length}`,
+          `Expected ${minimumRunCount(execution.task)}..${execution.task.expectedRunCount} task heartbeat run(s); observed ${selectedRuns.length}`,
         );
       }
       // The company run-list endpoint intentionally returns only a compact,
@@ -1603,6 +1672,17 @@ for (const execution of executions) {
         ),
       );
       selectedRuns = sortRunsChronologically(selectedRuns);
+      const lifecycleProbe = execution.suite.id === "lifecycle-baseline" ? lifecycleLiveCase(execution.task.id) : undefined;
+      if (lifecycleProbe?.family === "repair") {
+        const grade = gradeLifecycleRepair({ runs: selectedRuns, comments: terminal.comments,
+          agentId: fixtures.agent.id, narrative: lifecycleProbe.narrative });
+        await writeSanitizedJson(snapshotsDir, "lifecycle-repair.json", { grade, runs: selectedRuns, comments: terminal.comments }, secrets);
+        expect(grade.passed, grade.detail).toBe(true);
+        expect(terminal.currentIssue.scheduledRetry).toBeNull();
+        expect(terminal.currentIssue.monitorNextCheckAt).toBeNull();
+        expect(terminal.interactions.filter(i => i.status === "pending")).toHaveLength(0);
+      }
+
       if (execution.task.flow === "warm_three_turn") {
         turnTimings = selectedRuns.map((candidate, index) => {
           const submittedAtMs = turnSubmissionTimesMs[index]!;
@@ -1673,8 +1753,8 @@ for (const execution of executions) {
             try {
               return {
                 runId: candidate.id,
-                events: await api.get<RunEventRecord[]>(
-                  `/api/heartbeat-runs/${candidate.id}/events?limit=1000`,
+                events: await collectRunEvents<RunEventRecord>((afterSeq, limit) =>
+                  api.get(`/api/heartbeat-runs/${candidate.id}/events?afterSeq=${afterSeq}&limit=${limit}`),
                 ),
                 error: null,
               };
@@ -1707,10 +1787,7 @@ for (const execution of executions) {
       const message = agentComments
         .map((comment) => comment.body ?? "")
         .join("\n");
-      const finalRunMessage = agentComments
-        .filter((comment) => comment.createdByRunId === finalRun.id)
-        .map((comment) => comment.body ?? "")
-        .join("\n");
+      const finalRunMessage = persistedFinalRunMessage(agentComments, finalRun);
       const pendingInteractions = terminal.interactions.filter(
         (interaction) => interaction.status === "pending",
       );
@@ -1820,6 +1897,12 @@ for (const execution of executions) {
         }
       }
 
+      if (execution.suite.id === "api-response-reading") {
+        const paging = gradeApiResponsePaging(runEventsByRun.flatMap(captured => captured.events), apiResponseSourceId ?? "");
+        await writeSanitizedJson(snapshotsDir, "api-response-pagination.json", paging, secrets);
+        if (!paging.passed) invariantFailures.push(`Bounded response paging was not proven: ${paging.failure}`);
+      }
+
       const context = record(run.contextSnapshot);
       const environmentContext = record(context.paperclipEnvironment);
       const workspaceContext = record(context.paperclipWorkspace);
@@ -1873,6 +1956,11 @@ for (const execution of executions) {
             ]),
         ),
       );
+      if (execution.suite.id === "api-response-reading") {
+        downloadedResponseProof = await readResponseProof(api, issue.id, run.id);
+        fileObservations["api-response-proof.txt"] = downloadedResponseProof.content;
+        await writeSanitizedJson(snapshotsDir, "downloaded-response-proof.json", downloadedResponseProof, secrets);
+      }
       matcherResults = await Promise.all(
         taskMatchers.map((matcher) =>
           evaluateMatcher(matcher, {
@@ -2333,23 +2421,43 @@ for (const execution of executions) {
       const visibleAgentReplies = page
         .getByTestId("task-chat-thread")
         .getByTestId("task-chat-agent-bubble");
-      const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const terminalAgentReplies = visibleAgentReplies.filter({
-        hasText: new RegExp(`^\\s*${escapedMarker}\\s*$`),
-      });
-      await expect(terminalAgentReplies).toHaveCount(1, { timeout: 30_000 });
-      await expect(terminalAgentReplies.first()).toBeVisible();
-      // A string-valued toHaveText assertion compares the complete rendered
-      // text while normalizing ordinary DOM whitespace. This keeps Markdown
-      // layout differences harmless without allowing prefixed, suffixed, or
-      // substituted provider prose to masquerade as the requested response.
-      await expect(terminalAgentReplies.first()).toHaveText(marker, {
-        useInnerText: true,
-      });
+      if (execution.suite.id === "api-response-reading") {
+        // File delivery renders a card instead of an exact summary bubble.
+        // Prove the visible link points to the same independently checked bytes.
+        const proofLink = page.getByRole("link", { name: "Open api-response-proof.txt", exact: true }).first();
+        await expect(proofLink).toBeVisible({ timeout: 30_000 });
+        await expect(proofLink).toHaveAttribute("href", `/api/attachments/${downloadedResponseProof!.attachmentId}/content`);
+      } else if (execution.task.flow === "warm_three_turn") {
+        // Prove the persisted user-facing response is visible, independently
+        // of the byte-for-byte workspace checks and lease continuity checks.
+        expect(finalRunMessage.trim()).not.toBe("");
+        await expect(visibleAgentReplies.filter({ hasText: finalRunMessage }).last())
+          .toBeVisible({ timeout: 30_000 });
+      } else {
+        const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const terminalAgentReplies = visibleAgentReplies.filter({
+          hasText: new RegExp(`^\\s*${escapedMarker}\\s*$`),
+        });
+        await expect(terminalAgentReplies).toHaveCount(1, { timeout: 30_000 });
+        await expect(terminalAgentReplies.first()).toBeVisible();
+        // A string-valued toHaveText assertion compares the complete rendered
+        // text while normalizing ordinary DOM whitespace. This keeps Markdown
+        // layout differences harmless without allowing prefixed, suffixed, or
+        // substituted provider prose to masquerade as the requested response.
+        await expect(terminalAgentReplies.first()).toHaveText(marker, {
+          useInnerText: true,
+        });
+      }
+      // The fixture owns the expected disposition; blocked workflows must prove
+      // their Blocked UI rather than inheriting the completion-only Done check.
+      const expectedStatus = execution.task.expectedTerminalState.issue;
+      const expectedStatusLabel = expectedStatus.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
       await expect(
         page.getByTestId("issue-detail-header").getByRole("button", {
-          name: "Change status (current: Done)",
-          exact: true,
+          // Blocked includes the live blocker-attention explanation in its
+          // accessible name. The exact persisted status is asserted separately.
+          name: `Change status (current: ${expectedStatusLabel}${expectedStatus === "blocked" ? "" : ")"}`,
+          exact: expectedStatus !== "blocked",
         }),
       ).toBeVisible({ timeout: 30_000 });
       if (execution.task.flow === "warm_three_turn") {
@@ -2424,6 +2532,8 @@ for (const execution of executions) {
           {
             console: consoleDiagnostics,
             network: networkDiagnostics,
+            lifecycle: pageLifecycleDiagnostics,
+            bootstrap: await browserBootstrap.snapshot(),
           },
           secrets,
         );
@@ -2434,6 +2544,7 @@ for (const execution of executions) {
         );
         failureClassOverride = "secret_leak";
       }
+      browserBootstrap.dispose();
       if (fixtures) {
         await captureRuntimeLeases().catch((error) => {
           networkDiagnostics.push({

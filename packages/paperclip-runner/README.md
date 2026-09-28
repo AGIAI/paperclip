@@ -60,6 +60,19 @@ and Daytona qualification passes. Their verified distributions are build-owned;
 no candidate accepts an arbitrary executable. See
 [the rich ACP capability report](../../doc/architecture/runner-rich-acp-capabilities.md).
 
+Remote Codex sessions relay assigned app tools through the server's configured
+gateway. Small catalogs are sent directly. When a catalog would exceed the
+runner's 256-operation or 768 KiB contract limit, the server exposes
+`paperclip_search_assigned_tools` and `paperclip_call_assigned_tool` instead.
+Search returns bounded pages of names, descriptions, and input schemas. Each
+page intersects the session's pinned assignments with current gateway grants.
+An individual schema that exceeds a page returns an `inputSchemaRef`. The same
+search tool retrieves that schema in chunks via `schemaTool` and
+`schemaOffset`; discovery can continue past the large tool.
+Calls retain task ownership, work-mode restrictions, gateway authorization,
+approvals, and audit. Core task tools and the runner's completion tools keep
+their reserved space; no assigned tools are silently removed to fit the limit.
+
 Native Claude skill assignments travel in the runtime-context snapshot through
 runnerd to the ACPX sidecar. After acquiring the provider lifetime lease, the
 host materializes the assigned bundles under the isolated Claude home's

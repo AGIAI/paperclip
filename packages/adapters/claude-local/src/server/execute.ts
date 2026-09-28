@@ -1,3 +1,4 @@
+import { createProviderStoppedBoundary } from "@paperclipai/adapter-utils/provider-stopped-boundary";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,7 +49,6 @@ import {
   selectPaperclipTaskMarkdown,
   rewriteWorkspaceCwdEnvVarsForExecution,
   shapePaperclipWorkspaceEnvForExecution,
-  stringifyPaperclipWakePayload,
   DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
   DEFAULT_PAPERCLIP_CONVERSATION_PROMPT_TEMPLATE,
 } from "@paperclipai/adapter-utils/server-utils";
@@ -241,7 +241,6 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   const linkedIssueIds = Array.isArray(context.issueIds)
     ? context.issueIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     : [];
-  const wakePayloadJson = stringifyPaperclipWakePayload(context.paperclipWake);
   const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
 
   if (wakeTaskId) {
@@ -264,9 +263,6 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   }
   if (linkedIssueIds.length > 0) {
     env.PAPERCLIP_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
-  }
-  if (wakePayloadJson) {
-    env.PAPERCLIP_WAKE_PAYLOAD_JSON = wakePayloadJson;
   }
   applyPaperclipWorkspaceEnv(env, {
     workspaceCwd: shapedWorkspaceEnv.workspaceCwd,
@@ -402,6 +398,7 @@ export async function runClaudeLogin(input: {
 }
 
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
+  const providerStop = createProviderStoppedBoundary(ctx.onProviderStopped);
   const engineSelection = await resolveClaudeExecutionEngineForRun(ctx);
   if (engineSelection.unavailableReason) {
     return {
@@ -966,6 +963,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     }
 
     const proc = await runAdapterExecutionTargetProcess(runId, runtimeExecutionTarget, command, args, {
+      onProcessStopped: providerStop.beginInvocation(),
       cwd,
       env,
       stdin: prompt,
@@ -1286,7 +1284,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           ? `detected ${detectedCliVersion}`
           : "could not determine the installed version";
         const errorMessage =
-          `Claude Fable 5.1 requires Claude Code ${minimumCliVersion} or newer on the CLI lane; ${detected}. ` +
+          `${model} requires Claude Code ${minimumCliVersion} or newer on the CLI lane; ${detected}. ` +
           "Upgrade Claude Code or restore the default ACP lane before retrying.";
         await onLog("stderr", `[paperclip] ${errorMessage}\n`);
         return {
@@ -1360,15 +1358,19 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
     return toAdapterResult(initial, { fallbackSessionId: runtimeSessionId || runtime.sessionId });
   } finally {
-    if (paperclipBridge) {
-      await paperclipBridge.stop();
-    }
-    if (restoreRemoteWorkspace) {
-      await onLog(
-        "stdout",
-        `[paperclip] Restoring workspace changes from ${describeAdapterExecutionTarget(executionTarget)}.\n`,
-      );
-      await restoreRemoteWorkspace();
+    try {
+      await providerStop.collectBeforeRestore();
+    } finally {
+      if (paperclipBridge) {
+        await paperclipBridge.stop();
+      }
+      if (restoreRemoteWorkspace) {
+        await onLog(
+          "stdout",
+          `[paperclip] Restoring workspace changes from ${describeAdapterExecutionTarget(executionTarget)}.\n`,
+        );
+        await restoreRemoteWorkspace();
+      }
     }
   }
 }

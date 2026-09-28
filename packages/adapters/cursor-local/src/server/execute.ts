@@ -1,3 +1,4 @@
+import { createProviderStoppedBoundary } from "@paperclipai/adapter-utils/provider-stopped-boundary";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -45,8 +46,8 @@ import {
   renderTemplate,
   renderPaperclipWakePrompt,
   selectPaperclipTaskMarkdown,
+  selectInitialCommunicationGuidance,
   isPaperclipRecoveryWakePayload,
-  stringifyPaperclipWakePayload,
   DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
   DEFAULT_PAPERCLIP_CONVERSATION_PROMPT_TEMPLATE,
   joinPromptSections,
@@ -199,6 +200,7 @@ export async function ensureCursorSkillsInjected(
 }
 
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
+  const providerStop = createProviderStoppedBoundary(ctx.onProviderStopped);
   const { runId, agent, runtime, config, context, onLog, onMeta, onSpawn, authToken } = ctx;
   const executionTarget = readAdapterExecutionTarget({
     executionTarget: ctx.executionTarget,
@@ -274,7 +276,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const linkedIssueIds = Array.isArray(context.issueIds)
     ? context.issueIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     : [];
-  const wakePayloadJson = stringifyPaperclipWakePayload(context.paperclipWake);
   const issueWorkMode = readPaperclipIssueWorkModeFromContext(context);
   if (wakeTaskId) {
     env.PAPERCLIP_TASK_ID = wakeTaskId;
@@ -296,9 +297,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
   if (linkedIssueIds.length > 0) {
     env.PAPERCLIP_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
-  }
-  if (wakePayloadJson) {
-    env.PAPERCLIP_WAKE_PAYLOAD_JSON = wakePayloadJson;
   }
   refreshPaperclipWorkspaceEnvForExecution({
     env,
@@ -571,7 +569,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       ? renderTemplate(bootstrapPromptTemplate, templateData).trim()
       : "";
   const taskContextNote = context.conversationMode === true
-    ? selectPaperclipTaskMarkdown(context, { resumedSession: Boolean(sessionId) })
+    ? selectPaperclipTaskMarkdown(context, { resumedSession: Boolean(sessionId), includeCommunicationGuidance: false })
     : "";
   const wakePrompt = renderPaperclipWakePrompt(context.paperclipWake, {
     conversationMode: context.conversationMode === true,
@@ -584,7 +582,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     : renderTemplate(promptTemplate, templateData);
   const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();
   const paperclipEnvNote = renderPaperclipEnvNote(env);
-  const prompt = joinPromptSections([
+  const basePrompt = joinPromptSections([
     instructionsPrefix,
     renderedBootstrapPrompt,
     wakePrompt,
@@ -594,7 +592,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     renderedPrompt,
   ]);
   const promptMetrics = {
-    promptChars: prompt.length,
+    promptChars: basePrompt.length,
     instructionsChars,
     bootstrapPromptChars: renderedBootstrapPrompt.length,
     wakePromptChars: wakePrompt.length,
@@ -615,6 +613,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   };
 
   const runAttempt = async (resumeSessionId: string | null) => {
+    const prompt = joinPromptSections([
+      selectInitialCommunicationGuidance(context, { resumedSession: Boolean(resumeSessionId) }),
+      basePrompt,
+    ]);
     const args = buildArgs(resumeSessionId);
     if (onMeta) {
       await onMeta({
@@ -625,7 +627,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         commandArgs: args,
         env: loggedEnv,
         prompt,
-        promptMetrics,
+        promptMetrics: { ...promptMetrics, promptChars: prompt.length },
         context,
       });
     }
@@ -655,6 +657,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     };
 
     const proc = await runAdapterExecutionTargetProcess(runId, runtimeExecutionTarget, command, args, {
+      onProcessStopped: providerStop.beginInvocation(),
       cwd,
       env,
       timeoutSec,
@@ -775,18 +778,22 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     }
     return toResult(initial);
   } finally {
-    if (paperclipBridge) {
-      await paperclipBridge.stop();
-    }
-    if (restoreRemoteWorkspace) {
-      await onLog(
-        "stdout",
-        `[paperclip] Restoring workspace changes from ${describeAdapterExecutionTarget(executionTarget)}.\n`,
-      );
-      await restoreRemoteWorkspace();
-    }
-    if (localSkillsDir) {
-      await fs.rm(localSkillsDir, { recursive: true, force: true }).catch(() => undefined);
+    try {
+      await providerStop.collectBeforeRestore();
+    } finally {
+      if (paperclipBridge) {
+        await paperclipBridge.stop();
+      }
+      if (restoreRemoteWorkspace) {
+        await onLog(
+          "stdout",
+          `[paperclip] Restoring workspace changes from ${describeAdapterExecutionTarget(executionTarget)}.\n`,
+        );
+        await restoreRemoteWorkspace();
+      }
+      if (localSkillsDir) {
+        await fs.rm(localSkillsDir, { recursive: true, force: true }).catch(() => undefined);
+      }
     }
   }
 }
