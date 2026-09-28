@@ -224,7 +224,7 @@ initialization and the missing-credential admission path without a model call.
 The exact reported `currentModelId` and billable receipt still need credentialed
 local and Linux/Daytona qualification.
 
-Profile version 2 declaration digest: `sha256:c577a771778febe24b920388da77f6143971b8eec29e1ba9a433dac5b76de3cd`. It hashes the versioned
+Profile version 2 declaration digest: `sha256:0f687e38cb3c607a01fab80f03e19bbbf5cb53a8afb1fc40d71f9ab54551cff1`. It hashes the versioned
 profile domain, patched wrapper source and platform closure pins. Every native
 closure remains independently checked at launch. Version 1 warm sessions cannot
 be reused with this integration.
