@@ -239,10 +239,11 @@ helper discards failed-attempt usage, so any retry or missing compaction receipt
 invalidates complete-turn token/cost totals instead of inventing complete coverage.
 
 The retained [macOS ARM64 provider-pack admission proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.darwin-arm64.json)
-records source `2e65b64d5a2148583109b8157d6e72f54f5ad29b`, after the Node
-engine declaration and Pi v2 fixture corrections. It includes the assigned HTTPS
-gateway repair and shared failed-turn receipt and credential-provenance fixes. Its manifest digest is
-`sha256:7300b9c449c02b61d2f93ef765f371c277e39a58d04739c6c24dcf7939500701`.
+records source `58511d79d9c4a1525d98e219d027654902b704e1`, after final-spawn
+credential-marker preservation and direct candidate-admission gating. It includes
+the Node engine, Pi v2 fixture, assigned HTTPS gateway, and failed-turn receipt
+repairs. Its manifest digest is
+`sha256:a9728fe4298a5eee00555382af01e85550820a294957caf2eba0c79bf33c4388`.
 The clean tracked-lock resolution matched Docker's reviewed
 `650e23d20e967bcfbfced888e131199b9a06e66a1ba4f64cfb68383b59def4a8` digest
 before a frozen install and pack build. The probe used the deployed generic
@@ -250,10 +251,18 @@ installation registry and immutable snapshot. Every advertised capability was
 read and asserted from its actual initialize response. Session creation rejected
 the missing bound credential; no model prompt was submitted. The record contains
 no credentials or provider session IDs and records zero paid calls. It includes
-focused verification, the full runner TypeScript suite (2,202 passed, 11
-skipped), and all 13 native-provider Rust tests. It precedes only this
+128 targeted backend/environment/control-plane checks, 31 installed-distribution
+checks, and 17 real/patched package checks at this source. The preceding full
+runner TypeScript suite (2,202 passed, 11 skipped) and all 13 native-provider Rust
+tests remain explicitly pinned to source `2e65b64d5`. It precedes only this
 evidence-retention/report commit. It proves no authenticated interaction,
 reported model ID, or Daytona qualification.
+
+The [pre-launch-boundary proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.2e65b64d5.darwin-arm64.json)
+retains source `2e65b64d5a2148583109b8157d6e72f54f5ad29b` and manifest
+`sha256:7300b9c449c02b61d2f93ef765f371c277e39a58d04739c6c24dcf7939500701`,
+including the full runner suite and native-provider Rust results. It predates the
+final runner environment allowlist and direct candidate-admission fixes.
 
 The [pre-policy proof](../../packages/paperclip-runner/test-fixtures/pi-acp/offline-provider-pack-proof.d039e1b7b.darwin-arm64.json)
 retains source `d039e1b7b072862b4c326ba7194dc42617fa5984` and manifest
