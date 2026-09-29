@@ -219,3 +219,52 @@ test("real pinned Pi executes all four owned native question methods without per
     assert.deepEqual(results.map(event => event.result.details), [{ status: "answered", optionId: "blue" }, { status: "negative_or_cancelled", confirmed: false }, { status: "answered", value: "Ada" }, { status: "answered", value: "New\ntext" }]);
   } finally { session?.dispose(); await rm(root, { recursive: true, force: true }); }
 });
+
+test("real pinned Pi tool dispatch admits registered agent files and rejects unassigned roots", { timeout: 20_000 }, async () => {
+  const load = (name) => import(pathToFileURL(join(packageRoot, `dist/core/${name}.js`)).href);
+  const [{ createAgentSession }, { DefaultResourceLoader }, { ModelRuntime }, { SessionManager }, { SettingsManager }, { AuthStorage }] = await Promise.all(
+    ["sdk", "resource-loader", "model-runtime", "session-manager", "settings-manager", "auth-storage"].map(load),
+  );
+  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-native-agent-files-")));
+  let session;
+  try {
+    const workspace = join(root, "workspace"); const agentHome = join(root, "agent-files"); const privateRoot = join(root, "private"); const outside = join(root, "outside");
+    for (const directory of [workspace, agentHome, privateRoot, outside]) await mkdir(directory);
+    await symlink(outside, join(agentHome, "escape"));
+    await writeFile(join(root, "extension.mjs"), stripTypeScriptTypes(extensionSource));
+    await writeFile(join(root, "pi-acp-runtime.js"), stripTypeScriptTypes(await readFile(new URL("../src/drivers/acpx/pi-acp-runtime.ts", import.meta.url), "utf8")));
+    const { installPiRuntimeExtension } = await import(pathToFileURL(join(root, "extension.mjs")).href);
+    const settings = SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } });
+    const modelRuntime = await ModelRuntime.create({ credentials: AuthStorage.inMemory({}), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false });
+    const model = { id: "fixture", name: "Fixture", api: "openai-completions", provider: "fixture", baseUrl: "http://127.0.0.1:1", reasoning: false, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 8192, maxTokens: 64 };
+    const resourceLoader = new DefaultResourceLoader({ cwd: workspace, agentDir: privateRoot, settingsManager: settings, noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
+      extensionFactories: [pi => installPiRuntimeExtension(pi, { invocationNamespace: "00000000-0000-4000-8000-000000000000", workspace, agentHome, readOnly: false, readRoots: [], protectedRoots: [privateRoot], instructions: "", servers: [] })] });
+    await resourceLoader.reload();
+    ({ session } = await createAgentSession({ cwd: workspace, agentDir: privateRoot, model, modelRuntime, settingsManager: settings, sessionManager: SessionManager.inMemory(workspace), resourceLoader, thinkingLevel: "off" }));
+    const dialogs = []; const results = []; const errors = [];
+    const uiContext = { select: async (title) => { dialogs.push(title); return "Allow once"; }, notify() {}, setStatus() {}, setWidget() {}, setTitle() {}, setEditorText() {}, getEditorText: () => "", setWorkingMessage() {} };
+    await session.bindExtensions({ uiContext, onError: error => errors.push(error.event) });
+    session.subscribe(event => { if (event.type === "tool_execution_end") results.push(event); });
+    const memory = join(agentHome, "memory.txt");
+    const requests = [
+      { name: "write", arguments: { path: memory, content: "private memory nonce\n" } },
+      { name: "read", arguments: { path: memory } },
+      { name: "write", arguments: { path: join(outside, "denied.txt"), content: "forbidden" } },
+      { name: "write", arguments: { path: join(agentHome, "escape/denied.txt"), content: "forbidden" } },
+      { name: "write", arguments: { path: join(privateRoot, "denied.txt"), content: "forbidden" } },
+    ];
+    let streams = 0;
+    session.agent.streamFunction = () => {
+      const request = requests[streams++];
+      const message = { role: "assistant", content: request ? [{ type: "toolCall", id: "call_0", ...request }] : [{ type: "text", text: "done" }], api: model.api, provider: model.provider, model: model.id, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: request ? "toolUse" : "stop", timestamp: streams };
+      return { async *[Symbol.asyncIterator]() { yield { type: "start", partial: message }; yield { type: "done", reason: message.stopReason, message }; }, result: async () => message };
+    };
+    await session.agent.prompt("fixture native agent files"); await session.agent.waitForIdle();
+    assert.deepEqual(errors, []); assert.equal(results.length, 5);
+    assert.deepEqual(results.map(event => Boolean(event.isError)), [false, false, true, true, true]);
+    assert.equal(await readFile(memory, "utf8"), "private memory nonce\n");
+    assert.match(JSON.stringify(results[1].result), /private memory nonce/);
+    for (const path of [join(outside, "denied.txt"), join(privateRoot, "denied.txt")]) await assert.rejects(readFile(path), { code: "ENOENT" });
+    assert.equal(dialogs.length, 2); assert.ok(dialogs.every(title => title.startsWith("paperclip.pi.permission.v1:")));
+  } finally { session?.dispose(); await rm(root, { recursive: true, force: true }); }
+});
