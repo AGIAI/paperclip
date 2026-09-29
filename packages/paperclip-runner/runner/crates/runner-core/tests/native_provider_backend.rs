@@ -318,6 +318,49 @@ fn acpx_runtime_resolution(mode: &str, request_id: &str) -> Value {
     })
 }
 
+fn shutdown_recovered_acpx_fixture(executor: &mut NativeProviderCommandExecutor, directory: &Path) {
+    // The fake sidecar advertises the same three lifetime-fence ports for all
+    // fixtures. Parallel recovered shutdowns hold a quorum through state fsync,
+    // temporarily preventing another fixture from proving cleanup. Retry only
+    // that rejection, using the real production quorum proof on every attempt.
+    // This is fixture synchronization, not a production cleanup workaround.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let mut blocked_attempts = 0;
+    loop {
+        match executor.shutdown() {
+            Ok(()) => break,
+            Err(error) => {
+                assert_eq!(
+                    error.to_string(),
+                    "ACPX original provider lifetime remains active; cleanup is not yet proven",
+                    "unexpected recovered fixture shutdown failure"
+                );
+                let persisted: Value = serde_json::from_slice(
+                    &fs::read(directory.join("acpx-provider-state.json")).unwrap(),
+                )
+                .unwrap();
+                assert_eq!(persisted["providerExitUnconfirmed"], true);
+                blocked_attempts += 1;
+                if blocked_attempts == 1 {
+                    eprintln!("recovered fixture cleanup waiting for the shared lifetime quorum");
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "recovered fixture cleanup never acquired the lifetime quorum"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+    }
+    if blocked_attempts > 0 {
+        eprintln!("recovered fixture cleanup proved after {blocked_attempts} quorum rejections");
+    }
+    let persisted: Value =
+        serde_json::from_slice(&fs::read(directory.join("acpx-provider-state.json")).unwrap())
+            .unwrap();
+    assert_eq!(persisted["providerExitUnconfirmed"], false);
+}
+
 #[test]
 fn acpx_response_delivery_survives_crash_before_journaling_without_replaying_the_response() {
     for mode in [
@@ -388,7 +431,7 @@ fn acpx_response_delivery_survives_crash_before_journaling_without_replaying_the
         let mut recovered_again =
             NativeProviderCommandExecutor::with_runner_config(&directory, &config);
         assert!(recovered_again.poll_events().unwrap().is_empty());
-        recovered_again.shutdown().unwrap();
+        shutdown_recovered_acpx_fixture(&mut recovered_again, &directory);
         fs::remove_dir_all(directory).unwrap();
     }
 }
@@ -465,7 +508,7 @@ fn acpx_uncommitted_delivery_expires_after_failed_state_write_without_replay() {
             .is_err());
         assert_eq!(recovered.poll_events().unwrap(), events);
         recovered.acknowledge_events(events.len()).unwrap();
-        recovered.shutdown().unwrap();
+        shutdown_recovered_acpx_fixture(&mut recovered, &directory);
         fs::remove_dir_all(directory).unwrap();
     }
 }
@@ -523,7 +566,7 @@ fn acpx_failed_or_cancelled_responses_retain_one_durable_settlement() {
             .is_err());
         recovered.acknowledge_events(events.len()).unwrap();
         assert!(recovered.poll_events().unwrap().is_empty());
-        recovered.shutdown().unwrap();
+        shutdown_recovered_acpx_fixture(&mut recovered, &directory);
         fs::remove_dir_all(directory).unwrap();
     }
 }
