@@ -1251,7 +1251,7 @@ const paperclipQuestionSchema = z
     helpText: z.string().max(4000).optional(),
     required: z.boolean(),
     answerMode: z.enum(["single_select", "multi_select", "text"]),
-    initialText: z.string().max(100000).optional(),
+    initialText: z.string().refine(value => value.length <= 200000 && Array.from(value).length <= 100000, "initial text exceeds 100000 Unicode code points").optional(),
     options: z.array(paperclipQuestionOptionSchema).max(128).optional(),
     customAnswer: z
       .object({

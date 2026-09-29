@@ -2845,7 +2845,8 @@ export const questionSetSchema = {
         },
         "initialText": {
           "type": "string",
-          "maxLength": 100000
+          "maxLength": 100000,
+          "description": "Editable draft of at most 100000 Unicode code points. Never an implicit answer; submitted text still uses the existing response bounds."
         },
         "options": {
           "type": "array",
