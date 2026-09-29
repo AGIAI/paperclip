@@ -211,3 +211,32 @@ Prior Product/Runner results above measured the earlier unpatched runtime. The
 profile must retain pending qualification until the rebuilt final foundation
 runtime passes the remaining native interaction, durable approval, cancellation,
 recovery, accounting, and authenticated target-platform gates.
+
+### Frozen profile v3 build
+
+[The retained build record](../../packages/paperclip-runner/test/fixtures/cursor-acp/production-v3-offline-build.json)
+identifies exact runtime source `526081b9d6c905de5e2da680e3a37c620899b380`,
+profile v3, the ARM64 portable package and matching release daemon, both lock
+hashes, the committed ACPX patch hash, and credential-free launch results.
+Dependencies were installed into a fresh private store with copied files to
+avoid borrowing mutable package bytes from another worktree. The initial frozen
+install failed because the committed lock's patch configuration differed; that
+failure is retained. A private derived staging lock then passed frozen install.
+The repository lock was not changed.
+
+The package's real immutable lease passed ACP initialization, required
+authentication for model/session discovery and creation, rejected unsupported
+fork/resume methods, and closed with no stderr. The TypeScript and release daemon
+builds passed. Twenty-six installed-package contracts passed. Another 184 control
+tests passed, including two Cursor-specific tests using the real installed ACP
+SDK stream: sessionless native single/multi-selection and complete revision-bound
+plan replies preserve request ID zero, await response pipe delivery, reject stale
+plan revisions, and suppress late answers after cancellation. The surrounding
+suite covers mocked admission, permission identity, provider-loss expiry,
+recovery fences, and cleanup ownership. These are deterministic tests, not live
+native interaction, durable browser approval, or provider-death qualification.
+
+The new `cursor-runtime-patch.mjs` is present in the Docker build context. It is
+also a required Daytona content-identity input: changing patch source must change
+the image identity even when another declared input is unchanged. Publishing or
+qualification must use an image whose content hash includes that script.
