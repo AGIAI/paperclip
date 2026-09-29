@@ -585,6 +585,12 @@ impl AcpxDurableState {
                 "ACPX provider event backlog exceeds its durable limit",
             ));
         }
+        // Check every fallible admission condition before changing the request
+        // ledger. A rejected settlement must leave its pending request intact.
+        let sequence = self.next_event_sequence;
+        let next_sequence = sequence
+            .checked_add(1)
+            .ok_or_else(|| DurableRunnerError::invalid("ACPX event sequence exhausted"))?;
         if event.event_type == "runtime_request.created" {
             let request = event.payload.get("request").cloned().ok_or_else(|| {
                 DurableRunnerError::invalid("ACPX runtime request omitted its payload")
@@ -612,10 +618,7 @@ impl AcpxDurableState {
                 self.pending_runtime_requests.remove(id);
             }
         }
-        let sequence = self.next_event_sequence;
-        self.next_event_sequence = sequence
-            .checked_add(1)
-            .ok_or_else(|| DurableRunnerError::invalid("ACPX event sequence exhausted"))?;
+        self.next_event_sequence = next_sequence;
         self.pending_events.push_back(PolledEvent {
             executor_event_id: event_id(sequence),
             event_type: event.event_type,
@@ -680,6 +683,9 @@ pub struct AcpxCommandExecutor {
     session: Option<AcpxProviderSession>,
     restore_checked: bool,
     restore_error: Option<DurableRunnerError>,
+    persistence_error: Option<DurableRunnerError>,
+    #[cfg(test)]
+    fail_after_state_rename: bool,
     launch_profile: Option<AcpxLaunchProfile>,
 }
 
@@ -698,6 +704,9 @@ impl AcpxCommandExecutor {
             session: None,
             restore_checked: false,
             restore_error: None,
+            persistence_error: None,
+            #[cfg(test)]
+            fail_after_state_rename: false,
             launch_profile: config.acpx_launch_profile.clone(),
         }
     }
@@ -718,6 +727,7 @@ impl AcpxCommandExecutor {
     }
 
     fn restore(&mut self) -> Result<(), DurableRunnerError> {
+        self.ensure_persistence_healthy()?;
         if self.restore_checked {
             return Ok(());
         }
@@ -873,11 +883,46 @@ impl AcpxCommandExecutor {
         Ok(session)
     }
 
-    fn save_state(&self) -> Result<(), DurableRunnerError> {
-        let state = self
+    fn ensure_persistence_healthy(&self) -> Result<(), DurableRunnerError> {
+        match self.persistence_error.as_ref() {
+            Some(error) => Err(error.clone()),
+            None => Ok(()),
+        }
+    }
+
+    fn record_state_write(
+        &mut self,
+        result: Result<(), DurableRunnerError>,
+    ) -> Result<(), DurableRunnerError> {
+        if let Err(error) = result.as_ref() {
+            // A rename may have succeeded before directory fsync or protection
+            // failed. Neither rolling back nor continuing from memory can prove
+            // which state survived. Stop publication and mutations until a fresh
+            // executor reloads the complete atomic snapshot; never resend input.
+            self.persistence_error = Some(error.clone());
+        }
+        result
+    }
+
+    fn save_state(&mut self) -> Result<(), DurableRunnerError> {
+        self.ensure_persistence_healthy()?;
+        let result = self
             .state
             .as_ref()
-            .ok_or_else(|| DurableRunnerError::invalid("ACPX provider state is unavailable"))?;
+            .ok_or_else(|| DurableRunnerError::invalid("ACPX provider state is unavailable"))
+            .and_then(|state| self.write_state(state));
+        self.record_state_write(result)
+    }
+
+    fn commit_staged_state(&mut self, state: AcpxDurableState) -> Result<(), DurableRunnerError> {
+        self.ensure_persistence_healthy()?;
+        let result = self.write_state(&state);
+        self.record_state_write(result)?;
+        self.state = Some(state);
+        Ok(())
+    }
+
+    fn write_state(&self, state: &AcpxDurableState) -> Result<(), DurableRunnerError> {
         let launch_profile_digest = self.launch_profile_digest()?;
         state.validate(&self.context, &launch_profile_digest)?;
         secure_directory(&self.state_dir, "provider state")?;
@@ -896,6 +941,10 @@ impl AcpxCommandExecutor {
             file.sync_all()?;
             drop(file);
             fs::rename(&temporary, &path)?;
+            #[cfg(test)]
+            if self.fail_after_state_rename {
+                return Err(std::io::Error::other("injected post-rename sync failure"));
+            }
             #[cfg(unix)]
             File::open(&self.state_dir)?.sync_all()?;
             Ok(())
@@ -1532,6 +1581,19 @@ impl AcpxCommandExecutor {
                 DurableRunnerError::invalid("request.resolve requires resolution or response")
             })?;
         let permission = session.state().pending_permission(request_id).is_some();
+        // Admit the event before sending the response, but keep its request
+        // retirement and outbox entry private until the state write succeeds.
+        let mut staged = self
+            .state
+            .clone()
+            .expect("ACPX response has an active durable turn");
+        staged.push(NormalizedProviderEvent {
+            event_type: "runtime_request.resolved".to_owned(),
+            priority: EventPriority::P0,
+            payload: json!({"provider": "acpx", "requestId": request_id, "status": "delivered",
+                "requestKind": if permission {"permission_approval"} else {"runtime"},
+                "turnId":self.context.turn_id,"itemId":self.context.item_id,"action":resolution.get("action")}),
+        })?;
         (if permission {
             session.resolve_permission(request_id, &turn_id, &resolution)
         } else {
@@ -1540,20 +1602,14 @@ impl AcpxCommandExecutor {
         .map_err(|error| {
             DurableRunnerError::invalid(format!("ACPX runtime response failed: {error}"))
         })?;
-        if let Some(state) = self.state.as_mut() {
-            state.pending_runtime_requests.remove(request_id);
-        }
-        self.save_state()?;
-        Ok(CommandExecution {
-            result: json!({"status": "delivered", "requestId": request_id}),
-            events: vec![(
-                "runtime_request.resolved".to_owned(),
-                EventPriority::P0,
-                json!({"provider": "acpx", "requestId": request_id, "status": "delivered",
-                    "requestKind": if permission {"permission_approval"} else {"runtime"},
-                    "turnId":self.context.turn_id,"itemId":self.context.item_id,"action":resolution.get("action")}),
-            )],
-        })
+        // The sidecar ACK proves delivery, not durable controller settlement.
+        // Retain that fact in the same atomic state write that retires the
+        // pending request. A crash before this write expires the old request;
+        // a crash after it replays this event, never the provider response.
+        self.commit_staged_state(staged)?;
+        Ok(CommandExecution::result(
+            json!({"status": "delivered", "requestId": request_id}),
+        ))
     }
 
     fn deliver_tool_result(
@@ -1928,6 +1984,7 @@ impl CommandExecutor for AcpxCommandExecutor {
     }
 
     fn retained_events(&mut self) -> Result<Vec<PolledEvent>, DurableRunnerError> {
+        self.ensure_persistence_healthy()?;
         // Explicit drain runs while control traffic suppresses provider polling.
         // Expose the already-retained suffix so runnerd can commit and ACK it
         // before suspension, without restoring or advancing the provider.
@@ -1941,6 +1998,7 @@ impl CommandExecutor for AcpxCommandExecutor {
     }
 
     fn acknowledge_events(&mut self, count: usize) -> Result<(), DurableRunnerError> {
+        self.ensure_persistence_healthy()?;
         if count == 0 {
             return Ok(());
         }
@@ -1958,6 +2016,20 @@ impl CommandExecutor for AcpxCommandExecutor {
     }
 
     fn shutdown(&mut self) -> Result<(), DurableRunnerError> {
+        if let Some(error) = self.persistence_error.clone() {
+            // Reap our owned process even when durable cleanup is uncertain,
+            // but do not overwrite the last atomic snapshot or claim success.
+            if let Some(mut session) = self.session.take() {
+                session
+                    .shutdown("ACPX provider state persistence failed")
+                    .map_err(|cleanup| {
+                        DurableRunnerError::invalid(format!(
+                            "{error}; failed to stop ACPX provider: {cleanup}"
+                        ))
+                    })?;
+            }
+            return Err(error);
+        }
         // A replacement durable runner may reach terminal reconciliation
         // before any provider command or event poll. Restore the persisted
         // session first so cleanup cannot succeed merely because this process
@@ -2291,6 +2363,213 @@ mod tests {
             .unwrap()
             .pending_runtime_requests
             .is_empty());
+    }
+
+    #[test]
+    fn rejected_runtime_settlement_preserves_the_pending_request() {
+        for event_type in [
+            "runtime_request.resolved",
+            "runtime_request.expired",
+            "runtime_request.cancelled",
+        ] {
+            for exhausted_sequence in [false, true] {
+                let operations = Vec::new();
+                let mut state = AcpxDurableState::new(
+                    serde_json::from_value(descriptor("codex")).unwrap(),
+                    AuthorizedToolSet {
+                        schema: TOOL_SET_SCHEMA.into(),
+                        schema_version: 1,
+                        catalog_digest: authorized_tool_catalog_digest(&operations).unwrap(),
+                        operations,
+                    },
+                    "test".into(),
+                );
+                state
+                    .push(NormalizedProviderEvent {
+                        event_type: "runtime_request.created".into(),
+                        priority: EventPriority::P0,
+                        payload: json!({"request":pending_input_request("input-1")}),
+                    })
+                    .unwrap();
+                if exhausted_sequence {
+                    state.next_event_sequence = u64::MAX;
+                } else {
+                    state
+                        .pending_events
+                        .resize(MAX_PENDING_EVENTS, state.pending_events[0].clone());
+                }
+                let before = state.clone();
+                assert!(state
+                    .push(NormalizedProviderEvent {
+                        event_type: event_type.into(),
+                        priority: EventPriority::P0,
+                        payload: json!({"requestId":"input-1"}),
+                    })
+                    .is_err());
+                assert_eq!(
+                    state, before,
+                    "{event_type} must not retire a request without its event"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn post_rename_failure_blocks_settlement_publication_until_fresh_recovery() {
+        for event_type in [
+            "runtime_request.resolved",
+            "runtime_request.expired",
+            "runtime_request.cancelled",
+        ] {
+            let directory = temporary_directory("post-rename-settlement");
+            let marker = directory.join("must-not-start-provider");
+            let command_path = directory.join("sidecar");
+            write_artifact(
+                &command_path,
+                format!("#!/bin/sh\ntouch '{}'\n", marker.display()).as_bytes(),
+                true,
+            );
+            let launch_profile = AcpxLaunchProfile {
+                authority_digest: format!("sha256:{}", "d".repeat(64)),
+                command: command_path.clone(),
+                args: Vec::new(),
+                artifacts: vec![artifact(&command_path)],
+            };
+            let mut value = descriptor("codex");
+            value["sidecarCommand"] = json!(command_path);
+            value["sidecarArgs"] = json!([]);
+            let descriptor: AcpxProviderDescriptor = serde_json::from_value(value).unwrap();
+            let identity = AcpxProviderSessionIdentity {
+                kind: "acpx".into(),
+                normalized_session_id: "session-1".into(),
+                acpx_record_id: "record-1".into(),
+                backend_session_id: "backend-1".into(),
+                agent_session_id: "agent-1".into(),
+                profile_digest: descriptor.command_digest.clone(),
+                workspace_digest: format!("sha256:{}", "a".repeat(64)),
+                requested_model: descriptor.model.clone(),
+                effective_model: descriptor.model.clone(),
+                permission_mode: Some(descriptor.permission_mode),
+                provider_lifetime_fence_candidates: [60_001, 60_002, 60_003],
+            };
+            let operations = Vec::new();
+            let mut state = AcpxDurableState::new(
+                descriptor,
+                AuthorizedToolSet {
+                    schema: TOOL_SET_SCHEMA.into(),
+                    schema_version: 1,
+                    catalog_digest: authorized_tool_catalog_digest(&operations).unwrap(),
+                    operations,
+                },
+                launch_profile.canonical_digest().unwrap(),
+            );
+            state.identity = Some(identity);
+            state.lifecycle = "turn_active".into();
+            state.active_turn_id = Some("turn-1".into());
+            for request_id in ["input-1", "input-2"] {
+                state
+                    .push(NormalizedProviderEvent {
+                        event_type: "runtime_request.created".into(),
+                        priority: EventPriority::P0,
+                        payload: json!({"request":pending_input_request(request_id)}),
+                    })
+                    .unwrap();
+            }
+            state.pending_events.clear();
+            let config = test_config(&directory, Some(launch_profile));
+            let mut original = AcpxCommandExecutor::with_runner_config(&directory, &config);
+            original.restore_checked = true;
+            original.state = Some(state.clone());
+            original.save_state().unwrap();
+            let mut staged = state.clone();
+            staged
+                .push(NormalizedProviderEvent {
+                    event_type: event_type.into(),
+                    priority: EventPriority::P0,
+                    payload: json!({"requestId":"input-1"}),
+                })
+                .unwrap();
+            original.fail_after_state_rename = true;
+            let error = if event_type == "runtime_request.resolved" {
+                let error = original.commit_staged_state(staged.clone()).unwrap_err();
+                assert_eq!(original.state.as_ref(), Some(&state));
+                error
+            } else {
+                // Existing cancellation/expiry paths mutate their working
+                // state before save; the same latch must quarantine them.
+                original.state = Some(staged.clone());
+                original.save_state().unwrap_err()
+            };
+            assert!(error
+                .to_string()
+                .contains("injected post-rename sync failure"));
+            original.fail_after_state_rename = false;
+            let disk = fs::read(original.state_path()).unwrap();
+            assert_eq!(
+                serde_json::from_slice::<AcpxDurableState>(&disk).unwrap(),
+                staged
+            );
+            for result in [
+                original.retained_events().map(|_| ()),
+                original.poll_events().map(|_| ()),
+                original.acknowledge_events(0),
+                original.acknowledge_events(1),
+                original.restore(),
+                original.save_state(),
+                original.shutdown(),
+            ] {
+                assert_eq!(result.unwrap_err().to_string(), error.to_string());
+            }
+            for command_type in ["request.resolve", "runner.drain", "runner.suspend"] {
+                let blocked = original.execute(&Command {
+                    schema: "paperclip.prp.command.v1".into(),
+                    command_id: "blocked-command".into(),
+                    controller_seq: 1,
+                    command_type: command_type.into(),
+                    issued_at: "2026-09-01T00:00:00.000Z".into(),
+                    deadline_at: None,
+                    precondition: None,
+                    payload: json!({"requestId":"input-1", "resolution":{"action":"submit"}}),
+                });
+                assert_eq!(blocked.unwrap_err().to_string(), error.to_string());
+            }
+            assert_eq!(fs::read(original.state_path()).unwrap(), disk);
+            drop(original);
+
+            let mut recovered = AcpxCommandExecutor::with_runner_config(&directory, &config);
+            let events = recovered.poll_events().unwrap();
+            let settlements: Vec<_> = events
+                .iter()
+                .filter(|event| event.event_type.starts_with("runtime_request."))
+                .collect();
+            assert_eq!(settlements.len(), 2);
+            assert_eq!(settlements[0].event_type, event_type);
+            assert_eq!(settlements[0].payload["requestId"], "input-1");
+            assert_eq!(
+                settlements[0].executor_event_id,
+                staged.pending_events[0].executor_event_id
+            );
+            assert_eq!(settlements[1].event_type, "runtime_request.expired");
+            assert_eq!(settlements[1].payload["requestId"], "input-2");
+            assert_eq!(settlements[1].payload["replayAllowed"], false);
+            assert!(
+                event_sequence(&settlements[0].executor_event_id).unwrap()
+                    < event_sequence(&settlements[1].executor_event_id).unwrap()
+            );
+            assert!(recovered
+                .resolve_request(&json!({"requestId":"input-1", "resolution":{"action":"submit"}}))
+                .is_err());
+            assert_eq!(recovered.poll_events().unwrap(), events);
+            recovered.acknowledge_events(events.len()).unwrap();
+            drop(recovered);
+            let mut recovered_again = AcpxCommandExecutor::with_runner_config(&directory, &config);
+            assert!(recovered_again.poll_events().unwrap().is_empty());
+            assert!(
+                !marker.exists(),
+                "recovery must not restart a provider or replay input"
+            );
+            fs::remove_dir_all(directory).unwrap();
+        }
     }
 
     #[test]
