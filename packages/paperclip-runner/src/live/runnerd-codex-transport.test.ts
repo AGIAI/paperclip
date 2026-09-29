@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { expect, it, vi } from "vitest";
 import type { ControlPlanePort } from "../contracts/control-plane-port.js";
+import { bindAcpxAgentFiles } from "../drivers/acpx/agent-files-binding.js";
 import type { NativeExecutionInputV1 } from "../contracts/native-execution.js";
 import type {
   NativeSession,
@@ -483,6 +484,61 @@ it("carries the provider attachment seed across consecutive authority rotations"
     },
     workspace: { cwd: "/workspace" },
   });
+});
+
+it("restores ACPX with the current registered copy after the old run copy is collected", async () => {
+  const root = await mkdtemp(join(tmpdir(), "runnerd-acpx-context-rotation-"));
+  const priorRoot = join(root, "prior-run-copy");
+  const currentRoot = join(root, "current-run-copy");
+  await Promise.all([mkdir(priorRoot), mkdir(currentRoot)]);
+  const context = (rootPath: string) => ({
+    instructions: {
+      workingCopy: { kind: "agent_files", rootPath, entryPath: "AGENTS.md" },
+    },
+  }) as NativeRuntimeContextSnapshot;
+  const prior = context(priorRoot);
+  const current = context(currentRoot);
+  const desired = {
+    runnerInstanceId: "runner", environmentLeaseId: "lease", runId: "new-run",
+    normalizedSessionId: "same-session", turnId: "new-turn", itemId: "new-item",
+  };
+  const provider = {
+    kind: "acpx", agent: "copilot", runId: "old-run",
+    normalizedSessionId: "same-session", commandDigest: "sha256:immutable",
+    model: "explicit-model", runtimeContext: prior,
+  };
+  const state = {
+    runAttachTemplate: { provider, workspace: { cwd: root } },
+    commands: [{ type: "turn.start", payload: { text: "must not replay" } }],
+  };
+  try {
+    await rm(priorRoot, { recursive: true });
+    expect(() => bindAcpxAgentFiles(prior, [])).toThrowError(
+      expect.objectContaining({ code: "ENOENT" }),
+    );
+    const restored = runnerdRecoveryInternals.rotatedRunAttachPayload(
+      state, desired, null, undefined, current,
+    );
+    const restoredProvider = restored.provider as typeof provider;
+    expect(restoredProvider).toEqual({ ...provider, runId: desired.runId, runtimeContext: current });
+    expect(bindAcpxAgentFiles(restoredProvider.runtimeContext, [])?.root).toContain("current-run-copy");
+    expect(restored).not.toHaveProperty("text");
+    expect(state.runAttachTemplate.provider.runtimeContext).toBe(prior);
+    // A reopened provider can retain the current grant on another restoration.
+    const same = runnerdRecoveryInternals.rotatedRunAttachPayload(
+      { runAttachTemplate: restored }, desired, null, undefined, current,
+    );
+    expect(same).toEqual(restored);
+    expect((same.provider as typeof provider).runtimeContext).not.toBe(current);
+    // Live warm attachment has no new provider process and must preserve its
+    // existing context until settlement, rather than replace its filesystem grant.
+    const live = runnerdRecoveryInternals.rotatedRunAttachPayload(
+      state, desired, null, undefined,
+    );
+    expect((live.provider as typeof provider).runtimeContext).toEqual(prior);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 it("replays the durable run attachment outcome and latest provider identity", () => {
