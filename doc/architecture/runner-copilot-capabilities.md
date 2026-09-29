@@ -70,6 +70,39 @@ answered Cobalt choice, and warm-session continuation. Copilot instead supplied
 `[terminal marker]` to `paperclip_finish`. Neither the grader nor the terminal
 marker requirement changed. A final-runtime rerun remains required.
 
+### Final v3 Product question attempt
+
+The [final v3 question receipt](../../packages/paperclip-runner/test/fixtures/copilot-product-v3-question-2026-09-29.json)
+retains the single reserved attempt at source `3d0c45920`, with the exact frozen
+controller distribution, native assets, pack, Node, daemon and sidecar hashes.
+The first turn produced the structured question and the board answered Cobalt.
+Continuation failed during native `session.open` recovery, before continuation
+usage was reported, with an unclassified sidecar rejection. The 72.086-second
+case failed; cleanup passed and no retry occurred. This is a recovery/admission
+failure, distinct from the earlier literal-marker behavior failure. Neither is
+removed from qualification evidence.
+
+One run reports GitHub/unpriced usage: 28,545 input, 13,818 cached input and 525
+output tokens. Provider USD and upstream model-request count remain unknown.
+The refreshed account counter moved from 5 to 6 of 1,500 included credits;
+additional usage remained disabled with a $0 budget and $0 account cash charges.
+This account-level delta is not a per-turn USD allocation. The Product aggregate's
+zero reported cost with `unpriced`/incomplete coverage is not an authoritative
+zero-cost receipt. No additional live attempt is authorized by this result.
+
+A [credential-free native recovery reproduction](../../packages/paperclip-runner/test/fixtures/copilot-runtime-context-recovery-2026-09-29.json)
+closes the provider, deletes the prior registered instruction copy, and reproduces
+`ENOENT` at `bindAcpxAgentFiles`. Reopening with the current registered copy
+succeeds with the same native session. A second explicit fixture turn proves
+actual native `session/load` and reaches `end_turn`. The fixture uses exactly two
+loopback responses, a synthetic credential and test-only model metadata;
+it makes no paid calls and does not qualify authenticated model selection. This
+supports the stale durable runtime-context diagnosis; the failed Product run did
+not retain the underlying wire error. Cold rotated restoration now takes the
+current authenticated runtime context. Live reconnect and pending warm-transition
+receipts keep their existing context; replacing that context in an active provider
+is a separate lifecycle operation.
+
 ### Native detached work is explicitly unsupported
 
 The broader 2026-09-29 deterministic probe reproduces early completion for
