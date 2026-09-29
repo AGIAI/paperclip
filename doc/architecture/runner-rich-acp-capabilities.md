@@ -31,8 +31,9 @@ The basic eval definitions and current profile pin follow-up are merged in
 `paperclip-evals` PRs [#29](https://github.com/paperclipai/paperclip-evals/pull/29)
 and [#30](https://github.com/paperclipai/paperclip-evals/pull/30). The latter passed
 134 unit tests, CI and Greptile 5/5 at `4a15550d16ced37c6edbafa91a11783a64e4e649`;
-its merge commit is `0ad9c5a4275fbfbed3b32f261d3e603d9761a07c`. A further pin
-update is required for Cursor/Copilot v4. These definitions
+its merge commit is `0ad9c5a4275fbfbed3b32f261d3e603d9761a07c`. The Cursor/Copilot v4 pin
+update is in [PR #31](https://github.com/paperclipai/paperclip-evals/pull/31), with
+134 deterministic tests and all three explicit lanes passing. These definitions
 are not paid qualification results. Versioned config IDs separate current
 candidate scorecards from historical runtime policies.
 
@@ -40,8 +41,8 @@ candidate scorecards from historical runtime policies.
 | --- | --- | --- |
 | Cursor v4, source `62e642590` | All three closures materialize and verify. Actual patched ACPX tests enforce instruction acknowledgement on new/load and automatic reload. Exact native source methods preserve the composed text through request context. Independent review has no remaining findings | Final combined pack and daemon, authenticated current-profile Product tests, remaining platform and Daytona proof; paid tests await the account spend-limit decision |
 | Copilot v4, source `95dfde7c5` | Fresh/load model-request capture proves native personal instructions reach the pinned executable. Refresh holds lifetime ownership through cancellation; rejected contenders cannot overwrite it. Both guards and current terminal diagnostics pass merged tests and independent review | Final pack and daemon, then repeat the v3 question case that failed restoration and complete current-profile qualification |
-| Pi v6, source `f09813bae` | Bounded snapshot copying and hashing repair the reproducible startup delay. A complete credential-free PRP startup finishes in 10.7 seconds on the observed host, with the unchanged 30-second deadline. Actual SDK fresh/load model requests receive current instructions | Final combined runtime build and fresh paid hello, native-question, agent-files, permission, planning and remote qualification. Startup timing depends on host load/cache |
-| All three, Linux/Daytona | The stored Daytona key and analytics endpoint work. Docker recovered without a restart; no task sandboxes have been created | Rebuild the immutable Linux image from final integrated source, then retain sandbox-specific usage and cleanup evidence |
+| Pi v6, combined source `97217c531` | Clean combined pack and daemon verified; credential-free PRP startup settles in 13.5 seconds. Authenticated Product hello passes all six matchers with one provider run and complete process cleanup | Native-question, agent-files, permission, planning, restart and remote qualification. The hello launcher configured one automatic retry despite a zero-retry declaration; none occurred. Corrected launchers explicitly enforce zero retries |
+| All three, Linux/Daytona | The stored Daytona key and analytics endpoint work. The first clean Linux install exhausted Docker memory. Build-only pnpm concurrency is now bounded; no task sandboxes have been created | Complete and verify the immutable Linux image from final integrated source, then retain sandbox-specific usage and cleanup evidence |
 
 Cursor and Copilot ignore generic ACP `_meta.systemPrompt`; setting `AGENT_HOME`
 in the process environment does not make it part of model instructions. The v4
@@ -62,11 +63,17 @@ a passing full run. Final-source full checks and current-head CI remain required
 
 The Copilot attempt increased the visible included-credit counter from 5 to 6;
 additional usage remained disabled at a $0 budget. Per-run USD is unknown.
-Both current Pi failures have zero exclusive-key billing delta in delayed
-observations and no inference receipt. Failed attempts and owned-process cleanup
-remain recorded; there were no automatic paid retries. The $100 shared budget
-and provider allocations remain in force. These current failures supersede any
-historical local success as evidence for production readiness.
+The first two Pi attempts failed before inference and have zero exclusive-key
+billing delta in delayed observations. Pi hello attempt 03 passed on the combined
+`97217c531` runtime: 15,340 input, 332 output and 15,360 cached tokens, with a
+delayed exclusive-key delta of $0.00065884. The native USD receipt remains
+unpriced. All 48 observed owned process identities were retired. Its retained
+invocation policy allowed one automatic retry even though the supervisor declared
+zero; exactly one Product attempt ran. This configuration gap is retained in
+evidence, and subsequent supervisors explicitly pass `--max-automatic-retries 0`.
+Failed attempts, missing cost coverage and cleanup remain recorded. The $100
+shared budget and provider allocations remain in force; one successful hello
+does not establish production qualification.
 
 ## Registered persistent agent files
 
