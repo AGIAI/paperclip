@@ -132,6 +132,27 @@ Its installed Linux provider-pack digest is
 `sha256:08ad9f6a6fb9c14c87e3bc5b20d01876986178c768433d709a45540e8d40a4be`.
 An image build and manifest check are not paid remote qualification.
 
+The [sanitized qualification checkpoint](runner-rich-acp-qualification-2026-09-29.json)
+retains current attempts and their original source/profile identities. Pi's
+corrected `bd4cc29c3` Daytona hello passed six matchers with one run; the sandbox
+was absent throughout the full cleanup window and all owned processes retired.
+Three delayed reads stabilized at $0.000630644 OpenRouter usage plus $0.0046878842
+sandbox analytics ($0.0053185282 combined, provisional provider accounting).
+
+Further live tests are paused because a credential-free reproduction confirmed
+host semaphore exhaustion during embedded PostgreSQL bootstrap (`semget` returned
+`ENOSPC`). Copilot's diagnostic local and first Daytona attempts failed before
+provider execution. The Daytona invocation never reached fixture creation or a
+cloud-write path; its machine cleanup flag remains `unresolved_scope_not_captured`
+and is retained separately from that source-order assessment. This host failure
+does not explain the earlier Copilot provider-session startup timeout. The
+remaining Pi local/native campaign is prepared but has not launched.
+
+GitHub billing coverage was also audited: public standard-runner and self-hosted
+GitHub minute charges do not add a per-minute charge, but external fleet costs
+and private evals CI incremental charges remain unmetered. The $100 live-test
+ceiling is not evidence of complete infrastructure cost attribution.
+
 ## Registered persistent agent files
 
 Candidate ACP processes receive `AGENT_HOME` only from the authenticated
