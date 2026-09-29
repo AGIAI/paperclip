@@ -7,6 +7,7 @@ import { createTaskThroughUi } from "./user-actions.js";
 import { copilotOrigin, readCopilotToolEvidence, type CopilotToolNotice } from "./copilot-evidence.js";
 import { createAttachedCommandFixture, exists, observeRunProcesses, watchDeniedTarget } from "./copilot-local-fixtures.js";
 import { gradeCopilotAttachedSettlement, gradeCopilotDeniedWrite, type CopilotDeniedWriteEvidence } from "./copilot-protection-cases.js";
+import { countCopilotToolOrigins, readCopilotMarkerAfterCleanup } from "./copilot-protection-evidence.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
 type Row = Record<string, any>;
@@ -94,16 +95,16 @@ export async function runCopilotProtectionFlow(input: {
         terminal: { runId: terminalFrame.runId, turnId: terminalFrame.turnId, observedAtMs: terminalAt, status: runs[0]!.status },
         cancellation: { requestedAtMs: cancelRequestedAtMs, acknowledged: cancellation?.dispatchState === "acknowledged" && cancellation?.dispatched === true, scope: cancellation?.scope },
         cleanup: { observedAtMs: fileObservations.at(-1)!.observedAtMs, ownedProcessesRemaining: processes.live.length }, fileObservations, mutationObservation: watchReceipt,
-        nativeAttemptsForTarget: new Set(notices.filter(n => n.stage === "tool" && n.operation === "edit" && n.target === target && n.status === "pending").map(n => n.toolCallId)).size,
+        nativeAttemptsForTarget: countCopilotToolOrigins(notices.filter(n => n.operation === "edit" && n.target === target)),
       };
       await input.evidence("copilot-denial-proof.json", { evidence, processes, notices });
       const grade = gradeCopilotDeniedWrite(evidence); check("denial-without-side-effects", grade.passed, grade.failures.join(", ") || "Exact browser denial, explicit cancellation and absence through process cleanup");
       check("negative-task-unfinished", issue.status === "in_progress", "The negative test does not claim the task is done");
-      check("no-extra-native-operation", new Set(notices.filter(n => n.stage === "tool" && n.status === "pending").map(n => n.toolCallId)).size === 1, "No alternate native edit, command or delegated operation is permitted");
+      check("no-extra-native-operation", countCopilotToolOrigins(notices) === 1, "No alternate native edit, command or delegated operation is permitted");
     } else {
       await wait("attached command and task settlement", s => s.issue.status === "done" && s.runs[0]?.status === "succeeded" && s.processes.captured && s.processes.live.length === 0);
       const call = notices.find(n => n.stage === "tool" && n.status === "pending" && n.commandSha256 === command!.commandSha256);
-      check("single-exact-command", Boolean(call) && new Set(notices.filter(n => n.stage === "tool" && n.status === "pending" && n.commandSha256 === command!.commandSha256).map(n => n.toolCallId)).size === 1, "Exactly one native execution contains the supplied command digest");
+      check("single-exact-command", Boolean(call) && countCopilotToolOrigins(notices.filter(n => n.commandSha256 === command!.commandSha256)) === 1, "Exactly one native execution contains the supplied command digest");
       const started = notices.find(n => n.toolCallId === call!.toolCallId && n.shellState === "started");
       const result = notices.find(n => n.commandToolCallId === call!.toolCallId && n.shellState === "completed");
       const terminal = runEvents.find(r => r.eventType === "turn.completed" && r.payload?.prpEvent?.turnId === call!.turnId)?.payload.prpEvent;
@@ -112,12 +113,13 @@ export async function runCopilotProtectionFlow(input: {
       const markerMatches = await readFile(markerPath, "utf8") === command!.marker;
       check("native-client-before-terminal", Boolean(terminal) && external.clientExitedAtMs !== null && external.clientExitedAtMs < Date.parse(terminal.emittedAt), "Independent PID/start observation confirms native client retirement before turn completion");
       check("marker-before-terminal", Boolean(terminal) && external.markerWrittenAtMs !== null && external.markerWrittenAtMs < Date.parse(terminal.emittedAt), "The independent fixture wrote its undisclosed marker before turn completion");
+      const afterCleanupMarkerMatches = await readCopilotMarkerAfterCleanup(() => command!.close(), markerPath, command!.marker);
       const grade = gradeCopilotAttachedSettlement({ expected: copilotOrigin(call!), nativeCall: call ? { ...call, operation: call.operation!, mode: call.mode!, detach: call.detach!, commandSha256: call.commandSha256! } : null,
         expectedCommandSha256: command!.commandSha256, commandExit: external.commandExit,
         expectedShellId: started?.shellId ?? "", nativeShellResult: result ? { ...result, shellId: result.shellId!, commandToolCallId: result.commandToolCallId!, status: result.status!, exitCode: result.exitCode! } : null,
         terminal: terminal ? { observedAtMs: Date.parse(terminal.emittedAt), runId: terminal.runId, turnId: terminal.turnId, status: "succeeded" } : null,
-        cleanup: { observedAtMs: Date.now(), ownedProcessesRemaining: processes.live.length }, terminalMarkerMatches: markerMatches, afterCleanupMarkerMatches: markerMatches });
-      await input.evidence("copilot-attached-proof.json", { external, processes, notices, grade, commandSha256: command!.commandSha256, markerMatches });
+        cleanup: { observedAtMs: Date.now(), ownedProcessesRemaining: processes.live.length }, terminalMarkerMatches: markerMatches, afterCleanupMarkerMatches });
+      await input.evidence("copilot-attached-proof.json", { external, processes, notices, grade, commandSha256: command!.commandSha256, markerMatches, afterCleanupMarkerMatches });
       check("attached-settlement-before-terminal", grade.passed, grade.failures.join(", ") || "Owned finite process and native shell settled before the actual turn terminal");
     }
     await load(); check("one-native-run", runs.length === 1 && runs[0]!.runtimeMode === "native", "Exactly one native run was accounted");
