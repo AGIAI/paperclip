@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
 import { cursorDeniedCommand, hasCursorDeniedCommand, hasCursorCancellation, readCursorToolEvidence, type CursorToolNotice } from "./cursor-native-evidence.js";
 
@@ -85,8 +86,20 @@ it("allows explicit earlier remote bootstrap reads while rejecting unknown kinds
   const read: CursorToolNotice = { ...rows[0]!, seq: 1, toolCallId: "bootstrap-read", stage: "tool", status: "completed", operation: "read", commandSha256: undefined };
   const input = { notices: [read, ...rows], runId: "run", turnId: "turn", requestId: "request", toolCallId: "tool", commandSha256: cursorDeniedCommand("/fixture/denied.txt").commandSha256 };
   expect(hasCursorDeniedCommand(input)).toBe(false);
-  expect(hasCursorDeniedCommand({ ...input, allowBootstrapReads: true })).toBe(true);
-  for (const operation of [undefined, "edit", "execute"]) expect(hasCursorDeniedCommand({ ...input, allowBootstrapReads: true, notices: [{ ...read, operation }, ...rows] })).toBe(false);
-  expect(hasCursorDeniedCommand({ ...input, allowBootstrapReads: true, notices: [...rows, { ...read, seq: 20 }] })).toBe(false);
-  expect(hasCursorDeniedCommand({ ...input, allowBootstrapReads: true, notices: [{ ...read, sessionId: "other" }, ...rows] })).toBe(false);
+  const actionFile = `.paperclip-eval-action-${"a".repeat(36)}.txt`;
+  const event = { runId: "run", seq: 2, protocolSchemaVersion: 1, eventType: "tool.execution.completed", payload: { prpEvent: {
+    schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType: "tool.execution.completed", emittedAt: new Date(2).toISOString(),
+    payload: { schema: "paperclip.tool.execution.v1", executionId: "bootstrap-read", transport: "builtin", operation: "read", target: actionFile, status: "completed" },
+  } } };
+  read.readTargetSha256 = `sha256:${createHash("sha256").update(actionFile).digest("hex")}`;
+  const bootstrapReadProof = { actionFile, events: [event] };
+  expect(hasCursorDeniedCommand({ ...input, bootstrapReadProof })).toBe(true);
+  expect(hasCursorDeniedCommand({ ...input, bootstrapReadProof: { actionFile, events: [] } })).toBe(false);
+  const wrong = structuredClone(event); wrong.payload.prpEvent.payload.target = "unrelated.txt";
+  expect(hasCursorDeniedCommand({ ...input, bootstrapReadProof: { actionFile, events: [wrong] } })).toBe(false);
+  const extra = { ...read, toolCallId: "unrelated", seq: 0 };
+  expect(hasCursorDeniedCommand({ ...input, notices: [extra, ...input.notices], bootstrapReadProof })).toBe(false);
+  for (const operation of [undefined, "edit", "execute"]) expect(hasCursorDeniedCommand({ ...input, bootstrapReadProof, notices: [{ ...read, operation }, ...rows] })).toBe(false);
+  expect(hasCursorDeniedCommand({ ...input, bootstrapReadProof, notices: [...rows, { ...read, seq: 20 }] })).toBe(false);
+  expect(hasCursorDeniedCommand({ ...input, bootstrapReadProof, notices: [{ ...read, sessionId: "other" }, ...rows] })).toBe(false);
 });

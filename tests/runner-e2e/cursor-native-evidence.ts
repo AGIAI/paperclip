@@ -1,15 +1,16 @@
+import { withoutProvenBootstrapReads, type BootstrapReadProof } from "./native-bootstrap-read-proof.js";
 import { createHash } from "node:crypto";
 import { isAbsolute, posix } from "node:path";
 
 export interface CursorToolNotice {
   runId: string; sessionId: string; turnId: string; toolCallId: string; seq: number;
   stage: "tool" | "permission_requested" | "permission_delivered";
-  status?: string; operation?: string; commandSha256?: string; requestId?: string; declineOffered?: boolean; outcome?: string;
+  status?: string; operation?: string; commandSha256?: string; readTargetSha256?: string; requestId?: string; declineOffered?: boolean; outcome?: string;
 }
 const rec = (v: unknown): Record<string, any> => v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, any> : {};
 const id = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 240 && !/[\u0000-\u001f\u007f]/u.test(v) && !v.includes("[REDACTED]");
 const enums = { stage: ["tool", "permission_requested", "permission_delivered"], status: ["pending", "in_progress", "completed", "failed"], operation: ["execute", "read"], outcome: ["allow_once", "allow_always", "reject_once", "cancel"] };
-const names = new Set(["stage", "toolCallId", "status", "operation", "commandSha256", "requestId", "declineOffered", "outcome"]);
+const names = new Set(["stage", "toolCallId", "status", "operation", "commandSha256", "readTargetSha256", "requestId", "declineOffered", "outcome"]);
 export function readCursorToolEvidence(rows: readonly unknown[], runId: string): CursorToolNotice[] {
   const result: CursorToolNotice[] = [];
   for (const value of rows) {
@@ -27,6 +28,7 @@ export function readCursorToolEvidence(rows: readonly unknown[], runId: string):
     if (!id(fields.toolCallId) || !enums.stage.includes(fields.stage!) || origin.eventType !== fields.stage || origin.method !== (fields.stage === "tool" ? "session/update" : "session/request_permission")) throw new Error("Invalid Cursor evidence origin");
     for (const [key, values] of Object.entries(enums)) if (fields[key] !== undefined && !values.includes(fields[key]!)) throw new Error("Invalid Cursor evidence enum");
     if (fields.requestId !== undefined && !id(fields.requestId)) throw new Error("Invalid Cursor request identity");
+    if (fields.readTargetSha256 !== undefined && !/^sha256:[a-f0-9]{64}$/u.test(fields.readTargetSha256)) throw new Error("Invalid Cursor read digest");
     if (fields.commandSha256 !== undefined && !/^sha256:[a-f0-9]{64}$/u.test(fields.commandSha256)) throw new Error("Invalid Cursor command digest");
     if (fields.declineOffered !== undefined && !["true", "false"].includes(fields.declineOffered)) throw new Error("Invalid Cursor offered choice");
     result.push({ ...fields, runId, sessionId: origin.sessionId, turnId: origin.turnId, seq: row.seq, declineOffered: fields.declineOffered === "true" } as CursorToolNotice);
@@ -42,13 +44,12 @@ export function cursorDeniedCommand(path: string) {
   return { command, commandSha256: `sha256:${createHash("sha256").update(command).digest("hex")}` };
 }
 export function hasCursorDeniedCommand(input: {
-  notices: readonly CursorToolNotice[]; runId: string; turnId: string; requestId: string; toolCallId: string; commandSha256: string; allowBootstrapReads?: boolean;
+  notices: readonly CursorToolNotice[]; runId: string; turnId: string; requestId: string; toolCallId: string; commandSha256: string; bootstrapReadProof?: BootstrapReadProof;
 }): boolean {
   const origin = input.notices.find(row => row.stage === "tool" && row.status === "pending" && row.operation === "execute" && row.toolCallId === input.toolCallId && row.commandSha256 === input.commandSha256);
-  // Only explicit native reads before the tested command may belong to the
-  // remote action-file bootstrap. Undefined kinds or later work remain failures.
-  const notices = input.notices.filter(row => !(input.allowBootstrapReads && origin && row.operation === "read" && row.seq < origin.seq
-    && row.runId === input.runId && row.turnId === input.turnId && row.sessionId === origin.sessionId));
+  let notices: readonly CursorToolNotice[];
+  try { notices = origin ? withoutProvenBootstrapReads(input.notices, origin, input.bootstrapReadProof) : input.notices; }
+  catch { return false; }
   const requests = notices.filter(row => row.stage === "permission_requested");
   if (requests.length !== 1) return false;
   const request = requests[0]!;

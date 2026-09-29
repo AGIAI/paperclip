@@ -152,12 +152,12 @@ export async function runCopilotProtectionFlow(input: {
       await input.evidence("copilot-denial-proof.json", { evidence, processes, notices });
       const grade = gradeCopilotDeniedWrite(evidence); check("denial-without-side-effects", grade.passed, grade.failures.join(", ") || "Exact browser denial, explicit cancellation and absence through process cleanup");
       check("negative-task-unfinished", issue.status === "in_progress", "The negative test does not claim the task is done");
-      check("no-extra-native-operation", countCopilotToolOrigins(copilotActionNotices(notices, notices.find(n => n.stage === "tool" && n.toolCallId === request.toolCallId)!, remote)) === 1, "No alternate native edit, command or delegated operation is permitted");
+      check("no-extra-native-operation", countCopilotToolOrigins(copilotActionNotices(notices, notices.find(n => n.stage === "tool" && n.toolCallId === request.toolCallId)!, remoteFixture ? { actionFile: remoteFixture.actionFile, events: runEvents } : undefined)) === 1, "No alternate native edit, command or delegated operation is permitted");
     } else {
       await wait("attached command and task settlement", s => s.issue.status === "done" && s.runs[0]?.status === "succeeded" && (remote || (s.processes.captured && s.processes.live.length === 0)));
       const call = notices.find(n => n.stage === "tool" && n.status === "pending" && n.commandSha256 === exactCommand()!.commandSha256);
       check("single-exact-command", Boolean(call) && countCopilotToolOrigins(notices.filter(n => n.commandSha256 === exactCommand()!.commandSha256)) === 1, "Exactly one native execution contains the supplied command digest");
-      if (remote) check("no-extra-native-operation", copilotActionNotices(notices, call!, true).every(n =>
+      if (remote) check("no-extra-native-operation", copilotActionNotices(notices, call!, { actionFile: remoteFixture!.actionFile, events: runEvents }).every(n =>
         n.runId === call!.runId && n.sessionId === call!.sessionId && n.turnId === call!.turnId
         && (n.toolCallId === call!.toolCallId || n.commandToolCallId === call!.toolCallId)), "Only setup reads and the exact native attached command/result are allowed");
       const started = notices.find(n => n.toolCallId === call!.toolCallId && n.shellState === "started");

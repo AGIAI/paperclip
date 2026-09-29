@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -69,14 +70,25 @@ describe("Copilot sealed remote proof", () => {
     ]) { const s = receipt(); mutate(s); expect(() => assertCopilotRemoteAttached(s, baseline(), 50)).toThrow(); }
     expect(() => assertCopilotRemoteAttached(receipt(), baseline(), 20)).toThrow();
   });
-  it("allows only explicit same-turn bootstrap reads before the tested native origin", () => {
+  it("exempts only exact completed action-file reads before the tested operation", () => {
     const call = { ...notice, seq: 10, status: "in_progress" as const };
-    const read = { ...notice, toolCallId: "bootstrap", operation: "read", seq: 1 } as unknown as CopilotToolNotice;
-    expect(countCopilotToolOrigins(copilotActionNotices([read, call], call, true))).toBe(1);
-    for (const bad of [{ ...read, seq: 11 }, { ...read, turnId: "other" }, { ...read, operation: undefined }, { ...read, operation: "edit" as const }]) {
-      expect(countCopilotToolOrigins(copilotActionNotices([bad, call], call, true))).toBe(2);
+    const read = { ...notice, toolCallId: "bootstrap", operation: "read", status: "completed", seq: 1 } as CopilotToolNotice;
+    const actionFile = `.paperclip-eval-action-${"a".repeat(36)}.txt`;
+    const event = { runId: "run", seq: 2, protocolSchemaVersion: 1, eventType: "tool.execution.completed", payload: { prpEvent: {
+      schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType: "tool.execution.completed", emittedAt: new Date(2).toISOString(),
+      payload: { schema: "paperclip.tool.execution.v1", executionId: "bootstrap", transport: "builtin", operation: "read", target: actionFile, status: "completed" },
+    } } };
+    read.readTargetSha256 = `sha256:${createHash("sha256").update(actionFile).digest("hex")}`;
+    const proof = { actionFile, events: [event] };
+    expect(countCopilotToolOrigins(copilotActionNotices([read, call], call, proof))).toBe(1);
+    const wrong = structuredClone(event); wrong.payload.prpEvent.payload.target = "unrelated.txt";
+    expect(() => copilotActionNotices([read, call], call, { actionFile, events: [wrong] })).toThrow();
+    expect(() => copilotActionNotices([read, { ...read, toolCallId: "unrelated", seq: 3 }, call], call, proof)).toThrow();
+    expect(() => copilotActionNotices([{ ...read, turnId: "other" }, call], call, proof)).toThrow();
+    for (const bad of [{ ...read, seq: 11 }, { ...read, operation: undefined }, { ...read, operation: "edit" as const }]) {
+      expect(countCopilotToolOrigins(copilotActionNotices([bad, call], call, { actionFile, events: [] }))).toBe(2);
     }
-    expect(countCopilotToolOrigins(copilotActionNotices([read, call], call, false))).toBe(2);
+    expect(countCopilotToolOrigins(copilotActionNotices([read, call], call))).toBe(2);
   });
   it("awaits the remote fixture and baseline before disclosing the actual command", async () => {
     const s = baseline(), order: string[] = [];

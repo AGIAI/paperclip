@@ -1,3 +1,4 @@
+import type { BootstrapReadProof } from "./native-bootstrap-read-proof.js";
 import { cursorDeniedCommand, hasCursorDeniedCommand, type CursorToolNotice } from "./cursor-native-evidence.js";
 import type { RunnerTaskFixture } from "./types.js";
 
@@ -81,14 +82,14 @@ export const CURSOR_DENIAL_SAMPLE_PHASES = ["before-request", "pending", "browse
 /** Samples are taken independently by the fixture, never supplied by the model. */
 export function hasCursorDenialBoundary(input: {
   request: unknown; expectedRequestId: string; expectedToolCallId: string;
-  path: string; allowBootstrapReads?: boolean; notices: readonly CursorToolNotice[]; runId: string; turnId: string; samples: readonly { phase: string; path: string; absent: boolean; observedAt: number }[];
+  path: string; bootstrapReadProof?: BootstrapReadProof; notices: readonly CursorToolNotice[]; runId: string; turnId: string; samples: readonly { phase: string; path: string; absent: boolean; observedAt: number }[];
 }): boolean {
   const request = record(input.request); const origin = record(request.origin); const details = record(request.details);
   if (!input.expectedRequestId.trim() || !input.expectedToolCallId.trim() || !input.path.trim()
     || request.requestId !== input.expectedRequestId || details.toolCallId !== input.expectedToolCallId
     || request.type !== "permission" || request.status !== "pending"
     || origin.provider !== "cursor" || origin.adapter !== "acpx-runtime" || origin.method !== "session/request_permission") return false;
-  if (request.turnId !== input.turnId || !hasCursorDeniedCommand({ notices: input.notices, runId: input.runId, turnId: input.turnId, requestId: input.expectedRequestId, toolCallId: input.expectedToolCallId, commandSha256: cursorDeniedCommand(input.path).commandSha256, allowBootstrapReads: input.allowBootstrapReads })) return false;
+  if (request.turnId !== input.turnId || !hasCursorDeniedCommand({ notices: input.notices, runId: input.runId, turnId: input.turnId, requestId: input.expectedRequestId, toolCallId: input.expectedToolCallId, commandSha256: cursorDeniedCommand(input.path).commandSha256, bootstrapReadProof: input.bootstrapReadProof })) return false;
   const choices = request.choices;
   if (!Array.isArray(choices)) return false;
   const keys = choices.map(value => record(value).key);

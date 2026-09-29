@@ -15,7 +15,7 @@ type Row = Record<string, any>;
 type Check = { id: string; passed: boolean; detail: string };
 
 export interface CursorRemoteNativeFixture {
-  binding: CursorRemoteBinding; remoteCwd: string;
+  binding: CursorRemoteBinding; remoteCwd: string; actionFile: string;
   snapshot(label: string): Promise<CursorRemoteSnapshot>;
   finish(): Promise<CursorRemoteSnapshot>;
   close(): Promise<void>;
@@ -113,7 +113,7 @@ export async function runCursorNativeFlow(input: {
   const deniedRelative = `cursor-denied-${nonce}.txt`;
   let deniedPath = remote ? "" : join(input.workspacePath, deniedRelative);
   let deniedCommand = remote ? null : cursorDeniedCommand(deniedPath);
-  let denialNotices: CursorToolNotice[] = []; let denialTurnId = ""; let cancelRequestedAt = NaN; let cancellationProven = false;
+  let denialNotices: CursorToolNotice[] = []; let denialRunEvents: Row[] = []; let denialTurnId = ""; let cancelRequestedAt = NaN; let cancellationProven = false;
   const samples: Array<{ phase: string; path: string; absent: boolean; observedAt: number }> = [];
   const sampleDenied = async (phase: string, retained?: CursorRemoteSnapshot) => {
     let sample: { phase: string; path: string; absent: boolean; observedAt: number };
@@ -157,7 +157,7 @@ export async function runCursorNativeFlow(input: {
         finalCheck("denied-absent-after-cleanup", finalSample.absent, "Independent target remains absent after observed provider retirement");
         const journal = watch.finish();
         finalCheck("continuous-denial-observation", journal.complete && journal.targetMutationCount === 0, "Continuous target watcher observed no create/delete mutation and retained directory identity");
-        finalCheck("complete-native-denial-boundary", Boolean(deniedRequest) && hasCursorDenialBoundary({ request: deniedRequest, expectedRequestId: deniedRequest?.requestId ?? "", expectedToolCallId: deniedRequest?.details.toolCallId ?? "", path: deniedPath, allowBootstrapReads: remote, samples, notices: denialNotices, runId: runs[0]?.id ?? "", turnId: denialTurnId }), "Supported native denial preserved the target through all six independent boundaries");
+        finalCheck("complete-native-denial-boundary", Boolean(deniedRequest) && hasCursorDenialBoundary({ request: deniedRequest, expectedRequestId: deniedRequest?.requestId ?? "", expectedToolCallId: deniedRequest?.details.toolCallId ?? "", path: deniedPath, bootstrapReadProof: remoteFixture ? { actionFile: remoteFixture.actionFile, events: denialRunEvents } : undefined, samples, notices: denialNotices, runId: runs[0]?.id ?? "", turnId: denialTurnId }), "Supported native denial preserved the target through all six independent boundaries");
         await input.evidence("cursor-native-denial-final.json", { request: deniedRequest, samples, notices: denialNotices, commandSha256: deniedCommand!.commandSha256, cancellationProven, cancelRequestedAt, processes, processObservationError, watcher: journal, checks: cleanupChecks });
         if (cleanupChecks.some(row => !row.passed)) throw new Error("Cursor native denial cleanup proof is incomplete or observed an effect");
         return cleanupChecks;
@@ -178,7 +178,7 @@ export async function runCursorNativeFlow(input: {
       if (design.id === "native-write-deny-reconnect") {
         await sampleDenied("after-cleanup", snapshot);
         finalCheck("remote-cancel-terminal", cancellationProven && runs[0]?.status === "cancelled" && issue.status === "in_progress", "Explicit native cancellation remains durable without false task completion");
-        finalCheck("remote-no-denied-effect", snapshot.watcher.targetMutationCount === 0 && Boolean(deniedRequest) && hasCursorDenialBoundary({ request: deniedRequest, expectedRequestId: deniedRequest?.requestId ?? "", expectedToolCallId: deniedRequest?.details.toolCallId ?? "", path: deniedPath, allowBootstrapReads: remote, samples, notices: denialNotices, runId: runs[0]?.id ?? "", turnId: denialTurnId }), "Exact denied native command caused no remote file effect through provider retirement");
+        finalCheck("remote-no-denied-effect", snapshot.watcher.targetMutationCount === 0 && Boolean(deniedRequest) && hasCursorDenialBoundary({ request: deniedRequest, expectedRequestId: deniedRequest?.requestId ?? "", expectedToolCallId: deniedRequest?.details.toolCallId ?? "", path: deniedPath, bootstrapReadProof: remoteFixture ? { actionFile: remoteFixture.actionFile, events: denialRunEvents } : undefined, samples, notices: denialNotices, runId: runs[0]?.id ?? "", turnId: denialTurnId }), "Exact denied native command caused no remote file effect through provider retirement");
       } else if (design.id !== "native-plan-reject-revise-accept") {
         finalCheck("remote-no-workspace-effects", hasCursorRemoteWorkspaceUnchanged(snapshot, remoteBaseline!), "Native question or cancelled plan caused no remote workspace mutation through retirement");
       }
@@ -197,7 +197,7 @@ export async function runCursorNativeFlow(input: {
     if (watch) processes = observeProcesses();
     const interactions = await api.get<Row[]>(`/api/issues/${issue.id}/interactions`);
     const runEvents = runs.length === 1 ? await events(runs[0]!.id) : [];
-    if (design.id === "native-write-deny-reconnect" && runs.length === 1) denialNotices = readCursorToolEvidence(runEvents, runs[0]!.id);
+    if (design.id === "native-write-deny-reconnect" && runs.length === 1) { denialRunEvents = runEvents; denialNotices = readCursorToolEvidence(runEvents, runs[0]!.id); }
     return { issue, runs, interactions, runEvents };
   };
   const reject = (state: Awaited<ReturnType<typeof load>>) => state.runs.length > 1 ? "Unexpected extra Cursor provider run" : state.runs.some(run => ["failed", "cancelled", "timed_out"].includes(run.status)) ? "Cursor provider run failed" : undefined;
@@ -305,7 +305,7 @@ export async function runCursorNativeFlow(input: {
       check("browser-exact-denial", posted.turnId === event.turnId && posted.requestKind === "permission_approval" && posted.resolution?.action === "decline", "Browser denied the exact native run/request/turn");
       const identity = { runId: native.runId, turnId: event.turnId, requestId: request.requestId, method: "session/request_permission" as const, action: "decline" as const };
       await pollUntil({ label: "native denial delivered and exact command failed", deadlineAt: input.deadlineAt, load, reject, accept: state => hasDeliveredCursorNativeRequest({ ...identity, events: state.runEvents })
-        && hasCursorDeniedCommand({ notices: denialNotices, ...identity, toolCallId: native.toolCallId, commandSha256: deniedCommand!.commandSha256, allowBootstrapReads: remote }) });
+        && hasCursorDeniedCommand({ notices: denialNotices, ...identity, toolCallId: native.toolCallId, commandSha256: deniedCommand!.commandSha256, bootstrapReadProof: remoteFixture ? { actionFile: remoteFixture.actionFile, events: denialRunEvents } : undefined }) });
       await sampleDenied("after-decision");
       cancelRequestedAt = Date.now(); await api.post(`/api/heartbeat-runs/${native.runId}/cancel`);
       const cancelled = await pollUntil({ label: "explicit native cancellation", deadlineAt: input.deadlineAt, load,

@@ -336,3 +336,14 @@ retirement checks. Runtime-internal files are an explicit scoped exclusion.
 `human-permission-denial` requires native request/tool correlation, the browser's
 exact Decline, delivered denial and failed write, and unchanged file evidence
 through retirement. All normal project and company boundaries apply.
+
+Cursor and Copilot may exempt a bootstrap read only when every native notice for
+that completed tool origin carries the single-path attestation matching the
+observer's exact random action file. The passive projector derives this digest
+from one explicit scalar native input path, rejects ambiguous/multiple paths,
+and checks subsequent input/location updates for changes. Durable canonical
+execution receipts must match the same run, turn, execution identity, status,
+and order; any explicit canonical target must agree. Missing or conflicting
+attestations fail qualification. PRP retains only the first location and terminal
+updates may omit it, so canonical targets alone cannot prove bootstrap ownership.
+Neither tool titles nor output text supplies path evidence.

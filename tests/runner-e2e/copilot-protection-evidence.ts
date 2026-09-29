@@ -1,3 +1,4 @@
+import { withoutProvenBootstrapReads, type BootstrapReadProof } from "./native-bootstrap-read-proof.js";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type { CopilotToolNotice } from "./copilot-evidence.js";
@@ -66,9 +67,8 @@ export function copilotRemoteDeniedSample(s: CopilotRemoteSnapshot, baseline: Co
   return { phase, observedAtMs: s.observedAtMs, exists: t.absent !== true || t.sha256 !== null };
 }
 /** Only typed reads before the tested operation can be bootstrap work. */
-export function copilotActionNotices(notices: readonly CopilotToolNotice[], origin: CopilotToolNotice, remote: boolean): CopilotToolNotice[] {
-  return notices.filter(n => !(remote && (n.operation as string) === "read" && n.seq < origin.seq
-    && n.runId === origin.runId && n.sessionId === origin.sessionId && n.turnId === origin.turnId));
+export function copilotActionNotices(notices: readonly CopilotToolNotice[], origin: CopilotToolNotice, proof?: BootstrapReadProof): CopilotToolNotice[] {
+  return withoutProvenBootstrapReads(notices, origin, proof);
 }
 export function assertCopilotRemoteAttached(s: CopilotRemoteSnapshot, baseline: CopilotRemoteSnapshot, terminalAt: number) {
   assertCopilotRemoteRetirement(s, baseline);
