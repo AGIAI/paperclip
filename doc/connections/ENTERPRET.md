@@ -188,8 +188,9 @@ accepts a write-capable token for a read-only connector at all.
 The RFC 8414 document advertises no `revocation_endpoint` — re-read 2026-09-25
 and still absent. Removing the connection in Paperclip clears local credential
 material and gateway access, but there is no documented provider-side instrument
-to invalidate an issued token. For the auth-token method, the equivalent action
-is generating a replacement token in the Enterpret dashboard.
+to invalidate an issued OAuth token. The auth-token method is separate: the
+dashboard can generate another organization token, but this validation did not
+establish whether that invalidates any token issued earlier.
 
 An `introspection_endpoint` *is* advertised, and Paperclip calls neither. That
 is worth separating: introspection tells you what a token can do, which is how
@@ -212,10 +213,11 @@ can hand you. The two methods differ, and they must not be described as one:
   confirms a procedure, plan on the issued token staying valid **until it
   expires**, treat expiry as the only assured end of access, and ask Enterpret
   support for a revocation path rather than assuming the dashboard has one.
-- **Auth token.** This one is actionable, and it is a *different instrument*:
-  generating a replacement organization token in the Enterpret dashboard
-  supersedes the old value. That is rotation of a token, not revocation of an
-  OAuth grant.
+- **Auth token.** The dashboard can generate another organization token, but
+  this method was not live-tested and replacing a token has **not** been
+  verified to invalidate the old value. Do not treat generating a new token as
+  revocation. Confirm a provider-supported way to retire the specific old
+  token and verify that it is denied; until then, treat it as still valid.
 
 Any runbook or teardown that treats "disconnect in Paperclip" as revocation
 leaves a live credential at the provider — and per the scope finding above, a
