@@ -10,6 +10,7 @@ import { ACPX_CAPABILITY_PROFILES } from "../drivers/acpx/capability-profiles.js
 import { resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.js";
 import { ACPX_SIDECAR_PROTOCOL_VERSION } from "../drivers/acpx/sidecar-protocol.js";
 import { canonicalProviderEventsFromAcpxRuntimeEvent } from "../provider-events.js";
+import { createPiMessageProjection } from "../drivers/acpx/pi-message-projection.js";
 import {
   awaitSidecarCleanupWithin,
   closeActiveSidecarHostWithin,
@@ -35,6 +36,29 @@ afterEach(async () => {
 });
 
 describe("qualified ACPX runtime sidecar", () => {
+  it("passes only validated Pi native boundaries and history through the real text sanitizer", () => {
+    const source = readFileSync(fileURLToPath(new URL("./acpx-runtime-sidecar.ts", import.meta.url)), "utf8");
+    const start = source.indexOf('  if (event.type === "text_delta") {', source.indexOf("function sanitizeRuntimeEvent"));
+    const end = source.indexOf('  if (event.type === "status") {', start);
+    expect(start).toBeGreaterThan(0);
+    const sanitize = new Function("boundedOptionalText", "stableProviderIdentity", `return event => {${source.slice(start, end)} return null;}`)(
+      (value: string) => value, (value: string) => `stable-${value}`,
+    );
+    const projection = createPiMessageProjection<{ type: string; text: string; stream: string; messageId: string; meta: Record<string, string> }>();
+    const event = (kind: string) => ({ type: "text_delta", text: "", stream: "output", messageId: `pi-message-${"a".repeat(64)}`,
+      meta: { origin: "pi-native-assistant", source: "pi-rpc-message-v1", kind, secret: "DROP_ME" } });
+    const startFrame = sanitize(projection.normalize(event("start")));
+    const endFrame = sanitize(projection.normalize(event("end:toolUse")));
+    expect(startFrame).toMatchObject({ text: "", piMessageBoundary: { phase: "start" } });
+    expect(endFrame).toMatchObject({ text: "", piMessageBoundary: { phase: "end", stopReason: "toolUse" } });
+    expect(startFrame.messageId).toBe(endFrame.messageId);
+    expect(JSON.stringify([startFrame, endFrame])).not.toContain("DROP_ME");
+    projection.settle();
+    const loaded = createPiMessageProjection<ReturnType<typeof event>>();
+    const history = sanitize(loaded.normalize({ ...event("history"), messageId: `pi-history-message-${"b".repeat(64)}`,
+      text: "old reply", meta: { origin: "pi-history-assistant", source: "pi-session-history-v1", kind: "history" } }));
+    expect(history).toMatchObject({ text: "old reply", piMessageHistory: true }); loaded.settle();
+  });
   it.each(["pi", "copilot", "cursor", "codex", "claude"])("offers verified session permission grants only for %s", async agent => {
     const source = readFileSync(fileURLToPath(new URL("./acpx-runtime-sidecar.ts", import.meta.url)), "utf8");
     const start = source.indexOf("  const { signal } = context;", source.indexOf("async function waitForPermission"));

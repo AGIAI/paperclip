@@ -16,6 +16,7 @@ import type {
 import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "../drivers/acpx/profile-extensions.js";
 import type { PaperclipQuestionSet } from "../contracts/question-set.js";
 import { createAcpxToolEventNormalizer, createGrokMessageNormalizer } from "../provider-events.js";
+import { createPiMessageProjection, type PiProjectedMessageEvent } from "../drivers/acpx/pi-message-projection.js";
 import { parseNativeRuntimeContext } from "../contracts/runtime-context.js";
 import {
   PRP_BLOCK_TOOL_NAME,
@@ -609,7 +610,8 @@ async function pumpTurn(
     // display metadata for later progress/completion frames before they cross
     // the sidecar boundary, matching the in-process ACPX driver path.
     const normalizeToolEvent = createAcpxToolEventNormalizer<AcpRuntimeEvent>();
-    const normalizeMessage = initializedAgent === "grok"
+    const piMessages = initializedAgent === "pi" ? createPiMessageProjection<AcpRuntimeEvent>() : null;
+    const normalizeMessage = piMessages ? piMessages.normalize : initializedAgent === "grok"
       ? createGrokMessageNormalizer<AcpRuntimeEvent>() : (event: AcpRuntimeEvent) => event;
     for await (const event of runtimeTurn.events) {
       toolEvidence?.tool(event);
@@ -622,6 +624,7 @@ async function pumpTurn(
       );
     }
     const result = await runtimeTurn.result;
+    if (result.status === "completed") piMessages?.settle();
     await drainExtensions();
     try {
       const usage = persistedAcpxTurnUsage(
@@ -934,7 +937,7 @@ function boundRuntimeEventForNormalization(
   } as BoundedRuntimeToolEvent;
 }
 
-function sanitizeRuntimeEvent(event: AcpRuntimeEvent): Record<string, unknown> {
+function sanitizeRuntimeEvent(event: PiProjectedMessageEvent<AcpRuntimeEvent>): Record<string, unknown> {
   const runtimeType = text(record(event).type);
   if (runtimeType === "plan") {
     return {
@@ -948,6 +951,8 @@ function sanitizeRuntimeEvent(event: AcpRuntimeEvent): Record<string, unknown> {
       text: boundedOptionalText(event.text, "", 64 * 1024),
       stream: event.stream,
       tag: event.tag ?? null,
+      ...(event.piMessageBoundary ? { piMessageBoundary: event.piMessageBoundary } : {}),
+      ...(event.piMessageHistory ? { piMessageHistory: true } : {}),
       messageId:
         typeof event.messageId === "string" && event.messageId.length > 0
           ? stableProviderIdentity(event.messageId, "message")

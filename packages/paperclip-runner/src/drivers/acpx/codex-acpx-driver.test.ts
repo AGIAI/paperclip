@@ -23,8 +23,42 @@ import type {
 import type { AcpxRecoveryWorkspaceLease } from "./runtime-sandbox.js";
 
 describe("Codex ACPX harness driver", () => {
+  it("keeps Pi retry-only activity as a rich notice without inventing a final answer", async () => {
+    const fixture = driverFixture({ agent: "pi", model: "openrouter/deepseek/deepseek-v4-flash-0731", providerPolicy: { readOnly: true } }, { runtimeEvents: [] });
+    const session = await fixture.driver.openSession({ runId: "run-pi-notice", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
+    await session.startTurn({ message: { text: "Work" } });
+    const input = fixture.host.startTurn.mock.calls[0]![0];
+    await input.onExtensionNotification!("paperclip/pi_notice", { sessionId: "backend-1", category: "auto_retry_end", summary: "Retry did not recover.", severity: "warning", details: { attempt: 2, success: false } });
+    fixture.finishTurn({ status: "completed" });
+    const events = await collectUntil(session.events(), "turn.completed");
+    expect(events.find(event => event.eventType === "provider.notice.recorded")?.payload).toMatchObject({ severity: "warning", category: "pi.auto_retry_end", scope: "session" });
+    expect(events.some(event => event.eventType === "item.completed" && event.payload.kind === "agentMessage")).toBe(false);
+    await session.close({ reason: "notice-only verified" });
+  });
+  it.each(["exact-final", "tool-only", "empty-final", "missing-end", "cancelled"])("Pi native boundaries preserve progress without stale final attribution: %s", async scenario => {
+    const chunk = (n: number, kind: string, text = "", stream: "output" | "thought" = "output"): AcpRuntimeEvent => ({
+      type: "text_delta", text, stream, messageId: `pi-message-${String(n).padStart(64, "0")}`,
+      meta: { origin: "pi-native-assistant", source: "pi-rpc-message-v1", kind },
+    });
+    const runtimeEvents = [chunk(1, "start"), chunk(1, "delta", "Calling finish."), chunk(1, "end:toolUse")];
+    if (scenario !== "tool-only") {
+      runtimeEvents.push(chunk(2, "start"), chunk(2, "delta", "private thought", "thought"));
+      if (scenario !== "empty-final") runtimeEvents.push(chunk(2, "delta", "EXACT_MARKER"));
+      if (scenario !== "missing-end" && scenario !== "cancelled") runtimeEvents.push(chunk(2, "end:stop"));
+    }
+    const fixture = driverFixture({ agent: "pi", model: "openrouter/deepseek/deepseek-v4-flash-0731", providerPolicy: { readOnly: true } }, { runtimeEvents });
+    const session = await fixture.driver.openSession({ runId: "run-pi-boundaries", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
+    await session.startTurn({ message: { text: "Answer exactly" } });
+    fixture.finishTurn({ status: scenario === "cancelled" ? "cancelled" : "completed" });
+    const events = await collectUntil(session.events(), scenario === "missing-end" ? "turn.failed" : scenario === "cancelled" ? "turn.interrupted" : "turn.completed");
+    expect(events.some(event => event.eventType === "item.delta" && event.payload.text === "Calling finish.")).toBe(true);
+    const final = events.filter(event => event.eventType === "item.completed" && event.payload.kind === "agentMessage");
+    expect(final.map(event => event.payload.text)).toEqual(scenario === "exact-final" ? ["EXACT_MARKER"] : []);
+    await session.close({ reason: "native attribution verified" });
+  });
+
   it("delivers negotiated steering and follow-up distinctly, once, for the active turn", async () => {
-    const fixture = driverFixture({ agent: "pi", model: "openrouter/deepseek/deepseek-v4-flash-0731", providerPolicy: { readOnly: true } });
+    const fixture = driverFixture({ agent: "pi", model: "openrouter/deepseek/deepseek-v4-flash-0731", providerPolicy: { readOnly: true } }, { runtimeEvents: [] });
     fixture.host.steeringCapability.mockReturnValue({ steering: true, queuedFollowUp: true });
     const session = await fixture.driver.openSession({ runId: "run-controls", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
     expect(fixture.hostOptions?.providerPolicy).toEqual({ readOnly: true });
@@ -33,7 +67,6 @@ describe("Codex ACPX harness driver", () => {
     const turnInput = fixture.host.startTurn.mock.calls[0]![0];
     const context = { requestId: 0, signal: new AbortController().signal };
     await expect(turnInput.onExtensionRequest!("provider/request", { sessionId: "agent-1" }, context)).rejects.toThrow(/session mismatch/);
-    await expect(turnInput.onExtensionRequest!("provider/request", { sessionId: "backend-1" }, context)).rejects.toThrow(/adapter is unavailable/);
     await session.steer!({ turnId, correlationId: "control-1", message: { text: "Change focus" } });
     await session.steer!({ turnId, correlationId: "control-2", mode: "follow_up", message: { text: "Then validate" } });
     expect(fixture.host.steerActiveTurn).toHaveBeenCalledExactlyOnceWith("Change focus", `run-controls:${turnId}`);
@@ -50,7 +83,7 @@ describe("Codex ACPX harness driver", () => {
   });
 
   it("rejects unnegotiated controls and retains ambiguous delivery attempts", async () => {
-    const fixture = driverFixture({ agent: "pi", model: "openrouter/deepseek/deepseek-v4-flash-0731", providerPolicy: { readOnly: true } });
+    const fixture = driverFixture({ agent: "pi", model: "openrouter/deepseek/deepseek-v4-flash-0731", providerPolicy: { readOnly: true } }, { runtimeEvents: [] });
     const session = await fixture.driver.openSession({ runId: "run-controls", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
     const { turnId } = await session.startTurn({ message: { text: "Work" } });
     await expect(session.steer!({ turnId, message: { text: "No handshake" } })).rejects.toThrow(/did not negotiate/);

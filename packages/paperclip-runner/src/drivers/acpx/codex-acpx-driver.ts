@@ -1,5 +1,6 @@
 import { createCopilotToolEvidence, type CopilotToolEvidence } from "./copilot-tool-evidence.js";
 import { requireAcpxResponseDelivery } from "./response-delivery.js";
+import { createPiMessageProjection, piBoundaryClearsFinal, type PiProjectedMessageEvent } from "./pi-message-projection.js";
 import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "./profile-extensions.js";
 import { createHash, randomBytes } from "node:crypto";
 
@@ -1442,13 +1443,15 @@ class CodexAcpxSession implements HarnessSession {
       let index = 0;
       const normalizeToolEvent =
         createAcpxToolEventNormalizer<AcpRuntimeEvent>();
-      const normalizeMessage = this.#agent === "grok"
+      const piMessages = this.#agent === "pi" ? createPiMessageProjection<AcpRuntimeEvent>() : null;
+      const normalizeMessage = piMessages ? piMessages.normalize : this.#agent === "grok"
         ? createGrokMessageNormalizer<AcpRuntimeEvent>() : (event: AcpRuntimeEvent) => event;
       for await (const event of turn.events) {
         toolEvidence?.tool(event);
         this.#mapRuntimeEvent(normalizeMessage(normalizeToolEvent(event)), turnId, ++index);
       }
       const result = await turn.result;
+      if (result.status === "completed") piMessages?.settle();
       await drainExtensions();
       const receipt = persistedAcpxTurnUsage(usageBefore, await readUsageStatus(this.#host), turn.requestId, this.#agent);
       if (receipt) {
@@ -1628,7 +1631,7 @@ class CodexAcpxSession implements HarnessSession {
   }
 
   #mapRuntimeEvent(
-    event: AcpRuntimeEvent,
+    event: PiProjectedMessageEvent<AcpRuntimeEvent>,
     turnId: string,
     index: number,
   ): void {
@@ -1637,7 +1640,8 @@ class CodexAcpxSession implements HarnessSession {
       const output = boundedText(event.text, 64 * 1024);
       const isReasoning =
         event.stream === "thought" || event.tag === "agent_thought_chunk";
-      if (!isReasoning) {
+      if (!isReasoning && !event.piMessageHistory) {
+        if (piBoundaryClearsFinal(event)) this.#assistantText = "";
         const messageId = typeof event.messageId === "string" && event.messageId ? event.messageId : null;
         if (messageId && this.#assistantMessageId && messageId !== this.#assistantMessageId) this.#assistantText = "";
         if (messageId) this.#assistantMessageId = messageId;
