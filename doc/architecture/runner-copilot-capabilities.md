@@ -11,6 +11,59 @@ Real executable offline probes cost $0; the live token receipt has no verified U
 the shared $100 hard stop and verifiable spend. Do not expose this profile as
 supported until the required local and Daytona qualification passes.
 
+## Connection policy audit, 2026-09-29
+
+The pinned server accepts permission-changing `session/set_config_option`,
+`session/set_mode`, and leading-slash CLI commands. Entering autopilot enables
+allow-all; loading an autopilot conversation enables it again. A clean launch
+configuration alone therefore cannot establish safe restored-session policy.
+
+`copilot-policy.ts` and the optional ACPX `protocolGuardFactory` enforce policy
+on each actual stdio connection, before bytes are delivered to the SDK or written
+to the provider. Copilot admission requires the full new/load/resume result to
+report the exact agent-mode URI and `allow_all: off`. Missing, duplicated,
+unknown-authority, or custom-agent configuration fails closed. A connection may
+select only its explicitly admitted model; a prompt requires proof of that
+model. The guard rejects leading-slash commands, native mode/config controls,
+and unsafe mode/config drift. Its authority is fresh for every connection and
+remains invalid after a violation. It does not restore trust from cached ACPX
+status. The stream errors, aborts outstanding response delivery, and terminates
+the provider on violation; the existing runner owns bounded process cleanup.
+Other providers do not install this guard.
+
+The native `ask_user` and `exit_plan_mode` tools are absent from both agent and
+plan mode in the pinned deterministic tool catalogs. Forced model tool calls
+return explicit tool-unavailable results rather than producing a blocking
+request. No `--no-ask-user` or tool-exclusion flag was used. Agent mode is the
+only admitted production mode. If any native input-request event nevertheless
+arrives, the guard terminates the connection; it never presents a form whose
+answer cannot be delivered. This narrows the blocking-input question for the
+admitted pinned mode without claiming an upstream question responder exists.
+
+The [offline conformance record](../../packages/paperclip-runner/test/fixtures/copilot-policy-conformance-2026-09-29.json)
+retains seven attempts and their evidence digests. A protected file outside the
+working directory was denied before its contents reached the fixture model.
+A durable conversation was closed and loaded, then requested permission for a
+shell write; `reject_once` prevented the file. The initial attempt to load an
+empty conversation failed with resource-not-found and remains retained. The
+second attempt seeds one text turn before close/load; it is not a retry of a
+measured behavior failure. This proves a local native close/load permission
+boundary, not process-death recovery or a final packaged Product case.
+
+All these probes use the verified 1.0.88 ARM64 binary, an explicitly constructed
+credential-free environment, `COPILOT_OFFLINE=true`, and a synthetic OpenAI-style
+model at an ephemeral loopback HTTP server. The synthetic `gpt-4.1` ID does not
+name an authenticated GitHub model selection. Counts include the setup turn.
+There are zero paid provider calls and zero model spend. Raw evidence, including
+the failed empty-session attempt, stays in the private
+`copilot-policy-20260929` artifact directory.
+
+The prior Product question failure remains a model-behavior failure: the retained
+snapshot contains the exact requested marker in the task instructions, the
+answered Cobalt choice, and warm-session continuation. Copilot instead supplied
+`[terminal marker]` to `paperclip_finish`. Neither the grader nor the terminal
+marker requirement changed. A final-runtime rerun remains required.
+
 ## Evidence and scope
 
 The audit inspected the exact `@github/copilot@1.0.88` platform archives, the
@@ -144,8 +197,8 @@ Daytona claims require the separate live product qualification.
 | Tools / correlation | Standard `tool_call`/`tool_call_update`; parent identity in `_meta["github.com/copilot"].agentId`. HTTP/SSE MCP supported. | Shared tool activity, authenticated runner-owned MCP bridge. | Real create/bash/read_bash traffic and canonical authenticated get-task-context pass; Product semantic question and plan calls observed. Full adversarial company-boundary coverage remains pending. |
 | MCP transport selection | Both HTTP and SSE are advertised. | The assigned Paperclip gateway uses the controlled HTTP bridge. Arbitrary SSE endpoint configuration is not exposed. | Observed initialize; SSE remains unused, P2 only if a governed connection requires it. |
 | Scoped approvals | `session/request_permission`, actual options allow_once/allow_always/reject_once. | Shared durable permissions; only received decisions offered, policy enforced. | Real-service wire ID 0 denied before file creation, with no side effect through cleanup. Durable Product restrictive-mode recovery and wider tool denial remain unqualified. |
-| Structured questions | Native `ask_user` callback and `user_input.requested`; current ACP adapter does not wire the responder. | Emits capability-gap notice if native notification arrives; cannot claim answer delivery. | Actual agent-mode tool list omits `ask_user` without a suppression flag. Paperclip semantic questions are available: restart case passes, while the separate question case failed its exact marker. P0 qualify other native blocking modes. |
-| Plan approval | Native `exit_plan_mode` callback; notification contains plan content/actions but lacks qualified ACP responder. | Capability-gap notice only; never synthesize plan acceptance. | Agent-mode tool list omits exit_plan_mode. Paperclip semantic plan/revision approval passes through the UI; native plan mode still requires explicit qualification, P0. |
+| Structured questions | Native `ask_user` callback and `user_input.requested`; current ACP adapter does not wire the responder. | Emits capability-gap notice if native notification arrives; cannot claim answer delivery. | Actual agent-mode tool list omits `ask_user` without a suppression flag. Paperclip semantic questions are available: restart case passes, while the separate question case failed its exact marker. Pinned offline agent/plan catalogs now prove both tools unavailable; the production guard admits agent mode and terminates any unexpected native blocking request. |
+| Plan approval | Native `exit_plan_mode` callback; notification contains plan content/actions but lacks qualified ACP responder. | Capability-gap notice only; never synthesize plan acceptance. | Agent-mode tool list omits exit_plan_mode. Paperclip semantic plan/revision approval passes through the UI; Native plan-mode input is confirmed unavailable offline; production mode controls remain disabled. |
 | Plan progress | Standard plan from todos SQL; native `session.plan_changed` has operation only. | Existing ACP plan/activity; native operation preserved, `planContentAvailable:false`. | Source; plan document reads require native interface. P1. |
 | Models / reasoning / config | Source `session/set_model`, config options for model, reasoning, mode, custom agents, allow_all. | Explicit model admission. Mode/governance changes must remain policy-gated. | Authenticated catalog, exact set_model/config echo and real inference verified for gpt-5.6-luna. Other models and config-mode changes remain unqualified. |
 | Usage | Standard prompt usage and context usage; native assistant usage, AI-unit checkpoint. | Token/counter metadata with source; multiplier and nano-AI-units distinct from USD. | Real token counters retain GitHub provenance; authoritative per-turn USD is unavailable. External included-credit snapshots are separate, with additional cash billing disabled. CLI requested-cost coverage fails closed when unknown. Never double-count passthrough. |
@@ -171,7 +224,7 @@ Reasons and priorities are explicit:
 | --- | --- |
 | Standard text/reasoning/tool/plan/config events | Standard ACP already transports the user-facing content. Additional native metadata is not assumed preserved. P2 compare native field inventory against normalization before adding fields; avoid duplicate output and raw reasoning. |
 | Standard ACP parent tool content and locations | Confirmed shared normalization gap: structured `content` diff/image blocks, `rawInput`, and locations after the first safe relative path are not carried into canonical tool events. Only bounded `rawOutput`, `inputUpdated`, tool lifecycle/identity, and that first path survive. P1 introduce validated diff/image artifact schemas and preserve every safe location with attribution; retain secret redaction and workspace containment rather than forwarding raw provider objects. The retained offline diff proves harness exposure only. |
-| Native user/plan/elicitation requests and completions | No qualified ACP responder/correlation acknowledgment. P0 prove there is no blocking input before qualification; add an upstream responder or owned wrapper before displaying an answerable UI. |
+| Native user/plan/elicitation requests and completions | No qualified ACP responder/correlation acknowledgment. The 2026-09-29 agent/plan probes prove these two native tools unavailable on the pinned offline surface; the connection guard fails closed if any native request appears. Add a versioned upstream responder before displaying an answerable UI. |
 | Native permission authorization internals, sandbox decisions, recovery | Standard permission callback is the policy decision boundary. P1 collect sanitized denial diagnostics; never let native carried-forward/assent events authorize actions. |
 | Native usage diagnostics omitted from subscribed assistant.usage | Quota snapshots, reasoning summaries, fusion/RTE payloads and upstream service/cache diagnostics are not normalized. P2 type/redact useful performance details; quotas and model multipliers cannot substitute for verifiable dollar spend. |
 | Native compaction summaries/checkpoint paths/custom instructions | Avoid copying private instruction/summary bodies or treating provider paths as task paths. P2 add explicit safe metadata schema/artifact retrieval where useful. |
