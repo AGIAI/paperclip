@@ -585,6 +585,12 @@ impl AcpxDurableState {
                 "ACPX provider event backlog exceeds its durable limit",
             ));
         }
+        // Check every fallible admission condition before changing the request
+        // ledger. A rejected settlement must leave its pending request intact.
+        let sequence = self.next_event_sequence;
+        let next_sequence = sequence
+            .checked_add(1)
+            .ok_or_else(|| DurableRunnerError::invalid("ACPX event sequence exhausted"))?;
         if event.event_type == "runtime_request.created" {
             let request = event.payload.get("request").cloned().ok_or_else(|| {
                 DurableRunnerError::invalid("ACPX runtime request omitted its payload")
@@ -612,10 +618,7 @@ impl AcpxDurableState {
                 self.pending_runtime_requests.remove(id);
             }
         }
-        let sequence = self.next_event_sequence;
-        self.next_event_sequence = sequence
-            .checked_add(1)
-            .ok_or_else(|| DurableRunnerError::invalid("ACPX event sequence exhausted"))?;
+        self.next_event_sequence = next_sequence;
         self.pending_events.push_back(PolledEvent {
             executor_event_id: event_id(sequence),
             event_type: event.event_type,
@@ -1540,20 +1543,24 @@ impl AcpxCommandExecutor {
         .map_err(|error| {
             DurableRunnerError::invalid(format!("ACPX runtime response failed: {error}"))
         })?;
-        if let Some(state) = self.state.as_mut() {
-            state.pending_runtime_requests.remove(request_id);
-        }
-        self.save_state()?;
-        Ok(CommandExecution {
-            result: json!({"status": "delivered", "requestId": request_id}),
-            events: vec![(
-                "runtime_request.resolved".to_owned(),
-                EventPriority::P0,
-                json!({"provider": "acpx", "requestId": request_id, "status": "delivered",
+        // The sidecar ACK proves delivery, not durable controller settlement.
+        // Retain that fact in the same atomic state write that retires the
+        // pending request. A crash before this write expires the old request;
+        // a crash after it replays this event, never the provider response.
+        self.state
+            .as_mut()
+            .expect("ACPX response has an active durable turn")
+            .push(NormalizedProviderEvent {
+                event_type: "runtime_request.resolved".to_owned(),
+                priority: EventPriority::P0,
+                payload: json!({"provider": "acpx", "requestId": request_id, "status": "delivered",
                     "requestKind": if permission {"permission_approval"} else {"runtime"},
                     "turnId":self.context.turn_id,"itemId":self.context.item_id,"action":resolution.get("action")}),
-            )],
-        })
+            })?;
+        self.save_state()?;
+        Ok(CommandExecution::result(
+            json!({"status": "delivered", "requestId": request_id}),
+        ))
     }
 
     fn deliver_tool_result(
@@ -2291,6 +2298,55 @@ mod tests {
             .unwrap()
             .pending_runtime_requests
             .is_empty());
+    }
+
+    #[test]
+    fn rejected_runtime_settlement_preserves_the_pending_request() {
+        for event_type in [
+            "runtime_request.resolved",
+            "runtime_request.expired",
+            "runtime_request.cancelled",
+        ] {
+            for exhausted_sequence in [false, true] {
+                let operations = Vec::new();
+                let mut state = AcpxDurableState::new(
+                    serde_json::from_value(descriptor("codex")).unwrap(),
+                    AuthorizedToolSet {
+                        schema: TOOL_SET_SCHEMA.into(),
+                        schema_version: 1,
+                        catalog_digest: authorized_tool_catalog_digest(&operations).unwrap(),
+                        operations,
+                    },
+                    "test".into(),
+                );
+                state
+                    .push(NormalizedProviderEvent {
+                        event_type: "runtime_request.created".into(),
+                        priority: EventPriority::P0,
+                        payload: json!({"request":pending_input_request("input-1")}),
+                    })
+                    .unwrap();
+                if exhausted_sequence {
+                    state.next_event_sequence = u64::MAX;
+                } else {
+                    state
+                        .pending_events
+                        .resize(MAX_PENDING_EVENTS, state.pending_events[0].clone());
+                }
+                let before = state.clone();
+                assert!(state
+                    .push(NormalizedProviderEvent {
+                        event_type: event_type.into(),
+                        priority: EventPriority::P0,
+                        payload: json!({"requestId":"input-1"}),
+                    })
+                    .is_err());
+                assert_eq!(
+                    state, before,
+                    "{event_type} must not retire a request without its event"
+                );
+            }
+        }
     }
 
     #[test]

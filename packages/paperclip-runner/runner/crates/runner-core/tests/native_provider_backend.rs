@@ -239,6 +239,295 @@ fn pi_prepare_payload(directory: &Path, mode: &str) -> Value {
     payload
 }
 
+fn pending_acpx_runtime_request(
+    directory: &Path,
+    mode: &str,
+) -> (NativeProviderCommandExecutor, DurableRunnerConfig, String) {
+    let mut config = acpx_config(directory, mode);
+    let mut payload = prepare_payload_with_mode(directory, "codex", mode);
+    if mode.starts_with("permissions-") {
+        // Codex's pinned runner policy does not allow interactive ACP permissions.
+        let digest = "sha256:9d73d1f0f121fb96cc8badb28c22d5bff02d8582eb2e40360a81c189e1b9422a";
+        *config
+            .acpx_launch_profile
+            .as_mut()
+            .unwrap()
+            .args
+            .last_mut()
+            .unwrap() = digest.into();
+        let provider = &mut payload["provider"];
+        provider["agent"] = json!("claude");
+        provider["model"] = json!("claude-sonnet-5");
+        provider["agentServerPackage"] = json!("@agentclientprotocol/claude-agent-acp");
+        provider["agentServerVersion"] = json!("0.73.0");
+        provider["agentRuntimePackage"] = json!("@anthropic-ai/claude-agent-sdk");
+        provider["agentRuntimeVersion"] = json!("0.3.280");
+        provider["commandDigest"] = json!(digest);
+        provider["sidecarArgs"][3] = json!(digest);
+    } else {
+        let operations = vec![AuthorizedTool {
+            operation_id: "issues.read".into(),
+            version: 1,
+            description: "Read an issue.".into(),
+            input_schema: json!({"type":"object"}),
+            response_schema: json!({"type":"object"}),
+        }];
+        payload["authorizedTools"]["catalogDigest"] =
+            json!(authorized_tool_catalog_digest(&operations).unwrap());
+        payload["authorizedTools"]["operations"] = json!(operations);
+    }
+    let mut executor = NativeProviderCommandExecutor::with_runner_config(directory, &config);
+    executor
+        .execute(&command(1, "run.prepare", payload))
+        .unwrap();
+    executor
+        .execute(&command(2, "session.open", json!({})))
+        .unwrap();
+    executor
+        .execute(&command(
+            3,
+            "turn.start",
+            json!({"text":"Ask before continuing", "turnId":"turn-1"}),
+        ))
+        .unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        let events = executor.poll_events().unwrap();
+        let request_id = events
+            .iter()
+            .find(|event| event.event_type == "runtime_request.created")
+            .and_then(|event| event.payload.pointer("/request/requestId"))
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+        executor.acknowledge_events(events.len()).unwrap();
+        if let Some(request_id) = request_id {
+            return (executor, config, request_id);
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "request was not presented"
+        );
+    }
+}
+
+fn acpx_runtime_resolution(mode: &str, request_id: &str) -> Value {
+    json!({"requestId":request_id, "turnId":"turn-1", "resolution":
+        if mode.starts_with("permissions-") { json!({"action":"accept"}) }
+        else { json!({"action":"submit", "response":{"schema":"paperclip.question_response.v1",
+            "answers":{"target":{"selectedOptionIds":["first"]}}}}) }
+    })
+}
+
+#[test]
+fn acpx_response_delivery_survives_crash_before_journaling_without_replaying_the_response() {
+    for mode in [
+        "permissions-interactive",
+        "resolutions",
+        "resolutions-projected-id",
+    ] {
+        let directory = temporary_directory(mode);
+        let (mut executor, config, request_id) = pending_acpx_runtime_request(&directory, mode);
+        let resolve = command(
+            4,
+            "request.resolve",
+            acpx_runtime_resolution(mode, &request_id),
+        );
+        let delivered = executor.execute(&resolve).unwrap();
+        assert_eq!(delivered.result["status"], "delivered");
+        assert!(
+            delivered.events.is_empty(),
+            "settlement must use the durable provider outbox"
+        );
+        let persisted: Value =
+            serde_json::from_slice(&fs::read(directory.join("acpx-provider-state.json")).unwrap())
+                .unwrap();
+        assert!(persisted["pendingRuntimeRequests"]
+            .get(&request_id)
+            .is_none());
+        let retained = executor.retained_events().unwrap();
+        assert_eq!(retained.len(), 1);
+        assert_eq!(retained[0].event_type, "runtime_request.resolved");
+        assert_eq!(retained[0].payload["requestId"], request_id);
+        assert_eq!(
+            persisted["pendingEvents"][0]["executorEventId"],
+            retained[0].executor_event_id
+        );
+        assert!(executor
+            .execute(&command(5, "request.resolve", resolve.payload.clone()))
+            .is_err());
+        assert_eq!(executor.retained_events().unwrap(), retained);
+
+        // Simulate death after the sidecar ACK/state fsync, before the runner
+        // journals this event or acknowledges the provider's retained prefix.
+        drop(executor);
+        let mut recovered = NativeProviderCommandExecutor::with_runner_config(&directory, &config);
+        let events = recovered.poll_events().unwrap();
+        assert_eq!(events[0], retained[0]);
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| event.event_type.starts_with("runtime_request."))
+                .count(),
+            1
+        );
+        assert!(recovered
+            .execute(&command(6, "request.resolve", resolve.payload))
+            .is_err());
+        assert_eq!(recovered.poll_events().unwrap(), events);
+        assert_eq!(
+            recovered
+                .execute(&command(7, "session.snapshot", json!({})))
+                .unwrap()
+                .result["status"],
+            "closed"
+        );
+        // Polling is not an ACK; only the journal's ACK retires the event.
+        recovered.acknowledge_events(events.len()).unwrap();
+        assert!(recovered.poll_events().unwrap().is_empty());
+        drop(recovered);
+        let mut recovered_again =
+            NativeProviderCommandExecutor::with_runner_config(&directory, &config);
+        assert!(recovered_again.poll_events().unwrap().is_empty());
+        recovered_again.shutdown().unwrap();
+        fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[test]
+fn acpx_delivered_response_is_acknowledged_once_before_session_close() {
+    for mode in ["permissions-interactive", "resolutions"] {
+        let directory = temporary_directory("response-ack");
+        let (mut executor, _, request_id) = pending_acpx_runtime_request(&directory, mode);
+        let response = acpx_runtime_resolution(mode, &request_id);
+        executor
+            .execute(&command(4, "request.resolve", response.clone()))
+            .unwrap();
+        let events = executor.poll_events().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].event_type, "runtime_request.resolved");
+        assert_eq!(executor.poll_events().unwrap(), events);
+        executor.acknowledge_events(1).unwrap();
+        assert!(executor
+            .execute(&command(5, "request.resolve", response))
+            .is_err());
+        executor
+            .execute(&command(6, "session.close", json!({})))
+            .unwrap();
+        assert!(
+            executor.poll_events().unwrap().is_empty(),
+            "close must not expire a delivered request"
+        );
+        executor.shutdown().unwrap();
+        fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[test]
+fn acpx_uncommitted_delivery_expires_after_failed_state_write_without_replay() {
+    for mode in ["permissions-interactive", "resolutions"] {
+        let directory = temporary_directory("response-save-failure");
+        let (mut executor, config, request_id) = pending_acpx_runtime_request(&directory, mode);
+        let state_path = directory.join("acpx-provider-state.json");
+        let previous_path = directory.join("previous-state.json");
+        let previous = fs::read(&state_path).unwrap();
+        fs::rename(&state_path, &previous_path).unwrap();
+        // Force the atomic state replacement to fail after the real sidecar
+        // has acknowledged delivery, without adding production fault hooks.
+        fs::create_dir(&state_path).unwrap();
+        let response = acpx_runtime_resolution(mode, &request_id);
+        let error = executor
+            .execute(&command(4, "request.resolve", response.clone()))
+            .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("atomically replace ACPX provider state"));
+        assert_eq!(fs::read(&previous_path).unwrap(), previous);
+        assert_eq!(
+            executor.retained_events().unwrap()[0].event_type,
+            "runtime_request.resolved"
+        );
+        fs::remove_dir(&state_path).unwrap();
+        fs::rename(&previous_path, &state_path).unwrap();
+        drop(executor);
+
+        let mut recovered = NativeProviderCommandExecutor::with_runner_config(&directory, &config);
+        let events = recovered.poll_events().unwrap();
+        let requests: Vec<_> = events
+            .iter()
+            .filter(|event| event.event_type.starts_with("runtime_request."))
+            .collect();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].event_type, "runtime_request.expired");
+        assert_eq!(requests[0].payload["requestId"], request_id);
+        assert_eq!(requests[0].payload["replayAllowed"], false);
+        assert!(recovered
+            .execute(&command(5, "request.resolve", response))
+            .is_err());
+        assert_eq!(recovered.poll_events().unwrap(), events);
+        recovered.acknowledge_events(events.len()).unwrap();
+        recovered.shutdown().unwrap();
+        fs::remove_dir_all(directory).unwrap();
+    }
+}
+
+#[test]
+fn acpx_failed_or_cancelled_responses_retain_one_durable_settlement() {
+    for (mode, close) in [
+        ("permissions-wrong-ack", false),
+        ("permissions-interactive", true),
+        ("resolutions", true),
+    ] {
+        let directory = temporary_directory("response-expiry");
+        let (mut executor, config, request_id) = pending_acpx_runtime_request(&directory, mode);
+        if close {
+            executor
+                .execute(&command(4, "session.close", json!({})))
+                .unwrap();
+        } else {
+            let error = executor
+                .execute(&command(
+                    4,
+                    "request.resolve",
+                    acpx_runtime_resolution(mode, &request_id),
+                ))
+                .unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("did not confirm permission resolution"));
+        }
+        let events = executor.poll_events().unwrap();
+        let requests: Vec<_> = events
+            .iter()
+            .filter(|event| event.event_type.starts_with("runtime_request."))
+            .collect();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(
+            requests[0].event_type,
+            if close {
+                "runtime_request.cancelled"
+            } else {
+                "runtime_request.expired"
+            }
+        );
+        assert_eq!(requests[0].payload["requestId"], request_id);
+        assert_eq!(requests[0].payload["replayAllowed"], false);
+        drop(executor);
+        let mut recovered = NativeProviderCommandExecutor::with_runner_config(&directory, &config);
+        assert_eq!(recovered.poll_events().unwrap(), events);
+        assert!(recovered
+            .execute(&command(
+                5,
+                "request.resolve",
+                acpx_runtime_resolution(mode, &request_id)
+            ))
+            .is_err());
+        recovered.acknowledge_events(events.len()).unwrap();
+        assert!(recovered.poll_events().unwrap().is_empty());
+        recovered.shutdown().unwrap();
+        fs::remove_dir_all(directory).unwrap();
+    }
+}
+
 #[test]
 fn preserves_acpx_semantic_disposition_in_the_run_terminal() {
     let directory = temporary_directory("acpx-blocked");
