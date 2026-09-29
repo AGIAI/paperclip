@@ -61,4 +61,19 @@ describe("patched ACPX admission guard", () => {
     expect(c.kill).not.toHaveBeenCalled();
     c.inbound.close();
   });
+  it("blocks detached command before the permission request can authorize a side effect", async () => {
+    const c = connection();
+    await c.writer.write({ id: 0, method: "session/new", params: {} });
+    c.inbound.enqueue({ id: 0, result: safe }); await c.reader.read();
+    await c.writer.write({ id: 1, method: "session/prompt", params: { sessionId: "s", prompt: [{ type: "text", text: "Run task" }] } });
+    const read = c.reader.read();
+    c.inbound.enqueue({ method: "session/update", params: { sessionId: "s", update: {
+      sessionUpdate: "tool_call", toolCallId: "native-detached", kind: "execute", status: "pending",
+      rawInput: { command: "fixture", mode: "async", detach: true },
+    } } });
+    c.inbound.enqueue({ id: 0, method: "session/request_permission", params: { sessionId: "s", toolCall: { toolCallId: "native-detached" } } });
+    await expect(read).rejects.toMatchObject({ code: "COPILOT_DETACHED_WORK_UNSUPPORTED", message: expect.stringContaining("Run the command attached") });
+    expect(c.written).toHaveLength(2); // Only session/new and session/prompt; no permission response.
+    expect(c.kill).toHaveBeenCalledWith("SIGTERM");
+  });
 });

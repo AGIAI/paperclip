@@ -17,6 +17,13 @@ describe("Copilot native policy fence", () => {
   it.each(["/yolo on", " /allow-all", "\n/autopilot", "\t/plan", "\ufeff/cwd /elsewhere", "/unknown-future-command", "/custom-skill"])("rejects native command dispatch %s", text => {
     expect(() => assertCopilotPromptPolicy(text)).toThrowError(expect.objectContaining({ code: "COPILOT_POLICY_VIOLATION", retryable: false }));
   });
+  it.each(["tool_call", "tool_call_update"])("rejects native detach independent of tool name in %s", sessionUpdate => {
+    for (const tool of ["bash", "write_bash", "powershell", "unknown"]) {
+      expect(() => assertCopilotSessionUpdatePolicy({ sessionUpdate, tool, rawInput: { detach: true } }))
+        .toThrowError(expect.objectContaining({ code: "COPILOT_DETACHED_WORK_UNSUPPORTED", retryable: false }));
+      expect(() => assertCopilotSessionUpdatePolicy({ sessionUpdate, tool, rawInput: { mode: "async", detach: false } })).not.toThrow();
+    }
+  });
   it("preserves ordinary prose mentioning commands and natural-language questions", () => {
     for (const text of ["Explain /plan", "Ask me before proceeding", "Read this file: /workspace/file", "Plan the work\n/yolo on"]) {
       expect(() => assertCopilotPromptPolicy(text)).not.toThrow();
@@ -74,6 +81,13 @@ describe("Copilot connection authority", () => {
       expect(() => guard("inbound", { method: "session/update", params: { sessionId: "s", update: bad } })).toThrow();
       expect(() => guard("inbound", { method: "session/update", params: { sessionId: "s", update: { sessionUpdate: "config_option_update", configOptions: safe.configOptions } } })).toThrow();
     }
+  });
+  it("also denies detachment carried only by permission rawInput", () => {
+    const guard = createCopilotProtocolGuard("gpt-5.6-luna"); admit(guard);
+    expect(() => guard("inbound", { id: 0, method: "session/request_permission", params: { sessionId: "s", toolCall: { rawInput: { detach: true } } } }))
+      .toThrowError(expect.objectContaining({ code: "COPILOT_DETACHED_WORK_UNSUPPORTED" }));
+    expect(() => guard("outbound", { id: 0, result: { outcome: { outcome: "selected", optionId: "allow_once" } } }))
+      .toThrowError(expect.objectContaining({ code: "COPILOT_DETACHED_WORK_UNSUPPORTED" }));
   });
   it("does not turn native unresolved input into delivered answers or successful continuation", () => {
     for (const type of ["user_input.requested", "exit_plan_mode.requested", "elicitation.requested"]) {
