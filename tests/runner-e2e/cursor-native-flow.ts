@@ -14,6 +14,11 @@ import type { MatrixExecution } from "./types.js";
 type Row = Record<string, any>;
 type Check = { id: string; passed: boolean; detail: string };
 
+/** Match canonical omission of an unanswered optional feedback field. */
+export function cursorNativePlanResponse(planId: string, decision: "accept" | "reject" | "cancel", feedback: string) {
+  return { schema: "paperclip.question_response.v1", answers: { [planId]: { selectedOptionIds: [decision] }, ...(decision === "reject" ? { reason: { text: feedback } } : {}) } };
+}
+
 /** Independent bounded snapshot; symlinks are rejected without following them. */
 export async function cursorNativeWorkspaceSnapshot(root: string): Promise<Record<string, string>> {
   const files: Record<string, string> = {}; let bytes = 0;
@@ -183,7 +188,7 @@ export async function runCursorNativeFlow(input: {
         await page.getByRole("radio", { name: decision === "accept" ? "Accept plan" : decision === "reject" ? "Reject plan" : "Cancel plan request", exact: true }).last().click();
         await page.getByRole("button", { name: "Next", exact: true }).last().click();
         if (decision === "reject") await page.getByTestId("question-text-answer-composer").last().locator('[contenteditable="true"],textarea').first().fill(feedback);
-        const response = { schema: "paperclip.question_response.v1", answers: { [plan.id]: { selectedOptionIds: [decision] }, reason: decision === "reject" ? { text: feedback } : {} } };
+        const response = cursorNativePlanResponse(plan.id, decision, feedback);
         check("revision-bound-decision", hasCursorPlanDecision(set, response, decision), "Decision addresses precisely the displayed native plan revision");
         await page.getByRole("button", { name: set.submitLabel ?? "Submit answers", exact: true }).last().click();
         await delivery(card, event, response); seen.add(card.id); previousRevision = plan.id;
