@@ -106,9 +106,12 @@ is a separate lifecycle operation.
 ### Native instruction delivery
 
 The current candidate is profile v4. Its declaration binds native personal-file
-instruction delivery, including replacement before every admission. The isolated
+instruction delivery, including replacement under the provider lifetime lease before native launch. The isolated
 `COPILOT_HOME/copilot-instructions.md` is written atomically with mode 0600 under
 the protected provider home, and empty instructions replace any stale content.
+Concurrent contenders rejected by the lease and unauthenticated admissions do
+not mutate the instruction file. The host awaits each write before releasing its
+lease, including cancellation, so a late write cannot overwrite a successor.
 Profile v3 identities are rejected before native launch; historical evidence
 below remains labeled with its original profile and source.
 
@@ -129,7 +132,10 @@ two synthetic loopback responses and no paid calls. This probe is not a final
 built-production or authenticated qualification result. A follow-up
 [source-level v4 probe](../../packages/paperclip-runner/test/fixtures/copilot-v4-native-instruction-delivery-2026-09-29.json)
 uses the actual production sandbox writer and confirms the same new/load model
-request behavior; the final frozen pack still requires independent verification.
+request behavior. The [post-lease source probe](../../packages/paperclip-runner/test/fixtures/copilot-v4-owned-instruction-delivery-2026-09-29.json)
+reconfirms this after moving refresh under lifetime ownership, and retains an
+earlier zero-call lease-admission failure. The final frozen pack still requires
+independent verification.
 
 ### Native detached work is explicitly unsupported
 

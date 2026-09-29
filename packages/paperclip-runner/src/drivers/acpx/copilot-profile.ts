@@ -3,7 +3,7 @@ import { isAbsolute, resolve } from "node:path";
 /** This is an admission candidate, not a claim of live qualification. */
 export const COPILOT_VERSION = "1.0.88" as const;
 export const COPILOT_SYSTEM_INSTRUCTIONS_FILE = "copilot-instructions.md" as const;
-export const COPILOT_SYSTEM_INSTRUCTION_DELIVERY = "COPILOT_HOME/copilot-instructions.md:replace-before-admission:v1" as const;
+export const COPILOT_SYSTEM_INSTRUCTION_DELIVERY = "COPILOT_HOME/copilot-instructions.md:replace-under-lifetime-lease-before-launch:v1" as const;
 export const COPILOT_CREDENTIAL_ENVIRONMENT_NAME = "COPILOT_GITHUB_TOKEN" as const;
 
 // Keep permission callbacks enabled even when Paperclip's policy is approve-all.

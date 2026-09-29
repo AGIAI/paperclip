@@ -74,7 +74,7 @@ export const QUALIFIED_ACPX_PROFILES: Readonly<
     acpxVersion: QUALIFIED_ACPX_VERSION, agent: "copilot", agentProfileVersion: 4,
     agentServerPackage: "@github/copilot", agentServerVersion: "1.0.88",
     agentRuntimePackage: null, agentRuntimeVersion: null,
-    commandDigest: "sha256:e7f8416b1119895c8c79307b95fc0e46312cc4821abee2a691f26c3d67f282af",
+    commandDigest: "sha256:ce58142849d196faee8898f34c7149b4fbeb7b09966bb523b9cdf39c2ff66a6f",
     // Authenticated discovery has not established a qualification model. Never
     // turn this empty declaration into a default; callers must select an ID.
     qualificationModel: "", reportedModelId: "", permissionPolicy: "interactive",

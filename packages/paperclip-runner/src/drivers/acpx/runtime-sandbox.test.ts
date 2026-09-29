@@ -20,6 +20,7 @@ import { resolveQualifiedAcpxProfile } from "./qualified-profiles.js";
 import { createAcpxRecoveryBinding } from "./recovery-identity.js";
 import {
   prepareAcpxRuntimeSandbox,
+  refreshCopilotSystemInstructions,
   readAcpxRecoveryWorkspace,
 } from "./runtime-sandbox.js";
 
@@ -387,11 +388,18 @@ describe("ACPX runtime sandbox", () => {
 
 it("refreshes Copilot native instructions privately on every admission, including removal", async () => {
   const fixture = await sandboxFixture("copilot");
-  const prepare = (systemInstructions: string) => prepareAcpxRuntimeSandbox({
-    binding: fixture.binding, agent: "copilot", providerPolicy: { readOnly: false, systemInstructions },
-  });
+  const prepare = async (systemInstructions: string) => {
+    const sandbox = await prepareAcpxRuntimeSandbox({
+      binding: fixture.binding, agent: "copilot", providerPolicy: { readOnly: false, systemInstructions },
+    });
+    await refreshCopilotSystemInstructions(sandbox, systemInstructions);
+    return sandbox;
+  };
   const first = await prepare("Original registered instructions.");
   const path = join(first.agentHomeDirectory, "copilot-instructions.md");
+  expect(await readFile(path, "utf8")).toBe("Original registered instructions.\n");
+  await prepareAcpxRuntimeSandbox({ binding: fixture.binding, agent: "copilot",
+    providerPolicy: { readOnly: false, systemInstructions: "Contender must not write during preparation." } });
   expect(await readFile(path, "utf8")).toBe("Original registered instructions.\n");
   expect((await stat(path)).mode & 0o777).toBe(0o600);
   expect(first.protectedPaths).toContain(dirname(dirname(first.root)));
