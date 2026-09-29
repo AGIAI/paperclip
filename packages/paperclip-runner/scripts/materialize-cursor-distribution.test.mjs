@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
 import { cursorDistribution, cursorDistributionClosure, materializePinnedCursorDistribution, verifyCursorDistribution } from "./materialize-cursor-distribution.mjs";
+
+import { CURSOR_RUNTIME_PATCH_VERSION, CURSOR_RUNTIME_PATCH_PINS, patchCursorRuntimeSource, replaceCursorPatchAnchor } from "./cursor-runtime-patch.mjs";
 
 const roots = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
@@ -15,6 +17,9 @@ test("pins complete archives and closures for every supported platform", async (
     assert.equal(distribution.version, "2026.09.26-dd393fe");
     assert.match(distribution.archiveSha256, /^[a-f0-9]{64}$/);
     assert.match(distribution.closureSha256, /^[a-f0-9]{64}$/);
+    assert.match(distribution.vendorClosureSha256, /^[a-f0-9]{64}$/);
+    assert.notEqual(distribution.closureSha256, distribution.vendorClosureSha256);
+    assert.equal(distribution.patchVersion, CURSOR_RUNTIME_PATCH_VERSION);
     assert.equal(distribution.url, `https://downloads.cursor.com/lab/${distribution.version}/${platform}/${architecture}/agent-cli-package.tar.gz`);
   }
   await assert.rejects(cursorDistribution("linux", "arm64"), /no pinned distribution/);
@@ -51,4 +56,28 @@ test("rejects altered archives before invoking tar and leaves no destination", a
 test("refuses to overwrite any existing destination", async () => {
   const root = await fixture(); await writeFile(join(root, "existing"), "keep");
   await assert.rejects(materializePinnedCursorDistribution({ destination: join(root, "existing") }), /already exists/);
+});
+
+
+test("the isolation patch refuses unsupported, drifted, missing or repeated vendor bytes", () => {
+  assert.throws(() => patchCursorRuntimeSource("not vendor bytes", "darwin-arm64"), /input digest mismatch/);
+  assert.throws(() => patchCursorRuntimeSource("not vendor bytes", "linux-arm64"), /input digest mismatch/);
+  assert.throws(() => replaceCursorPatchAnchor("absent", "anchor", "replacement"), /exactly one/);
+  assert.throws(() => replaceCursorPatchAnchor("anchor anchor", "anchor", "replacement"), /exactly one/);
+  assert.equal(replaceCursorPatchAnchor("before anchor after", "anchor", "$&"), "before $& after");
+});
+
+test("retained executable vendor proof matches every checked-in patch identity", async () => {
+  const proof = JSON.parse(await readFile(new URL("../test/fixtures/cursor-acp/runtime-patch-offline-proof.json", import.meta.url), "utf8"));
+  assert.equal(proof.patchVersion, CURSOR_RUNTIME_PATCH_VERSION);
+  assert.equal(proof.providerCalls, 0);
+  assert.equal(proof.qualification, "offline-only");
+  assert.deepEqual(proof.platforms.map(row => row.platform).sort(), Object.keys(CURSOR_RUNTIME_PATCH_PINS).sort());
+  for (const row of proof.platforms) {
+    const pin = CURSOR_RUNTIME_PATCH_PINS[row.platform];
+    assert.equal(row.sourceSha256, pin.before);
+    assert.equal(row.patchedSha256, pin.after);
+    for (const field of ["driftRejected", "fullChunkCompiles", "ownedMcpPreserved", "typedActionErrors", "assistantProseIgnored"]) assert.equal(row[field], true);
+    for (const field of ["ambientMcpAccesses", "hookConfigReads", "remoteTeamHookFetches"]) assert.equal(row[field], 0);
+  }
 });

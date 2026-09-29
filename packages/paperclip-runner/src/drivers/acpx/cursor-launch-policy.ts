@@ -17,10 +17,11 @@ export function cursorPrivateEnvironment(paths: { agentHomeDirectory: string; da
 }
 
 /**
- * Cursor's disable-project-configs flag covers cli.json only. Its MCP/hook
- * loaders still read these paths. Refuse ambient execution configuration rather
- * than mutating the user's project. The host must protect these paths throughout
- * the run and keep the same check on recovery; admission alone is not a sandbox.
+ * The vendor's disable-project-configs flag covers cli.json only. Keep this
+ * admission refusal as defense in depth without mutating the user's project.
+ * The separately verified paperclip-cursor-isolation-v1 distribution removes
+ * ambient MCP and hook discovery at its source for the entire session. This
+ * check alone is not continuous filesystem protection or an OS sandbox.
  */
 export async function assertCursorWorkspacePolicy(workspacePath: string, platform: NodeJS.Platform = process.platform): Promise<void> {
   const paths: Array<{ path: string; inspectClaude?: boolean }> = [];
