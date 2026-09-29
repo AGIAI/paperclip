@@ -98,3 +98,10 @@ describe("Copilot Product protection integration", () => {
     } finally { await fixture.close(); await rm(root, { recursive: true, force: true }); }
   });
 });
+
+it("rejects remote protection before any API access without bootstrap and pre-teardown authority", async () => {
+  const { runCopilotProtectionFlow } = await import("./copilot-protection-flow.js");
+  let calls = 0;
+  await expect(runCopilotProtectionFlow({ execution: { environment: { id: "daytona" }, profile: { qualificationCandidate: "copilot" }, task: { id: "native-permission-deny-write" } }, api: { get: async () => { calls++; } } } as any)).rejects.toThrow(/bootstrap and pre-teardown/);
+  expect(calls).toBe(0);
+});

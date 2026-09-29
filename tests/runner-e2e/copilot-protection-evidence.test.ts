@@ -22,3 +22,88 @@ describe("Copilot protection independent evidence", () => {
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 });
+
+import { assertCopilotRemoteRetirement, assertCopilotRemoteAttached, copilotActionNotices, copilotRemoteDeniedSample, prepareCopilotRemoteAction, type CopilotRemoteSnapshot, type CopilotRemoteFixture } from "./copilot-protection-evidence.js";
+const target = "copilot-denied-nonce.txt";
+function receipt(): CopilotRemoteSnapshot {
+  const root = { pid: 50, ppid: 1, startTicks: "200", bootId: "12345678-1234-1234-1234-123456789abc" };
+  return { binding: { companyId: "company", environmentId: "env", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `image@sha256:${"a".repeat(64)}`, remoteCwd: "/home/daytona/workspace" },
+    observedAtMs: 60, receivedAtMs: 61, observedMonotonicNs: "600", complete: true, workspace: {},
+    targets: { [target]: { absent: true, sha256: null, complete: true, mutationCount: 0, parent: { dev: "1", ino: "2" } } },
+    watcher: { complete: true, targetMutationCount: 0, workspaceMutationCount: 0 }, processes: { captured: true, root, journal: [root], live: [] },
+    setup: { path: ".action.txt", sha256: `sha256:${"b".repeat(64)}`, published: true },
+    attached: { connections: 1, failure: null, commandExit: { code: 0, observedAtMs: 20, observedMonotonicNs: "200" }, markerWrittenAtMs: 25, markerWrittenMonotonicNs: "250", clientExitedAtMs: 30, clientExitedMonotonicNs: "300" } };
+}
+function baseline() { const s = receipt(); s.observedAtMs = 1; s.observedMonotonicNs = "1"; s.processes.live = [50]; s.setup = { ...s.setup, published: false, sha256: null }; return s; }
+describe("Copilot sealed remote proof", () => {
+  it("requires exact lease and original process identity in the retained final receipt", () => {
+    expect(() => assertCopilotRemoteRetirement(receipt(), baseline())).not.toThrow();
+    for (const mutate of [
+      (s: CopilotRemoteSnapshot) => { s.binding.leaseId = "foreign"; },
+      (s: CopilotRemoteSnapshot) => { s.processes.live = [50]; },
+      (s: CopilotRemoteSnapshot) => { s.processes.root!.startTicks = "999"; },
+      (s: CopilotRemoteSnapshot) => { s.processes.captured = false; },
+      (s: CopilotRemoteSnapshot) => { s.processes.journal = []; },
+      (s: CopilotRemoteSnapshot) => { s.setup.published = false; },
+      (s: CopilotRemoteSnapshot) => { s.watcher.complete = false; },
+    ]) { const s = receipt(); mutate(s); expect(() => assertCopilotRemoteRetirement(s, baseline())).toThrow(); }
+  });
+  it("rejects transient remote writes, parent replacement and unrelated workspace changes", () => {
+    expect(copilotRemoteDeniedSample(receipt(), baseline(), target, "after-cleanup").exists).toBe(false);
+    for (const mutate of [
+      (s: CopilotRemoteSnapshot) => { s.targets[target]!.mutationCount = 2; },
+      (s: CopilotRemoteSnapshot) => { s.targets[target]!.parent.ino = "new"; },
+      (s: CopilotRemoteSnapshot) => { s.targets[target]!.complete = false; },
+      (s: CopilotRemoteSnapshot) => { s.watcher.workspaceMutationCount = 1; },
+      (s: CopilotRemoteSnapshot) => { s.workspace.other = `sha256:${"a".repeat(64)}`; },
+    ]) { const s = receipt(); mutate(s); expect(() => copilotRemoteDeniedSample(s, baseline(), target, "after-cleanup")).toThrow(); }
+  });
+  it("requires independent attached child/client ordering and rejects early terminal", () => {
+    expect(assertCopilotRemoteAttached(receipt(), baseline(), 50).connections).toBe(1);
+    for (const mutate of [
+      (s: CopilotRemoteSnapshot) => { s.attached!.connections = 2; },
+      (s: CopilotRemoteSnapshot) => { s.attached!.commandExit!.code = 1; },
+      (s: CopilotRemoteSnapshot) => { s.attached!.clientExitedMonotonicNs = "240"; },
+      (s: CopilotRemoteSnapshot) => { s.attached!.markerWrittenMonotonicNs = null; },
+      (s: CopilotRemoteSnapshot) => { s.attached!.clientExitedAtMs = 51; },
+    ]) { const s = receipt(); mutate(s); expect(() => assertCopilotRemoteAttached(s, baseline(), 50)).toThrow(); }
+    expect(() => assertCopilotRemoteAttached(receipt(), baseline(), 20)).toThrow();
+  });
+  it("allows only explicit same-turn bootstrap reads before the tested native origin", () => {
+    const call = { ...notice, seq: 10, status: "in_progress" as const };
+    const read = { ...notice, toolCallId: "bootstrap", operation: "read", seq: 1 } as unknown as CopilotToolNotice;
+    expect(countCopilotToolOrigins(copilotActionNotices([read, call], call, true))).toBe(1);
+    for (const bad of [{ ...read, seq: 11 }, { ...read, turnId: "other" }, { ...read, operation: undefined }, { ...read, operation: "edit" as const }]) {
+      expect(countCopilotToolOrigins(copilotActionNotices([bad, call], call, true))).toBe(2);
+    }
+    expect(countCopilotToolOrigins(copilotActionNotices([read, call], call, false))).toBe(2);
+  });
+  it("awaits the remote fixture and baseline before disclosing the actual command", async () => {
+    const s = baseline(), order: string[] = [];
+    const fixture: CopilotRemoteFixture = { binding: s.binding, remoteCwd: s.binding.remoteCwd, actionFile: s.setup.path,
+      snapshot: async () => { await Promise.resolve(); order.push("baseline"); return s; },
+      setupAttachedCommand: async input => { expect(input.markerText).toBe("private-marker"); order.push("setup"); return { command: "exact-remote-command", commandSha256: `sha256:${"c".repeat(64)}` }; },
+      finish: async () => { throw new Error("must not finish during setup"); }, readFile: async () => { throw new Error("must not read host file"); }, close: async () => {} };
+    const prepared = await prepareCopilotRemoteAction({ fixture, companyId: "company", environmentId: "env", runId: "run", target, prompt: "test", markerText: "private-marker" });
+    order.push("publish"); expect(order).toEqual(["setup", "baseline", "publish"]);
+    expect(prepared.prompt).toContain("exact-remote-command"); expect(prepared.prompt).not.toContain("private-marker");
+    await expect(prepareCopilotRemoteAction({ fixture, companyId: "company", environmentId: "env", runId: "other", target, prompt: "test" })).rejects.toThrow(/Foreign/);
+    s.targets[target]!.absent = false;
+    await expect(prepareCopilotRemoteAction({ fixture, companyId: "company", environmentId: "env", runId: "run", target, prompt: "test" })).rejects.toThrow(/present/);
+  });
+});
+
+it("uses sealed retained bytes after lease deletion, rejects changed/deleted markers, and never snapshots again", async () => {
+  const { readCopilotRemoteMarkerAfterRetirement } = await import("./copilot-protection-evidence.js");
+  const { createHash } = await import("node:crypto");
+  const end = receipt(); end.targets[target] = { ...end.targets[target]!, absent: false, sha256: `sha256:${createHash("sha256").update("marker").digest("hex")}` };
+  let finished = false, bytes: Buffer | undefined = Buffer.from("marker");
+  const fixture = {
+    finish: async () => { finished = true; return end; },
+    snapshot: async () => { throw new Error("lease destroyed: RPC forbidden"); },
+    readFile: async () => { if (!finished) throw new Error("not retained yet"); if (!bytes) throw new Error("terminal_file_missing"); return Buffer.from(bytes); },
+  } as unknown as CopilotRemoteFixture;
+  expect(await readCopilotRemoteMarkerAfterRetirement(fixture, baseline(), target, "marker")).toBe(true);
+  bytes = Buffer.from("changed"); expect(await readCopilotRemoteMarkerAfterRetirement(fixture, baseline(), target, "marker")).toBe(false);
+  bytes = undefined; await expect(readCopilotRemoteMarkerAfterRetirement(fixture, baseline(), target, "marker")).rejects.toThrow(/missing/);
+});
