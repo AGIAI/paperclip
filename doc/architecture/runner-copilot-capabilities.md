@@ -41,16 +41,22 @@ answer cannot be delivered. This narrows the blocking-input question for the
 admitted pinned mode without claiming an upstream question responder exists.
 
 The [offline conformance record](../../packages/paperclip-runner/test/fixtures/copilot-policy-conformance-2026-09-29.json)
-retains seven attempts and their evidence digests. A protected file outside the
+retains every attempt and its evidence digest, including the isolated comparison release. A protected file outside the
 working directory was denied before its contents reached the fixture model.
 A durable conversation was closed and loaded, then requested permission for a
 shell write; `reject_once` prevented the file. The initial attempt to load an
 empty conversation failed with resource-not-found and remains retained. The
 second attempt seeds one text turn before close/load; it is not a retry of a
-measured behavior failure. This proves a local native close/load permission
-boundary, not process-death recovery or a final packaged Product case.
+measured behavior failure. A separate
+process-death attempt first performs one allowed seed append, then SIGKILLs and
+replaces the exact provider using the same private session state. Load succeeds,
+the seed append still occurs exactly once, and a fresh denied write remains
+absent. Both native processes use permission request ID 0, proving why response
+authority must belong to the current connection. These are local native
+close/load and process-death probes, not final packaged Product qualification.
 
-All these probes use the verified 1.0.88 ARM64 binary, an explicitly constructed
+Production-pin probes use the verified 1.0.88 ARM64 binary; an explicitly selected
+1.0.89 comparison has separately verified archive integrity. All use an explicitly constructed
 credential-free environment, `COPILOT_OFFLINE=true`, and a synthetic OpenAI-style
 model at an ephemeral loopback HTTP server. The synthetic `gpt-4.1` ID does not
 name an authenticated GitHub model selection. Counts include the setup turn.
@@ -63,6 +69,48 @@ snapshot contains the exact requested marker in the task instructions, the
 answered Cobalt choice, and warm-session continuation. Copilot instead supplied
 `[terminal marker]` to `paperclip_finish`. Neither the grader nor the terminal
 marker requirement changed. A final-runtime rerun remains required.
+
+### Native detached work is explicitly unsupported
+
+The broader 2026-09-29 deterministic probe reproduces early completion for
+`bash` with `mode: async` and `detach: true`. After an allowed finite two-second
+command, Copilot sends a completed tool update naming a detached shell ID, then
+`session.idle` and `end_turn` before the marker file exists. A separate diagnostic
+keeps observing for three seconds after terminal and proves the marker appears
+late. Both attempts retain their failed settlement assertion.
+
+The preceding standard tool-call notification includes `rawInput.detach: true`,
+but the observed permission request carries only the command. The Copilot guard
+rejects that update before the SDK can deliver any permission answer, terminates
+the provider, and reports `COPILOT_DETACHED_WORK_UNSUPPORTED` with instructions to
+run attached or use a managed runtime service. It also rejects detach carried
+only in a permission request. Attached asynchronous work retains the normal
+permission path. This is policy denial, not completed background settlement.
+
+A native offline probe invokes the exact production TypeScript tool-update
+policy, kills the provider before permission dispatch, and observes no marker
+through the command's bounded delay. It makes one loopback fixture request and
+sends zero permission responses. Separate actual patched-ACPX stream tests prove
+the same rejection before SDK delivery. The native probe intentionally tests
+only tool admission: its synthetic model does not satisfy full production model
+admission. Neither layer's result is misrepresented as final-pack live evidence.
+
+The bounded schema audit finds `detach` on `bash`, absent on `read_bash`,
+`stop_bash`, and `task`; `write_bash` and PowerShell variants are not advertised
+in this ARM64 catalog. Embedded JavaScript references `write_bash` but delegates
+schemas to native Rust. The guard is independent of tool name, but this audit
+cannot prove every platform/feature-flag variant or shell-created daemon
+lifetime. Comprehensive background qualification remains blocked. Empty native
+background-task notices and fixed delays cannot establish settlement.
+
+An isolated exact-integrity 1.0.89 comparison passes the same attached async
+scenario and reproduces the detached late marker. Production remains pinned to
+1.0.88. As checked on 2026-09-29, upstream #4743 is closed and explicitly concerns
+attached async commands, distinguishing deliberate detached services. These
+results do not establish that issue remains unfixed. #4537 remains open; the
+narrow denied-write/read/recovery probes did not reproduce its permission bypass.
+The original detached failures remain recorded as failures of the attempted
+runner settlement contract; they are not relabeled as successful settlement.
 
 ## Evidence and scope
 
@@ -206,7 +254,7 @@ Daytona claims require the separate live product qualification.
 | Task file changes / diffs | Standard tools carry locations/diff content for create/edit/str_replace/apply_patch. | Shared ACP tool activity retains bounded `rawOutput`, `inputUpdated` and the first validated relative location. Structured tool `content` diffs/images, `rawInput` and secondary locations are dropped; no complete diff presentation is claimed. | Real denied-create wire contains a diff, but wire presence is not runner/UI preservation. P1 add typed, bounded diff/image content and all validated locations with tool/session provenance; Product file-edit/validation and downloadable-file presentation pass; rich diff rendering remains unqualified. |
 | Provider workspace files | `session.workspace_file_changed.path` is relative to provider session workspace files, not task cwd. | Validated reference tagged `provider_session_workspace`, resolution required. | Source + traversal tests; P1 safe file retrieval/upload. |
 | Images / binary artifacts | Prompt image input; native content-addressed binary_asset base64. | Hash/length-validated metadata references; bytes not blindly read from disk or emitted in activity. | Source + unit digest tests; P1 durable artifact storage; >32 KiB payload provider omission remains. |
-| Background settlement | Standard prompt waits for idle in tested attached async-shell case; lossy native idle/receipt also exist. | ACP terminal result remains authoritative; raw event cannot end turn. | Offline attached and real-service finite detached commands completed before end_turn; marker verified through cleanup. Arbitrary background lifetimes remain unqualified; P0 broader settlement coverage. |
+| Background settlement | Standard prompt waits for idle in tested attached async-shell case; lossy native idle/receipt also exist. | ACP terminal result remains authoritative; raw event cannot end turn. | Offline attached and real-service finite detached commands completed before end_turn; marker verified through cleanup. A deterministic detach:true case now reproduces end_turn before the finite command completes; see the 2026-09-29 blocker. Native detach is now rejected before permission delivery; comprehensive background qualification remains blocked pending unproven tool/platform variants. |
 | Compaction/context | Native compaction lifecycle/token counts/context git metadata. | Safe bounded counters/status, immutable workspace binding. | Source + projection tests; raw summary/private custom instructions omitted. |
 | Goals / remote/schedules | Native autopilot/objectives/remote/schedule facilities; no qualified ACP goal protocol. | Unsupported through this profile; remote disabled. | Source; P2 separate governance review before control exposure. |
 

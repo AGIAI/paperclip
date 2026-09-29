@@ -2,11 +2,20 @@
 export const COPILOT_AGENT_MODE = "https://agentclientprotocol.com/protocol/session-modes#agent";
 
 export class CopilotPolicyViolationError extends Error {
-  readonly code = "COPILOT_POLICY_VIOLATION";
+  readonly code: string = "COPILOT_POLICY_VIOLATION";
   readonly retryable = false;
   constructor() {
     super("Copilot session configuration or command cannot preserve the admitted permission policy.");
     this.name = "CopilotPolicyViolationError";
+  }
+}
+
+export class CopilotDetachedWorkUnsupportedError extends CopilotPolicyViolationError {
+  override readonly code = "COPILOT_DETACHED_WORK_UNSUPPORTED";
+  constructor() {
+    super();
+    this.name = "CopilotDetachedWorkUnsupportedError";
+    this.message = "Native detached commands are unsupported in this Copilot runner. Run the command attached or use a managed runtime service.";
   }
 }
 
@@ -56,9 +65,15 @@ export function assertCopilotConfigPolicy(value: unknown): void {
   }
 }
 
+/** Reject native detachment before permission handling, regardless of tool name. */
+export function assertCopilotToolPolicy(value: unknown): void {
+  if (record(record(value).rawInput).detach === true) throw new CopilotDetachedWorkUnsupportedError();
+}
+
 /** Call synchronously for owned-session updates; any exception aborts authority. */
 export function assertCopilotSessionUpdatePolicy(value: unknown): void {
   const update = record(value);
+  if (update.sessionUpdate === "tool_call" || update.sessionUpdate === "tool_call_update") assertCopilotToolPolicy(update);
   if (update.sessionUpdate === "current_mode_update" && update.currentModeId !== COPILOT_AGENT_MODE) {
     throw new CopilotPolicyViolationError();
   }
@@ -74,9 +89,9 @@ export function createCopilotProtocolGuard(expectedModel: string): (direction: "
     const options = record(result).configOptions;
     return Array.isArray(options) ? record(options.find(option => record(option).id === "model")).currentValue : undefined;
   };
-  let failed = false;
+  let failure: CopilotPolicyViolationError | undefined;
   return (direction, value) => {
-    if (failed) throw new CopilotPolicyViolationError();
+    if (failure) throw failure;
     try {
       const message = record(value);
       const params = record(message.params);
@@ -118,6 +133,7 @@ export function createCopilotProtocolGuard(expectedModel: string): (direction: "
           } else if (request.method === "session/close" && request.sessionId) sessions.delete(request.sessionId);
         }
       }
+      if (direction === "inbound" && method === "session/request_permission") assertCopilotToolPolicy(params.toolCall);
       if (direction === "inbound" && method === "session/update") {
         // Replay can precede load's response. It still cannot introduce unsafe
         // configuration, and it cannot grant admission before that response.
@@ -134,12 +150,12 @@ export function createCopilotProtocolGuard(expectedModel: string): (direction: "
         if (params.type === "session.permissions_changed" && data.mode !== "manual") throw new CopilotPolicyViolationError();
         if (params.type === "session.mode_changed" && data.newMode !== "interactive" && data.newMode !== "agent") throw new CopilotPolicyViolationError();
       }
-    } catch {
-      failed = true;
+    } catch (error) {
+      failure = error instanceof CopilotPolicyViolationError ? error : new CopilotPolicyViolationError();
       sessions.clear();
       models.clear();
       pending.clear();
-      throw new CopilotPolicyViolationError();
+      throw failure;
     }
   };
 }

@@ -2,7 +2,7 @@ export const QUALIFIED_ACPX_VERSION = "0.13.1" as const;
 export const ACPX_DRIVER_KIND = "acpx_runtime" as const;
 export const ACPX_DRIVER_PROTOCOL_VERSION = 1 as const;
 
-import type { NativeAcpxAgent } from "../../contracts/native-execution.js";
+import type { NativeAcpxAgent, NativeAcpxProfileSnapshot } from "../../contracts/native-execution.js";
 
 export type QualifiedAcpxAgent = NativeAcpxAgent;
 
@@ -11,7 +11,7 @@ export interface QualifiedAcpxProfile {
   readonly protocolVersion: typeof ACPX_DRIVER_PROTOCOL_VERSION;
   readonly acpxVersion: typeof QUALIFIED_ACPX_VERSION;
   readonly agent: QualifiedAcpxAgent;
-  readonly agentProfileVersion: 1 | 2 | 3 | 4 | 5 | 6;
+  readonly agentProfileVersion: NativeAcpxProfileSnapshot["agentProfileVersion"];
   readonly qualificationStatus?: "pending";
   readonly modelPolicy?: "explicit-provider-verified";
   /** Wire identity: an npm package name or a runner-owned builtin: identifier. */
@@ -75,7 +75,7 @@ export const QUALIFIED_ACPX_PROFILES: Readonly<
     acpxVersion: QUALIFIED_ACPX_VERSION, agent: "copilot", agentProfileVersion: 3,
     agentServerPackage: "@github/copilot", agentServerVersion: "1.0.88",
     agentRuntimePackage: null, agentRuntimeVersion: null,
-    commandDigest: "sha256:4dbd3b0bead1dfcbe4b9b0d9a82a6660ae49c2b1a118862ec3ef654f3b76f8d7",
+    commandDigest: "sha256:527f9cbbad2f3e75169cae70d7aa5b189200e57f1ab7f9e1523357b5606b0939",
     // Authenticated discovery has not established a qualification model. Never
     // turn this empty declaration into a default; callers must select an ID.
     qualificationModel: "", reportedModelId: "", permissionPolicy: "interactive",
