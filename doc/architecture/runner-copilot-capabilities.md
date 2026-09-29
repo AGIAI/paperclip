@@ -103,6 +103,24 @@ current authenticated runtime context. Live reconnect and pending warm-transitio
 receipts keep their existing context; replacing that context in an active provider
 is a separate lifecycle operation.
 
+### Native instruction delivery
+
+The [native model-request probe](../../packages/paperclip-runner/test/fixtures/copilot-native-instruction-delivery-2026-09-29.json)
+retains a separate instruction-delivery failure: Copilot 1.0.88 ignores generic
+ACP `_meta.systemPrompt` on new sessions, and ACPX does not include it on load.
+Actual loopback model requests contained neither the Paperclip prompt nor the
+registered directory guidance. Passing a refreshed descriptor alone is insufficient.
+
+A credential-free follow-up wrote the composed text to the isolated provider
+home's `copilot-instructions.md`, using Copilot's native personal-instruction
+mechanism. The first request's system message contained the old directory and
+original entry. After closing the provider, deleting the old directory and
+reopening with fresh instructions, actual `session/load` and a second explicit
+turn completed. The second model request contained the current directory and
+updated entry, with neither old value in its system message. Both attempts used
+two synthetic loopback responses and no paid calls. This probe is not a final
+built-production or authenticated qualification result.
+
 ### Native detached work is explicitly unsupported
 
 The broader 2026-09-29 deterministic probe reproduces early completion for
