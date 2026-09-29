@@ -1,10 +1,13 @@
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { once } from "node:events";
+import { stripTypeScriptTypes } from "node:module";
 import { createHash } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PI_DISTRIBUTION_CLOSURE_SHA256 } from "./pi-closure-pins.js";
+import { PI_NODE_VERSION } from "./pi-node-pins.js";
 import { assertPiInstallationProfile, verifyPiInstallation } from "./pi-installation.js";
 import { QUALIFIED_ACPX_PROFILES, type QualifiedAcpxProfile } from "./qualified-profiles.js";
 
@@ -24,10 +27,28 @@ async function fixture() {
 
 describe("Pi installation factory", () => {
   it("binds the profile declaration to the reviewed patch and platform closure pins", async () => {
-    const digest = createHash("sha256").update("paperclip.pi.rich-acp.profile.v6\0")
-      .update(await readFile(new URL("../../../../../patches/pi-acp@0.0.33.patch", import.meta.url)))
-      .update("\0").update(await readFile(new URL("./pi-closure-pins.ts", import.meta.url))).digest("hex");
-    expect(QUALIFIED_ACPX_PROFILES.pi.commandDigest).toBe(`sha256:${digest}`);
+    const hash = (bytes: string | Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+    const canonical = (value: any): string => Array.isArray(value) ? `[${value.map(canonical).join(",")}]`
+      : value && typeof value === "object" ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}` : JSON.stringify(value);
+    const identity = JSON.parse(await readFile(new URL("../../../test-fixtures/pi-acp/profile-v6-identity.json", import.meta.url), "utf8"));
+    const declaration = identity.declaration;
+    expect(identity.commandDigest).toBe(`sha256:${hash(canonical(declaration))}`);
+    expect(QUALIFIED_ACPX_PROFILES.pi.commandDigest).toBe(identity.commandDigest);
+    for (const key of ["agent", "agentProfileVersion", "acpxVersion", "agentServerVersion", "agentRuntimeVersion"] as const) {
+      expect(declaration[key]).toBe(QUALIFIED_ACPX_PROFILES.pi[key]);
+    }
+    expect(declaration.closure).toEqual(PI_DISTRIBUTION_CLOSURE_SHA256);
+    expect(declaration.nodeVersion).toBe(PI_NODE_VERSION);
+    const helper = stripTypeScriptTypes(await readFile(new URL("./pi-acp-runtime.ts", import.meta.url), "utf8")).split("\n").map(line => line.trimEnd()).join("\n");
+    const extension = stripTypeScriptTypes(await readFile(new URL("./pi-runtime-extension.ts", import.meta.url), "utf8")).replace('from "./pi-acp-runtime.js"', 'from "../node_modules/pi-acp/dist/paperclip-runtime.js"');
+    expect(hash(helper)).toBe(declaration.helperSha256);
+    expect(hash(extension)).toBe(declaration.extensionSha256);
+    const materializer = await readFile(new URL("../../../scripts/materialize-pi-distribution.mjs", import.meta.url), "utf8");
+    expect(materializer).toContain(`wrapperSha256: "${declaration.wrapperSha256}"`);
+    expect(materializer).toContain(`helperSha256: "${declaration.helperSha256}"`);
+    // This exact patch produced the independently verified v6 wrapper/closure.
+    // Pin it separately so wrapper-only edits cannot keep an unchanged declaration.
+    expect(hash(await readFile(new URL("../../../../../patches/pi-acp@0.0.33.patch", import.meta.url)))).toBe("bae0f2d9c866852a8d72883ddb7cc83af3e157d1638f9aa494670304913f6aea");
   });
 
   it("rejects legacy profiles and caller-selected identities", () => {
