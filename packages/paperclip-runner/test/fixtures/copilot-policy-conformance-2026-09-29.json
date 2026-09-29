@@ -120,7 +120,31 @@
       "markerPresent": false,
       "rpcErrorCodes": [],
       "disposition": "passed"
+    },
+    {
+      "evidenceFile": "restart-deny-shell.json",
+      "sha256": "c9a22087f343d8d399044bd05d159e457531d3c735a765df2c6bdce85878b2be",
+      "scenario": "deny-shell",
+      "mode": "agent",
+      "resumed": true,
+      "providerKilledAndReplaced": true,
+      "replayMutationCount": 1,
+      "loopbackModelRequests": 3,
+      "nativeInputToolsAdvertised": [],
+      "permissionRequestCount": 2,
+      "permissionDecisions": [
+        "allow_once",
+        "reject_once"
+      ],
+      "permissionRequestIds": [
+        0,
+        0
+      ],
+      "markerPresent": false,
+      "rpcErrorCodes": [],
+      "disposition": "passed"
     }
   ],
-  "emptySessionLoadDiagnosis": "Copilot does not retain an empty conversation for load. Initial resource-not-found retained; second attempt seeds one loopback-only text turn before close/load. It then requests shell permission and rejects the write."
+  "emptySessionLoadDiagnosis": "Copilot does not retain an empty conversation for load. Initial resource-not-found retained; second attempt seeds one loopback-only text turn before close/load. It then requests shell permission and rejects the write.",
+  "providerDeathDiagnosis": "One allowed seed mutation appends X. The exact provider is SIGKILLed and replaced against the same private state, then session/load succeeds. X occurs once after load and the next denied write remains absent. Request ID 0 is reused by the new process and requires fresh permission authority."
 }

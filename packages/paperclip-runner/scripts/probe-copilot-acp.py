@@ -7,7 +7,9 @@ parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--package-root',required=True)
 parser.add_argument('--scenario',choices=['deny-write','deny-shell','deny-read','attached-shell','discover-inputs','native-question','native-plan'],default='deny-write')
 parser.add_argument('--mode',choices=['agent','plan','autopilot'],default='agent')
-parser.add_argument('--resume',action='store_true',help='Close and load the same native session before prompting')
+resume_group=parser.add_mutually_exclusive_group()
+resume_group.add_argument('--resume',action='store_true',help='Close and load the same native session before prompting')
+resume_group.add_argument('--restart',action='store_true',help='SIGKILL and replace the provider after one allowed seed mutation; load and verify no replay')
 args=parser.parse_args()
 package_root=pathlib.Path(args.package_root).resolve()
 metadata=json.loads((package_root/'package.json').read_text())
@@ -39,6 +41,8 @@ with contextlib.ExitStack() as cleanup:
  calls=0
  total_model_calls=0
  session=None
+ seeding=False
+ seed_command='printf X >> replay-count.txt'
  final_prompt_id=None
  outside=root.parent/(root.name+'-protected.txt')
  outside.write_text('PRIVATE_FIXTURE_SENTINEL')
@@ -57,11 +61,13 @@ with contextlib.ExitStack() as cleanup:
    data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
    model_tool_names=sorted(set(model_tool_names+[x.get('function',{}).get('name') for x in data.get('tools',[]) if x.get('function',{}).get('name')]))
    model_tool_results.extend(x.get('content') for x in data.get('messages',[]) if x.get('role')=='tool')
-   if total_model_calls>5:raise RuntimeError('Fixture model exceeded its bounded request count')
+   if total_model_calls>6:raise RuntimeError('Fixture model exceeded its bounded request count')
    if data.get('stream'):
     self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
     values=[{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{'role':'assistant','content':'Fixture complete.'},'finish_reason':None}]},{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{},'finish_reason':'stop'}],'usage':{'prompt_tokens':10,'completion_tokens':3,'total_tokens':13}}]
-    if calls==1 and tool_name:values=[{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{'role':'assistant','tool_calls':[{'index':0,'id':'fixture-tool','type':'function','function':{'name':tool_name,'arguments':json.dumps(tool_arguments)}}]},'finish_reason':None}]},{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{},'finish_reason':'tool_calls'}]}]
+    selected_tool='bash' if seeding else tool_name
+    selected_arguments={'command':seed_command,'description':'Single non-replayed seed mutation'} if seeding else tool_arguments
+    if calls==1 and selected_tool:values=[{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{'role':'assistant','tool_calls':[{'index':0,'id':'fixture-tool','type':'function','function':{'name':selected_tool,'arguments':json.dumps(selected_arguments)}}]},'finish_reason':None}]},{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{},'finish_reason':'tool_calls'}]}]
     for value in values:self.wfile.write(('data: '+json.dumps(value)+'\n\n').encode())
     self.wfile.write(b'data: [DONE]\n\n')
    else:
@@ -73,7 +79,8 @@ with contextlib.ExitStack() as cleanup:
  env={'PATH':'/usr/bin:/bin','HOME':str(root/'home'),'XDG_CONFIG_HOME':str(root/'config'),'XDG_CACHE_HOME':str(root/'cache'),'XDG_DATA_HOME':str(root/'data'),'COPILOT_HOME':str(root/'copilot'),'COPILOT_CACHE_HOME':str(root/'copilot-cache'),'COPILOT_ALLOW_ALL':'false','COPILOT_PKG_CACHE_HOME':str(root/'extract'),'COPILOT_AUTO_UPDATE':'false','COPILOT_OFFLINE':'true','COPILOT_PROVIDER_BASE_URL':f'http://127.0.0.1:{server.server_port}','COPILOT_PROVIDER_TYPE':'openai','COPILOT_PROVIDER_MODEL_ID':'gpt-4.1','COPILOT_MODEL':'gpt-4.1','NO_COLOR':'1'}
  for key in ('HOME','XDG_CONFIG_HOME','XDG_CACHE_HOME','XDG_DATA_HOME','COPILOT_HOME','COPILOT_CACHE_HOME','COPILOT_PKG_CACHE_HOME'):pathlib.Path(env[key]).mkdir()
  (root/'copilot/config.json').write_text(json.dumps({'trustedFolders':[],'disableAllHooks':True,'memory':False,'ide':{'autoConnect':False}}))
- p=subprocess.Popen([binary,'--acp','--stdio','--no-auto-update','--disable-builtin-mcps','--no-remote','--no-remote-export','--no-bash-env'],env=env,cwd=root,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+ launch=[binary,'--acp','--stdio','--no-auto-update','--disable-builtin-mcps','--no-remote','--no-remote-export','--no-bash-env']
+ p=subprocess.Popen(launch,env=env,cwd=root,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
  cleanup.callback(stop_process, p)
  responses={};wire=[];permission_responses=[];buf={p.stdout:b'',p.stderr:b''};nextid=0;marker_at_prompt_result=False
 
@@ -89,7 +96,8 @@ with contextlib.ExitStack() as cleanup:
     message=json.loads(line);wire.append(message)
     if 'id' in message and 'method' not in message:responses[message['id']]=message
     if message.get('method')=='session/request_permission':
-     allow=args.scenario=='attached-shell' and message['params'].get('toolCall',{}).get('rawInput',{}).get('command')==command
+     requested_command=message['params'].get('toolCall',{}).get('rawInput',{}).get('command')
+     allow=(args.scenario=='attached-shell' and requested_command==command) or (seeding and requested_command==seed_command)
      reject=next((o for o in message['params']['options'] if o['kind']==('allow_once' if allow else 'reject_once')),None)
      outcome={'outcome':'selected','optionId':reject['optionId']} if reject else {'outcome':'cancelled'}
      permission_responses.append({'id':message['id'],'outcome':outcome})
@@ -102,18 +110,28 @@ with contextlib.ExitStack() as cleanup:
   if n not in responses:raise TimeoutError(method)
   return responses[n]
  try:
-  request('initialize',{'protocolVersion':1,'clientCapabilities':{'_meta':{'github.com/copilot':{'events':['session.idle','session.plan_changed','session.background_tasks_changed','session.completion_receipt','user_input.requested','exit_plan_mode.requested','assistant.usage']}}},'clientInfo':{'name':'paperclip-offline-fixture','version':'1'}})
+  initialize_params={'protocolVersion':1,'clientCapabilities':{'_meta':{'github.com/copilot':{'events':['session.idle','session.plan_changed','session.background_tasks_changed','session.completion_receipt','user_input.requested','exit_plan_mode.requested','assistant.usage']}}},'clientInfo':{'name':'paperclip-offline-fixture','version':'1'}}
+  request('initialize',initialize_params)
   session=request('session/new',{'cwd':str(root),'mcpServers':[]})
   if 'result' in session:
    session_id=session['result']['sessionId']
    if args.mode!='agent':
     request('session/set_mode',{'sessionId':session_id,'modeId':'https://agentclientprotocol.com/protocol/session-modes#'+args.mode})
-   if args.resume:
+   if args.resume or args.restart:
     # A native session with no conversation is not durably resumable.
-    calls=-1
+    seeding=args.restart
+    calls=0 if seeding else -1
     request('session/prompt',{'sessionId':session_id,'prompt':[{'type':'text','text':'Initialize the fixture conversation.'}]})
+    seeding=False
     calls=0
-    request('session/close',{'sessionId':session_id})
+    if args.restart:
+     assert (root/'replay-count.txt').read_text()=='X', 'Seed mutation did not execute exactly once'
+     p.kill();p.wait(timeout=5);stop_process(p)
+     p=subprocess.Popen(launch,env=env,cwd=root,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+     cleanup.callback(stop_process,p)
+     buf={p.stdout:b'',p.stderr:b''}
+     request('initialize',initialize_params)
+    else:request('session/close',{'sessionId':session_id})
     session=request('session/load',{'sessionId':session_id,'cwd':str(root),'mcpServers':[]})
    if 'error' in session:raise RuntimeError('Copilot rejected session load')
    final_prompt_id=nextid+1
@@ -124,7 +142,7 @@ with contextlib.ExitStack() as cleanup:
   failure=sys.exc_info()[1]
   try:
    marker_exists=(root/('settlement.txt' if args.scenario=='attached-shell' else 'denied.txt')).exists()
-   report={'schema':'paperclip.copilot-acp-evidence/v1','harnessVersion':'1.0.88','package':metadata['name'],'executableSha256':pins[metadata['name']],'modelSource':'deterministic loopback fixture, COPILOT_OFFLINE=true; not a live model qualification','scenario':args.scenario,'mode':args.mode,'resumed':args.resume,'costUsd':0,'filesystemMarkerExistedAtPromptResult':marker_at_prompt_result,'filesystemMarkerExistedAfterPrompt':marker_exists,'modelCalls':total_model_calls,'modelToolNames':model_tool_names,'modelToolResults':model_tool_results,'permissionResponses':permission_responses,'wire':wire}
+   report={'schema':'paperclip.copilot-acp-evidence/v1','harnessVersion':'1.0.88','package':metadata['name'],'executableSha256':pins[metadata['name']],'modelSource':'deterministic loopback fixture, COPILOT_OFFLINE=true; not a live model qualification','scenario':args.scenario,'mode':args.mode,'resumed':args.resume or args.restart,'providerKilledAndReplaced':args.restart,'replayMutationCount':len((root/'replay-count.txt').read_text()) if (root/'replay-count.txt').exists() else None,'costUsd':0,'filesystemMarkerExistedAtPromptResult':marker_at_prompt_result,'filesystemMarkerExistedAfterPrompt':marker_exists,'modelCalls':total_model_calls,'modelToolNames':model_tool_names,'modelToolResults':model_tool_results,'permissionResponses':permission_responses,'wire':wire}
    serialized=json.dumps(report,indent=2).replace(str(root),'/fixture/workspace').replace(str(root).lstrip('/'),'fixture/workspace').replace(binary,'/fixture/verified/copilot')
    print(serialized)
   except Exception:
@@ -144,3 +162,6 @@ with contextlib.ExitStack() as cleanup:
 
  if args.scenario in ('native-question','native-plan') and not any("Tool '"+str(tool_name)+"' does not exist" in str(result) for result in model_tool_results):
   raise RuntimeError('Forced native input did not prove explicit tool unavailability')
+
+ if args.restart and (root/'replay-count.txt').read_text()!='X':
+  raise RuntimeError('Provider restart replayed or lost a seed mutation')

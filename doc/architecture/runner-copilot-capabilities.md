@@ -41,14 +41,19 @@ answer cannot be delivered. This narrows the blocking-input question for the
 admitted pinned mode without claiming an upstream question responder exists.
 
 The [offline conformance record](../../packages/paperclip-runner/test/fixtures/copilot-policy-conformance-2026-09-29.json)
-retains seven attempts and their evidence digests. A protected file outside the
+retains eight attempts and their evidence digests. A protected file outside the
 working directory was denied before its contents reached the fixture model.
 A durable conversation was closed and loaded, then requested permission for a
 shell write; `reject_once` prevented the file. The initial attempt to load an
 empty conversation failed with resource-not-found and remains retained. The
 second attempt seeds one text turn before close/load; it is not a retry of a
-measured behavior failure. This proves a local native close/load permission
-boundary, not process-death recovery or a final packaged Product case.
+measured behavior failure. A separate
+process-death attempt first performs one allowed seed append, then SIGKILLs and
+replaces the exact provider using the same private session state. Load succeeds,
+the seed append still occurs exactly once, and a fresh denied write remains
+absent. Both native processes use permission request ID 0, proving why response
+authority must belong to the current connection. These are local native
+close/load and process-death probes, not final packaged Product qualification.
 
 All these probes use the verified 1.0.88 ARM64 binary, an explicitly constructed
 credential-free environment, `COPILOT_OFFLINE=true`, and a synthetic OpenAI-style
