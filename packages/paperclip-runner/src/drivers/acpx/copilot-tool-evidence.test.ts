@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { validateAcpxRichEvent } from "../drivers/acpx/profile-extensions.js";
-import type { CanonicalProviderEvent } from "../provider-events.js";
+import { validateAcpxRichEvent } from "./profile-extensions.js";
+import type { CanonicalProviderEvent } from "../../provider-events.js";
 import { createCopilotToolEvidence } from "./copilot-tool-evidence.js";
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/copilot-tool-evidence.json", import.meta.url), "utf8"));
 const details = (e: CanonicalProviderEvent) => Object.fromEntries((e.payload.details as Array<{ name: string; value: string }>).map(d => [d.name, d.value]));

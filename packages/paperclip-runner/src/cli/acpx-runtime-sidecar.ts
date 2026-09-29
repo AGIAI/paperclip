@@ -61,7 +61,7 @@ import {
   type AcpxSidecarResponse,
 } from "../drivers/acpx/sidecar-protocol.js";
 import { safeAcpxLocations } from "./acpx-sidecar-locations.js";
-import { createCopilotToolEvidence, type CopilotToolEvidence } from "./copilot-tool-evidence.js";
+import { createCopilotToolEvidence, type CopilotToolEvidence } from "../drivers/acpx/copilot-tool-evidence.js";
 import {
   persistedAcpxTurnUsage,
   acpxUsageEstimateNotice,

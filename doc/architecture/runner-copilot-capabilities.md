@@ -754,7 +754,8 @@ model qualification. The profile remains pending.
 
 ### Bounded native tool observations and protection evaluations
 
-The sidecar now projects an allowlist of active-turn ACP tool/permission fields into
+The sidecar and direct TypeScript driver share one projector under `drivers/acpx`,
+which projects an allowlist of active-turn ACP tool/permission fields into
 existing `provider.notice.recorded` details and provenance: validated relative target,
 request/tool identities, command SHA-256, explicit mode/detach, and linked shell
 start/completion with provider-reported exit code. Session passthrough notifications

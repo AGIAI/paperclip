@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { redactPaperclipSemanticValue } from "../semantic-tools/redaction.js";
-import type { CanonicalProviderEvent } from "../provider-events.js";
-import { safeAcpxLocations } from "./acpx-sidecar-locations.js";
+import { redactPaperclipSemanticValue } from "../../semantic-tools/redaction.js";
+import type { CanonicalProviderEvent } from "../../provider-events.js";
+import { safeAcpxLocations } from "./safe-locations.js";
 
 const LIMIT = 256;
 const CATEGORY = "copilot_tool_evidence_v1";
