@@ -11,7 +11,7 @@ export interface QualifiedAcpxProfile {
   readonly protocolVersion: typeof ACPX_DRIVER_PROTOCOL_VERSION;
   readonly acpxVersion: typeof QUALIFIED_ACPX_VERSION;
   readonly agent: QualifiedAcpxAgent;
-  readonly agentProfileVersion: 1 | 2 | 3 | 4 | 5;
+  readonly agentProfileVersion: 1 | 2 | 3 | 4 | 5 | 6;
   readonly qualificationStatus?: "pending";
   readonly modelPolicy?: "explicit-provider-verified";
   /** Wire identity: an npm package name or a runner-owned builtin: identifier. */
@@ -47,14 +47,14 @@ export const QUALIFIED_ACPX_PROFILES: Readonly<
     protocolVersion: ACPX_DRIVER_PROTOCOL_VERSION,
     acpxVersion: QUALIFIED_ACPX_VERSION,
     agent: "pi",
-    agentProfileVersion: 5,
+    agentProfileVersion: 6,
     qualificationStatus: "pending",
     agentServerPackage: "pi-acp",
     agentServerVersion: "0.0.33",
     agentRuntimePackage: "@earendil-works/pi-coding-agent",
     agentRuntimeVersion: "0.84.2",
     commandDigest:
-      "sha256:020d96ccbd3c45c3f62680814776394ed5a56d9572a1a4dccda56a74d16c7803",
+      "sha256:d2b470e940115a1cd8a31cd5d2ddde2837912e965d3475deede09d67bff6346f",
     qualificationModel: "openrouter/deepseek/deepseek-v4-flash-0731",
     reportedModelId: "openrouter/deepseek/deepseek-v4-flash-0731",
     permissionPolicy: "interactive",

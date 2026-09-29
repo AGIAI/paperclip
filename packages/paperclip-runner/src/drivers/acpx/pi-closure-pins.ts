@@ -6,7 +6,7 @@
  * three pins. Never accept a digest supplied only by an installed manifest.
  */
 export const PI_DISTRIBUTION_CLOSURE_SHA256 = Object.freeze({
-  "darwin-arm64": "0010175e4bc200f145386e59f7a824cf7532ad273e9db6824d22c4f82cdcd6ff",
-  "darwin-x64": "9dd49bd1341a6e3438db56cc6b3dc772964ebcdd0552bcfbf2e5e621b2970ab6",
-  "linux-x64": "91169667544764764e2e402868fbb76a9a429575cfdb1b312b8ed8ae669ebc89",
+  "darwin-arm64": "b2ce6bb2d9b93c4265b2c363cbf1433e06bb3349327f59b6f8eb3fdbd1b03d6a",
+  "darwin-x64": "a9269f6e0675ad1b50b24e76d47b971d4238ff25ddd57074b707db2a9bc83a74",
+  "linux-x64": "05eb422d9ce9e32b081cb2d2a3433dc113d66a55f993125b74b1666002cf3b67",
 });
