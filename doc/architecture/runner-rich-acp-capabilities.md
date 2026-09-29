@@ -1,7 +1,7 @@
 # Rich ACP integration and qualification report
 
 Updated: 2026-09-29. Base: `c65fc9e3c81c41aafe421aa90a00514b84343285`.
-Mainline integration: `d172197117a14b80a1eb2d2835a0e7cce2679656`.
+Mainline integration: `3ca196b0a642aa21b8feba1fcd89edb53d1c622e`.
 Status: implementation is split into a shared foundation and three provider PRs.
 Provider review and qualification remain separate from foundation acceptance.
 All three new profiles remain **pending qualification**. Cursor passed all five
@@ -196,6 +196,7 @@ qualification gates, not claims that a JavaScript path check confines a shell.
 | P1 | Complete usage/billing provenance | Missing cache fields remain unknown. Pi price estimates are displayed separately. Budget qualification requires actual spend coverage, not an estimate presented as a bill. |
 | P1 | Fork/history/model/mode controls not exposed by Paperclip | Research documents the native and ACP methods separately. Add governance-aware controls and durable lineage before enabling them. |
 | P1 | Exact pending-request restoration after process death | Session transcript restoration does not restore callbacks. Expire unresolved requests unless a provider proves exact restoration. |
+| P1 | Persistent agent-directory access through ACPX | Mainline `3ca196b0a` supplies `AGENT_HOME`, but its existing ACPX environment allowlist does not forward it. Pi also confines native writes to the task workspace, while the local persistent agent directory lives outside it. The disabled candidates do not claim this new capability. Bind and validate the company/agent/run-owned directory explicitly through launch and native-tool policy, including warm-run rebinding and cleanup-before-collection tests; do not widen ambient environment or filesystem access. |
 | P2 | Remaining Copilot native diagnostic/config/account events | The provider inventory records every event and field, its projection or reason for omission. Preserve bounded useful context; avoid credentials, raw environment or unbounded blobs. |
 | P2 | Pi native extension surfaces and unsupported slash commands | Arbitrary extensions/templates/themes may execute ambient code. Only reviewed runner-owned capabilities are admitted; structured native plan/goals are not fabricated. Native fork/clone/export are separate unmapped capabilities above. |
 | P2 | Pi status/widget/title/editor and session/configuration notifications | `setStatus`, `setWidget`, `setTitle` and `set_editor_text` have no UI projection and are unused by the owned extension. Native session-name and thinking-level events also lack a dedicated projection. Add reviewed bounded notice schemas and governed configuration controls before exposing these fields; `notify` and interactive input already have separate bridges. |

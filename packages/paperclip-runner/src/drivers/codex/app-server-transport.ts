@@ -197,6 +197,7 @@ class BoundedLineDecoder {
 }
 
 const SAFE_ENVIRONMENT_KEYS = [
+  "AGENT_HOME",
   "ALL_PROXY",
   "CODEX_HOME",
   "HOME",
