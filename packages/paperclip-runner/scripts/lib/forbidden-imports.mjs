@@ -117,7 +117,12 @@ function publicSourceGraph(packageRoot, manifest, specifiers) {
       .map((suffix) => `${stem}${suffix}`)].filter((candidate) => known.has(candidate));
   };
   const targets = (value) => typeof value === "string" ? [value] : value && typeof value === "object" ? Object.values(value).flatMap(targets) : [];
-  const exportSources = (value) => targets(value).flatMap((target) => sourceCandidates(resolve(packageRoot, target)));
+  const exportSources = (value) => targets(value).flatMap((target) => {
+    // Wildcard exports can expose the development harness. Until this gate
+    // resolves their full mapping, conservatively treat all sources as public.
+    if (target.includes("*")) return [...known];
+    return sourceCandidates(resolve(packageRoot, target));
+  });
   const queue = exportSources(manifest.exports);
   const reachable = new Set();
   while (queue.length > 0) {
