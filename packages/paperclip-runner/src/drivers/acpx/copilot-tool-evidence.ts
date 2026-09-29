@@ -115,7 +115,7 @@ export function createCopilotToolEvidence(binding: {
       const status = ["pending", "in_progress", "completed", "failed"].includes(String(call.status)) ? String(call.status) : undefined;
       if (!status) return;
       const fields: Fields = { ...state.fields, status };
-      if (state.kind === "edit") fields.operation = "edit";
+      if (state.kind === "edit" || state.kind === "read") fields.operation = state.kind;
       const output = record(call.rawOutput).content;
       // Parse only the pinned native wrapper, never substrings in command output.
       if (status === "completed" && typeof output === "string" && output.length <= 256) {
@@ -144,7 +144,7 @@ export function createCopilotToolEvidence(binding: {
       if (permissionTools.has(call.toolCallId) || permissionTools.size >= LIMIT) { notice("evidence_incomplete", call.toolCallId, { reason: "ambiguous_permission_origin" }); return undefined; }
       permissionTools.add(call.toolCallId);
       const fields: Fields = { requestId, ...inputFields(call) };
-      if (call.kind === "edit") fields.operation = "edit";
+      if (call.kind === "edit" || call.kind === "read") fields.operation = call.kind;
       fields.declineOffered = offeredActions.includes("decline");
       notice("permission_requested", call.toolCallId, fields, "session/request_permission");
       let delivered = false;
