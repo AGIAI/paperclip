@@ -41,7 +41,7 @@ answer cannot be delivered. This narrows the blocking-input question for the
 admitted pinned mode without claiming an upstream question responder exists.
 
 The [offline conformance record](../../packages/paperclip-runner/test/fixtures/copilot-policy-conformance-2026-09-29.json)
-retains eight attempts and their evidence digests. A protected file outside the
+retains ten attempts and their evidence digests. A protected file outside the
 working directory was denied before its contents reached the fixture model.
 A durable conversation was closed and loaded, then requested permission for a
 shell write; `reject_once` prevented the file. The initial attempt to load an
@@ -68,6 +68,23 @@ snapshot contains the exact requested marker in the task instructions, the
 answered Cobalt choice, and warm-session continuation. Copilot instead supplied
 `[terminal marker]` to `paperclip_finish`. Neither the grader nor the terminal
 marker requirement changed. A final-runtime rerun remains required.
+
+### Detached background work remains a production blocker
+
+The broader 2026-09-29 deterministic probe reproduces early completion for
+`bash` with `mode: async` and `detach: true`. After an allowed finite two-second
+command, Copilot sends a completed tool update naming a detached shell ID, then
+`session.idle` and `end_turn` before the marker file exists. A separate diagnostic
+keeps observing for three seconds after terminal and proves the marker appears
+late. Both attempts retain their failed settlement assertion.
+
+The preceding standard tool-call notification includes `detach: true`, but the
+permission request carries only the command. Native background-task change
+notices have empty payloads and expose no task-list or settle control. Neither
+notification counts nor a fixed delay establish settlement. The prior live
+finite-detached pass exercised a model that waited; it does not qualify this
+native lifetime. A governed runner-owned background interface or a versioned
+upstream settlement fix is required to support detached work safely.
 
 ## Evidence and scope
 
@@ -211,7 +228,7 @@ Daytona claims require the separate live product qualification.
 | Task file changes / diffs | Standard tools carry locations/diff content for create/edit/str_replace/apply_patch. | Shared ACP tool activity retains bounded `rawOutput`, `inputUpdated` and the first validated relative location. Structured tool `content` diffs/images, `rawInput` and secondary locations are dropped; no complete diff presentation is claimed. | Real denied-create wire contains a diff, but wire presence is not runner/UI preservation. P1 add typed, bounded diff/image content and all validated locations with tool/session provenance; Product file-edit/validation and downloadable-file presentation pass; rich diff rendering remains unqualified. |
 | Provider workspace files | `session.workspace_file_changed.path` is relative to provider session workspace files, not task cwd. | Validated reference tagged `provider_session_workspace`, resolution required. | Source + traversal tests; P1 safe file retrieval/upload. |
 | Images / binary artifacts | Prompt image input; native content-addressed binary_asset base64. | Hash/length-validated metadata references; bytes not blindly read from disk or emitted in activity. | Source + unit digest tests; P1 durable artifact storage; >32 KiB payload provider omission remains. |
-| Background settlement | Standard prompt waits for idle in tested attached async-shell case; lossy native idle/receipt also exist. | ACP terminal result remains authoritative; raw event cannot end turn. | Offline attached and real-service finite detached commands completed before end_turn; marker verified through cleanup. Arbitrary background lifetimes remain unqualified; P0 broader settlement coverage. |
+| Background settlement | Standard prompt waits for idle in tested attached async-shell case; lossy native idle/receipt also exist. | ACP terminal result remains authoritative; raw event cannot end turn. | Offline attached and real-service finite detached commands completed before end_turn; marker verified through cleanup. A deterministic detach:true case now reproduces end_turn before the finite command completes; see the 2026-09-29 blocker. P0 actual background settlement is required. |
 | Compaction/context | Native compaction lifecycle/token counts/context git metadata. | Safe bounded counters/status, immutable workspace binding. | Source + projection tests; raw summary/private custom instructions omitted. |
 | Goals / remote/schedules | Native autopilot/objectives/remote/schedule facilities; no qualified ACP goal protocol. | Unsupported through this profile; remote disabled. | Source; P2 separate governance review before control exposure. |
 

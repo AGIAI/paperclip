@@ -143,8 +143,35 @@
       "markerPresent": false,
       "rpcErrorCodes": [],
       "disposition": "passed"
+    },
+    {
+      "evidenceFile": "detached-shell.json",
+      "sha256": "8b99a6e010e085aad37d39419e3159743f74bb013b731e7856d572f70cce9c89",
+      "scenario": "detached-shell",
+      "mode": "agent",
+      "loopbackModelRequests": 2,
+      "permissionRequestCount": 1,
+      "markerAtPromptResult": false,
+      "markerAfterObservation": false,
+      "postTerminalObservationMs": 300,
+      "disposition": "provider_behavior_failure",
+      "failedAssertion": "Detached shell must finish before prompt terminal result"
+    },
+    {
+      "evidenceFile": "detached-shell-observe-late.json",
+      "sha256": "095b0aed787575bbc22f5e80ea8eff74152a696dccdf850201f3aba629ebc978",
+      "scenario": "detached-shell",
+      "mode": "agent",
+      "loopbackModelRequests": 2,
+      "permissionRequestCount": 1,
+      "markerAtPromptResult": false,
+      "markerAfterObservation": true,
+      "postTerminalObservationMs": 3000,
+      "disposition": "provider_behavior_failure",
+      "failedAssertion": "Detached shell must finish before prompt terminal result"
     }
   ],
   "emptySessionLoadDiagnosis": "Copilot does not retain an empty conversation for load. Initial resource-not-found retained; second attempt seeds one loopback-only text turn before close/load. It then requests shell permission and rejects the write.",
-  "providerDeathDiagnosis": "One allowed seed mutation appends X. The exact provider is SIGKILLed and replaced against the same private state, then session/load succeeds. X occurs once after load and the next denied write remains absent. Request ID 0 is reused by the new process and requires fresh permission authority."
+  "providerDeathDiagnosis": "One allowed seed mutation appends X. The exact provider is SIGKILLed and replaced against the same private state, then session/load succeeds. X occurs once after load and the next denied write remains absent. Request ID 0 is reused by the new process and requires fresh permission authority.",
+  "detachedSettlementDiagnosis": "Pinned Copilot returns end_turn and completed tool status for detach:true before the finite shell creates its marker. A separate diagnostic observes three seconds after terminal and proves the marker appears late. Empty background-task notices cannot prove task identity/count or settlement; no ACP task-list control is advertised. Retained failures are not converted into passes."
 }

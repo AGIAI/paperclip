@@ -5,7 +5,7 @@ This proves a protocol fixture, never GitHub/model/Daytona qualification.
 import argparse,json,subprocess,tempfile,pathlib,os,select,time,threading,http.server,hashlib,shutil,contextlib,sys
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--package-root',required=True)
-parser.add_argument('--scenario',choices=['deny-write','deny-shell','deny-read','attached-shell','discover-inputs','native-question','native-plan'],default='deny-write')
+parser.add_argument('--scenario',choices=['deny-write','deny-shell','deny-read','attached-shell','detached-shell','discover-inputs','native-question','native-plan'],default='deny-write')
 parser.add_argument('--mode',choices=['agent','plan','autopilot'],default='agent')
 resume_group=parser.add_mutually_exclusive_group()
 resume_group.add_argument('--resume',action='store_true',help='Close and load the same native session before prompting')
@@ -47,8 +47,8 @@ with contextlib.ExitStack() as cleanup:
  outside=root.parent/(root.name+'-protected.txt')
  outside.write_text('PRIVATE_FIXTURE_SENTINEL')
  cleanup.callback(outside.unlink,missing_ok=True)
- tool_name={'deny-write':'create','deny-shell':'bash','deny-read':'view','attached-shell':'bash','native-question':'ask_user','native-plan':'exit_plan_mode'}.get(args.scenario)
- tool_arguments={'deny-write':{'path':str(root/'denied.txt'),'file_text':'MUST NOT EXIST'},'deny-shell':{'command':'printf MUST_NOT_EXIST > denied.txt','description':'Denied command fixture'},'deny-read':{'path':str(outside)},'attached-shell':{'command':command,'description':'Bounded settlement fixture','mode':'async','detach':False},'native-question':{'question':'Choose one','choices':['A','B'],'allowFreeform':False},'native-plan':{'summary':'Fixture plan','planContent':'Do fixture work'}}.get(args.scenario)
+ tool_name={'deny-write':'create','deny-shell':'bash','deny-read':'view','attached-shell':'bash','detached-shell':'bash','native-question':'ask_user','native-plan':'exit_plan_mode'}.get(args.scenario)
+ tool_arguments={'deny-write':{'path':str(root/'denied.txt'),'file_text':'MUST NOT EXIST'},'deny-shell':{'command':'printf MUST_NOT_EXIST > denied.txt','description':'Denied command fixture'},'deny-read':{'path':str(outside)},'attached-shell':{'command':command,'description':'Bounded settlement fixture','mode':'async','detach':False},'detached-shell':{'command':command,'description':'Bounded detached settlement fixture','mode':'async','detach':True},'native-question':{'question':'Choose one','choices':['A','B'],'allowFreeform':False},'native-plan':{'summary':'Fixture plan','planContent':'Do fixture work'}}.get(args.scenario)
  marker_at_prompt_result=False
  class Handler(http.server.BaseHTTPRequestHandler):
   def log_message(self,*args):pass
@@ -97,7 +97,7 @@ with contextlib.ExitStack() as cleanup:
     if 'id' in message and 'method' not in message:responses[message['id']]=message
     if message.get('method')=='session/request_permission':
      requested_command=message['params'].get('toolCall',{}).get('rawInput',{}).get('command')
-     allow=(args.scenario=='attached-shell' and requested_command==command) or (seeding and requested_command==seed_command)
+     allow=(args.scenario in ('attached-shell','detached-shell') and requested_command==command) or (seeding and requested_command==seed_command)
      reject=next((o for o in message['params']['options'] if o['kind']==('allow_once' if allow else 'reject_once')),None)
      outcome={'outcome':'selected','optionId':reject['optionId']} if reject else {'outcome':'cancelled'}
      permission_responses.append({'id':message['id'],'outcome':outcome})
@@ -136,12 +136,17 @@ with contextlib.ExitStack() as cleanup:
    if 'error' in session:raise RuntimeError('Copilot rejected session load')
    final_prompt_id=nextid+1
    request('session/prompt',{'sessionId':session_id,'prompt':[{'type':'text','text':'Reply with Fixture complete.'}]})
-   marker_at_prompt_result=(root/('settlement.txt' if args.scenario=='attached-shell' else 'denied.txt')).exists()
-   for _ in range(3):pump(.1)
+   marker_at_prompt_result=(root/('settlement.txt' if args.scenario in ('attached-shell','detached-shell') else 'denied.txt')).exists()
+   if args.scenario=='detached-shell':
+    # Observe the bounded child after terminal; never turn a late marker into success.
+    observation_deadline=time.monotonic()+3
+    while time.monotonic()<observation_deadline:pump(.1)
+   else:
+    for _ in range(3):pump(.1)
  finally:
   failure=sys.exc_info()[1]
   try:
-   marker_exists=(root/('settlement.txt' if args.scenario=='attached-shell' else 'denied.txt')).exists()
+   marker_exists=(root/('settlement.txt' if args.scenario in ('attached-shell','detached-shell') else 'denied.txt')).exists()
    report={'schema':'paperclip.copilot-acp-evidence/v1','harnessVersion':'1.0.88','package':metadata['name'],'executableSha256':pins[metadata['name']],'modelSource':'deterministic loopback fixture, COPILOT_OFFLINE=true; not a live model qualification','scenario':args.scenario,'mode':args.mode,'resumed':args.resume or args.restart,'providerKilledAndReplaced':args.restart,'replayMutationCount':len((root/'replay-count.txt').read_text()) if (root/'replay-count.txt').exists() else None,'costUsd':0,'filesystemMarkerExistedAtPromptResult':marker_at_prompt_result,'filesystemMarkerExistedAfterPrompt':marker_exists,'modelCalls':total_model_calls,'modelToolNames':model_tool_names,'modelToolResults':model_tool_results,'permissionResponses':permission_responses,'wire':wire}
    serialized=json.dumps(report,indent=2).replace(str(root),'/fixture/workspace').replace(str(root).lstrip('/'),'fixture/workspace').replace(binary,'/fixture/verified/copilot')
    print(serialized)
@@ -150,7 +155,7 @@ with contextlib.ExitStack() as cleanup:
 
  if not session or 'result' not in session or responses.get(final_prompt_id,{}).get('result',{}).get('stopReason')!='end_turn':
   raise RuntimeError('Copilot did not complete the fixture turn')
- if marker_at_prompt_result != (args.scenario=='attached-shell') or marker_exists != marker_at_prompt_result:
+ if marker_at_prompt_result != (args.scenario in ('attached-shell','detached-shell')) or marker_exists != marker_at_prompt_result:
   raise RuntimeError('Copilot violated the fixture filesystem expectation')
 
  if args.scenario.startswith('deny-') and not permission_responses:
