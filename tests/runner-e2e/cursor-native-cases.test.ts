@@ -1,3 +1,6 @@
+import { parsePaperclipQuestionResponse } from "../../packages/paperclip-runner/src/contracts/question-set.js";
+import { normalizeCursorPlanRequest } from "../../packages/paperclip-runner/src/drivers/acpx/cursor-extensions.js";
+import { cursorNativePlanResponse } from "./cursor-native-flow.js";
 import { cursorDeniedCommand, type CursorToolNotice } from "./cursor-native-evidence.js";
 import { describe, expect, it } from "vitest";
 import { cursorNativeCaseDesigns, cursorNativePrompt, hasDeliveredCursorNativeRequest, hasCursorPlanDecision, hasCursorDenialBoundary, CURSOR_DENIAL_SAMPLE_PHASES, hasExactCursorNativeResponse } from "./cursor-native-cases.js";
@@ -61,4 +64,24 @@ it("requires exact delivered answer bytes rather than a saved or different answe
   expect(hasExactCursorNativeResponse(input)).toBe(true);
   expect(hasExactCursorNativeResponse({ ...input, response: { ...response, answers: { q: { selectedOptionIds: ["other"] } } } })).toBe(false);
   expect(hasExactCursorNativeResponse({ ...input, events: rows.slice(0, 1) })).toBe(false);
+});
+
+
+it.each(["accept", "cancel", "reject"] as const)("recognizes canonical delivered native plan %s without an empty optional answer", decision => {
+  const native = normalizeCursorPlanRequest({ toolCallId: "native-plan", plan: "Verify the revised plan.", todos: [] });
+  const planId = native.questionSet.questions[0]!.id;
+  const response = cursorNativePlanResponse(planId, decision, "  Keep exact feedback 漢字\nSecond line  ");
+  const delivered = parsePaperclipQuestionResponse(native.questionSet, response);
+  const rows = proof();
+  (rows[0]!.payload.prpEvent.payload as any).request.origin.method = "cursor/create_plan";
+  (rows[1]!.payload.prpEvent.payload as any).response = delivered;
+  const input = { events: rows, runId: "run", turnId: "turn", requestId: "request", method: "cursor/create_plan" as const, action: "submit" as const, response };
+  expect(hasCursorPlanDecision(native.questionSet, response, decision)).toBe(true);
+  expect(hasExactCursorNativeResponse(input)).toBe(true);
+  expect(native.resolve(delivered).outcome.outcome).toBe({ accept: "accepted", cancel: "cancelled", reject: "rejected" }[decision]);
+  if (decision === "reject") expect(delivered.answers.reason?.text).toBe("  Keep exact feedback 漢字\nSecond line  ");
+  else {
+    expect(delivered.answers).not.toHaveProperty("reason");
+    expect(hasExactCursorNativeResponse({ ...input, response: { ...response, answers: { ...response.answers, reason: {} } } })).toBe(false);
+  }
 });
