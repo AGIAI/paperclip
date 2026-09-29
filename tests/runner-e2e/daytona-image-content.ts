@@ -40,6 +40,7 @@ export const DAYTONA_IMAGE_INPUT_PATHS = [
   "packages/paperclip-runner/scripts/build-copilot-distribution.mjs",
   "packages/paperclip-runner/scripts/materialize-copilot-binary.mjs",
   "packages/paperclip-runner/scripts/materialize-cursor-distribution.mjs",
+  "packages/paperclip-runner/scripts/cursor-runtime-patch.mjs",
   "packages/paperclip-runner/scripts/build-verified-provider-entrypoints.mjs",
   "packages/paperclip-runner/scripts/generate-acpx-sidecar-contract.mjs",
   "packages/paperclip-runner/scripts/generate-protocol-schema-module.mjs",
