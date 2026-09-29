@@ -47,7 +47,9 @@ export function createCursorToolEvidence(binding: {
     const state = tools.get(toolId), permission = permissions.get(toolId);
     if (!state || !permission) return;
     if (permission.kind !== undefined && permission.kind !== state.kind) throw new Error("Conflicting permission kind");
-    if (permission.hasInput && (!permission.commandSha256 || permission.commandSha256 !== state.commandSha256)) throw new Error("Conflicting permission input");
+    // Other native tools have non-command input (for example path/content).
+    // Their bounded identity/status evidence must not disable later shell proof.
+    if (state.kind === "execute" && permission.hasInput && (!permission.commandSha256 || permission.commandSha256 !== state.commandSha256)) throw new Error("Conflicting permission input");
     const fields: Fields = { requestId: permission.requestId, declineOffered: permission.declineOffered };
     if (state.kind === "execute") fields.operation = "execute";
     if (state.commandSha256) fields.commandSha256 = state.commandSha256;

@@ -53,3 +53,30 @@ it("rejects commands missing from their original frame and bounded oversized inp
     expect(s.fields().at(-1).stage).toBe("evidence_incomplete");
   }
 });
+
+it("preserves execute denial evidence after valid edit and read permission inputs", () => {
+  const s = setup();
+  for (const kind of ["edit", "read"]) {
+    const call = { ...initial, toolCallId: kind, kind, rawInput: { path: "/fixture/source.txt", content: "non-command-canary" } };
+    s.p.tool(call);
+    const delivered = s.p.permission({ raw: { sessionId: "session", toolCall: call } }, `${kind}-request`, ["accept", "decline"]);
+    expect(delivered).toBeTypeOf("function"); delivered!("allow_once");
+    s.p.tool({ type: "tool_call", tag: "tool_call_update", toolCallId: kind, status: "completed" });
+  }
+  s.p.tool(initial); s.p.permission(request, "request", ["decline"])!("reject_once");
+  s.p.tool({ type: "tool_call", tag: "tool_call_update", toolCallId: "tool", status: "failed" });
+  expect(s.unavailable()).toBe(false);
+  expect(s.fields().some(row => row.stage === "evidence_incomplete")).toBe(false);
+  expect(s.fields().filter(row => row.toolCallId !== "tool").every(row => row.commandSha256 === undefined)).toBe(true);
+  const shell = s.fields().filter(row => row.toolCallId === "tool");
+  expect(shell.map(row => row.stage)).toEqual(["tool", "permission_requested", "permission_delivered", "tool"]);
+  expect(shell[2].outcome).toBe("reject_once"); expect(shell[3].status).toBe("failed");
+  expect(new Set(shell.map(row => row.commandSha256)).size).toBe(1);
+  expect(shell[0].commandSha256).toMatch(/^sha256:[a-f0-9]{64}$/);
+  expect(JSON.stringify(s.events)).not.toContain("non-command-canary");
+});
+it.each(["edit", "read", "unknown-native-kind"])("still rejects a contradictory permission kind %s", kind => {
+  const s = setup(); s.p.tool(initial);
+  s.p.permission({ raw: { sessionId: "session", toolCall: { toolCallId: "tool", kind, rawInput: { path: "/fixture/file" } } } }, "request", ["decline"]);
+  expect(s.fields().at(-1).stage).toBe("evidence_incomplete"); expect(s.unavailable()).toBe(true);
+});
