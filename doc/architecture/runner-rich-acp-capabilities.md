@@ -1,9 +1,9 @@
 # Rich ACP integration and qualification report
 
-Updated: 2026-09-28. Base: `c65fc9e3c81c41aafe421aa90a00514b84343285`.
-Mainline integration: `18e8c121d99fee1d4038610531ab57ae3f824fdd`.
-Status: implementation is available as four draft PRs. The shared foundation's
-local checks pass, and provider review and qualification remain in progress.
+Updated: 2026-09-29. Base: `c65fc9e3c81c41aafe421aa90a00514b84343285`.
+Mainline integration: `3ca196b0a642aa21b8feba1fcd89edb53d1c622e`.
+Status: implementation is split into a shared foundation and three provider PRs.
+Provider review and qualification remain separate from foundation acceptance.
 All three new profiles remain **pending qualification**. Cursor passed all five
 local semantic Product E2E cases. Copilot passed completion, file validation,
 plan approval and controller restart; its question case failed the required final
@@ -34,8 +34,9 @@ adapters are outside this change.
 The provider branches were implemented in parallel from the foundation. Final
 shared registration and packaging conflicts are resolved in dependency order:
 foundation → Cursor → Copilot → Pi. They remain four separate worktrees and PR
-review units; the later PR bases include their prerequisite providers. No GitHub
-PR is merged automatically. Source reports on the provider branches are
+review units; the later PR bases include their prerequisite providers. Foundation
+acceptance requires Apex review and CI to pass. Provider PRs remain unmerged
+pending qualification. Source reports on the provider branches are
 `doc/architecture/runner-cursor-capabilities.md`,
 `doc/architecture/runner-copilot-capabilities.md`, and
 `doc/architecture/runner-pi-capabilities.md`. Those reports retain versioned
@@ -93,7 +94,7 @@ deterministic evidence are mapped separately after the comparison.
 | Active steering and queued follow-up | Existing active-turn control where a bound method is negotiated; no native Pi queue selector yet | `src/drivers/acpx/turn-controls.test.ts`; provider reports state which wire method is absent or not surfaced |
 | Files, diffs and images | Workspace file/artifact cards plus contained provider reference notices; raw provider diffs are still partial | `src/drivers/acpx/profile-extensions.test.ts`; provider field audits; Product `file-edit-validate` uses an independent exact-byte oracle |
 | Usage and model identity | Exact configured model, per-provider token/accounting fields, explicit incomplete cost coverage | `src/drivers/acpx/usage-accounting.test.ts`, `src/cli/eval-session-contract.test.ts`, `server/src/services/native-runtime/native-session-executor.test.ts` |
-| Durable input, reconnect and provider death | Pending interaction cards survive controller recovery; unsafe replacement expires unresolved requests | `src/control-plane/durable-prp-control-plane.test.ts`, `runner/crates/runner-core/tests/acpx_provider_resolutions.rs`, `src/live/runnerd-codex-transport.test.ts` |
+| Durable input, reconnect and provider death | Pending interaction cards survive controller recovery; unsafe replacement expires unresolved requests; delivered settlement survives a crash before journaling | `src/control-plane/durable-prp-control-plane.test.ts`, `runner/crates/runner-core/tests/acpx_provider_resolutions.rs`, `runner/crates/runner-core/tests/native_provider_backend.rs`, `src/live/runnerd-codex-transport.test.ts` |
 | Session list/fork, generic configuration and commands | No added operator surface; exact owned session recovery and configured model remain available | Provider inventories identify native-only, ACP-exposed, confirmed-absent and unverified methods with follow-ups |
 
 Paths starting with `src/` or `runner/` in this evidence table are relative to
@@ -110,6 +111,16 @@ mismatch is rejected. Retired streams and inactive turns cannot emit new activit
 Requests enter durable runtime state before the UI presents them. The response
 must match an outstanding request and an offered action or valid typed answer.
 The direct driver and sidecar await a receipt for the exact JSON-RPC pipe write before the runtime settles its durable record.
+The successful resolution enters the retained event outbox in the same atomic
+state save that removes the pending request. A restart before journal delivery
+retains that resolution for normal event replay and acknowledgment. A restart
+before this state save instead expires the unresolved request; neither path sends
+the provider response again.
+If persistence fails, the current executor stops accepting commands and exposing
+or acknowledging retained events. Cleanup still terminates its owned provider,
+but leaves the uncertain snapshot untouched. A fresh executor reads the complete
+atomic snapshot that survived; it cannot publish an in-memory resolution that
+conflicts with a later recovery expiry.
 Standard ACP does not acknowledge application of a permission reply; a lost
 transport acknowledgment is not proof of exactly-once external effects. A
 replacement provider process cannot inherit an old approval promise. A bounded durable ledger expires pending requests after provider loss or unsafe restart, including requests whose creation events were already acknowledged. No tool
@@ -119,7 +130,9 @@ Full plan documents have a bounded 100,000-character description and a 196 KiB
 question-set envelope. Oversized plans fail rather than approve an unseen suffix.
 Display redaction remains visible. Decision descriptions render image references as
 inert text and Mermaid diagrams as source, so reviewing a plan does not fetch
-provider-selected media. The rich event channel has exact canonical
+provider-selected media. Automatic issue-reference linking is disabled for these
+descriptions, so a long provider plan cannot start an issue-detail query for every
+identifier. The rich event channel has exact canonical
 schemas and a bounded envelope. It cannot create terminal outcomes, dispatch a
 semantic tool, register an artifact, synchronize a durable plan, or supply source
 authority. Notices retain useful bounded fields and provenance in expandable UI
@@ -183,6 +196,7 @@ qualification gates, not claims that a JavaScript path check confines a shell.
 | P1 | Complete usage/billing provenance | Missing cache fields remain unknown. Pi price estimates are displayed separately. Budget qualification requires actual spend coverage, not an estimate presented as a bill. |
 | P1 | Fork/history/model/mode controls not exposed by Paperclip | Research documents the native and ACP methods separately. Add governance-aware controls and durable lineage before enabling them. |
 | P1 | Exact pending-request restoration after process death | Session transcript restoration does not restore callbacks. Expire unresolved requests unless a provider proves exact restoration. |
+| P1 | Persistent agent-directory access through ACPX | Mainline `3ca196b0a` supplies `AGENT_HOME`, but its existing ACPX environment allowlist does not forward it. Pi also confines native writes to the task workspace, while the local persistent agent directory lives outside it. The disabled candidates do not claim this new capability. Bind and validate the company/agent/run-owned directory explicitly through launch and native-tool policy, including warm-run rebinding and cleanup-before-collection tests; do not widen ambient environment or filesystem access. |
 | P2 | Remaining Copilot native diagnostic/config/account events | The provider inventory records every event and field, its projection or reason for omission. Preserve bounded useful context; avoid credentials, raw environment or unbounded blobs. |
 | P2 | Pi native extension surfaces and unsupported slash commands | Arbitrary extensions/templates/themes may execute ambient code. Only reviewed runner-owned capabilities are admitted; structured native plan/goals are not fabricated. Native fork/clone/export are separate unmapped capabilities above. |
 | P2 | Pi status/widget/title/editor and session/configuration notifications | `setStatus`, `setWidget`, `setTitle` and `set_editor_text` have no UI projection and are unused by the owned extension. Native session-name and thinking-level events also lack a dedicated projection. Add reviewed bounded notice schemas and governed configuration controls before exposing these fields; `notify` and interactive input already have separate bridges. |

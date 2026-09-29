@@ -522,7 +522,7 @@ export function QuestionForm({
           tabIndex={0}
           className="mb-3 max-h-96 overflow-auto text-sm text-muted-foreground"
         >
-          <MarkdownBody mediaMode="reference">{questionSet.description}</MarkdownBody>
+          <MarkdownBody mediaMode="reference" linkIssueReferences={false}>{questionSet.description}</MarkdownBody>
         </div>
       ) : null}
       {question.answerMode === "text" ? (
