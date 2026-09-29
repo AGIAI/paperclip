@@ -4,11 +4,11 @@ import { join } from "node:path";
 
 // This is an owned ACP-only patch of the immutable vendor archive. The legacy
 // Cursor adapter and the vendor's interactive CLI are not changed.
-export const CURSOR_RUNTIME_PATCH_VERSION = "paperclip-cursor-isolation-v1";
+export const CURSOR_RUNTIME_PATCH_VERSION = "paperclip-cursor-instructions-v2";
 export const CURSOR_RUNTIME_PATCH_PINS = Object.freeze({
-  "darwin-arm64": { file: "5672.index.js", before: "7784c8b16d4e639814c13b12be2a687f5dc2cd98cbf29ed0a10820778ab1bf62", after: "c9e627bde091bd2559a45840f488d05dd7273100fa3ee3c32df1871e0357c0d4" },
-  "darwin-x64": { file: "9841.index.js", before: "3c0aaf6ecc4fceb0f95e1731deec75384984570d14d0871cecec11972b948ac4", after: "360ee9a5ad74a7b7a2e880d642a22f6b8841967bb1660654b6cd2b90313de988" },
-  "linux-x64": { file: "1699.index.js", before: "2de420f1b31e70ca74b083a1ce5b519c2abffa5789d71cc06e84d2c38acb7c07", after: "32f44c4981f5a26765e5101b389e3fcdb6e885b31a7ac876b68fd97afe078553" },
+  "darwin-arm64": { file: "5672.index.js", before: "7784c8b16d4e639814c13b12be2a687f5dc2cd98cbf29ed0a10820778ab1bf62", after: "c01657c111f65153d7a40a923f01a5a86d393d1cd6893eaa03f71b9604d2af0c" },
+  "darwin-x64": { file: "9841.index.js", before: "3c0aaf6ecc4fceb0f95e1731deec75384984570d14d0871cecec11972b948ac4", after: "cf0b5dbf4ec67219ce4fc49616af4c0041c4a9774e4b0840be170b749b8bc683" },
+  "linux-x64": { file: "1699.index.js", before: "2de420f1b31e70ca74b083a1ce5b519c2abffa5789d71cc06e84d2c38acb7c07", after: "d3d634fc2080efac084f00e5d403a44d0edf1c39b02b02a4ed7d5ce0e8c703ff" },
 });
 const digest = value => createHash("sha256").update(value).digest("hex");
 
@@ -35,6 +35,28 @@ export function patchCursorRuntimeSource(source, platform) {
   // refresh. A filesystem watcher would leave an execution race here.
   replace("null!=re&&n.dashboardClient&&(ae=(0,y.a)({dashboardClient:n.dashboardClient,teamId:re}));", "void re;");
   replace("let ue=yield ce.load();", "let ue={errors:[],configDirs:{}};");
+  // ACP ignores generic _meta.systemPrompt. Bind the controller-composed bytes
+  // through the native global-rule request context, for both new and load. The
+  // process-owned snapshot never discovers an instruction path in the workspace.
+  const instructionModule = 'n.d(t,{Y:()=>K});';
+  replace(instructionModule, `n.d(t,{Y:()=>K,paperclipInstructionState:()=>paperclipCursorInstructionState});
+const paperclipCursorInstructionCrypto=n("node:crypto"),paperclipCursorInstructionRules=n("../proto/dist/generated/agent/v1/cursor_rules_pb.js");
+let paperclipCursorInstructionSnapshot;
+function paperclipCursorInstructionState(){
+if(paperclipCursorInstructionSnapshot)return paperclipCursorInstructionSnapshot;
+const raw=process.env.PAPERCLIP_CURSOR_INSTRUCTIONS;
+if(typeof raw!=="string"||Buffer.byteLength(raw)>200000)throw new Error("Cursor instruction binding missing or oversized");
+let value;try{value=JSON.parse(raw)}catch{throw new Error("Cursor instruction binding invalid")}
+if(!value||typeof value!=="object"||Array.isArray(value)||Object.keys(value).sort().join(",")!=="content,digest,schema"||value.schema!=="paperclip.cursor.instructions.v1"||typeof value.content!=="string"||value.content.includes("\\0")||Buffer.byteLength(value.content)>32768||typeof value.digest!=="string"||!/^sha256:[a-f0-9]{64}$/.test(value.digest))throw new Error("Cursor instruction binding invalid");
+const digest="sha256:"+paperclipCursorInstructionCrypto.createHash("sha256").update(value.content,"utf8").digest("hex");
+if(value.digest!==digest)throw new Error("Cursor instruction binding digest mismatch");
+const rules=value.content.length===0?[]:[new paperclipCursorInstructionRules.DX({fullPath:"paperclip://runtime/instructions",content:value.content,type:new paperclipCursorInstructionRules.f5({type:{case:"global",value:new paperclipCursorInstructionRules.i9}})})];
+return paperclipCursorInstructionSnapshot=Object.freeze({rules,ack:Object.freeze({schema:"paperclip.cursor.instructions.v1",digest,byteLength:Buffer.byteLength(value.content)})});
+}`);
+  replace("cursorRulesService:n.cursorRulesService,", "cursorRulesService:n.cursorRulesService,additionalRules:paperclipCursorInstructionState().rules,");
+  replace("S={sessionId:o,modes:this.buildModesState(a),models:I,configOptions:w}", "S={sessionId:o,modes:this.buildModesState(a),models:I,configOptions:w,_meta:{paperclipCursorInstructions:y.paperclipInstructionState().ack}}");
+  const loadConfig = platform === "darwin-x64" ? "f" : "m";
+  replace(`w={modes:this.buildModesState(r),models:b,configOptions:${loadConfig}}`, `w={modes:this.buildModesState(r),models:b,configOptions:${loadConfig},_meta:{paperclipCursorInstructions:y.paperclipInstructionState().ack}}`);
   // Use the exact SDK module already present in this verified vendor chunk.
   const sdk = [...source.matchAll(/n\("([^"\n]+@agentclientprotocol\/sdk\/dist\/acp\.js)"\)/g)].map(match => match[1]);
   if (new Set(sdk).size !== 1) throw new Error("Cursor runtime patch SDK identity is ambiguous");

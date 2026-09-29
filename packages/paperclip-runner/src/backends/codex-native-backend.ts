@@ -29,6 +29,7 @@ export interface CodexNativeSessionBackendOptions {
     startedAt: string;
   }) => Promise<void>;
   transportFactory?: (context?: {
+    baseInstructions?: string;
     providerRecoveryPolicy?: PersistedNativeSession["providerRecoveryPolicy"];
     persistedSession?: Pick<
       PersistedHarnessSession,
@@ -142,16 +143,21 @@ function createTransportBackedNativeSessionBackend(
     "Return one semantic completion result.",
   ];
 
+  const baseInstructions = nativeSystemInstructions(input);
+  const transportFactory = options.transportFactory;
   return new HarnessDriverBackend(
     new CodexAppServerDriver({
       ...(input.provider.model ? { model: input.provider.model } : {}),
+      ...(input.provider.kind === "codex" && "reasoningEffort" in input.provider && input.provider.reasoningEffort
+        ? { reasoningEffort: input.provider.reasoningEffort }
+        : {}),
       // Runnerd owns provider permissions for non-Codex facades. Their
       // Codex-compatible surface must never open a second approval channel.
       approvalPolicy:
         input.provider.kind === "codex"
           ? (input.provider.approvalPolicy ?? "never")
           : "never",
-      baseInstructions: nativeSystemInstructions(input),
+      baseInstructions,
       instructionWorkingCopyRoot: "runtimeContext" in input ? input.runtimeContext.instructions.workingCopy?.rootPath : undefined,
       includeSkillInstructions: isCodex && "runtimeContext" in input,
       skillInputs: isCodex
@@ -174,7 +180,9 @@ function createTransportBackedNativeSessionBackend(
       runnerInstanceId:
         options.runnerInstanceId ?? `paperclip-native-${input.binding.runId}`,
       onSpawn: options.onSpawn,
-      transportFactory: options.transportFactory,
+      transportFactory: transportFactory
+        ? (context) => transportFactory({ ...context, baseInstructions })
+        : undefined,
       dynamicTools: options.dynamicTools,
       dynamicToolHandler: options.dynamicToolHandler,
       completionFeedback: options.completionFeedback,

@@ -4,14 +4,15 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { verifyNativeAcpxInstallation } from "./installation-integrity.js";
 import { COPILOT_CLOSURE_SHA256, verifyCopilotInstallation } from "./copilot-installation.js";
-import { COPILOT_LAUNCH_ARGUMENTS } from "./copilot-profile.js";
+import { COPILOT_LAUNCH_ARGUMENTS, COPILOT_SYSTEM_INSTRUCTION_DELIVERY } from "./copilot-profile.js";
 import { QUALIFIED_ACPX_PROFILES } from "./qualified-profiles.js";
 
 vi.mock("./installation-integrity.js", () => ({ verifyNativeAcpxInstallation: vi.fn() }));
 
 describe("Copilot build-owned installation", () => {
-  it("admits the current v3 declaration and binds its source policy/patch hashes", () => {
-    const identity = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v3-identity.json", import.meta.url), "utf8"));
+  it("admits the current v4 declaration and binds its source policy/patch hashes", () => {
+    const identity = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v4-identity.json", import.meta.url), "utf8"));
+    expect(identity.declaration.systemInstructionDelivery).toBe(COPILOT_SYSTEM_INSTRUCTION_DELIVERY);
     expect(QUALIFIED_ACPX_PROFILES.copilot.agentProfileVersion).toBe(identity.declaration.agentProfileVersion);
     expect(QUALIFIED_ACPX_PROFILES.copilot.commandDigest).toBe(identity.commandDigest);
     const sorted = Object.fromEntries(Object.entries(identity.declaration).sort(([a], [b]) => a.localeCompare(b)));
@@ -49,7 +50,7 @@ describe("Copilot build-owned installation", () => {
   });
   it("rejects changed profile identities before native file access", async () => {
     vi.mocked(verifyNativeAcpxInstallation).mockClear();
-    for (const override of [{ agentServerVersion: "latest" }, { commandDigest: "sha256:untrusted" }, { agent: "cursor" }, { agentProfileVersion: 1 }, { agentProfileVersion: 2 }, { agentProfileVersion: 4 }]) {
+    for (const override of [{ agentServerVersion: "latest" }, { commandDigest: "sha256:untrusted" }, { agent: "cursor" }, { agentProfileVersion: 1 }, { agentProfileVersion: 2 }, { agentProfileVersion: 3 }, { agentProfileVersion: 5 }]) {
       await expect(verifyCopilotInstallation({ ...QUALIFIED_ACPX_PROFILES.copilot, ...override } as never)).rejects.toThrow("exact pinned");
     }
     expect(verifyNativeAcpxInstallation).not.toHaveBeenCalled();

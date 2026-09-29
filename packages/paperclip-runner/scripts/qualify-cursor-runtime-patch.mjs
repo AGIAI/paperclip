@@ -1,3 +1,4 @@
+import { qualifyCursorInstructions } from "./qualify-cursor-instructions.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -78,7 +79,7 @@ export async function qualifyCursorRuntimePatch(vendorRoot) {
     }
     assert.throws(() => evaluate(new ConnectError()), error => error.code === -32000 && error.data.kind === "authentication_required");
     evaluate(new Error("Upgrade your plan to continue"));
-    platforms.push({ platform, file: pin.file, sourceSha256: pin.before, patchedSha256: pin.after, driftRejected: true, fullChunkCompiles: true, ambientMcpAccesses: 0, ownedMcpPreserved: true, hookConfigReads: 0, remoteTeamHookFetches: 0, typedActionErrors: true, assistantProseIgnored: true });
+    platforms.push({ instructions: await qualifyCursorInstructions(source, platform, vendorRoot), platform, file: pin.file, sourceSha256: pin.before, patchedSha256: pin.after, driftRejected: true, fullChunkCompiles: true, ambientMcpAccesses: 0, ownedMcpPreserved: true, hookConfigReads: 0, remoteTeamHookFetches: 0, typedActionErrors: true, assistantProseIgnored: true });
   }
   return { schema: "paperclip.cursor.runtime-patch-proof.v1", patchVersion: CURSOR_RUNTIME_PATCH_VERSION, providerCalls: 0, qualification: "offline-only", platforms };
 }

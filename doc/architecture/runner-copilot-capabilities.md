@@ -70,6 +70,73 @@ answered Cobalt choice, and warm-session continuation. Copilot instead supplied
 `[terminal marker]` to `paperclip_finish`. Neither the grader nor the terminal
 marker requirement changed. A final-runtime rerun remains required.
 
+### Final v3 Product question attempt
+
+The [final v3 question receipt](../../packages/paperclip-runner/test/fixtures/copilot-product-v3-question-2026-09-29.json)
+retains the single reserved attempt at source `3d0c45920`, with the exact frozen
+controller distribution, native assets, pack, Node, daemon and sidecar hashes.
+The first turn produced the structured question and the board answered Cobalt.
+Continuation failed during native `session.open` recovery, before continuation
+usage was reported, with an unclassified sidecar rejection. The 72.086-second
+case failed; cleanup passed and no retry occurred. This is a recovery/admission
+failure, distinct from the earlier literal-marker behavior failure. Neither is
+removed from qualification evidence.
+
+One run reports GitHub/unpriced usage: 28,545 input, 13,818 cached input and 525
+output tokens. Provider USD and upstream model-request count remain unknown.
+The refreshed account counter moved from 5 to 6 of 1,500 included credits;
+additional usage remained disabled with a $0 budget and $0 account cash charges.
+This account-level delta is not a per-turn USD allocation. The Product aggregate's
+zero reported cost with `unpriced`/incomplete coverage is not an authoritative
+zero-cost receipt. No additional live attempt is authorized by this result.
+
+A [credential-free native recovery reproduction](../../packages/paperclip-runner/test/fixtures/copilot-runtime-context-recovery-2026-09-29.json)
+closes the provider, deletes the prior registered instruction copy, and reproduces
+`ENOENT` at `bindAcpxAgentFiles`. Reopening with the current registered copy
+succeeds with the same native session. A second explicit fixture turn proves
+actual native `session/load` and reaches `end_turn`. The fixture uses exactly two
+loopback responses, a synthetic credential and test-only model metadata;
+it makes no paid calls and does not qualify authenticated model selection. This
+supports the stale durable runtime-context diagnosis; the failed Product run did
+not retain the underlying wire error. Cold rotated restoration now takes the
+current authenticated runtime context. Live reconnect and pending warm-transition
+receipts keep their existing context; replacing that context in an active provider
+is a separate lifecycle operation.
+
+### Native instruction delivery
+
+The current candidate is profile v4. Its declaration binds native personal-file
+instruction delivery, including replacement under the provider lifetime lease before native launch. The isolated
+`COPILOT_HOME/copilot-instructions.md` is written atomically with mode 0600 under
+the protected provider home, and empty instructions replace any stale content.
+Concurrent contenders rejected by the lease and unauthenticated admissions do
+not mutate the instruction file. The host awaits each write before releasing its
+lease, including cancellation, so a late write cannot overwrite a successor.
+Profile v3 identities are rejected before native launch; historical evidence
+below remains labeled with its original profile and source.
+
+The [native model-request probe](../../packages/paperclip-runner/test/fixtures/copilot-native-instruction-delivery-2026-09-29.json)
+retains a separate instruction-delivery failure: Copilot 1.0.88 ignores generic
+ACP `_meta.systemPrompt` on new sessions, and ACPX does not include it on load.
+Actual loopback model requests contained neither the Paperclip prompt nor the
+registered directory guidance. Passing a refreshed descriptor alone is insufficient.
+
+A credential-free follow-up wrote the composed text to the isolated provider
+home's `copilot-instructions.md`, using Copilot's native personal-instruction
+mechanism. The first request's system message contained the old directory and
+original entry. After closing the provider, deleting the old directory and
+reopening with fresh instructions, actual `session/load` and a second explicit
+turn completed. The second model request contained the current directory and
+updated entry, with neither old value in its system message. Both attempts used
+two synthetic loopback responses and no paid calls. This probe is not a final
+built-production or authenticated qualification result. A follow-up
+[source-level v4 probe](../../packages/paperclip-runner/test/fixtures/copilot-v4-native-instruction-delivery-2026-09-29.json)
+uses the actual production sandbox writer and confirms the same new/load model
+request behavior. The [post-lease source probe](../../packages/paperclip-runner/test/fixtures/copilot-v4-owned-instruction-delivery-2026-09-29.json)
+reconfirms this after moving refresh under lifetime ownership, and retains an
+earlier zero-call lease-admission failure. The final frozen pack still requires
+independent verification.
+
 ### Native detached work is explicitly unsupported
 
 The broader 2026-09-29 deterministic probe reproduces early completion for
