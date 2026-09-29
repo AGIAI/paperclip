@@ -18,8 +18,9 @@ for a reason the live test found rather than for want of testing:
 > `scope` from the token response, so nothing in the exchange itself says so.**
 > See [Scope decision](#scope-decision). This is a release blocker.
 
-Every other runbook scenario that a credential can reach now passes. See
-[Validation Hook](#validation-hook) for the scenario-by-scenario record.
+Several live read and gateway checks passed. Refresh, a real agent process,
+the organization-token method, and provider-side revocation remain unverified.
+See [Validation Hook](#validation-hook) for the scenario-by-scenario record.
 
 Authored against Paperclip App `fff410dfe777ae0427385e8297df992ba9aed4ce`, with
 `CONNECTOR-PLAYBOOK.md` blob `5efd4cca05a1c94bb47d619833ba347f416bbbed` as the
@@ -178,10 +179,23 @@ Two consequences, one for this connector and one for the product:
    Discovering `mcp:write` required RFC 7662 introspection by hand, which
    Paperclip does not do.
 
-Whether to widen the request to `mcp:write` is **not** the question this raises.
-Widening would change nothing about the token Enterpret issues and would only
-make the request describe the over-grant. The open decision is whether Paperclip
-accepts a write-capable token for a read-only connector at all.
+Widening the request to `mcp:write` would change nothing about the token
+Enterpret issues. Paperclip will not publish this as a read-only catalog
+connector while a fresh `mcp:read` request still produces an unreviewed
+`mcp:write` grant. A connector that intentionally uses write-capable tokens
+would require a separate product and security review, not a change to this
+read-oriented definition.
+
+Questions for Enterpret before retesting:
+
+1. Can a dynamically registered public client receive a token without
+   `mcp:write` when its authorization request contains only `mcp:read`?
+2. If the granted scope differs from the request, can the token response
+   report the actual scope? What happens after refresh?
+3. How can an operator invalidate a specific OAuth grant or organization auth
+   token before expiry? Does issuing a new organization token retire an old one?
+4. Can `run_graph_query` execute a mutation? What server-side rule enforces its
+   advertised `readOnlyHint: true`?
 
 ### Revocation gap
 
@@ -564,8 +578,8 @@ Steps 1–3 below are **done** as of 2026-09-25 and are kept for the record. Ste
    reason to trust.
 3. ~~Authorization to attempt DCR against `oauth.enterpret.com`.~~ **Done** —
    DCR succeeded; a public client, no pre-registration needed.
-4. **The scope over-grant resolved.** This is the blocker. Three things have to
-   happen, in this order:
+4. **The scope over-grant resolved.** This is the blocker. These requirements
+   must be met before a read-oriented catalog release:
    - The product change that stops recording a requested scope as the granted
      one must land (#14059). Be precise about what it buys: it marks the stored
      scope as `requested_fallback`, meaning "this is our request, not the
@@ -575,10 +589,15 @@ Steps 1–3 below are **done** as of 2026-09-25 and are kept for the record. Ste
      not introspect, so the actual extra scopes stay unknown to it. Tracked
      separately from this PR because it changes the shared OAuth completion
      path for every connector.
-   - A reviewed decision on whether Paperclip ships a read-only connector whose
-     provider issues a write-capable token, and what it tells operators if so.
-   - Enterpret contacted about honouring `mcp:read`, or the limitation accepted
-     and documented at the point of connection rather than only here.
+   - Enterpret confirms a supported way to issue a token without `mcp:write`
+     for a client that requests only `mcp:read`, and reports the actual grant
+     when it differs from the request.
+   - A fresh authorization and refresh are checked with token introspection.
+     Neither token may carry `mcp:write` or another unreviewed scope. Record
+     the request, token-response scope, and introspection result without
+     retaining the token in the validation artifact.
+   - The review establishes whether `run_graph_query` can mutate data. Do not
+     rely on its provider-supplied `readOnlyHint` as proof of a read boundary.
 5. Refresh and recovery exercised, which this run deliberately stopped short of.
 6. `mcp-api-key` validated, or the method dropped from the definition.
 7. Self-hosted VPS evidence, if the entry is to claim that deployment.
