@@ -20,7 +20,7 @@ const supportedTargets = new Set(["darwin-arm64", "darwin-x64", "linux-x64"]);
 export const PI_DISTRIBUTION_PINS = Object.freeze({
   wrapper: "0.0.33", runtime: "0.84.2", sdk: "0.26.0", zod: "3.25.76", nodeVersion: PI_NODE_VERSION, undici: "8.10.2", nodeBundledUndici: "7.29.1",
   wrapperSha256: "dc4786faff30942e82106c87a8984a75fb979a925ff1d62648500a642b920cac",
-  helperSha256: "9e50b60644d0d00b3fb2660eb78ad616dd01395775bcb05974d2bdeadc7f7e57",
+  helperSha256: "2df24aee67ca6a5cc813e1f87324f51a72f6a104757daed97a09cbbcb63626d4",
 });
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 

@@ -1,12 +1,12 @@
 import { startRunnerToolBridge } from "../runner-tool-bridge.js";
 import { createServer } from "node:http";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   checkPiNativeTool, installPiRuntimeExtension, piMcpRequest, readPiRuntimeConfiguration,
-  PI_PERMISSION_TITLE_PREFIX, type PiExtensionApi, type PiRuntimeConfiguration, type PiToolDefinition,
+  PI_NATIVE_QUESTION_TOOL, PI_PERMISSION_TITLE_PREFIX, type PiExtensionApi, type PiRuntimeConfiguration, type PiToolDefinition,
 } from "./pi-runtime-extension.js";
 
 const directories: string[] = [];
@@ -24,11 +24,85 @@ async function workspace() {
 function harness() {
   const handlers = new Map<string, (...args: any[]) => any>();
   const tools: PiToolDefinition[] = [];
-  const api = { on: (event: string, handler: (...args: any[]) => any) => handlers.set(event, handler), registerTool: (tool: PiToolDefinition) => tools.push(tool), registerCommand: vi.fn() } as unknown as PiExtensionApi;
-  return { api, handlers, tools };
+  const nativeTools: PiToolDefinition[] = [];
+  const api = { on: (event: string, handler: (...args: any[]) => any) => handlers.set(event, handler), registerTool: (tool: PiToolDefinition) => (tool.name === PI_NATIVE_QUESTION_TOOL ? nativeTools : tools).push(tool), registerCommand: vi.fn() } as unknown as PiExtensionApi;
+  return { api, handlers, tools, nativeTools };
 }
 
 describe("owned Pi runtime extension", () => {
+  it("admits only the canonical registered agent-files root and revalidates it after approval", async () => {
+    const { config, root } = await workspace(); const h = harness();
+    const agentHome = join(await realpath(root), "agent-files"); await mkdir(agentHome);
+    const assigned = { ...config, agentHome };
+    await installPiRuntimeExtension(h.api, assigned); h.handlers.get("turn_start")!();
+    const select = vi.fn().mockResolvedValue("Allow once"); const context = { cwd: config.workspace, ui: { select } };
+    const event = { toolName: "write", toolCallId: "memory", input: { path: join(agentHome, "MEMORY.md") } };
+    expect(await h.handlers.get("tool_call")!(event, context)).toBeUndefined();
+    expect(await checkPiNativeTool(event, context, config)).toMatch("outside");
+    assigned.readOnly = true;
+    expect(await checkPiNativeTool(event, context, assigned)).toMatch("reading only");
+    expect(await checkPiNativeTool({ ...event, toolName: "read" }, context, assigned)).toBeNull();
+    assigned.readOnly = false;
+    await symlink(join(root, "private"), join(agentHome, "escape"));
+    expect(await checkPiNativeTool({ ...event, input: { path: join(agentHome, "escape/secret") } }, context, assigned)).toMatch("protected");
+    select.mockImplementation(async () => {
+      await rename(agentHome, `${agentHome}-old`); await symlink(join(root, "private"), agentHome); return "Allow once";
+    });
+    expect(await h.handlers.get("tool_call")!({ ...event, toolCallId: "late-memory" }, context)).toMatchObject({ block: true });
+    await expect(installPiRuntimeExtension(harness().api, assigned)).rejects.toThrow("canonical");
+    await expect(installPiRuntimeExtension(harness().api, { ...config, agentHome: await realpath(join(root, "private")) })).rejects.toThrow("overlap");
+  });
+
+  it("pins the agent-files directory identity across same-path replacement", async () => {
+    const { config, root } = await workspace(); const h = harness();
+    const agentHome = join(await realpath(root), "agent-files"); await mkdir(agentHome);
+    await installPiRuntimeExtension(h.api, { ...config, agentHome }); h.handlers.get("turn_start")!();
+    const select = vi.fn().mockImplementation(async () => {
+      await rename(agentHome, `${agentHome}-old`); await mkdir(agentHome); return "Allow once";
+    });
+    expect(await h.handlers.get("tool_call")!({ toolName: "write", toolCallId: "memory", input: { path: join(agentHome, "MEMORY.md") } }, { cwd: config.workspace, ui: { select } })).toMatchObject({ block: true, reason: "Pi agent files were replaced after admission" });
+  });
+
+  it.each([
+    ["select", { options: [{ id: "blue", label: "Blue" }, { id: "red", label: "Red" }] }, "Blue", { status: "answered", optionId: "blue" }],
+    ["confirm", { message: "Continue?" }, true, { status: "answered", confirmed: true }],
+    ["confirm", { message: "Continue?" }, false, { status: "negative_or_cancelled", confirmed: false }],
+    ["input", { placeholder: "Name" }, "Ada", { status: "answered", value: "Ada" }],
+    ["editor", { prefill: "Old\ntext" }, "New\ntext", { status: "answered", value: "New\ntext" }],
+    ["input", {}, undefined, { status: "cancelled" }],
+  ])("exposes native %s questions with bounded typed answers and exact retry identity", async (method, extra, answer, expected) => {
+    const { config } = await workspace(); const h = harness();
+    await installPiRuntimeExtension(h.api, config); h.handlers.get("turn_start")!();
+    const ui = { select: vi.fn(), confirm: vi.fn(), input: vi.fn(), editor: vi.fn() };
+    ui[method as keyof typeof ui].mockResolvedValue(answer);
+    const context = { cwd: config.workspace, ui }; const args = { method, title: "Question", ...extra };
+    const tool = h.nativeTools[0]!;
+    expect(await h.handlers.get("tool_call")!({ toolName: tool.name, toolCallId: "question", input: args }, context)).toBeUndefined();
+    const result = await tool.execute("question", args, undefined, undefined, context);
+    expect(result.details).toEqual(expected);
+    expect(await tool.execute("question", args, undefined, undefined, context)).toEqual(result);
+    expect(ui[method as keyof typeof ui]).toHaveBeenCalledTimes(1);
+    if (method !== "select") expect(ui.select).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed native questions and never routes them as permissions", async () => {
+    const { config } = await workspace(); const h = harness();
+    await installPiRuntimeExtension(h.api, config); h.handlers.get("turn_start")!();
+    const ui = { select: vi.fn(), confirm: vi.fn(), input: vi.fn(), editor: vi.fn() };
+    const context = { cwd: config.workspace, ui };
+    const invalid = [
+      { method: "input", title: `${PI_PERMISSION_TITLE_PREFIX}{}` },
+      { method: "select", title: "Question", options: [{ id: "a", label: "Same" }, { id: "b", label: "Same" }] },
+      { method: "select", title: "Question", options: [{ id: "a", label: "One" }, { id: "a", label: "Two" }] },
+      { method: "input", title: "Question", command: "touch forbidden" },
+      { method: "editor", title: "Question", prefill: "x".repeat(16385) },
+      { method: "multi-select", title: "Question" },
+    ];
+    for (const [index, args] of invalid.entries()) await expect(h.nativeTools[0]!.execute(`invalid-${index}`, args, undefined, undefined, context)).rejects.toThrow();
+    expect(Object.values(ui).every(fn => fn.mock.calls.length === 0)).toBe(true);
+    const abort = new AbortController(); abort.abort();
+    expect((await h.nativeTools[0]!.execute("cancelled", { method: "input", title: "Question" }, abort.signal, undefined, context)).details).toEqual({ status: "cancelled" });
+  });
   it("requires explicit assigned configuration, authenticated HTTPS or numeric loopback HTTP", () => {
     expect(() => readPiRuntimeConfiguration({})).toThrow("missing");
     const value = { invocationNamespace: "00000000-0000-4000-8000-000000000000", workspace: "/work/project", readOnly: false, readRoots: [], protectedRoots: [], instructions: "", servers: [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1234/mcp", headers: [{ name: "Authorization", value: "Bearer 1234567890123456" }] }] };
@@ -98,6 +172,49 @@ describe("owned Pi runtime extension", () => {
     expect(context.ui.select.mock.calls[0]![0]).toMatch(PI_PERMISSION_TITLE_PREFIX);
     context.ui.select = vi.fn().mockResolvedValue(undefined);
     expect(await h.handlers.get("tool_call")!({ toolName: "bash", toolCallId: "b", input: { command: "pwd" } }, context)).toMatchObject({ block: true });
+  });
+
+  it("checks Pi path expansion against workspace and protected roots before approval", async () => {
+    const { config, root } = await workspace(); const h = harness();
+    await mkdir(join(config.workspace, "protected"));
+    config.protectedRoots.push(join(config.workspace, "protected"));
+    await mkdir(join(config.workspace, "space name"));
+    await symlink(join(root, "private"), join(config.workspace, "space name", "escape"));
+    await installPiRuntimeExtension(h.api, config); h.handlers.get("turn_start")!();
+    const select = vi.fn().mockResolvedValue("Allow once");
+    const context = { cwd: config.workspace, ui: { select } };
+    const paths = [
+      `@${root}/private/secret`, `file://${root}/private/secret`, "~/secret", "~", "@~/secret",
+      `@${config.workspace}/protected/secret`, `file://${config.workspace}/protected/secret`,
+      "space\u00a0name/escape/secret", "space\u202fname/escape/secret",
+      "file:///tmp/invalid%00name",
+    ];
+    for (const [index, path] of paths.entries()) {
+      expect(await h.handlers.get("tool_call")!({ toolName: "write", toolCallId: `expanded-${index}`, input: { path } }, context), path).toMatchObject({ block: true });
+    }
+    expect(select).not.toHaveBeenCalled();
+    for (const [index, path] of [`@${config.workspace}/safe`, `file://${config.workspace}/safe`, "space\u00a0name/safe"].entries()) {
+      expect(await h.handlers.get("tool_call")!({ toolName: "write", toolCallId: `safe-${index}`, input: { path } }, context)).toBeUndefined();
+    }
+    expect(select).toHaveBeenCalledTimes(3);
+  });
+
+  it("rejects read fallback aliases to private state before and after a permission wait", async () => {
+    const { config, root } = await workspace(); const h = harness();
+    const aliases = [["capture 1 PM.png", "capture 1\u202fPM.png"], ["caf\u00e9", "cafe\u0301"], ["a'b", "a\u2019b"], ["caf\u00e9'b", "cafe\u0301\u2019b"]];
+    for (const [, alternate] of aliases) await symlink(join(root, "private"), join(config.workspace, alternate!));
+    await installPiRuntimeExtension(h.api, config); h.handlers.get("turn_start")!();
+    const select = vi.fn().mockResolvedValue("Allow once");
+    const context = { cwd: config.workspace, ui: { select } };
+    for (const [index, [path]] of aliases.entries()) {
+      expect(await h.handlers.get("tool_call")!({ toolName: "read", toolCallId: `alternate-${index}`, input: { path } }, context)).toMatchObject({ block: true });
+    }
+    expect(select).not.toHaveBeenCalled();
+    select.mockImplementation(async () => {
+      await symlink(join(root, "private"), join(config.workspace, "late\u2019alias"));
+      return "Allow once";
+    });
+    expect(await h.handlers.get("tool_call")!({ toolName: "read", toolCallId: "late", input: { path: "late'alias" } }, context)).toMatchObject({ block: true });
   });
 
   it("makes assigned skills readable but never writable", async () => {

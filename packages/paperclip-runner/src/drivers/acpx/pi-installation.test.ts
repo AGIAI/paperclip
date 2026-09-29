@@ -10,7 +10,7 @@ import { QUALIFIED_ACPX_PROFILES, type QualifiedAcpxProfile } from "./qualified-
 
 const roots: string[] = [];
 afterEach(async () => { vi.unstubAllEnvs(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
-const candidate = (): QualifiedAcpxProfile => ({ ...QUALIFIED_ACPX_PROFILES.pi, agentProfileVersion: 5 });
+const candidate = (): QualifiedAcpxProfile => ({ ...QUALIFIED_ACPX_PROFILES.pi, agentProfileVersion: 6 });
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "pi-installation-test-")); roots.push(root);
@@ -24,7 +24,7 @@ async function fixture() {
 
 describe("Pi installation factory", () => {
   it("binds the profile declaration to the reviewed patch and platform closure pins", async () => {
-    const digest = createHash("sha256").update("paperclip.pi.rich-acp.profile.v5\0")
+    const digest = createHash("sha256").update("paperclip.pi.rich-acp.profile.v6\0")
       .update(await readFile(new URL("../../../../../patches/pi-acp@0.0.33.patch", import.meta.url)))
       .update("\0").update(await readFile(new URL("./pi-closure-pins.ts", import.meta.url))).digest("hex");
     expect(QUALIFIED_ACPX_PROFILES.pi.commandDigest).toBe(`sha256:${digest}`);
@@ -32,10 +32,11 @@ describe("Pi installation factory", () => {
 
   it("rejects legacy profiles and caller-selected identities", () => {
     expect(() => assertPiInstallationProfile(candidate())).not.toThrow();
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 1 })).toThrow("version 5");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 2 })).toThrow("version 5");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 3 })).toThrow("version 5");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 4 })).toThrow("version 5");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 1 })).toThrow("version 6");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 2 })).toThrow("version 6");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 3 })).toThrow("version 6");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 4 })).toThrow("version 6");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 5 })).toThrow("version 6");
     for (const changed of [{ agentServerVersion: "latest" }, { commandDigest: `sha256:${"0".repeat(64)}` }, { reportedModelId: "different" }, { agentRuntimePackage: "ambient-pi" }]) {
       expect(() => assertPiInstallationProfile({ ...candidate(), ...changed })).toThrow("trusted declaration");
     }

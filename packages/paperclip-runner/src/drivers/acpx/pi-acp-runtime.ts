@@ -192,11 +192,18 @@ export function createPiLaunchSpec(
   const readRoots = pathArray(environment.PAPERCLIP_PI_READ_ROOTS);
   const protectedRoots = pathArray(environment.PAPERCLIP_PI_PROTECTED_ROOTS);
   const workspace = realpathSync(params.cwd);
+  const suppliedAgentHome = environment.PAPERCLIP_PI_AGENT_HOME;
+  let agentHome: string | undefined;
+  if (suppliedAgentHome !== undefined) {
+    if (!isAbsolute(suppliedAgentHome) || /[\0\r\n]/.test(suppliedAgentHome) || suppliedAgentHome === "/" || !lstatSync(suppliedAgentHome).isDirectory() || realpathSync(suppliedAgentHome) !== suppliedAgentHome) throw new Error("Pi agent files require a canonical registered directory");
+    agentHome = suppliedAgentHome;
+  }
   const invocationNamespace = randomUUID();
   const configuration = JSON.stringify({
     invocationNamespace, workspace, servers: params.mcpServers ?? [],
     readOnly: environment.PAPERCLIP_PI_READ_ONLY === "1",
     readRoots, protectedRoots,
+    ...(agentHome ? { agentHome } : {}),
     instructions: environment.PAPERCLIP_PI_SYSTEM_INSTRUCTIONS ?? "",
   });
   if (Buffer.byteLength(configuration) > 64 * 1024) throw new Error("Pi launch configuration exceeds its bound");
@@ -213,7 +220,11 @@ export function createPiLaunchSpec(
     if (!suffix || isAbsolute(suffix) || suffix === ".." || suffix.startsWith(`..${sep}`) || !lstatSync(params.sessionPath).isFile()) throw new Error("Pi session escaped its private home");
     args.push("--session", sessionPath);
   }
-  return { command, args, invocationNamespace, env: { ...environment, PAPERCLIP_PI_RUNTIME_CONFIGURATION: configuration } };
+  const env: NodeJS.ProcessEnv = { ...environment, PAPERCLIP_PI_RUNTIME_CONFIGURATION: configuration };
+  // Ambient AGENT_HOME never grants filesystem authority. Only the runner's
+  // authenticated working-copy binding reaches both the model and tool gate.
+  if (agentHome) env.AGENT_HOME = agentHome; else delete env.AGENT_HOME;
+  return { command, args, invocationNamespace, env };
 }
 
 interface UiConnection {

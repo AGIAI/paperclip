@@ -153,6 +153,18 @@ test("actual patched ACP process keeps text questions separate from native permi
   assert.equal(f.requests[1].params.options[1].kind, "allow_always");
 });
 
+for (const [method, answer, expected] of [["select", "Blue", { value: "Blue" }], ["confirm", false, { confirmed: false }], ["input", "Ada", { value: "Ada" }], ["editor", "New\ntext", { value: "New\ntext" }]]) {
+  test(`actual patched ACP ${method} question round-trips through form elicitation`, async t => {
+    const f = await fixture(t); const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
+    f.setAnswer(async () => ({ action: "accept", content: { answer } }));
+    await f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: `native-question-${method}` }] });
+    assert.equal(f.requests.length, 1); assert.notEqual(f.requests[0].method, "session/request_permission");
+    assert.equal(f.requests[0].params._meta.paperclipPi.method, method);
+    const response = f.notifications.map(event => event.params?.update?.content?.text).find(text => text?.includes('"extension_ui_response"'));
+    assert.deepEqual(JSON.parse(response), { type: "extension_ui_response", id: `native-${method}`, ...expected });
+  });
+}
+
 test("native steering is explicit and does not replace the active ACP turn", async (t) => {
   const f = await fixture(t); const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
   const prompt = f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "long" }] });

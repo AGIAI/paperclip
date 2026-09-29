@@ -4,11 +4,14 @@
  * Structural types keep this module independent of Pi's optional UI packages.
  */
 import { PiToolIdentities } from "./pi-acp-runtime.js";
-import { realpath } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { lstat, realpath } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const PI_PERMISSION_TITLE_PREFIX = "paperclip.pi.permission.v1:";
 export const PI_PERMISSION_OPTIONS = ["Allow once", "Allow for this session", "Deny"] as const;
+export const PI_NATIVE_QUESTION_TOOL = "paperclip_native_question";
 const MAX_CONFIGURATION_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const MAX_TOOLS = 512;
@@ -16,7 +19,10 @@ const MAX_TOOLS = 512;
 const MAX_ERROR_BYTES = 8_192;
 
 interface PiUi {
-  select(title: string, options: string[]): Promise<string | undefined>;
+  select(title: string, options: string[], options_?: { signal?: AbortSignal }): Promise<string | undefined>;
+  confirm?(title: string, message: string, options?: { signal?: AbortSignal }): Promise<boolean>;
+  input?(title: string, placeholder?: string, options?: { signal?: AbortSignal }): Promise<string | undefined>;
+  editor?(title: string, prefill?: string): Promise<string | undefined>;
 }
 
 export interface PiExtensionContext { cwd: string; ui: PiUi }
@@ -35,6 +41,8 @@ export interface PiToolDefinition {
     toolCallId: string,
     arguments_: Record<string, unknown>,
     signal?: AbortSignal,
+    onUpdate?: unknown,
+    context?: PiExtensionContext,
   ): Promise<{ content: Array<Record<string, unknown>>; details?: unknown }>;
 }
 
@@ -61,6 +69,8 @@ export interface PiRuntimeConfiguration {
   invocationNamespace: string;
   servers: PiMcpServer[];
   workspace: string;
+  /** Canonical server-registered agent_files working copy, never ambient HOME. */
+  agentHome?: string;
   readOnly: boolean;
   readRoots: string[];
   protectedRoots: string[];
@@ -102,6 +112,7 @@ export function readPiRuntimeConfiguration(environment: NodeJS.ProcessEnv): PiRu
   if (typeof value.instructions !== "string" || Buffer.byteLength(value.instructions) > 32 * 1024) throw new Error("Pi runtime instructions are invalid");
   return {
     invocationNamespace, servers, workspace, readOnly: value.readOnly,
+    ...(value.agentHome === undefined ? {} : { agentHome: absolutePath(value.agentHome, "agent home") }),
     readRoots: pathList(value.readRoots, "read roots"),
     protectedRoots: pathList(value.protectedRoots, "protected roots"),
     instructions: value.instructions,
@@ -137,10 +148,28 @@ async function physicalPath(path: string): Promise<string> {
   }
 }
 
+/** Match the pinned Pi 0.84.2 tools/path-utils.js before authorizing a path.
+ * Read may select any of its filename fallbacks; validate all of them so an
+ * alternate spelling cannot select an unchecked symlink after approval.
+ */
+export function piNativeToolPaths(value: string, workspace: string, read: boolean): string[] {
+  let normalized = value.replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ");
+  if (normalized.startsWith("@")) normalized = normalized.slice(1);
+  if (normalized === "~") normalized = homedir();
+  else if (normalized.startsWith("~/")) normalized = join(homedir(), normalized.slice(2));
+  else if (normalized.startsWith("file://")) normalized = fileURLToPath(normalized);
+  if (/[\0\r\n]/.test(normalized)) throw new Error("Pi tool path is invalid");
+  const path = resolve(workspace, normalized);
+  if (!read) return [path];
+  const nfd = path.normalize("NFD");
+  return [...new Set([path, path.replace(/ (AM|PM)\./gi, "\u202F$1."), nfd, path.replace(/'/g, "\u2019"), nfd.replace(/'/g, "\u2019")])];
+}
+
 export async function checkPiNativeTool(
   event: PiToolEvent, context: PiExtensionContext, config: PiRuntimeConfiguration,
 ): Promise<string | null> {
   if (await realpath(context.cwd) !== await realpath(config.workspace)) return "Pi workspace changed after admission";
+  if (config.agentHome && await realpath(config.agentHome) !== config.agentHome) return "Pi agent files changed after admission";
   const readTools = new Set(["read", "grep", "find", "ls"]);
   const fileTools = new Set([...readTools, "edit", "write"]);
   if (!fileTools.has(event.toolName) && event.toolName !== "bash") return "Unregistered Pi tool is not admitted";
@@ -150,21 +179,66 @@ export async function checkPiNativeTool(
   if (event.toolName === "bash") return null;
   const pathValue = event.input.path ?? (readTools.has(event.toolName) ? "." : undefined);
   if (typeof pathValue !== "string" || /[\0\r\n]/.test(pathValue)) return "Pi tool path is invalid";
-  const logical = resolve(config.workspace, pathValue);
-  const target = await physicalPath(logical);
-  if (!readTools.has(event.toolName)) {
-    for (const root of config.readRoots) {
-      if (inside(root, logical) || inside(await realpath(root), target)) return "Assigned Pi skills are read-only";
+  for (const logical of piNativeToolPaths(pathValue, config.workspace, event.toolName === "read")) {
+    const target = await physicalPath(logical);
+    if (!readTools.has(event.toolName)) {
+      for (const root of config.readRoots) {
+        if (inside(root, logical) || inside(await realpath(root), target)) return "Assigned Pi skills are read-only";
+      }
     }
+    for (const root of config.protectedRoots) {
+      if (inside(root, logical) || inside(await physicalPath(root), target)) return "Pi tool targets protected runtime state";
+    }
+    const writableRoots = [config.workspace, ...(config.agentHome ? [config.agentHome] : [])];
+    const roots = readTools.has(event.toolName) ? [...writableRoots, ...config.readRoots] : writableRoots;
+    let admitted = false;
+    for (const root of roots) {
+      if (inside(root, logical) && inside(await realpath(root), target)) { admitted = true; break; }
+    }
+    if (!admitted) return "Pi tool path is outside its assigned workspace and agent files";
   }
-  for (const root of config.protectedRoots) {
-    if (inside(root, logical) || inside(await physicalPath(root), target)) return "Pi tool targets protected runtime state";
+  return null;
+}
+
+async function askPiNativeQuestion(args: Record<string, unknown>, ui: PiUi, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  const boundedText = (value: unknown, limit = 16_384): string => {
+    if (typeof value !== "string" || Buffer.byteLength(value) > limit) throw new Error("Pi question text is invalid or oversized");
+    return value;
+  };
+  const title = boundedText(args.title, 4096);
+  if (!title.trim() || title.startsWith(PI_PERMISSION_TITLE_PREFIX)) throw new Error("Pi question title is invalid");
+  const method = args.method;
+  const permitted = ["method", "title", ...(method === "select" ? ["options"] : method === "confirm" ? ["message"] : method === "input" ? ["placeholder"] : method === "editor" ? ["prefill"] : [])];
+  if (Object.keys(args).some(key => !permitted.includes(key))) throw new Error("Pi question has unsupported fields");
+  if (signal?.aborted) return { status: "cancelled" };
+  if (method === "select") {
+    if (!Array.isArray(args.options) || args.options.length < 1 || args.options.length > 128) throw new Error("Pi question options are invalid");
+    const options = args.options.map(value => {
+      const option = asRecord(value); const id = boundedText(option.id, 128); const label = boundedText(option.label, 4096);
+      if (!/^[A-Za-z0-9_-]+$/.test(id) || !label.trim() || Object.keys(option).some(key => !["id", "label"].includes(key))) throw new Error("Pi question option is invalid");
+      return { id, label };
+    });
+    if (new Set(options.map(option => option.id)).size !== options.length || new Set(options.map(option => option.label)).size !== options.length) throw new Error("Pi question options are ambiguous");
+    const answer = await ui.select(title, options.map(option => option.label), { signal });
+    if (signal?.aborted || answer === undefined) return { status: "cancelled" };
+    const selected = options.find(option => option.label === answer);
+    if (!selected) throw new Error("Pi question returned an unoffered option");
+    return { status: "answered", optionId: selected.id };
   }
-  const roots = readTools.has(event.toolName) ? [config.workspace, ...config.readRoots] : [config.workspace];
-  for (const root of roots) {
-    if (inside(root, logical) && inside(await realpath(root), target)) return null;
+  if (method === "confirm") {
+    if (!ui.confirm) throw new Error("Pi native confirmation is unavailable");
+    const answer = await ui.confirm(title, boundedText(args.message), { signal });
+    if (signal?.aborted) return { status: "cancelled" };
+    if (typeof answer !== "boolean") throw new Error("Pi confirmation response is invalid");
+    // Native Pi returns false for both No and dismissal. Never invent an answer.
+    return { status: answer ? "answered" : "negative_or_cancelled", confirmed: answer };
   }
-  return "Pi tool path is outside its assigned workspace";
+  if (method !== "input" && method !== "editor") throw new Error("Pi question method is unsupported");
+  if (method === "input" && !ui.input || method === "editor" && !ui.editor) throw new Error("Pi native text question is unavailable");
+  const value = method === "input"
+    ? await ui.input!(title, args.placeholder === undefined ? undefined : boundedText(args.placeholder), { signal })
+    : await ui.editor!(title, args.prefill === undefined ? undefined : boundedText(args.prefill));
+  return signal?.aborted || value === undefined ? { status: "cancelled" } : { status: "answered", value: boundedText(value, 65_536) };
 }
 
 /** Keep authenticated tool validation useful without exposing transport credentials. */
@@ -241,6 +315,21 @@ export async function installPiRuntimeExtension(
   pi.on("turn_end", () => identities.end());
   const bridgeTools = new Set<string>();
   const permissionGrants = new Set<string>();
+  const agentHomeIdentity = config.agentHome ? await lstat(config.agentHome, { bigint: true }) : undefined;
+  if (config.agentHome) {
+    if (!agentHomeIdentity!.isDirectory() || await realpath(config.agentHome) !== config.agentHome) throw new Error("Pi agent files are not a canonical registered directory");
+    for (const root of config.protectedRoots) {
+      const physical = await physicalPath(root);
+      if (inside(config.agentHome, physical) || inside(physical, config.agentHome)) throw new Error("Pi agent files overlap protected runtime state");
+    }
+  }
+  const checkPolicy = async (event: PiToolEvent, context: PiExtensionContext): Promise<string | null> => {
+    if (config.agentHome && agentHomeIdentity) {
+      const named = await lstat(config.agentHome, { bigint: true });
+      if (!named.isDirectory() || named.dev !== agentHomeIdentity.dev || named.ino !== agentHomeIdentity.ino) return "Pi agent files were replaced after admission";
+    }
+    return checkPiNativeTool(event, context, config);
+  };
   // Assigned skills are a separate immutable lease. A config or executable
   // directory must never gain readability by being presented as a skill root.
   for (const root of config.readRoots) {
@@ -259,8 +348,8 @@ export async function installPiRuntimeExtension(
   pi.on("tool_call", async (event, context) => {
     try {
       const toolCallId = identities.bind(event.toolCallId, event.toolName, event.input, true);
-      if (bridgeTools.has(event.toolName)) return;
-      const denial = await checkPiNativeTool(event, context, config);
+      if (bridgeTools.has(event.toolName) || event.toolName === PI_NATIVE_QUESTION_TOOL) return;
+      const denial = await checkPolicy(event, context);
       if (denial) return { block: true, reason: denial };
       const detail = JSON.stringify({ toolCallId, ...identities.provenance(toolCallId), toolName: event.toolName, input: event.input });
       if (Buffer.byteLength(detail) > 48 * 1024) return { block: true, reason: "Pi permission request is oversized" };
@@ -271,10 +360,27 @@ export async function installPiRuntimeExtension(
         : await context.ui.select(`${PI_PERMISSION_TITLE_PREFIX}${detail}`, [...PI_PERMISSION_OPTIONS]);
       if (selection !== "Allow once" && selection !== "Allow for this session") return { block: true, reason: "Pi operation was denied or cancelled" };
       // Re-check file bindings after a human wait; approval never freezes paths.
-      const changed = await checkPiNativeTool(event, context, config);
+      const changed = await checkPolicy(event, context);
       if (!changed && selection === "Allow for this session" && permissionGrants.size < 4096) permissionGrants.add(grantKey);
       return changed ? { block: true, reason: changed } : undefined;
     } catch { return { block: true, reason: "Pi permission boundary is unavailable" }; }
+  });
+  const questions = new Map<string, Promise<{ content: Array<Record<string, unknown>>; details: unknown }>>();
+  pi.registerTool({
+    name: PI_NATIVE_QUESTION_TOOL, label: "Ask a native question",
+    description: "Ask the human a native Pi select, confirm, input, or editor question. Select is single-choice and returns the supplied stable option ID. This cannot approve tools or a Paperclip Plan. For durable task questions or Plan approval use the assigned Paperclip semantic tools. Cancellation is not an answer; confirm false means No or dismissal.",
+    parameters: { type: "object", additionalProperties: false, required: ["method", "title"], properties: {
+      method: { type: "string", enum: ["select", "confirm", "input", "editor"] }, title: { type: "string", maxLength: 4096 },
+      options: { type: "array", minItems: 1, maxItems: 128, items: { type: "object", additionalProperties: false, required: ["id", "label"], properties: { id: { type: "string", pattern: "^[A-Za-z0-9_-]{1,128}$" }, label: { type: "string", maxLength: 4096 } } } },
+      message: { type: "string", maxLength: 16384 }, placeholder: { type: "string", maxLength: 16384 }, prefill: { type: "string", maxLength: 16384 },
+    } },
+    async execute(callId, args, signal, _onUpdate, context) {
+      const id = identities.bind(callId, PI_NATIVE_QUESTION_TOOL, args);
+      const previous = questions.get(id); if (previous) return previous;
+      if (!context?.ui || questions.size >= 4096) throw new Error("Pi native question context is unavailable or exhausted");
+      const pending = askPiNativeQuestion(args, context.ui, signal).then(result => ({ content: [{ type: "text", text: JSON.stringify(result) }], details: result }));
+      questions.set(id, pending); return pending;
+    },
   });
   let count = 0;
   for (const server of config.servers) {

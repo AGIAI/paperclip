@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createServer } from "node:http";
-import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { stripTypeScriptTypes } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -15,6 +15,38 @@ const packageRoot = process.env.PAPERCLIP_TEST_PI_RUNTIME_ROOT
   ?? dirname(dirname(fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"))));
 const metadata = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
 const extensionSource = await readFile(new URL("../src/drivers/acpx/pi-runtime-extension.ts", import.meta.url), "utf8");
+
+test("owned gate authorizes the actual pinned SDK path expansions and read fallbacks", async () => {
+  assert.equal(metadata.version, "0.84.2");
+  const { resolveToCwd, resolveReadPathAsync } = await import(pathToFileURL(join(packageRoot, "dist/core/tools/path-utils.js")).href);
+  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-native-paths-")));
+  try {
+    const workspace = join(root, "workspace"); const privateRoot = join(root, "private");
+    await mkdir(workspace); await mkdir(privateRoot);
+    const secret = join(privateRoot, "sentinel"); await writeFile(secret, "private fixture");
+    await writeFile(join(root, "extension.mjs"), stripTypeScriptTypes(extensionSource));
+    await writeFile(join(root, "pi-acp-runtime.js"), stripTypeScriptTypes(await readFile(new URL("../src/drivers/acpx/pi-acp-runtime.ts", import.meta.url), "utf8")));
+    const { piNativeToolPaths, checkPiNativeTool } = await import(pathToFileURL(join(root, "extension.mjs")).href);
+    const config = { workspace, readOnly: false, readRoots: [], protectedRoots: [privateRoot] };
+    const context = { cwd: workspace };
+    for (const path of [`@${secret}`, `file://${secret}`, "~", "~/sentinel", "@~/sentinel", "~//sentinel", "space\u00a0name/sentinel", "space\u202fname/sentinel", "@safe", "ordinary"]) {
+      assert.equal(piNativeToolPaths(path, workspace, false)[0], resolveToCwd(path, workspace), path);
+    }
+    for (const path of [`@${secret}`, `file://${secret}`, "~", "~/sentinel", "@~/sentinel"]) {
+      assert.notEqual(await checkPiNativeTool({ toolName: "read", input: { path } }, context, config), null, path);
+    }
+    for (const [path, alternate] of [["capture 1 PM.png", "capture 1\u202fPM.png"], ["a'b", "a\u2019b"], ["caf\u00e9'b", "cafe\u0301\u2019b"]]) {
+      await symlink(secret, join(workspace, alternate));
+      const actual = await resolveReadPathAsync(path, workspace);
+      assert.equal(await realpath(actual), secret);
+      assert.ok(piNativeToolPaths(path, workspace, true).includes(actual));
+      assert.notEqual(await checkPiNativeTool({ toolName: "read", input: { path } }, context, config), null, path);
+    }
+    await mkdir(join(workspace, "space name")); await symlink(secret, join(workspace, "space name/sentinel"));
+    assert.equal(await realpath(resolveToCwd("space\u00a0name/sentinel", workspace)), secret);
+    assert.notEqual(await checkPiNativeTool({ toolName: "read", input: { path: "space\u00a0name/sentinel" } }, context, config), null);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 for (const brokenCatalog of [false, true]) {
   test(`real pinned Pi ${brokenCatalog ? "withholds" : "registers"} readiness after MCP initialization`, { timeout: 20_000 }, async (t) => {
@@ -137,4 +169,53 @@ test("real pinned Pi model iterations align owned identities across warm prompts
   } finally {
     session?.dispose(); await rm(root, { recursive: true, force: true });
   }
+});
+
+test("real pinned Pi executes all four owned native question methods without permission authority", { timeout: 20_000 }, async () => {
+  const load = (name) => import(pathToFileURL(join(packageRoot, `dist/core/${name}.js`)).href);
+  const [{ createAgentSession }, { DefaultResourceLoader }, { ModelRuntime }, { SessionManager }, { SettingsManager }, { AuthStorage }] = await Promise.all(
+    ["sdk", "resource-loader", "model-runtime", "session-manager", "settings-manager", "auth-storage"].map(load),
+  );
+  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-native-questions-")));
+  let session;
+  try {
+    await writeFile(join(root, "extension.mjs"), stripTypeScriptTypes(extensionSource));
+    await writeFile(join(root, "pi-acp-runtime.js"), stripTypeScriptTypes(await readFile(new URL("../src/drivers/acpx/pi-acp-runtime.ts", import.meta.url), "utf8")));
+    const { installPiRuntimeExtension, PI_NATIVE_QUESTION_TOOL } = await import(pathToFileURL(join(root, "extension.mjs")).href);
+    const settings = SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } });
+    const modelRuntime = await ModelRuntime.create({ credentials: AuthStorage.inMemory({}), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false });
+    const model = { id: "fixture", name: "Fixture", api: "openai-completions", provider: "fixture", baseUrl: "http://127.0.0.1:1", reasoning: false, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 8192, maxTokens: 64 };
+    const resourceLoader = new DefaultResourceLoader({ cwd: root, agentDir: root, settingsManager: settings, noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
+      extensionFactories: [pi => installPiRuntimeExtension(pi, { invocationNamespace: "00000000-0000-4000-8000-000000000000", workspace: root, readOnly: true, readRoots: [], protectedRoots: [], instructions: "", servers: [] })] });
+    await resourceLoader.reload();
+    ({ session } = await createAgentSession({ cwd: root, agentDir: root, model, modelRuntime, settingsManager: settings, sessionManager: SessionManager.inMemory(root), resourceLoader, noTools: "builtin", thinkingLevel: "off" }));
+    const dialogs = []; const results = []; const errors = [];
+    const uiContext = {
+      select: async (title, options) => { dialogs.push({ method: "select", title, options }); return "Blue"; },
+      confirm: async (title, message) => { dialogs.push({ method: "confirm", title, message }); return false; },
+      input: async (title, placeholder) => { dialogs.push({ method: "input", title, placeholder }); return "Ada"; },
+      editor: async (title, prefill) => { dialogs.push({ method: "editor", title, prefill }); return "New\ntext"; },
+      notify() {}, setStatus() {}, setWidget() {}, setTitle() {}, setEditorText() {}, getEditorText: () => "", setWorkingMessage() {},
+    };
+    await session.bindExtensions({ uiContext, onError: error => errors.push(error.event) });
+    session.subscribe(event => { if (event.type === "tool_execution_end") results.push(event); });
+    const requests = [
+      { method: "select", title: "Color", options: [{ id: "blue", label: "Blue" }, { id: "red", label: "Red" }] },
+      { method: "confirm", title: "Continue", message: "Continue editing?" },
+      { method: "input", title: "Name", placeholder: "Your name" },
+      { method: "editor", title: "Draft", prefill: "Old\ntext" },
+    ];
+    let streams = 0;
+    session.agent.streamFunction = () => {
+      const args = requests[streams++];
+      const message = { role: "assistant", content: args ? [{ type: "toolCall", id: "call_0", name: PI_NATIVE_QUESTION_TOOL, arguments: args }] : [{ type: "text", text: "done" }], api: model.api, provider: model.provider, model: model.id, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: args ? "toolUse" : "stop", timestamp: streams };
+      return { async *[Symbol.asyncIterator]() { yield { type: "start", partial: message }; yield { type: "done", reason: message.stopReason, message }; }, result: async () => message };
+    };
+    await session.agent.prompt("fixture native questions"); await session.agent.waitForIdle();
+    assert.deepEqual(errors, []); assert.equal(results.length, 4);
+    assert.ok(results.every(event => !event.isError));
+    assert.deepEqual(dialogs.map(dialog => dialog.method), ["select", "confirm", "input", "editor"]);
+    assert.ok(dialogs.every(dialog => !dialog.title.startsWith("paperclip.pi.permission.v1:")));
+    assert.deepEqual(results.map(event => event.result.details), [{ status: "answered", optionId: "blue" }, { status: "negative_or_cancelled", confirmed: false }, { status: "answered", value: "Ada" }, { status: "answered", value: "New\ntext" }]);
+  } finally { session?.dispose(); await rm(root, { recursive: true, force: true }); }
 });

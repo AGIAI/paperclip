@@ -1,6 +1,9 @@
 # Pi rich ACP runtime
 
-Status: implementation candidate, 2026-09-28. Profile version 5 repairs the
+Status: implementation candidate, 2026-09-29. Profile version 6 adds the native
+question tool, the authenticated agent-files root, and matching SDK path
+normalization. Its authenticated Product and Runner qualification is pending.
+Historical profile version 5 repairs the
 Undici dependency and bundled Node runtime affected by GHSA-3wwx-pv8p-q78v.
 Full authenticated v5 qualification is pending; its bounded native controls probe passes. Historical version 4 repairs native
 tool ID reuse across model iterations and warm prompts; its native steering,
@@ -29,7 +32,8 @@ boundaries explicit.
 | Text and reasoning | Upstream streams text and thought chunks. The common runner's private reasoning policy still applies; provider support does not authorize retention or display. |
 | Native tools | `read`, `grep`, `find`, `ls`, `write`, `edit`, and `bash` pass the immutable extension gate before execution. File roots and read-only mode are checked before and after a permission wait. The host sandbox remains authoritative for shell commands and races. |
 | Permissions | Native tool approval uses ACP `session/request_permission`, with allow once, allow for the session, and deny. Only offered options are accepted. Session grants cover an identical operation and still revalidate paths. Questions never become approvals. |
-| Questions | Pi `select`, `confirm`, `input`, and `editor` map to ACP form elicitation with typed schemas. Decline, cancellation, timeout, malformed replies, and duplicate/late replies cannot become accepted answers. |
+| Questions | The owned `paperclip_native_question` tool exposes Pi `select`, `confirm`, `input`, and `editor` through ACP form elicitation. Select is single-choice with stable option IDs. Pi returns `false` for both No and dismissal of confirm, so the tool reports `negative_or_cancelled`; it never invents a confirmed answer. Other methods return explicit cancellation. Permissions and semantic Plan approval remain separate. |
+| Agent files | Only the authenticated execution's registered `agent_files` working copy can become `AGENT_HOME`. The Pi wrapper takes `PAPERCLIP_PI_AGENT_HOME` from the runner's bound launch, ignores ambient `AGENT_HOME`, and admits that canonical directory alongside the task workspace. Protected overlap, directory replacement and symlink escape fail closed. Read-only policy still forbids writes. `PI_CODING_AGENT_DIR` remains private provider state. |
 | Semantic tools | Runner-bound HTTP MCP catalogs (numeric loopback HTTP or assigned HTTPS gateways) register under exact `mcp__<server>__<tool>` names. Calls use an occurrence-scoped delivery ID and preserve the bounded native ID as private ACP-wire provenance, together with the cancellation signal. Common normalized events currently drop that metadata. Authenticated PRP tool handling owns semantic authorization and durable interactions. Only the exact session-assigned gateway URL and credential are used, with redirects disabled. Ambient and unassigned MCP servers are not admitted. |
 | Plans and artifacts | Pi has no native structured plan or artifact channel. Paperclip plan and artifact semantic tools remain available through the MCP bridge; native file edits retain bounded, workspace-confined ACP diff projection. Tool text/image results are preserved, and resource blocks are recorded without following URLs. |
 | Steering | Capability-negotiated `pi/steer` issues native RPC `steer` during an active turn. `pi/follow_up` explicitly queues native RPC `follow_up`. Neither is inferred from a second ACP prompt. Each takes `{sessionId, message}` and returns `{accepted: true, sessionId, kind}` with the matching control kind. |
@@ -82,10 +86,10 @@ cached validation errors, concurrent exact retries, changed-payload rejection,
 and a corrected invocation in the next iteration. Installed-wrapper tests verify
 lifecycle correlation and stable, disjoint historical replay identities.
 
-The current v5 command digest is
+The historical v5 command digest is
 `sha256:020d96ccbd3c45c3f62680814776394ed5a56d9572a1a4dccda56a74d16c7803`.
 Versions 1–4 cannot reopen under this identity. Paid and image proofs below remain
-evidence of their recorded versions, not v5 qualification. The historical v4
+evidence of their recorded versions, not v6 qualification. The historical v4
 digest is `sha256:2324d9b47650c12b16f8e2c44dc33637d52f1b22ba8e914623eac4049e7e1991`.
 
 ## Lifetime and recovery
@@ -101,6 +105,32 @@ session after a separately admitted restart.
 The wrapper attaches a per-turn generation to settlement work, fails queued
 turns on provider death, and bounds RPC request waits. This does not constitute a
 claim of generic provider-process handoff or exactly-once external side effects.
+
+## Version 6 native boundaries
+
+The native file gate now applies Pi 0.84.2's path interpretation before checking
+roots: `@` prefix removal, home expansion, file URLs and Unicode spaces. Native
+read also tries macOS screenshot spacing, decomposed Unicode and curly-quote
+filenames. Every possible fallback is checked, including its physical symlink
+target, both before and after approval. The prior raw-path check could authorize
+a workspace-relative spelling that the SDK subsequently interpreted outside the
+workspace. The actual pinned SDK regression verifies the interpreted path and
+rejects aliases to private state.
+
+The native question tool accepts `{method,title}` plus the method's own fields:
+`options: [{id,label}]` for select, `message` for confirm, `placeholder` for input,
+and `prefill` for editor. There are at most 128 unique IDs and unique labels;
+titles, input fields and answers have UTF-8 bounds. Unsupported fields, unoffered
+answers and the reserved permission-title prefix are rejected. Exact retries of
+one native occurrence reuse its pending or completed result. This tool cannot
+approve a native operation or a Paperclip Plan. Durable semantic questions and
+revision-bound Plan approval continue to use assigned Paperclip tools.
+
+Credential-free tests exercise all four methods through the actual pinned Pi
+AgentSession tool dispatcher and separately through the installed ACP wrapper's
+form transport. They do not establish browser persistence, reconnect delivery,
+provider-death expiry, or live model behavior. Those remain distinct Product
+qualification requirements for version 6.
 
 ## Verified launch and packaging contract
 
@@ -321,7 +351,7 @@ that those targets have executed successfully.
 
 ### Installation authority and token semantics
 
-`verifyPiInstallation(profile)` admits only profile version 4 and the source-owned
+`verifyPiInstallation(profile)` admits only profile version 6 and the source-owned
 Pi identity. It resolves `provider-assets/pi/<platform>-<arch>` inside the verified
 Runner package, checks the complete runtime against source-pinned closure hashes,
 and opens a guarded immutable native snapshot. The snapshot bootstrap binds Node,
@@ -344,9 +374,9 @@ The first authenticated local Runner snapshot verified the exact configured
 model ID. It did not settle or produce a terminal usage receipt; complete local
 and Linux/Daytona receipt qualification remains outstanding.
 
-Historical profile version 3 declaration digest: `sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472`. The current v5 digest above hashes its versioned
+Historical profile version 3 declaration digest: `sha256:72cb225288376f733b9ed3afa5e13565eb4152f0de509bc1181382fa44bee472`. Each profile digest hashes its versioned
 profile domain, patched wrapper source and platform closure pins. Every native
-closure remains independently checked at launch. Version 1, 2 and 3 warm sessions cannot
+closure remains independently checked at launch. Version 1 through 5 warm sessions cannot
 be reused with this integration.
 
 Pi 0.84.2 emits `compaction_start`/`compaction_end`; the wrapper maps those

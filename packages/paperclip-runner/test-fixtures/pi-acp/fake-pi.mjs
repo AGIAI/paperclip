@@ -75,6 +75,10 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     }
     if (request.message === "auto-compact" || request.message === "retry-compact") { output({ type: "compaction_start", reason: "threshold" }); if (request.message === "retry-compact") output({ type: "summarization_retry_scheduled" }); output({ type: "compaction_end", reason: "threshold", result: compaction(), aborted: false, willRetry: true }); finish("compacted"); return; }
     if (request.message === "question") { output({ type: "extension_ui_request", id: "question-id", method: "input", title: "Project name", placeholder: "Name" }); return; }
+    if (request.message.startsWith("native-question-")) {
+      const method = request.message.slice("native-question-".length);
+      output({ type: "extension_ui_request", id: `native-${method}`, method, title: "Native question", options: ["Red", "Blue"], message: "Continue?", placeholder: "Name", prefill: "Old\ntext" }); return;
+    }
     if (request.message === "permission") { output({ type: "extension_ui_request", id: "permission-id", method: "select", title: "paperclip.pi.permission.v1:" + JSON.stringify({toolCallId:toolIdentity("tool-1"),nativeToolCallId:"tool-1",modelIteration,toolName:"bash",input:{command:"pwd"}}), options: ["Allow once", "Allow for this session", "Deny"] }); return; }
     if (request.message === "failure") {
       output({ type: "message_end", message: { role: "assistant", timestamp: 1, stopReason: "error", usage: { input: 1, output: 0 } } });
