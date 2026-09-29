@@ -20,9 +20,9 @@ Credential-free tests cover the new policy boundaries, real pinned native
 processes, clean runtime builds and Product E2E assertions. Pi v7 has passed its
 paid local hello case. Copilot v4 has passed local hello, question continuation,
 plan approval and controller-restart recovery on the integrated `bd4cc29c3`
-runtime; file-edit qualification failed during session startup. The first Pi
-Daytona attempt created and retired one sandbox but failed before inference
-because its launcher omitted the build-owned remote artifact paths. Remaining
+runtime; file-edit qualification failed during session startup. Pi's corrected Daytona hello also passed. Its first Daytona attempt created and
+retired one sandbox but failed before inference because the launcher omitted the
+build-owned remote artifact paths. Remaining
 authenticated cases, platform coverage and Daytona Product E2E are still required.
 
 The [harness priorities report](https://pages.paperclip.ing/2026-09-25-harness-priorities/)
@@ -49,7 +49,7 @@ candidate scorecards from historical runtime policies.
 | Cursor v4, source `2e0b0fec0` | All three closures verify. Native instruction acknowledgement is enforced on new/load and automatic reload. Bounded todo projection preserves all IDs/statuses and marks shortened details. Exact-head Apex reports 5/5 | Authenticated current-profile Product tests, remaining platform and Daytona proof; paid tests await the account spend-limit decision |
 | Copilot v4, source `2042ca14c` | Fresh/load model-request capture proves native instructions reach the executable. Lifetime ownership prevents instruction-write races. Native session notices preserve bounded fields without inventing originating-turn attribution. Exact-head Apex reports 5/5 | The continuation fix is paid-tested on `bd4cc29c3`: hello, semantic question/answer, plan approval and controller restart passed (six matchers each). File editing failed during `session.open`; diagnose before retrying. Remote and remaining platform qualification are open |
 | Pi v7, combined source `807feaecf` | Paid local hello passed all six matchers with one provider run, zero retries and zero invariant failures. Delayed exclusive-key billing stabilized at $0.000646464; all 46 observed owned processes retired. Exact-head Apex reports 5/5 | Native-question, agent-files, permission, planning, restart and remote qualification, then final-source checks. The historical hello allowed one automatic retry despite a zero-retry declaration; none occurred. New launchers must explicitly enforce zero retries |
-| All three, Linux/Daytona | The stored Daytona key and analytics endpoint work. The immutable `bd4cc29c3` image is built and its installed manifest verified. Pi attempt 01 created one sandbox and failed before inference; cleanup and sandbox-specific billing were retained | Complete remote runtime admission and repeat the fixed Pi hello with a new reservation, then qualify the remaining remote cases |
+| All three, Linux/Daytona | The immutable `bd4cc29c3` image and actual server artifact admission pass. Pi hello attempt 02 passed all six matchers, followed by complete owned cleanup and stable delayed billing; failed attempt 01 remains retained | Resolve host database startup pressure, then qualify the remaining remote cases; Copilot's first remote attempt never reached fixture creation |
 
 Cursor and Copilot ignore generic ACP `_meta.systemPrompt`; setting `AGENT_HOME`
 in the process environment does not make it part of model instructions. The v4
