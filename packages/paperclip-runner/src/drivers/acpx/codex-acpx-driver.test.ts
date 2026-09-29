@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AcpRuntimeEvent } from "acpx/runtime";
@@ -1604,6 +1605,47 @@ describe("Codex ACPX harness driver", () => {
     expect(session.pendingRuntimeRequests!()).toHaveLength(0);
     if (outcome === "written") fixture.finishTurn({ status: "completed", stopReason: "end_turn" });
     await session.close({ reason: "receipt checked" });
+  });
+
+  it.each(["written", "failed"] as const)("binds Cursor denial evidence to its original tool and response write: %s", async outcome => {
+    const command = "printf 'sensitive-value' > /workspace/denied.txt";
+    const fixture = driverFixture({ agent: "cursor", model: "explicit-test-model", providerPolicy: { readOnly: false } }, {
+      runtimeEvents: [{ type: "tool_call", tag: "tool_call", toolCallId: "cursor-tool", title: "Run command", kind: "execute", status: "pending", rawInput: { command } }],
+    });
+    const session = await fixture.driver.openSession({ runId: "run-cursor-receipt", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
+    const origin = collectUntil(session.events(), "provider.notice.recorded");
+    const { turnId } = await session.startTurn({ message: { text: "Request the command." } });
+    const originEvents = await origin;
+    const created = collectUntil(session.events(), "runtime_request.created");
+    const callback = fixture.host.startTurn.mock.calls[0]![0].onPermissionRequest!;
+    const receipt = deferred<void>();
+    const providerResponse = callback({ inferredKind: "execute", raw: {
+      sessionId: "backend-1", toolCall: { toolCallId: "cursor-tool", title: "Run command", kind: "execute" },
+      options: [{ optionId: "deny", kind: "reject_once", name: "Deny" }],
+    } } as Parameters<typeof callback>[0], { signal: new AbortController().signal, responseDelivery: receipt.promise });
+    const requested = await created;
+    const request = session.pendingRuntimeRequests!()[0]!;
+    const evidence = (events: PrpEvent[]) => events.filter(event => event.eventType === "provider.notice.recorded" && event.payload.category === "cursor_tool_evidence_v1");
+    const fields = (event: PrpEvent) => Object.fromEntries((event.payload.details as Array<{ name: string; value: string }>).map(field => [field.name, field.value]));
+    const commandSha256 = `sha256:${createHash("sha256").update(command).digest("hex")}`;
+    expect(evidence(requested).map(fields)).toEqual([expect.objectContaining({ stage: "permission_requested", toolCallId: "cursor-tool", requestId: request.requestId, commandSha256, declineOffered: "true" })]);
+    const settled = collectUntil(session.events(), outcome === "written" ? "runtime_request.resolved" : "runtime_request.expired");
+    let acknowledged = false;
+    const resolution = session.resolveRuntimeRequest!({ requestId: request.requestId, turnId, resolution: { action: "decline" } }).then(() => { acknowledged = true; });
+    await expect(providerResponse).resolves.toEqual({ outcome: "reject_once" });
+    expect(acknowledged).toBe(false);
+    if (outcome === "written") { receipt.resolve(); await resolution; }
+    else {
+      const failure = expect(resolution).rejects.toThrow("pipe failed");
+      receipt.reject(new Error("pipe failed")); await failure;
+    }
+    const terminalEvents = await settled;
+    expect(evidence(terminalEvents).map(fields)).toEqual(outcome === "written"
+      ? [expect.objectContaining({ stage: "permission_delivered", outcome: "reject_once", commandSha256, requestId: request.requestId })] : []);
+    expect(JSON.stringify([...evidence(originEvents), ...evidence(requested), ...evidence(terminalEvents)])).not.toContain("sensitive-value");
+    expect(session.pendingRuntimeRequests!()).toHaveLength(0);
+    if (outcome === "written") fixture.finishTurn({ status: "completed", stopReason: "end_turn" });
+    await session.close({ reason: "Cursor receipt verified" });
   });
 
   it.each(["copilot", "codex"] as const)("preserves pinned attached-shell evidence only on the Copilot direct driver: %s", async agent => {

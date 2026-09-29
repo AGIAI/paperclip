@@ -63,6 +63,7 @@ import {
 } from "../drivers/acpx/sidecar-protocol.js";
 import { safeAcpxLocations } from "./acpx-sidecar-locations.js";
 import { createCopilotToolEvidence, type CopilotToolEvidence } from "../drivers/acpx/copilot-tool-evidence.js";
+import { createCursorToolEvidence, type CursorToolEvidence } from "../drivers/acpx/cursor-tool-evidence.js";
 import {
   persistedAcpxTurnUsage,
   acpxUsageEstimateNotice,
@@ -370,13 +371,15 @@ async function dispatch(
       waitForInput: (input, context) => waitForExtensionInput(currentTurnId, input, context),
       emit: event => emit("runtime.rich_event", { ...event }, currentTurnId),
     });
-    const toolEvidence = openParams!.agent === "copilot" ? createCopilotToolEvidence({
+    const evidenceFactory = openParams!.agent === "copilot" ? createCopilotToolEvidence
+      : openParams!.agent === "cursor" ? createCursorToolEvidence : undefined;
+    const toolEvidence = evidenceFactory?.({
       sessionId: activeHost.identity().backendSessionId, turnId: currentTurnId,
       workingDirectory: openParams!.workingDirectory,
       active: () => turnId === currentTurnId && host === activeHost,
       emit: event => { validateAcpxRichEvent(event); emit("runtime.rich_event", { ...event }, currentTurnId); },
-      unavailable: () => diagnostic("copilot_evidence_unavailable", "Copilot tool evidence is incomplete; permission and terminal outcomes are unchanged."),
-    }) : undefined;
+      unavailable: () => diagnostic(`${openParams!.agent}_evidence_unavailable`, "ACP tool evidence is incomplete; permission and terminal outcomes are unchanged."),
+    });
     let usageBefore: unknown;
     try {
       usageBefore = await readSidecarHostStatusWithin(activeHost);
@@ -602,7 +605,7 @@ async function pumpTurn(
   activeHost: AcpxRuntimeHost,
   usageBefore: unknown,
   drainExtensions: () => Promise<void>,
-  toolEvidence?: CopilotToolEvidence,
+  toolEvidence?: CopilotToolEvidence | CursorToolEvidence,
 ): Promise<void> {
   let terminal: Record<string, unknown>;
   try {
@@ -757,7 +760,7 @@ async function waitForPermission(
   activeTurnId: string,
   request: AcpPermissionRequest,
   context: { signal: AbortSignal; responseDelivery?: Promise<void> },
-  toolEvidence?: CopilotToolEvidence,
+  toolEvidence?: CopilotToolEvidence | CursorToolEvidence,
 ): Promise<AcpPermissionDecision> {
   const { signal } = context;
   if (turnId !== activeTurnId || signal.aborted || permissions.size >= MAX_PENDING_INPUTS) {

@@ -1,4 +1,5 @@
 import { createCopilotToolEvidence, type CopilotToolEvidence } from "./copilot-tool-evidence.js";
+import { createCursorToolEvidence, type CursorToolEvidence } from "./cursor-tool-evidence.js";
 import { requireAcpxResponseDelivery } from "./response-delivery.js";
 import { createPiMessageProjection, piBoundaryClearsFinal, type PiProjectedMessageEvent } from "./pi-message-projection.js";
 import { acpxProfileClientCapabilities, bindAcpxExtensionTurn, validateAcpxRichEvent, createAcpxProfileExtensionAdapter, type AcpxExtensionInput } from "./profile-extensions.js";
@@ -901,14 +902,16 @@ class CodexAcpxSession implements HarnessSession {
         }
       },
     });
-    const toolEvidence = this.#agent === "copilot" ? createCopilotToolEvidence({
+    const evidenceFactory = this.#agent === "copilot" ? createCopilotToolEvidence
+      : this.#agent === "cursor" ? createCursorToolEvidence : undefined;
+    const toolEvidence = evidenceFactory?.({
       sessionId: this.#host.identity().backendSessionId, turnId, workingDirectory: this.#input.workingDirectory,
       active: () => this.#activeTurnId === turnId && !this.#closingStarted,
       emit: event => {
         validateAcpxRichEvent(event);
-        if (!this.#emit(event.eventType, event.payload, { turnId, itemId: event.itemId })) throw new Error("Copilot activity could not be retained");
+        if (!this.#emit(event.eventType, event.payload, { turnId, itemId: event.itemId })) throw new Error("ACP tool activity could not be retained");
       },
-    }) : undefined;
+    });
     let turn: AcpxRuntimeTurn;
     const usageBefore = await readUsageStatus(this.#host);
     try {
@@ -1438,7 +1441,7 @@ class CodexAcpxSession implements HarnessSession {
       .catch(() => undefined);
   }
 
-  async #pumpTurn(turnId: string, turn: AcpxRuntimeTurn, drainExtensions: () => Promise<void>, usageBefore: unknown, toolEvidence?: CopilotToolEvidence): Promise<void> {
+  async #pumpTurn(turnId: string, turn: AcpxRuntimeTurn, drainExtensions: () => Promise<void>, usageBefore: unknown, toolEvidence?: CopilotToolEvidence | CursorToolEvidence): Promise<void> {
     try {
       let index = 0;
       const normalizeToolEvent =
@@ -1728,7 +1731,7 @@ class CodexAcpxSession implements HarnessSession {
     turnId: string,
     request: AcpPermissionRequest,
     context: { signal: AbortSignal; responseDelivery?: Promise<void> },
-    toolEvidence?: CopilotToolEvidence,
+    toolEvidence?: CopilotToolEvidence | CursorToolEvidence,
   ): Promise<AcpPermissionDecision> {
     const { signal } = context;
     if (this.#closed || this.#activeTurnId !== turnId || signal.aborted

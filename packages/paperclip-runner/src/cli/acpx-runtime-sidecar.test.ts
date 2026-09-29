@@ -11,6 +11,9 @@ import { resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.
 import { ACPX_SIDECAR_PROTOCOL_VERSION } from "../drivers/acpx/sidecar-protocol.js";
 import { canonicalProviderEventsFromAcpxRuntimeEvent } from "../provider-events.js";
 import { createPiMessageProjection } from "../drivers/acpx/pi-message-projection.js";
+import { createCopilotToolEvidence } from "../drivers/acpx/copilot-tool-evidence.js";
+import { createCursorToolEvidence } from "../drivers/acpx/cursor-tool-evidence.js";
+import { validateAcpxRichEvent } from "../drivers/acpx/profile-extensions.js";
 import {
   awaitSidecarCleanupWithin,
   closeActiveSidecarHostWithin,
@@ -36,6 +39,32 @@ afterEach(async () => {
 });
 
 describe("qualified ACPX runtime sidecar", () => {
+  it.each(["cursor", "copilot", "pi"])("binds native tool evidence to the active sidecar turn for %s", agent => {
+    const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");
+    const start = source.indexOf("    const evidenceFactory =");
+    const end = source.indexOf("    let usageBefore:", start);
+    expect(start).toBeGreaterThan(0);
+    const emitted: unknown[] = [];
+    const create = new Function("createCopilotToolEvidence", "createCursorToolEvidence", "validateAcpxRichEvent", "emit", "agent", `
+      const activeHost = { identity: () => ({ backendSessionId: "session" }) };
+      let host = activeHost, turnId = "turn";
+      const currentTurnId = "turn", openParams = { agent, workingDirectory: "/workspace" };
+      const diagnostic = () => {};
+      ${source.slice(start, end).replaceAll("openParams!", "openParams")}
+      return { evidence: toolEvidence, retire: () => { turnId = null; } };
+    `)(createCopilotToolEvidence, createCursorToolEvidence, validateAcpxRichEvent, (...args: unknown[]) => emitted.push(args), agent);
+    const tool = { type: "tool_call", tag: "tool_call", toolCallId: "tool", kind: "execute", status: "pending", rawInput: { command: "printf private-value" } };
+    create.evidence?.tool(tool);
+    expect(emitted).toHaveLength(agent === "pi" ? 0 : 1);
+    if (agent !== "pi") expect(emitted[0]).toEqual(["runtime.rich_event", expect.objectContaining({ payload: expect.objectContaining({
+      category: `${agent}_tool_evidence_v1`, provenance: expect.objectContaining({ sessionId: "session", turnId: "turn" }),
+    }) }), "turn"]);
+    expect(JSON.stringify(emitted)).not.toContain("private-value");
+    create.retire();
+    create.evidence?.tool({ ...tool, tag: "tool_call_update", status: "failed" });
+    expect(emitted).toHaveLength(agent === "pi" ? 0 : 1);
+  });
+
   it("passes only validated Pi native boundaries and history through the real text sanitizer", () => {
     const source = readFileSync(fileURLToPath(new URL("./acpx-runtime-sidecar.ts", import.meta.url)), "utf8");
     const start = source.indexOf('  if (event.type === "text_delta") {', source.indexOf("function sanitizeRuntimeEvent"));
