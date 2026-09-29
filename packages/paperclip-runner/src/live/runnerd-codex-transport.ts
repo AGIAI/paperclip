@@ -418,6 +418,7 @@ function rotatedRunAttachPayload(
   authorizedTools: Record<string, unknown> | null,
   completionContract:
     { revision: string; criterionIds: readonly string[] } | undefined,
+  runtimeContext?: NativeRuntimeContextSnapshot | null,
 ): Record<string, unknown> {
   const commands = Array.isArray(state.commands)
     ? state.commands.map(record)
@@ -443,6 +444,7 @@ function rotatedRunAttachPayload(
     desired,
     authorizedTools,
     completionContract,
+    runtimeContext,
   );
 }
 
@@ -452,12 +454,19 @@ function retargetRunAttachPayload(
   authorizedTools: Record<string, unknown> | null,
   completionContract:
     { revision: string; criterionIds: readonly string[] } | undefined,
+  runtimeContext?: NativeRuntimeContextSnapshot | null,
 ): Record<string, unknown> {
   const payload = structuredClone(seedPayload);
   const provider = record(payload.provider);
   if (provider.kind === "acpx" || provider.provider === "acpx") {
     provider.runId = desired.runId;
     provider.normalizedSessionId = desired.normalizedSessionId;
+    // A run-scoped registered instruction copy is collected after shutdown.
+    // Restore the durable provider identity with the current authenticated
+    // context, never the prior run's now-stale filesystem grant.
+    if (runtimeContext !== undefined) {
+      provider.runtimeContext = structuredClone(runtimeContext);
+    }
     payload.provider = provider;
   }
   if (authorizedTools !== null) payload.authorizedTools = authorizedTools;
@@ -5140,6 +5149,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         desiredIdentity,
         this.#authorizedTools,
         this.options.resumeCompletionContract,
+        runtimeContext,
       );
       if (provider === "codex") {
         // These controller-owned, token-free paths belong to the new run.
