@@ -6,9 +6,9 @@ import { join } from "node:path";
 // Cursor adapter and the vendor's interactive CLI are not changed.
 export const CURSOR_RUNTIME_PATCH_VERSION = "paperclip-cursor-isolation-v1";
 export const CURSOR_RUNTIME_PATCH_PINS = Object.freeze({
-  "darwin-arm64": { file: "5672.index.js", before: "7784c8b16d4e639814c13b12be2a687f5dc2cd98cbf29ed0a10820778ab1bf62", after: "db997911906014ec9c522b48b6748bb39001e44d9a10730a433ab1e135aa0432" },
-  "darwin-x64": { file: "9841.index.js", before: "3c0aaf6ecc4fceb0f95e1731deec75384984570d14d0871cecec11972b948ac4", after: "713aecb34c994d83ce46942f6b15bff173eb7b605f15a4653b24b9cc46dd3b5a" },
-  "linux-x64": { file: "1699.index.js", before: "2de420f1b31e70ca74b083a1ce5b519c2abffa5789d71cc06e84d2c38acb7c07", after: "27e6e048b30afbf722c36cc3ef8ac4350957963291d15c34fdaea355d110ea2a" },
+  "darwin-arm64": { file: "5672.index.js", before: "7784c8b16d4e639814c13b12be2a687f5dc2cd98cbf29ed0a10820778ab1bf62", after: "c9e627bde091bd2559a45840f488d05dd7273100fa3ee3c32df1871e0357c0d4" },
+  "darwin-x64": { file: "9841.index.js", before: "3c0aaf6ecc4fceb0f95e1731deec75384984570d14d0871cecec11972b948ac4", after: "360ee9a5ad74a7b7a2e880d642a22f6b8841967bb1660654b6cd2b90313de988" },
+  "linux-x64": { file: "1699.index.js", before: "2de420f1b31e70ca74b083a1ce5b519c2abffa5789d71cc06e84d2c38acb7c07", after: "32f44c4981f5a26765e5101b389e3fcdb6e885b31a7ac876b68fd97afe078553" },
 });
 const digest = value => createHash("sha256").update(value).digest("hex");
 
@@ -38,7 +38,11 @@ export function patchCursorRuntimeSource(source, platform) {
   // Use the exact SDK module already present in this verified vendor chunk.
   const sdk = [...source.matchAll(/n\("([^"\n]+@agentclientprotocol\/sdk\/dist\/acp\.js)"\)/g)].map(match => match[1]);
   if (new Set(sdk).size !== 1) throw new Error("Cursor runtime patch SDK identity is ambiguous");
-  const errorType = `n(${JSON.stringify(sdk[0])}).GI`;
+  const errorType = "paperclipCursorResponseError";
+  // processPrompt(e,t,n) shadows the webpack require name n. Bind the SDK
+  // constructor at module scope rather than invoking that turn-ID argument.
+  const sessionClass = platform === "darwin-arm64" ? "B" : "z";
+  replace(`n.d(t,{m:()=>${sessionClass}});var s=n("node:fs/promises")`, `n.d(t,{m:()=>${sessionClass}});const ${errorType}=n(${JSON.stringify(sdk[0])}).GI;var s=n("node:fs/promises")`);
   const oldAction = 'if(e instanceof r.ao){const t=null!==(u={login:"Please sign in to continue",upgrade:"Upgrade your plan to continue",payment:"Add a payment method to continue",config:"Check your settings to continue"}[e.action])&&void 0!==u?u:e.message;return void(yield this.sendAgentMessageChunk(`\\n\\n${t}`))}';
   const newAction = `if(e instanceof r.ao){const action=["login","upgrade","payment","config"].includes(e.action)?e.action:"unknown";throw new (${errorType})(action==="login"?-32000:-32603,"Cursor provider action required: "+action,{schema:"paperclip.cursor.provider-error.v1",kind:"action_required",action})}`;
   replace(oldAction, newAction);
