@@ -433,6 +433,7 @@ export {
   issueExecutionStateSchema,
   issueRecoveryActionReadModelSchema,
   resolveIssueRecoveryActionSchema,
+  retryWorkspaceExportSchema,
   issueReviewRequestSchema,
   issueExecutionWorkspaceSettingsSchema,
   checkoutIssueSchema,
@@ -756,6 +757,10 @@ export {
   resolveCliAuthChallengeSchema,
   createBoardApiKeySchema,
   currentUserProfileSchema,
+  currentUserPreferencesSchema,
+  updateCurrentUserPreferencesSchema,
+  type CurrentUserPreferences,
+  type UpdateCurrentUserPreferences,
   authSessionSchema,
   updateCurrentUserProfileSchema,
   updateCompanyMemberSchema,
@@ -980,3 +985,5 @@ export * from "./chat-channels.js";
 export * from "./chat-github.js";
 
 export * from "./email.js";
+
+export { restoreAgentInstructionSchema } from "./agent.js";

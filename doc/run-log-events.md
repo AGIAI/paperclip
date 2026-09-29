@@ -34,6 +34,15 @@ credential material are never written to the run log.
 These records remain run-log events. They do not create an OpenTelemetry or
 Paperclip Telemetry export, and legacy adapters do not use this writer.
 
+## Omitted Unsafe Workspace Export
+
+`workspace_export_omitted` is an informational system event in the local run log.
+Its payload is `{ "reason": "restore_unsafe_archive" }`, with `"legacy": true`
+when recovering an unsafe failure from an older controller. It records that native
+finalization discarded an unsafe export and continued with the accepted result.
+It contains no archive names, link targets, or raw error details. It does not
+create a task warning, recovery action, Telemetry event, or OpenTelemetry export.
+
 ## Native Restart Recovery Run-Log Event
 
 Paperclip writes a `native.recovery.transition` event for every native restart
@@ -146,6 +155,40 @@ The payload never carries a command, an argument, a path, an environment value,
 or a raw identifier. The event rides the `ctx.onEvent` run-event bridge and is
 run-log-only. It needs no OTLP endpoint.
 
+## ACP terminal failure diagnostics
+
+The shared ACP adapter engine preserves typed terminal session failures in the
+run error, the `acpx.error` transcript record, and
+`heartbeat_runs.result_json.terminalSessionFailure`. The structured diagnostic
+contains the provider category, title, and details. It works when raw provider
+tracing is disabled. The existing UI and CLI render the diagnostic as an error,
+not as assistant output or an automatic task response.
+Issue continuation summaries and session-compaction handoffs retain only the
+generic failure category; provider diagnostic prose is not copied into prompts.
+
+Both pinned ACPX patches pass complete title and detail strings to the in-memory
+callback. The engine redacts configured environment values (including resolved
+secrets with arbitrary variable names), launch environment values outside a
+closed allowlist of public process settings, known boolean flags, and run identifiers,
+connection URL passwords, the run API key, and common credential forms before
+truncation. It removes control characters,
+retains line breaks for JSON and stack traces, and preserves up to 4,096 title
+characters and 24,576 detail characters. These bounds also keep the escaped
+transcript JSON below the server's 64 KiB chunk limit. Longer fields end with an explicit
+omission count and appear in `truncatedFields`. The error message includes the
+same sanitized text. Ordinary run retrieval preserves the bounded structured
+diagnostic even when multibyte text or other result fields exceed the result
+byte budget. In that reduced response, title and details have 1 KiB and 8 KiB
+byte budgets, including truncation markers. `retrievalTruncated` directs callers
+to the full adapter-bounded text in the run error or transcript. Other provider
+metadata and action payloads are not copied.
+
+Recovery still uses the typed failure category and the adapter's existing
+classifier. Provider warnings do not become failures, and timeouts or lost
+control channels keep their authoritative failure messages. These diagnostics
+stay in the instance's run records and configured run-log storage. They add no
+Paperclip Telemetry or OpenTelemetry export.
+
 ## Related instrumentation
 
 The sandbox duplex transport also writes one run-log event as one of its three
@@ -158,6 +201,15 @@ section in the Observability contract.
 Provider identity diagnostics remain in the local run log. They record the notification method, expected and received thread/turn identifiers, and the classification (root, verified descendant, stale, unrelated informational, or invalid authoritative). They omit the original provider payload and credentials. Repeated informational notices are bounded.
 
 Recovery lifecycle events retain the original structured failure code, retry attempt, next retry time, and predecessor/successor identifiers. Durable status delivery uses an idempotency marker; delivery grants no provider authority. Failed publication is retried without repeating provider work. These records are not first-party Telemetry.
+
+If execution-continuation setup finds that a task no longer exists, is closed,
+or its owner changed, the existing cancellation settlement records
+`continuation_task_ownership_changed`. The run and wake request become cancelled
+before adapter dispatch, with the run-log message
+`stale execution continuation cancelled before dispatch`. Immediate recovery is
+suppressed. Missing source context, authorization failures, and other setup
+errors retain their failure classification. An untyped error with the same
+message is also still a failure; cancellation requires the typed ownership guard.
 
 Bounded retry exhaustion writes one lifecycle receipt per run, retry reason,
 scheduled attempt, and retry limit. Repeated or concurrent recovery checks reuse
@@ -192,6 +244,18 @@ states stay unchanged. Recovery uses the existing delivery identity and links
 the successor to the original failed run. Repair does not reset the automatic
 retry budget. Transient failures retain the existing
 bounded retry policy. Archive confinement remains required.
+
+Sandbox restore tasks also write a `Workspace restore diagnostic` line to the
+run log on failure. `phase` is `workspace` or `asset`, so a failed staged-asset
+copy-back (such as credentials) can be distinguished from workspace restoration. The line
+contains only an allowlisted OS/transport `errorCode` (otherwise `unknown`), an
+optional numeric HTTP error status, and an optional bounded process exit code.
+Up to four nested causes are inspected. Messages, URLs, filesystem paths, asset
+names, credentials, and response bodies are excluded. Every failed outbound
+task emits its own diagnostic; nested repository failures are logged once by
+the enclosing workspace task. The original error and restore safety policy are
+unchanged. These lines stay in the instance run log and its configured durable
+storage, and are not new first-party telemetry events.
 
 ## Codex resume usage snapshot
 
