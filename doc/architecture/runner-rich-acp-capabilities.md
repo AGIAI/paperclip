@@ -24,6 +24,31 @@ recommends Cursor and Copilot, followed by Pi, using the existing qualified ACPX
 path. Codex app-server is the richness benchmark. The legacy Cursor and Pi
 adapters are outside this change.
 
+## Current production checkpoint (2026-09-29)
+
+The basic eval definitions and current profile pin follow-up are merged in
+`paperclip-evals` PRs [#29](https://github.com/paperclipai/paperclip-evals/pull/29)
+and [#30](https://github.com/paperclipai/paperclip-evals/pull/30). The latter passed
+134 unit tests, CI and Greptile 5/5 at `4a15550d16ced37c6edbafa91a11783a64e4e649`;
+its merge commit is `0ad9c5a4275fbfbed3b32f261d3e603d9761a07c`. These definitions
+are not paid qualification results. Versioned config IDs separate current
+candidate scorecards from historical runtime policies.
+
+| Current attempt | Observed result | Remaining work |
+| --- | --- | --- |
+| Cursor v3, source `70d9fc4be`, macOS ARM64 | Clean runtime/daemon build, admission tests, actual controller authority and native initialization passed without inference | Paid Product tests await the account spend-limit decision |
+| Copilot v3, source `3d0c45920`, macOS ARM64 | Paid Product run produced a durable structured question. Continuation failed at provider restoration after the answer | Repair stale per-run agent-files context on rotated attach, then rebuild and repeat the failed cell |
+| Pi v6, source `edf14a067`, macOS ARM64 | Corrected profile passed admission but `session.open` timed out before inference; the same failure reproduced without credentials | Reduce verified-runtime startup work and prove the complete closed startup before another paid attempt |
+| All three, Linux/Daytona | The stored Daytona key and analytics endpoint work; no task sandboxes have been created | Current Linux image build is blocked by an unresponsive local Docker daemon |
+
+The Copilot attempt increased the visible included-credit counter from 5 to 6;
+additional usage remained disabled at a $0 budget. Per-run USD is unknown.
+Both current Pi failures have zero exclusive-key billing delta in delayed
+observations and no inference receipt. Failed attempts and owned-process cleanup
+remain recorded; there were no automatic paid retries. The $100 shared budget
+and provider allocations remain in force. These current failures supersede any
+historical local success as evidence for production readiness.
+
 ## Registered persistent agent files
 
 Candidate ACP processes receive `AGENT_HOME` only from the authenticated
@@ -604,5 +629,6 @@ the [Pi PR verification](https://github.com/paperclipai/paperclip/pull/14436) an
 [foundation PR verification](https://github.com/paperclipai/paperclip/pull/14430).
 Their immutable source and dependency identities remain distinct from the
 historical packaging proofs above. Image initialization does not certify paid
-Daytona execution. The unresolved local database and remote account-verification
-blockers prevent support promotion.
+Daytona execution. Those were historical blockers at that checkpoint. The current production
+checkpoint above records the present blockers; Daytona API authentication and
+analytics access have since been verified.
