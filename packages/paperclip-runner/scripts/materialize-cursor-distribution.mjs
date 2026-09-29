@@ -4,6 +4,8 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile 
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { applyCursorRuntimePatch, CURSOR_RUNTIME_PATCH_VERSION } from "./cursor-runtime-patch.mjs";
+
 const MANIFEST_PATH = fileURLToPath(new URL("../cursor-distributions.json", import.meta.url));
 const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
 const MAX_TREE_BYTES = 1024 * 1024 * 1024;
@@ -14,7 +16,8 @@ export async function cursorDistribution(platform = process.platform, architectu
   const manifest = JSON.parse(await readFile(MANIFEST_PATH, "utf8"));
   const distribution = manifest.platforms[`${platform}-${architecture}`];
   if (!distribution) throw new Error(`Cursor has no pinned distribution for ${platform}/${architecture}`);
-  return { ...distribution, version: manifest.version, platform, architecture };
+  if (manifest.patchVersion !== CURSOR_RUNTIME_PATCH_VERSION || !/^[a-f0-9]{64}$/.test(distribution.vendorClosureSha256)) throw new Error("Cursor distribution must pin its owned runtime patch and vendor closure");
+  return { ...distribution, version: manifest.version, patchVersion: manifest.patchVersion, platform, architecture };
 }
 
 /** Hash every runtime file, including bundled Node, native addons and workers. */
@@ -102,6 +105,8 @@ export async function materializePinnedCursorDistribution(options = {}) {
     const extraction = spawnSync("/usr/bin/tar", ["-xzf", archivePath, "-C", unpacked, "--no-same-owner"], { encoding: "utf8", timeout: 120_000 });
     if (extraction.status !== 0) throw new Error("Cursor archive extraction failed");
     const packageRoot = join(unpacked, "dist-package");
+    await verifyCursorDistribution(packageRoot, { ...distribution, closureSha256: distribution.vendorClosureSha256 });
+    await applyCursorRuntimePatch(packageRoot, `${distribution.platform}-${distribution.architecture}`);
     const closure = await verifyCursorDistribution(packageRoot, distribution);
     // Record the pinned inventory for a later runtime lease. Its digest must be
     // checked against the checked-in distribution pin before trusting entries.
@@ -109,7 +114,7 @@ export async function materializePinnedCursorDistribution(options = {}) {
     for (const entry of closure.entries) await chmod(join(packageRoot, ...entry.path.split("/")), entry.executable ? 0o500 : 0o400);
     await chmod(packageRoot, 0o700);
     await rename(packageRoot, destination);
-    return { version: distribution.version, platform: distribution.platform, architecture: distribution.architecture, destination, executable: join(destination, distribution.executable), entrypoint: join(destination, distribution.entrypoint), archiveSha256: distribution.archiveSha256, closureSha256: closure.sha256 };
+    return { version: distribution.version, patchVersion: distribution.patchVersion, platform: distribution.platform, architecture: distribution.architecture, destination, executable: join(destination, distribution.executable), entrypoint: join(destination, distribution.entrypoint), archiveSha256: distribution.archiveSha256, closureSha256: closure.sha256 };
   } finally { await rm(temporary, { recursive: true, force: true }); }
 }
 

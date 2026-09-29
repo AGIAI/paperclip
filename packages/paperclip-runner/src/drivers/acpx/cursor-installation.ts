@@ -8,9 +8,9 @@ import { resolveRunnerProviderAssetsRoot } from "./provider-assets-root.js";
 
 export const CURSOR_PINNED_VERSION = "2026.09.26-dd393fe";
 const CLOSURE_PINS = Object.freeze({
-  "darwin-arm64": "77394184a89b0e7384971181da19c3c82d83a399b04e7944b3f94fe3d7e62b25",
-  "darwin-x64": "7c8775160af74e5fb8d25a30e8412c1a6476b0661529078a686e5118fd1c5e5f",
-  "linux-x64": "bf04ef8ea6a63191067a6b3e15139aa2c793d8419daab246aa3f0a012e1bbcd9",
+  "darwin-arm64": "89e28235685ab31d78779eccd5b6a7b2d9fec20181c439535f2fe492c5cd24da",
+  "darwin-x64": "6729c65acb6b2f56690ebe54e63659f4dc31b2b5814aff8d59740767ab43ad17",
+  "linux-x64": "591623da24add49fc6572e6eba3039e21b40893024efc65fc547802e00cfec17",
 });
 
 /** Trusted package assets only: no workspace, PATH, executable override or env root. */

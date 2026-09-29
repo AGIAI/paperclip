@@ -5,23 +5,27 @@
     "darwin-arm64": {
       "url": "https://downloads.cursor.com/lab/2026.09.26-dd393fe/darwin/arm64/agent-cli-package.tar.gz",
       "archiveSha256": "538827d96a779bab854a865c8e42859e8e87db34b5f69770261b90fc8cfff191",
-      "closureSha256": "77394184a89b0e7384971181da19c3c82d83a399b04e7944b3f94fe3d7e62b25",
+      "closureSha256": "89e28235685ab31d78779eccd5b6a7b2d9fec20181c439535f2fe492c5cd24da",
       "executable": "node",
-      "entrypoint": "index.js"
+      "entrypoint": "index.js",
+      "vendorClosureSha256": "77394184a89b0e7384971181da19c3c82d83a399b04e7944b3f94fe3d7e62b25"
     },
     "darwin-x64": {
       "url": "https://downloads.cursor.com/lab/2026.09.26-dd393fe/darwin/x64/agent-cli-package.tar.gz",
       "archiveSha256": "ed1771c44cbf0f8059c67cac0d939e6a60eb730bd066d7dc4cbb14de314cfb6e",
-      "closureSha256": "7c8775160af74e5fb8d25a30e8412c1a6476b0661529078a686e5118fd1c5e5f",
+      "closureSha256": "6729c65acb6b2f56690ebe54e63659f4dc31b2b5814aff8d59740767ab43ad17",
       "executable": "node",
-      "entrypoint": "index.js"
+      "entrypoint": "index.js",
+      "vendorClosureSha256": "7c8775160af74e5fb8d25a30e8412c1a6476b0661529078a686e5118fd1c5e5f"
     },
     "linux-x64": {
       "url": "https://downloads.cursor.com/lab/2026.09.26-dd393fe/linux/x64/agent-cli-package.tar.gz",
       "archiveSha256": "8085fd120f5c71f4eae7fea26a043718e5644e3071e4fab3220a0e58c51f9593",
-      "closureSha256": "bf04ef8ea6a63191067a6b3e15139aa2c793d8419daab246aa3f0a012e1bbcd9",
+      "closureSha256": "591623da24add49fc6572e6eba3039e21b40893024efc65fc547802e00cfec17",
       "executable": "node",
-      "entrypoint": "index.js"
+      "entrypoint": "index.js",
+      "vendorClosureSha256": "bf04ef8ea6a63191067a6b3e15139aa2c793d8419daab246aa3f0a012e1bbcd9"
     }
-  }
+  },
+  "patchVersion": "paperclip-cursor-isolation-v1"
 }
