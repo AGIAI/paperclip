@@ -411,8 +411,8 @@ describeEmbeddedPostgres("native question bridge", () => {
     input.questions[0]!.customAnswer = { enabled: true };
     const interaction = await projectNativeRuntimeRequest({ db, binding: binding(), event });
     if (mode === "legacy") {
-      const payload = { ...interaction!.payload } as Record<string, unknown>;
-      delete payload.questionSet;
+      const payload = { ...interaction!.payload };
+      if ("questionSet" in payload) delete payload.questionSet;
       await db.update(issueThreadInteractions).set({ payload }).where(eq(issueThreadInteractions.id, interaction!.id));
     }
     const service = issueThreadInteractionService(db);

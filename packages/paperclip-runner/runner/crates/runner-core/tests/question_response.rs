@@ -330,6 +330,9 @@ fn initial_text_is_never_an_implicit_answer_or_validation_bypass() {
     let mut invalid = valid_response();
     invalid["answers"]["notes"] = json!({"text":"bad"});
     assert!(validate_question_response(&questions, &invalid).is_err());
-    questions["questions"][2]["initialText"] = json!("😀".repeat(50_001));
+    questions["questions"][2]["initialText"] = json!(format!("{}😀", "a".repeat(99_999)));
+    assert!(serde_json::to_vec(&questions).unwrap().len() < 196 * 1024);
+    validate_question_response(&questions, &valid_response()).unwrap();
+    questions["questions"][2]["initialText"] = json!(format!("{}😀", "a".repeat(100_000)));
     assert!(validate_question_response(&questions, &valid_response()).is_err());
 }

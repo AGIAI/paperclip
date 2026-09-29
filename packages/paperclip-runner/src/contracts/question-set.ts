@@ -184,7 +184,14 @@ export function parsePaperclipQuestionSet(value: unknown): PaperclipQuestionSet 
     if (answerMode === "text" && options !== undefined && options.length > 0) {
       throw new PaperclipQuestionValidationError(`${path}/options`, "text questions cannot define options");
     }
-    const initialText = optionalText(question.initialText, `${path}/initialText`, 100_000);
+    const initialText = question.initialText;
+    if (initialText !== undefined && (
+      typeof initialText !== "string"
+      || initialText.length > 200_000
+      || Array.from(initialText).length > 100_000
+    )) {
+      throw new PaperclipQuestionValidationError(`${path}/initialText`, "must be a string of at most 100000 Unicode code points");
+    }
     if (initialText !== undefined && answerMode !== "text") {
       throw new PaperclipQuestionValidationError(`${path}/initialText`, "only text questions can define initial text");
     }

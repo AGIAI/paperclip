@@ -60,7 +60,7 @@
         "helpText": { "type": "string", "maxLength": 4000 },
         "required": { "type": "boolean" },
         "answerMode": { "enum": ["single_select", "multi_select", "text"] },
-        "initialText": { "type": "string", "maxLength": 100000 },
+        "initialText": { "type": "string", "maxLength": 100000, "description": "Editable draft of at most 100000 Unicode code points. Never an implicit answer; submitted text still uses the existing response bounds." },
         "options": {
           "type": "array",
           "maxItems": 128,

@@ -620,10 +620,10 @@ pub(crate) fn validate_question_set(value: &Value) -> Result<(), LocalRunnerErro
         if question
             .get("initialText")
             .and_then(Value::as_str)
-            .is_some_and(|text| text.encode_utf16().count() > 100_000)
+            .is_some_and(|text| text.chars().count() > 100_000)
         {
             return Err(LocalRunnerError::invalid(
-                "ACPX initial text exceeds its UTF-16 bound",
+                "ACPX initial text exceeds its Unicode code-point bound",
             ));
         }
         let mut option_ids = BTreeSet::new();

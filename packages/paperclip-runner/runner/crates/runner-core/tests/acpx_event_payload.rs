@@ -452,6 +452,19 @@ fn input_initial_text_survives_wire_admission_with_existing_redaction() {
         }
         _ => panic!("input request expected"),
     }
+    for code_points in [100_000, 100_001] {
+        let initial = format!("{}😀", "a".repeat(code_points - 1));
+        let payload = input(json!(initial), "text");
+        assert!(serde_json::to_vec(&payload).unwrap().len() < 196 * 1024);
+        let result = decode_acpx_event(
+            &scope,
+            &event(
+                GeneratedAcpxSidecarEventType::RuntimeInputRequested,
+                payload,
+            ),
+        );
+        assert_eq!(result.is_ok(), code_points == 100_000);
+    }
     for invalid in [
         input(json!(1), "text"),
         input(json!("a".repeat(100_001)), "text"),
