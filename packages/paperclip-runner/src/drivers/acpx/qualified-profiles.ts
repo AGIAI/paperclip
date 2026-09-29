@@ -2,7 +2,7 @@ export const QUALIFIED_ACPX_VERSION = "0.13.1" as const;
 export const ACPX_DRIVER_KIND = "acpx_runtime" as const;
 export const ACPX_DRIVER_PROTOCOL_VERSION = 1 as const;
 
-import type { NativeAcpxAgent } from "../../contracts/native-execution.js";
+import type { NativeAcpxAgent, NativeAcpxProfileSnapshot } from "../../contracts/native-execution.js";
 
 export type QualifiedAcpxAgent = NativeAcpxAgent;
 
@@ -11,7 +11,7 @@ export interface QualifiedAcpxProfile {
   readonly protocolVersion: typeof ACPX_DRIVER_PROTOCOL_VERSION;
   readonly acpxVersion: typeof QUALIFIED_ACPX_VERSION;
   readonly agent: QualifiedAcpxAgent;
-  readonly agentProfileVersion: 1 | 2 | 3 | 4 | 5;
+  readonly agentProfileVersion: NativeAcpxProfileSnapshot["agentProfileVersion"];
   readonly qualificationStatus?: "pending";
   readonly modelPolicy?: "explicit-provider-verified";
   /** Wire identity: an npm package name or a runner-owned builtin: identifier. */

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 
 import {
   QUALIFIED_ACPX_PROFILES,
@@ -6,6 +7,21 @@ import {
 } from "./qualified-profiles.js";
 
 describe("qualified ACPX profiles", () => {
+  it.each(Object.values(QUALIFIED_ACPX_PROFILES))(
+    "keeps the Rust admission digest synchronized with the current $agent profile",
+    (profile) => {
+      const rust = readFileSync(new URL("../../../runner/crates/runner-core/src/acpx_provider_backend.rs", import.meta.url), "utf8");
+      const start = rust.indexOf(`"${profile.agent}" => (`);
+      expect(start).toBeGreaterThan(0);
+      const end = rust.indexOf("\n            ),", start);
+      expect(end).toBeGreaterThan(start);
+      const admission = rust.slice(start, end);
+      expect(admission).toContain(JSON.stringify(profile.agentServerPackage));
+      expect(admission).toContain(JSON.stringify(profile.agentServerVersion));
+      expect(admission).toContain(JSON.stringify(profile.commandDigest));
+    },
+  );
+
   it("binds each agent to one immutable package and model declaration", () => {
     for (const agent of ["pi", "claude", "codex", "grok"] as const) {
       const profile = QUALIFIED_ACPX_PROFILES[agent];
