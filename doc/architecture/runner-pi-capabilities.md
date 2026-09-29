@@ -8,7 +8,14 @@ name. Titles and select labels admit at most 1,000 UTF-16 code units, matching
 the canonical question contract. Invalid owned arguments fail before a UI promise;
 unsupported external UI requests emit an explicit error notice and stop the session.
 The editor draft requires the shared `initialText` normalization and editable UI
-roundtrip. These repairs change the native closure and require fresh qualification;
+roundtrip. Blank initial drafts are valid, but accepted empty or whitespace-only
+input/editor answers are not currently representable: the canonical required-text
+form prevents submission with a required-answer message, and its response
+validator rejects blank text. Making
+Pi fields optional alone would still drop those answers; no adapter fallback
+invents an empty response. The transport distinguishes empty accept from cancel,
+but that direct bridge property is not full Product support. A future explicit
+canonical empty-text opt-in would need matching persisted-response and UI checks. These repairs change the native closure and require fresh qualification;
 no v7 paid Product or Runner proof exists yet. The canonical
 [v7 declaration](../../packages/paperclip-runner/test-fixtures/pi-acp/profile-v7-identity.json)
 binds the exact wrapper, helper, extension and three target closures.

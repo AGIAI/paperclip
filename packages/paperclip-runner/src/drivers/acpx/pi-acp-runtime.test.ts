@@ -69,7 +69,7 @@ describe("Pi ACP bridge", () => {
     expect(f.process.sendExtensionUiResponse).toHaveBeenCalledExactlyOnceWith({ id: "q1", ...expected });
   });
 
-  it("retains blank editor prefill and distinguishes an accepted empty string from cancellation", async () => {
+  it("transport preserves blank editor prefill and empty accept independently of canonical required validation", async () => {
     const f = fixture(); f.connection.unstable_createElicitation.mockResolvedValue({ action: "accept", content: { answer: "" } });
     await f.bridge.handle({ id: "blank", method: "editor", title: "Draft", prefill: "" });
     expect(f.connection.unstable_createElicitation.mock.calls[0]![0]).toMatchObject({ requestedSchema: { properties: { answer: { default: "" } } } });
@@ -77,6 +77,21 @@ describe("Pi ACP bridge", () => {
     f.connection.unstable_createElicitation.mockResolvedValue({ action: "cancel" });
     await f.bridge.handle({ id: "dismissed", method: "editor", title: "Draft", prefill: "" });
     expect(f.process.sendExtensionUiResponse).toHaveBeenLastCalledWith({ id: "dismissed", cancelled: true });
+  });
+
+  it.each(["input", "editor"])("documents canonical %s blank-answer rejection without inventing an empty accept", async method => {
+    const f = fixture();
+    f.connection.unstable_createElicitation.mockImplementation(async request => {
+      const normalized = normalizeAcpFormElicitation(request)!;
+      const question = normalized.questionSet.questions[0]!;
+      expect(question.required).toBe(true);
+      for (const text of ["", " \n\t"]) {
+        expect(() => normalized.accept({ schema: "paperclip.question_response.v1", answers: { [question.id]: { text } } })).toThrow("is required");
+      }
+      return normalized.accept({ schema: "paperclip.question_response.v1", answers: { [question.id]: { text: "\nAccepted text\n" } } });
+    });
+    await f.bridge.handle({ id: "canonical", method, title: "Draft", prefill: "" });
+    expect(f.process.sendExtensionUiResponse).toHaveBeenCalledExactlyOnceWith({ id: "canonical", value: "\nAccepted text\n" });
   });
 
   it.each(["a".repeat(1000), "界".repeat(1000), "🌒".repeat(500)])("passes the canonical character limit through the real form normalizer", async (label) => {
