@@ -1,7 +1,7 @@
 # Rich ACP integration and qualification report
 
 Updated: 2026-09-29. Base: `c65fc9e3c81c41aafe421aa90a00514b84343285`.
-Mainline integration: `53aad90b9e83dc147707797bf224bec12600b171`.
+Mainline integration: `d172197117a14b80a1eb2d2835a0e7cce2679656`.
 Status: implementation is split into a shared foundation and three provider PRs.
 Provider review and qualification remain separate from foundation acceptance.
 All three new profiles remain **pending qualification**. Cursor passed all five
