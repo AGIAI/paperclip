@@ -15,8 +15,14 @@ validator rejects blank text. Making
 Pi fields optional alone would still drop those answers; no adapter fallback
 invents an empty response. The transport distinguishes empty accept from cancel,
 but that direct bridge property is not full Product support. A future explicit
-canonical empty-text opt-in would need matching persisted-response and UI checks. These repairs change the native closure and require fresh qualification;
-no v7 paid Product or Runner proof exists yet. The canonical
+canonical empty-text opt-in would need matching persisted-response and UI checks.
+These repairs change the native closure and require fresh qualification. Profile
+v7 has paid Product hello passes on local source `807feaecf` and Daytona source
+`bd4cc29c3`; the latter passed all six matchers with complete owned cleanup.
+The [qualification checkpoint](runner-rich-acp-qualification-2026-09-29.json)
+retains exact profile, runtime, image and billing identities. Remaining Product
+journeys, native interactions and platform coverage are still unqualified; the
+prepared `bd4cc29c3` local campaign has not launched. The canonical
 [v7 declaration](../../packages/paperclip-runner/test-fixtures/pi-acp/profile-v7-identity.json)
 binds the exact wrapper, helper, extension and three target closures.
 
