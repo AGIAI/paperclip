@@ -1,12 +1,12 @@
 {
   "schema": "paperclip.rich-acp-qualification-checkpoint.v1",
-  "updatedAt": "2026-09-29T20:58:14.579734+00:00",
+  "updatedAt": "2026-09-29T21:08:50.611196+00:00",
   "qualificationStatus": "pending",
   "runtimeSource": "bd4cc29c3017ed5e1484423e842fd48e3b2f49f3",
   "modelReceiptPolicy": "Native per-run USD remains null/unpriced when absent. Included subscription credits, exclusive API-key charges and sandbox analytics are separate evidence. Unknown costs are never assumed zero.",
   "evidenceScope": "Sanitized checkpoint of retained private receipts; historical reports retain earlier attempts. This file is not an executable conformance result or production qualification certificate.",
   "currentProfilePaidCoverage": {
-    "cursor4": "bd4 local hello passed. Cold continuation failed; corroborating offline reproduction led to source627451ecf session-load repair. The rebuilt four-cell paid batch is running, with no result yet. Native callbacks, restrictive permissions, Daytona and remaining platforms are open.",
+    "cursor4": "bd4 local hello passed. Rebuilt627451ecf passed question continuation, semantic plan and question continuation after controller restart. The file case created and validated exact bytes and reached Done, but its final marker added VALIDATION:5/7 file matchers passed. Four cells/seven runs fully settled,23/25 matchers passed overall. Native callbacks, restrictive permissions, Daytona and remaining platforms remain open.",
     "copilot4": "bd4 all five basic local journeys and Daytona hello passed. Native permission denial and attached background settlement Product cases plus remaining remote/platform coverage are open. The original session.open timeout remains unexplained.",
     "pi7": "Local and Daytona hello passed. After preserving an earlier missing-evidence failure, the harness-only repair on runtimebd4/eval43c99f0 produced a complete native-question pass15/15. The next question-continuation cell failed5/6: final-message aggregation included pre-tool narration. All three runs settled and owned cleanup passed; five later cells were not launched."
   },
@@ -483,7 +483,7 @@
     {
       "id": "cursor-v4-local-627-remaining-20260929-01",
       "provider": "cursor",
-      "status": "authorized",
+      "status": "failed_last_cell_marker_mismatch",
       "createdAt": "2026-09-29T20:56:40.420584+00:00",
       "sourceRevision": "627451ecf15641504a485c6f868497177bd1bce8",
       "profileVersion": 4,
@@ -497,7 +497,22 @@
       ],
       "expectedProductRuns": 7,
       "maxRetries": 0,
-      "actualCostUsd": null
+      "actualCostUsd": null,
+      "reconciledAt": "2026-09-29T21:06:39.868239+00:00",
+      "failure": "Question continuation, semantic plan and controller-restart question passed. File edit/validation, native run and Done succeeded but final marker added VALIDATION despite the exact requested marker. Five of seven file matchers passed; retain candidate_failure.",
+      "attemptCount": 4,
+      "completedCells": 4,
+      "unlaunchedCells": 0,
+      "productRunCount": 7,
+      "matcherPassCount": 23,
+      "matcherCount": 25,
+      "ownedProcessesRetired": true,
+      "postRunAuthorityPassed": true,
+      "costCoverage": "Seven time/model-correlated account rows are explicitly Free; on-demand0. Native priced USD unavailable. No automatic retries.",
+      "nativePerRunUsd": null,
+      "accountObservedChargeUsd": 0,
+      "privateEvidenceName": "batch-analysis.private.json",
+      "privateEvidenceSha256": "843a05914728174dd8bacac9ce7014c1e9570d65ee4e675cdeaef3e016c7e65a"
     }
   ],
   "hostRecovery": {

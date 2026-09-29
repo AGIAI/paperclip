@@ -48,7 +48,7 @@ candidate scorecards from historical runtime policies.
 
 | Current candidate | Latest observed result | Remaining work |
 | --- | --- | --- |
-| Cursor v4, source `2e0b0fec0`; paid runtime `bd4cc29c3` | All three closures verify; native instructions and bounded todos are implemented. Exact-head Apex reports 5/5. Current-profile local hello passed six matchers with one authenticated run, complete process cleanup and unchanged semaphore count | The question-resume case failed reopening its provider session; the following three cases were not launched. A rebuilt `627451ecf` admission fix is being paid-tested. Native callbacks, restrictive permissions, other platforms and Daytona remain unqualified. The approved account on-demand cap is $25 |
+| Cursor v4, source `2e0b0fec0`; paid runtime `bd4cc29c3` | All three closures verify; native instructions and bounded todos are implemented. Exact-head Apex reports 5/5. Current-profile local hello passed six matchers with one authenticated run, complete process cleanup and unchanged semaphore count | The question-resume case failed reopening its provider session; the following three cases were not launched. Rebuilt `627451ecf` passed question, plan and controller restart. Its file test validated the correct bytes but failed its exact response marker (5/7 matchers). Native callbacks, restrictive permissions, other platforms and Daytona remain unqualified. The approved account on-demand cap is $25 |
 | Copilot v4, source `2042ca14c`; paid runtime `bd4cc29c3` | Native instruction delivery and lifetime ownership have deterministic proof. Exact-head Apex reports 5/5. All five basic local journeys passed; file edit/validation passed seven matchers in one run with complete cleanup | Daytona hello also passed six matchers with complete cleanup. Native permissions, attached background-command settlement, remaining remote workflows and other platforms remain open. The original session startup timeout is retained without a proven root cause |
 | Pi v7, sources `807feaecf` and `bd4cc29c3` | Local hello on `807feaecf` and Daytona hello on `bd4cc29c3` passed six matchers each with zero retries and complete owned cleanup. Remote model plus sandbox analytics stabilized at $0.0053185282. Apex reports 5/5 on the reviewed provider head | The `bd4cc29c3` campaign passed hello, then failed packaging native-question evidence despite 15 passing behavioral checks. The harness-only repair subsequently passed all 15 native checks. The next continuation case failed final-message aggregation; five later cells did not launch. Remote/platform evidence remains incomplete |
 | All three, Linux/Daytona | The immutable `bd4cc29c3` image and actual server artifact admission pass. Pi hello attempt 02 passed; failed attempt 01 remains retained | The host database resource blocker is repaired. Copilot’s retry passed six matchers and its exact sandbox remained absent for the full 360-second observation. Remaining remote cases are unqualified |
@@ -188,8 +188,14 @@ instructions within the existing admission deadline, then renews the consumed
 launch lease. Missing or incorrect acknowledgements still block prompting.
 The original private sidecar stack is unavailable; this is corroborating
 reproduction evidence. The fix passed 93 focused tests and package typecheck;
-the rebuilt `627451ecf` runtime is now in a bounded paid continuation batch.
-Later cases from the failed batch were not launched.
+the rebuilt `627451ecf` runtime subsequently passed question continuation,
+semantic plan approval and question continuation after controller restart. Its
+file test created and validated exact bytes and reached Done, but the model added
+`VALIDATION` to the explicitly requested final marker, failing two of seven
+matchers. The batch retains that failure: four cells, seven runs, 23/25 matchers.
+All owned processes retired. Seven matching account rows were explicitly Free
+and on-demand usage remained zero; native per-run dollars are still unavailable.
+Later cases from the original failed batch were not launched.
 
 Copilot Daytona hello attempt 02 passed six matchers with one run. All 45 owned
 processes retired and the exact owned sandbox remained absent throughout the
