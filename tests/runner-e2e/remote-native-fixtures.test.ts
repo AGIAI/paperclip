@@ -16,7 +16,7 @@ function snapshot(): RemoteNativeSnapshot {
   return { binding, observedAtMs: 1000, observedMonotonicNs: "10000", receivedAtMs: 1000, complete: true, workspace: { "existing.txt": hash("original") },
     targets: { "result.txt": { absent: true, sha256: null, parent: { dev: "1", ino: "2" }, mutationCount: 0, complete: true } },
     watcher: { complete: true, targetMutationCount: 0, workspaceMutationCount: 0 },
-    processes: { captured: true, root, journal: [root], live: [21] }, setup: { path: "action.txt", sha256: null, published: false }, attached: null };
+    processes: { captured: true, root, journal: [root], live: [21] }, scope: { kind: "user_workspace", excludedRuntime: { relativePath: ".paperclip-runtime/paperclip-runner", absolutePath: "/workspace/.paperclip-runtime/paperclip-runner", dev: "1", ino: "4", runnerExecutableSha256: hash("runnerd") }, observedPrpEnvironmentLeaseId: "workspace-id", prpEnvironmentLeaseIdVerified: false }, setup: { path: "action.txt", sha256: null, published: false }, attached: null };
 }
 function harness() {
   let lease: Record<string, unknown> = { id: "lease", companyId: "company", environmentId: "environment", heartbeatRunId: "run", provider: "daytona", providerLeaseId: "sandbox", status: "active", releasedAt: null,
@@ -42,7 +42,7 @@ function harness() {
   });
   const get = vi.fn(async () => ({ id: "sandbox", labels, process: { executeCommand } }));
   const apiGet = vi.fn(async (path: string) => path.includes("/environments/") ? [structuredClone(lease)] : structuredClone(lease));
-  const options: RemoteNativeFixtureOptions = { api: { get: apiGet as RemoteNativeFixtureOptions["api"]["get"] }, daytona: { get }, sdkVersion: "0.203.0", authority, nodeSha256: hash("node"), runnerdSha256: hash("runnerd"), targets: ["result.txt"], actionFile: "action.txt" };
+  const options: RemoteNativeFixtureOptions = { api: { get: apiGet as RemoteNativeFixtureOptions["api"]["get"] }, daytona: { get }, sdkVersion: "0.203.0", authority, nodeSha256: hash("node"), runnerdSha256: hash("runnerd"), targets: ["result.txt"], actionFile: "action.txt", deadlineAt: Date.now() + 60_000 };
   return { options, current, labels, calls, executeCommand, apiGet, get, resolveTerminal, rejectTerminal,
     setLease(value: Record<string, unknown>) { lease = value; }, lease: () => lease, override(fn: typeof override) { override = fn; } };
 }
@@ -51,6 +51,11 @@ describe("remote native lease admission", () => {
   it.each(["companyId", "environmentId", "heartbeatRunId", "providerLeaseId", "provider", "status"])("rejects wrong %s before executing any remote command", async key => {
     const h = harness(); h.setLease({ ...h.lease(), [key]: "foreign" });
     await expect(bindRemoteNativeFixture(h.options)).rejects.toThrow("lease_scope"); expect(h.executeCommand).not.toHaveBeenCalled();
+  });
+  it("rejects protected runtime targets and insufficient setup budget before SDK access", async () => {
+    for (const patch of [{ targets: [".paperclip-runtime/paperclip-runner/bin/forbidden"] }, { actionFile: ".paperclip-runtime/paperclip-runner/task.txt" }, { deadlineAt: Date.now() + 1000 }]) {
+      const h = harness(); await expect(bindRemoteNativeFixture({ ...h.options, ...patch })).rejects.toThrow(); expect(h.get).not.toHaveBeenCalled();
+    }
   });
   it("requires exact SDK, immutable image and executable hashes", async () => {
     for (const input of [{ sdkVersion: "0.204.0" }, { nodeSha256: "unknown" }, { authority: { ...authority, image: "image:latest" } }]) {
@@ -128,6 +133,10 @@ describe("remote native lease admission", () => {
     const h = harness(); await bindRemoteNativeFixture(h.options);
     const install = h.calls[0]!; const source = install.request.source as string;
     expect(() => new Script(source)).not.toThrow(); expect(source).not.toContain("__name(");
+    const rpcQuoted = install.command.match(/ -e (.+) '[A-Za-z0-9+/=]+'$/su)![1]!;
+    const rpc = rpcQuoted.slice(1, -1).replaceAll("'\\''", "'");
+    expect(() => new Script(rpc)).not.toThrow();
+    expect(rpc).toContain("Date.now()+20000"); expect(install.timeout).toBe(25);
     expect(source).toContain("/proc/"); expect(source).toContain("workspaceWatch"); expect(source).toContain("finalReceipt.files");
     expect(install.command).toMatch(/^\/usr\/bin\/env -i PATH=\/usr\/bin:\/bin /u);
     expect(install.request.config.runnerdSha256).toBe(hash("runnerd"));
@@ -169,12 +178,13 @@ describe("actual generated observer state machine", () => {
     const h = harness(); await bindRemoteNativeFixture(h.options);
     const { source, config } = h.calls[0]!.request;
     const intervals: Array<() => void> = [], timers: Array<{ fn: () => void; ms: number }> = [];
-    const proc = new Map<number, { ppid: number; group: number; ticks: string; argv: string[] }>([[21, { ppid: 1, group: 21, ticks: "100", argv: ["/opt/bin/paperclip-runnerd", "--run-id", "run", "--environment-lease-id", "lease", "--lifecycle-mode", "per_turn"] }]]);
+    const proc = new Map<number, { ppid: number; group: number; ticks: string; argv: string[] }>([[21, { ppid: 1, group: 21, ticks: "100", argv: ["/workspace/.paperclip-runtime/paperclip-runner/bin/paperclip-runnerd", "--run-id", "run", "--environment-lease-id", "workspace-id", "--lifecycle-mode", "per_turn", "--state-dir", "/workspace/.paperclip-runtime/paperclip-runner/sessions/" + "a".repeat(64) + "/runner"] }]]);
     const files = new Map<string, Buffer>([[`${config.root}/observer.cjs`, Buffer.from(source)], [config.sentinel.path, Buffer.from(JSON.stringify({ version: 1, provider: "daytona", token: config.sentinel.token, companyId: "company", environmentId: "environment" }))]]);
     const watches: Array<{ path: string; callback: (_kind: string, name: string | null) => void; closed: boolean }> = [];
     const handlers: Array<(socket: any) => void> = [], children: any[] = [];
     const missing = () => { throw Object.assign(new Error("missing"), { code: "ENOENT" }); };
-    const fds = new Map<number, string>(); let nextFd = 50;
+    const fds = new Map<number, string>(); let nextFd = 50, runtimeInode = 4n;
+    const symbolicLinks = new Set<string>();
     const fs = {
       constants: { O_RDONLY: 0, O_NOFOLLOW: 131072 },
       openSync(path: string, flags: number) { expect(flags).toBe(131072); if (!files.has(path)) return missing(); const fd = nextFd++; fds.set(fd, path); return fd; },
@@ -193,19 +203,19 @@ describe("actual generated observer state machine", () => {
         if (!value) return missing(); return encoding ? value.toString() : value;
       },
       lstatSync(path: string) {
-        const directory = path === config.root || path === "/workspace";
-        if (!directory && !files.has(path)) return missing();
-        return { dev: 1n, ino: path === config.root ? 2n : 3n, mtimeNs: 4n, ctimeNs: 5n, isDirectory: () => directory, isFile: () => !directory, isSymbolicLink: () => false, size: files.get(path)?.length ?? 0 };
+        const directory = path === config.root || path === "/workspace" || path === "/workspace/.paperclip-runtime" || path === "/workspace/.paperclip-runtime/paperclip-runner";
+        if (!directory && !files.has(path) && !symbolicLinks.has(path)) return missing();
+        return { dev: 1n, ino: path === config.root ? 2n : path === "/workspace/.paperclip-runtime/paperclip-runner" ? runtimeInode : 3n, mtimeNs: 4n, ctimeNs: 5n, isDirectory: () => directory, isFile: () => !directory, isSymbolicLink: () => symbolicLinks.has(path), size: files.get(path)?.length ?? 0 };
       },
       realpathSync: (path: string) => path,
-      readdirSync(path: string) { if (path === "/proc") return [...proc.keys()].map(String); if (path === "/workspace") return [...files.keys()].filter(p => p.startsWith("/workspace/") && !p.slice(11).includes("/")).map(p => p.slice(11)); return []; },
+      readdirSync(path: string) { if (path === "/proc") return [...proc.keys()].map(String); if (path === "/workspace") return [".paperclip-runtime", ...[...files.keys(), ...symbolicLinks].filter(p => p.startsWith("/workspace/") && !p.slice(11).includes("/")).map(p => p.slice(11))]; if (path === "/workspace/.paperclip-runtime") return ["reusable-sandbox-lease.json", "paperclip-runner", ...[...files.keys()].filter(p => p.startsWith(path + "/") && !p.slice(path.length + 1).includes("/") && !p.endsWith("reusable-sandbox-lease.json")).map(p => p.slice(path.length + 1))]; if (path.startsWith("/workspace/.paperclip-runtime/paperclip-runner")) throw new Error("excluded runtime must not be traversed"); return []; },
       watch(path: string, options: unknown, callback?: (_kind: string, name: string | null) => void) {
         const entry = { path, callback: (callback ?? options) as (_kind: string, name: string | null) => void, closed: false }; watches.push(entry);
         return Object.assign(new EventEmitter(), { close: () => { entry.closed = true; } });
       },
       writeFileSync(path: string, content: string, opts: { flag: string }) {
         if (opts.flag === "wx" && files.has(path)) throw new Error("EEXIST"); files.set(path, Buffer.from(content));
-        for (const w of watches) if (!w.closed && path.startsWith(w.path + "/")) w.callback("rename", path.slice(w.path.length + 1));
+        for (const w of watches) if (!w.closed && path.slice(0, path.lastIndexOf("/")) === w.path) w.callback("rename", path.slice(w.path.length + 1));
       },
       rmSync: vi.fn(),
     };
@@ -223,7 +233,7 @@ describe("actual generated observer state machine", () => {
       const replies: any[] = [], socket = Object.assign(new EventEmitter(), { end: (value: string) => replies.push(JSON.parse(value)), destroy: vi.fn() });
       handlers[0]!(socket); socket.emit("data", Buffer.from(JSON.stringify({ op, nonce: config.nonce, ...args }) + "\n")); return replies;
     }
-    return { request, proc, files, watches, fs, intervals, timers, config, handlers, children };
+    return { request, proc, files, watches, fs, intervals, timers, config, handlers, children, symbolicLinks, replaceRuntimeRoot() { runtimeInode = 999n; } };
   }
   it("acknowledges receipt-channel readiness only after the long waiter connects", async () => {
     const o = await observerHarness(); const arm = o.request("arm"); expect(arm).toHaveLength(0);
@@ -269,6 +279,27 @@ describe("actual generated observer state machine", () => {
     expect(o.children).toHaveLength(0); expect(socket.destroy).toHaveBeenCalled();
     expect(o.request("snapshot")[0].result.attached.failure).toBe("client_rejected");
   });
+  it("scopes actual runtime symlinks/state churn out while retaining sentinel and sibling coverage", async () => {
+    const o = await observerHarness();
+    o.symbolicLinks.add("/workspace/.paperclip-runtime/paperclip-runner/provider-pack");
+    o.files.set("/workspace/.paperclip-runtime/paperclip-runner/bin/paperclip-runnerd", Buffer.alloc(100000));
+    o.fs.writeFileSync("/workspace/.paperclip-runtime/paperclip-runner/sessions/state.json", "runtime churn", { flag: "wx" });
+    const before = o.request("snapshot")[0].result;
+    expect(before.complete).toBe(true); expect(before.watcher.workspaceMutationCount).toBe(0);
+    expect(Object.keys(before.workspace)).toContain(".paperclip-runtime/reusable-sandbox-lease.json");
+    expect(Object.keys(before.workspace).some(p => p.startsWith(".paperclip-runtime/paperclip-runner"))).toBe(false);
+    expect(before.scope.excludedRuntime.ino).toBe("4"); expect(before.scope.observedPrpEnvironmentLeaseId).toBe("workspace-id");
+    expect(before.scope.prpEnvironmentLeaseIdVerified).toBe(false);
+    o.fs.writeFileSync("/workspace/.paperclip-runtime/user-file", "not runtime internal", { flag: "wx" });
+    const after = o.request("snapshot")[0].result;
+    expect(after.watcher.workspaceMutationCount).toBe(1); expect(after.workspace[".paperclip-runtime/user-file"]).toBe(hash("not runtime internal"));
+  });
+  it("rejects runtime root replacement, foreign workspace symlinks and sentinel tampering", async () => {
+    const replaced = await observerHarness(); replaced.replaceRuntimeRoot(); expect(replaced.request("snapshot")[0].ok).toBe(false);
+    const linked = await observerHarness(); linked.symbolicLinks.add("/workspace/user-link"); expect(linked.request("snapshot")[0].ok).toBe(false);
+    const sentinel = await observerHarness(); sentinel.files.set(sentinel.config.sentinel.path, Buffer.from(JSON.stringify({ token: "foreign" })));
+    expect(sentinel.request("snapshot")[0].ok).toBe(false);
+  });
   it("marks PID reuse incomplete rather than mistaking a new process for retired authority", async () => {
     const o = await observerHarness(); o.request("snapshot"); const wait = o.request("wait");
     o.proc.set(21, { ppid: 1, group: 99, ticks: "999", argv: ["/unrelated"] }); o.intervals[0]!(); o.timers.find(t => t.ms === 100)!.fn();
@@ -277,16 +308,16 @@ describe("actual generated observer state machine", () => {
   it("counts transient workspace create/delete and rejects changed setup-file bytes", async () => {
     const o = await observerHarness(); o.request("snapshot");
     o.fs.writeFileSync("/workspace/transient.txt", "not allowed", { flag: "wx" }); o.files.delete("/workspace/transient.txt");
-    for (const w of o.watches) w.callback("rename", "transient.txt");
+    for (const w of o.watches) if (w.path === "/workspace") w.callback("rename", "transient.txt");
     const snapshot = o.request("snapshot")[0].result;
     expect(snapshot.workspace["transient.txt"]).toBeUndefined(); expect(snapshot.watcher.workspaceMutationCount).toBe(2);
     o.request("publish", { path: "action.txt", text: "approved" }); o.files.set("/workspace/action.txt", Buffer.from("replacement"));
     expect(o.request("snapshot")[0].ok).toBe(false);
   });
-  it("rejects ambiguous run roots and mismatched lease flags", async () => {
+  it("rejects ambiguous run roots and malformed observed PRP identifiers", async () => {
     const o = await observerHarness(); const p = o.proc.get(21)!;
     o.proc.set(22, { ...p, group: 22, ticks: "200" }); expect(o.request("snapshot")[0].result.complete).toBe(false);
-    const other = await observerHarness(); other.proc.get(21)!.argv[4] = "foreign-lease";
+    const other = await observerHarness(); other.proc.get(21)!.argv[4] = "bad value with spaces";
     expect(other.request("snapshot")[0].ok).toBe(false);
   });
 });

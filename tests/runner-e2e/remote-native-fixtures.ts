@@ -5,6 +5,11 @@ import { posix } from "node:path";
 export const REMOTE_FIXTURE_DAYTONA_SDK_VERSION = "0.203.0";
 const NODE = "/opt/paperclip-runner/provider-pack/node_modules/node/bin/node";
 const MAX_OUTPUT = 256 * 1024;
+// createRunnerdBackend stages its verified executable, pack symlink, mutable
+// sessions, homes and injected context beneath this exact path. Qualification
+// covers user workspace files, not these controller/provider runtime internals.
+// The sentinel and all other .paperclip-runtime entries remain in scope.
+const RUNTIME_RELATIVE = ".paperclip-runtime/paperclip-runner";
 const digest = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const fail = (condition: unknown, code: string): void => { if (!condition) throw new Error(`remote_native_fixture:${code}`); };
@@ -27,6 +32,12 @@ export interface RemoteNativeSnapshot {
   targets: Record<string, { absent: boolean; sha256: string | null; parent: { dev: string; ino: string }; mutationCount: number; complete: boolean }>;
   watcher: { complete: boolean; targetMutationCount: number; workspaceMutationCount: number };
   processes: { captured: boolean; root: RemoteProcessIdentity | null; journal: RemoteProcessIdentity[]; live: number[] };
+  scope: {
+    kind: "user_workspace";
+    excludedRuntime: { relativePath: string; absolutePath: string; dev: string; ino: string; runnerExecutableSha256: string };
+    observedPrpEnvironmentLeaseId: string;
+    prpEnvironmentLeaseIdVerified: false;
+  };
   setup: { path: string; sha256: string | null; published: boolean };
   attached: { connections: number; failure: string | null; commandExit: { code: number; observedAtMs: number; observedMonotonicNs: string } | null; markerWrittenAtMs: number | null; markerWrittenMonotonicNs: string | null; clientExitedAtMs: number | null; clientExitedMonotonicNs: string | null } | null;
 }
@@ -87,6 +98,7 @@ const config=JSON.parse(Buffer.from(process.argv[2],'base64').toString());
 const parseStat=PARSE_STAT;const runRoot=RUN_ROOT;const watchTarget=WATCH_TARGET;
 const hash=x=>'sha256:'+crypto.createHash('sha256').update(x).digest('hex');
 const cwdStat=fs.lstatSync(config.binding.remoteCwd,{bigint:true}),rootStat=fs.lstatSync(config.root,{bigint:true}),scriptStat=fs.lstatSync(__filename,{bigint:true}),scriptHash=hash(fs.readFileSync(__filename));
+const runtimeRoot=path.join(config.binding.remoteCwd,config.runtimeRelative),runtimeStat=fs.lstatSync(runtimeRoot,{bigint:true});if(!runtimeStat.isDirectory()||runtimeStat.isSymbolicLink()||fs.realpathSync(runtimeRoot)!==runtimeRoot)throw Error('runtime_root_identity');let observedPrpEnvironmentLeaseId=null;
 const boot=fs.readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim();
 const targets=new Map();let complete=true,sealed=false,root=null,attached=null,child=null,client=null,childTimer=null;
 const journal=new Map(),sockets=new Set(),waiters=new Set(),armWaiters=new Set();let observedRootCount=0,publishedHash=null,finalReceipt=null,retiring=false;
@@ -95,7 +107,7 @@ function table(){const ids=fs.readdirSync('/proc').filter(x=>/^\d+$/.test(x)&&Nu
 function sample(){
  const all=table();const candidates=[];
  for(const p of all){if(p.state==='Z')continue;let argv;try{argv=fs.readFileSync('/proc/'+p.pid+'/cmdline').toString().split('\0').filter(Boolean)}catch(e){if(e.code==='ENOENT'||e.code==='ESRCH')continue;throw e}
-  if(runRoot(argv,config.binding.runId,p)){const at=argv.indexOf('--environment-lease-id');if(at<1||argv.lastIndexOf('--environment-lease-id')!==at||argv[at+1]!==config.binding.leaseId)throw Error('process_lease_identity');candidates.push(p);}}
+  if(runRoot(argv,config.binding.runId,p)){const at=argv.indexOf('--environment-lease-id'),stateAt=argv.indexOf('--state-dir');if(at<1||argv.lastIndexOf('--environment-lease-id')!==at||!/^[-a-zA-Z0-9._:]{1,256}$/.test(argv[at+1]??''))throw Error('process_prp_identity_shape');if(argv[0]!==path.join(runtimeRoot,'bin','paperclip-runnerd')||stateAt<1||argv.lastIndexOf('--state-dir')!==stateAt||!argv[stateAt+1]?.startsWith(runtimeRoot+'/sessions/')||!/^([a-f0-9]{64})\/runner$/.test(argv[stateAt+1].slice((runtimeRoot+'/sessions/').length)))throw Error('process_runtime_binding');if(observedPrpEnvironmentLeaseId!==null&&observedPrpEnvironmentLeaseId!==argv[at+1])throw Error('process_prp_identity_changed');observedPrpEnvironmentLeaseId=argv[at+1];candidates.push(p);}}
  if(candidates.length>1)complete=false;
  if(!root&&candidates.length===1){if(hash(fs.readFileSync('/proc/'+candidates[0].pid+'/exe'))!==config.runnerdSha256)throw Error('runner_binary_identity');root=candidates[0];journal.set(root.pid,root);observedRootCount++;}
  if(root&&candidates.some(p=>p.pid!==root.pid||p.startTicks!==root.startTicks))complete=false;
@@ -105,16 +117,20 @@ function sample(){
  if(client&&!all.some(p=>p.pid===client.pid&&p.startTicks===client.startTicks&&p.state!=='Z')&&attached&&!attached.clientExitedAtMs){attached.clientExitedAtMs=Date.now();attached.clientExitedMonotonicNs=process.hrtime.bigint().toString();}
  return {captured:root!==null,root,journal:[...journal.values()],live};
 }
-function guard(){const s=fs.lstatSync(config.root,{bigint:true});if(s.dev!==rootStat.dev||s.ino!==rootStat.ino||!s.isDirectory()||s.isSymbolicLink()||hash(fs.readFileSync(__filename))!==scriptHash||fs.lstatSync(__filename,{bigint:true}).ino!==scriptStat.ino)throw Error('observer_identity_changed');
+function guard(){const rs=fs.lstatSync(runtimeRoot,{bigint:true});if(!rs.isDirectory()||rs.isSymbolicLink()||rs.dev!==runtimeStat.dev||rs.ino!==runtimeStat.ino||fs.realpathSync(runtimeRoot)!==runtimeRoot)throw Error('runtime_root_replaced');const s=fs.lstatSync(config.root,{bigint:true});if(s.dev!==rootStat.dev||s.ino!==rootStat.ino||!s.isDirectory()||s.isSymbolicLink()||hash(fs.readFileSync(__filename))!==scriptHash||fs.lstatSync(__filename,{bigint:true}).ino!==scriptStat.ino)throw Error('observer_identity_changed');
  const st=fs.lstatSync(config.sentinel.path);if(!st.isFile()||st.isSymbolicLink()||st.size>16384||fs.realpathSync(config.sentinel.path)!==config.sentinel.path)throw Error('sentinel_type');const sentinel=JSON.parse(fs.readFileSync(config.sentinel.path,'utf8'));if(sentinel.version!==1||sentinel.provider!=='daytona'||sentinel.token!==config.sentinel.token||sentinel.companyId!==config.binding.companyId||sentinel.environmentId!==config.binding.environmentId)throw Error('sentinel_changed');
  const c=fs.lstatSync(config.binding.remoteCwd,{bigint:true});if(c.dev!==cwdStat.dev||c.ino!==cwdStat.ino||!c.isDirectory()||c.isSymbolicLink()||fs.realpathSync(config.binding.remoteCwd)!==config.binding.remoteCwd)throw Error('workspace_replaced');}
 function readSafe(p){const fd=fs.openSync(p,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);try{const before=fs.fstatSync(fd,{bigint:true});if(!before.isFile()||before.size>65536n)throw Error('file_bound_or_type');const bytes=fs.readFileSync(fd),after=fs.fstatSync(fd,{bigint:true}),named=fs.lstatSync(p,{bigint:true});if(before.dev!==named.dev||before.ino!==named.ino||named.isSymbolicLink()||before.size!==after.size||before.mtimeNs!==after.mtimeNs||BigInt(bytes.length)!==before.size)throw Error('file_changed');return bytes}finally{fs.closeSync(fd)}}
 function file(p){try{const s=fs.lstatSync(p);if(s.isSymbolicLink()||!s.isFile()||s.size>65536)throw Error('file_bound_or_type');return {absent:false,sha256:hash(readSafe(p))}}catch(e){if(e.code==='ENOENT')return {absent:true,sha256:null};throw e}}
-function workspace(){const result={};let count=0,bytes=0;function visit(dir,prefix){for(const name of fs.readdirSync(dir).sort()){if(++count>512)throw Error('workspace_entry_bound');const full=path.join(dir,name),rel=prefix+name,s=fs.lstatSync(full);if(rel===config.actionFile){if(!publishedHash||file(full).sha256!==publishedHash)throw Error('setup_file_changed');continue;}if(s.isSymbolicLink())throw Error('workspace_symlink');if(s.isDirectory()){result[rel]='directory';visit(full,rel+'/')}else if(s.isFile()){bytes+=s.size;if(s.size>65536||bytes>4194304)throw Error('workspace_byte_bound');result[rel]=hash(readSafe(full))}else throw Error('workspace_special_file')}}visit(config.binding.remoteCwd,'');return result}
-function snapshot(){guard();const processes=sample(),out={};let watchComplete=complete,total=0;for(const [name,t] of targets){const status=t.watch.snapshot();out[name]={...file(t.path),...status};watchComplete&&=status.complete;total+=status.mutationCount}return {binding:config.binding,observedAtMs:Date.now(),observedMonotonicNs:process.hrtime.bigint().toString(),complete:complete&&watchComplete,workspace:workspace(),targets:out,watcher:{complete:watchComplete,targetMutationCount:total,workspaceMutationCount},processes,setup:{path:config.actionFile,sha256:publishedHash,published:publishedHash!==null},attached}}
+function workspace(){const result={};let count=0,bytes=0;function visit(dir,prefix){for(const name of fs.readdirSync(dir).sort()){if(++count>512)throw Error('workspace_entry_bound');const full=path.join(dir,name),rel=prefix+name,s=fs.lstatSync(full);if(rel===config.runtimeRelative)continue;if(rel===config.actionFile){if(!publishedHash||file(full).sha256!==publishedHash)throw Error('setup_file_changed');continue;}if(s.isSymbolicLink())throw Error('workspace_symlink');if(s.isDirectory()){result[rel]='directory';visit(full,rel+'/')}else if(s.isFile()){bytes+=s.size;if(s.size>65536||bytes>4194304)throw Error('workspace_byte_bound');result[rel]=hash(readSafe(full))}else throw Error('workspace_special_file')}}visit(config.binding.remoteCwd,'');return result}
+function snapshot(){guard();verifyWorkspaceWatchRoots();const processes=sample(),out={};let watchComplete=complete,total=0;for(const [name,t] of targets){const status=t.watch.snapshot();out[name]={...file(t.path),...status};watchComplete&&=status.complete;total+=status.mutationCount}return {binding:config.binding,observedAtMs:Date.now(),observedMonotonicNs:process.hrtime.bigint().toString(),complete:complete&&watchComplete,workspace:workspace(),targets:out,watcher:{complete:watchComplete,targetMutationCount:total,workspaceMutationCount},processes,scope:{kind:'user_workspace',excludedRuntime:{relativePath:config.runtimeRelative,absolutePath:runtimeRoot,dev:String(runtimeStat.dev),ino:String(runtimeStat.ino),runnerExecutableSha256:config.runnerdSha256},observedPrpEnvironmentLeaseId,prpEnvironmentLeaseIdVerified:false},setup:{path:config.actionFile,sha256:publishedHash,published:publishedHash!==null},attached}}
 for(const name of config.targets){const p=path.join(config.binding.remoteCwd,name);if(fs.realpathSync(path.dirname(p))!==path.dirname(p))throw Error('target_parent_symlink');targets.set(name,{path:p,watch:watchTarget(path.dirname(p),path.basename(p),{watch:fs.watch,lstatSync:fs.lstatSync})})}
 if(config.crossRoot){const p=path.join(config.root,'cross-root-target');fs.writeFileSync(p,config.crossRoot.initialText,{flag:'wx',mode:0o600});targets.set('@cross-root',{path:p,watch:watchTarget(config.root,'cross-root-target',{watch:fs.watch,lstatSync:fs.lstatSync})})}
-let workspaceMutationCount=0;const workspaceWatch=fs.watch(config.binding.remoteCwd,{recursive:true},(_kind,name)=>{if(name!==null&&String(name)===config.actionFile){try{if(!publishedHash||file(path.join(config.binding.remoteCwd,config.actionFile)).sha256!==publishedHash)complete=false}catch{complete=false}return}workspaceMutationCount++;if(name===null||workspaceMutationCount>4096)complete=false;});workspaceWatch.on('error',()=>{complete=false});
+let workspaceMutationCount=0;const directoryWatches=[];
+function watchDirectory(directory,prefix=''){if(directoryWatches.length>=512)throw Error('watch_directory_bound');const before=fs.lstatSync(directory,{bigint:true});if(!before.isDirectory()||before.isSymbolicLink())throw Error('watch_directory_identity');const handle=fs.watch(directory,(_kind,name)=>{if(name===null){complete=false;return}const relative=prefix+String(name);if(relative===config.runtimeRelative)return;if(relative===config.actionFile){try{if(!publishedHash||file(path.join(config.binding.remoteCwd,config.actionFile)).sha256!==publishedHash)complete=false}catch{complete=false}return}workspaceMutationCount++;if(workspaceMutationCount>4096)complete=false;try{if(fs.lstatSync(path.join(directory,String(name))).isDirectory())complete=false}catch(e){if(e.code!=='ENOENT')complete=false}});handle.on('error',()=>{complete=false});directoryWatches.push({directory,before,handle});for(const name of fs.readdirSync(directory)){const rel=prefix+name;if(rel===config.runtimeRelative)continue;const full=path.join(directory,name),s=fs.lstatSync(full);if(s.isSymbolicLink())throw Error('workspace_symlink');if(s.isDirectory())watchDirectory(full,rel+'/')}}
+watchDirectory(config.binding.remoteCwd);
+const workspaceWatch={close(){for(const item of directoryWatches)item.handle.close()}};
+function verifyWorkspaceWatchRoots(){for(const item of directoryWatches){const after=fs.lstatSync(item.directory,{bigint:true});if(after.dev!==item.before.dev||after.ino!==item.before.ino||!after.isDirectory()||after.isSymbolicLink())throw Error('workspace_watch_root_replaced')}}
 function publicSnapshot(){const result=snapshot();if(result.attached)result.attached={connections:attached.connections,failure:attached.failure,commandExit:attached.commandExit,markerWrittenAtMs:attached.markerWrittenAtMs,markerWrittenMonotonicNs:attached.markerWrittenMonotonicNs,clientExitedAtMs:attached.clientExitedAtMs,clientExitedMonotonicNs:attached.clientExitedMonotonicNs};return result}
 function seal(){if(sealed)return;sealed=true;workspaceWatch.close();for(const t of targets.values())t.watch.close();clearInterval(observer);finalReceipt=publicSnapshot();finalReceipt.files={};for(const [name,t] of targets){if(!file(t.path).absent)finalReceipt.files[name]=readSafe(t.path).toString('base64');}if(Buffer.byteLength(JSON.stringify(finalReceipt))>250000){finalReceipt.complete=false;finalReceipt.files={};}if(child&&child.exitCode===null&&child.signalCode===null)finalReceipt.complete=false;for(const socket of waiters)socket.end(JSON.stringify({ok:true,result:finalReceipt})+'\n');waiters.clear();setTimeout(()=>shutdown(null),250);}
 const observer=setInterval(()=>{try{const p=sample();if(p.captured&&p.live.length===0&&!retiring){retiring=true;setTimeout(()=>{try{const end=sample();if(end.live.length===0)seal();else retiring=false}catch{complete=false}},100)}}catch{complete=false}},25);
@@ -148,9 +164,15 @@ function observerSource() {
     .replace("WATCH_TARGET", () => createRemoteTargetWatch.toString()).replace("ATTACHED_CLIENT", () => JSON.stringify(ATTACHED_CLIENT));
 }
 const RPC = String.raw`const fs=require('node:fs'),net=require('node:net'),cp=require('node:child_process'),crypto=require('node:crypto');const r=JSON.parse(Buffer.from(process.argv[1],'base64').toString());const hash=x=>'sha256:'+crypto.createHash('sha256').update(x).digest('hex');
-(async()=>{if(hash(fs.readFileSync(process.execPath))!==r.nodeSha256)throw Error('node_identity');if(r.op==='install'){const c=r.config;const st=fs.lstatSync(c.sentinel.path);if(!st.isFile()||st.isSymbolicLink()||st.size>16384||fs.realpathSync(c.sentinel.path)!==c.sentinel.path)throw Error('sentinel_type');const s=JSON.parse(fs.readFileSync(c.sentinel.path,'utf8'));if(s.version!==1||s.provider!=='daytona'||s.token!==c.sentinel.token||s.companyId!==c.binding.companyId||s.environmentId!==c.binding.environmentId)throw Error('sentinel');if(fs.realpathSync(c.binding.remoteCwd)!==c.binding.remoteCwd)throw Error('cwd');fs.mkdirSync(c.root,{mode:0o700});fs.writeFileSync(c.root+'/observer.cjs',r.source,{flag:'wx',mode:0o400});const child=cp.spawn(process.execPath,[c.root+'/observer.cjs',Buffer.from(JSON.stringify(c)).toString('base64')],{detached:true,stdio:'ignore',env:{PATH:'/usr/bin:/bin'}});child.unref();r.root=c.root;r.nonce=c.nonce;r.op='snapshot';}
+const parseStat=PARSE_STAT,runRoot=RUN_ROOT;
+async function waitRuntime(c){const root=c.binding.remoteCwd+'/'+c.runtimeRelative,boot=fs.readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim(),until=Date.now()+20000;while(Date.now()<until){try{const s=fs.lstatSync(root);if(!s.isDirectory()||s.isSymbolicLink()||fs.realpathSync(root)!==root)throw Error('runtime_root_identity');const matches=[];const entries=fs.readdirSync('/proc');if(entries.length>8192)throw Error('proc_bound');for(const name of entries){if(!/^\d+$/.test(name)||Number(name)<2)continue;try{const p=parseStat(Number(name),fs.readFileSync('/proc/'+name+'/stat','utf8'),boot),argv=fs.readFileSync('/proc/'+name+'/cmdline').toString().split('\0').filter(Boolean);if(runRoot(argv,c.binding.runId,p)){if(argv[0]!==root+'/bin/paperclip-runnerd'||hash(fs.readFileSync('/proc/'+name+'/exe'))!==c.runnerdSha256)throw Error('runtime_binary_identity');matches.push(p)}}catch(e){if(e.code!=='ENOENT'&&e.code!=='ESRCH')throw e}}if(matches.length>1)throw Error('ambiguous_run_root');if(matches.length===1)return;}catch(e){if(e.code!=='ENOENT')throw e}await new Promise(resolve=>setTimeout(resolve,50))}throw Error('runtime_not_ready')}
+(async()=>{if(hash(fs.readFileSync(process.execPath))!==r.nodeSha256)throw Error('node_identity');if(r.op==='install'){const c=r.config;await waitRuntime(c);const st=fs.lstatSync(c.sentinel.path);if(!st.isFile()||st.isSymbolicLink()||st.size>16384||fs.realpathSync(c.sentinel.path)!==c.sentinel.path)throw Error('sentinel_type');const s=JSON.parse(fs.readFileSync(c.sentinel.path,'utf8'));if(s.version!==1||s.provider!=='daytona'||s.token!==c.sentinel.token||s.companyId!==c.binding.companyId||s.environmentId!==c.binding.environmentId)throw Error('sentinel');if(fs.realpathSync(c.binding.remoteCwd)!==c.binding.remoteCwd)throw Error('cwd');fs.mkdirSync(c.root,{mode:0o700});fs.writeFileSync(c.root+'/observer.cjs',r.source,{flag:'wx',mode:0o400});const child=cp.spawn(process.execPath,[c.root+'/observer.cjs',Buffer.from(JSON.stringify(c)).toString('base64')],{detached:true,stdio:'ignore',env:{PATH:'/usr/bin:/bin'}});child.unref();r.root=c.root;r.nonce=c.nonce;r.op='snapshot';}
 for(let i=0;!fs.existsSync(r.root+'/control.sock')&&i<200;i++)await new Promise(resolve=>setTimeout(resolve,10));const socket=net.connect(r.root+'/control.sock');let output='';socket.setTimeout(r.op==='wait'?290000:5000);socket.on('timeout',()=>{socket.destroy();process.exitCode=2});socket.on('error',()=>{process.exitCode=2});socket.on('connect',()=>socket.write(JSON.stringify(r)+'\n'));socket.on('data',b=>{output+=b;if(Buffer.byteLength(output)>262144){socket.destroy();process.exitCode=2}});socket.on('end',()=>{if(!process.exitCode)process.stdout.write(output)});
 })().catch(()=>{process.exitCode=2});`;
+
+function rpcSource() {
+  return RPC.replace("PARSE_STAT", () => parseRemoteProcStat.toString()).replace("RUN_ROOT", () => isRemoteRunRoot.toString());
+}
 
 export interface RemoteNativeFixture {
   readonly binding: RemoteNativeBinding;
@@ -177,10 +199,11 @@ export interface RemoteNativeFixtureOptions {
   runnerdSha256: string;
   targets: string[];
   actionFile: string;
+  deadlineAt: number;
   crossRoot?: { initialText: string };
 }
 const sha = (value: unknown): value is string => typeof value === "string" && /^sha256:[a-f0-9]{64}$/u.test(value);
-function readSnapshot(value: unknown, binding: RemoteNativeBinding, names: string[], actionFile: string): RemoteNativeSnapshot {
+function readSnapshot(value: unknown, binding: RemoteNativeBinding, names: string[], actionFile: string, runnerdSha256: string): RemoteNativeSnapshot {
   const row = record(value), watcher = record(row.watcher), processes = record(row.processes), setup = record(row.setup);
   fail(JSON.stringify(row.binding) === JSON.stringify(binding), "receipt_binding");
   fail(Number.isSafeInteger(row.observedAtMs) && (row.observedAtMs as number) > 0 && typeof row.observedMonotonicNs === "string" && /^\d+$/u.test(row.observedMonotonicNs) && typeof row.complete === "boolean", "receipt_shape");
@@ -203,6 +226,11 @@ function readSnapshot(value: unknown, binding: RemoteNativeBinding, names: strin
     && Array.isArray(processes.journal) && processes.journal.length <= 512 && processes.journal.every(validProcess)
     && Array.isArray(processes.live) && processes.live.length <= 512
     && processes.live.every(pid => (processes.journal as unknown[]).some((p: unknown) => record(p).pid === pid)), "process_shape");
+  const scope = record(row.scope), excluded = record(scope.excludedRuntime);
+  fail(scope.kind === "user_workspace" && excluded.relativePath === RUNTIME_RELATIVE && excluded.absolutePath === `${binding.remoteCwd}/${RUNTIME_RELATIVE}`
+    && /^\d+$/u.test(String(excluded.dev)) && /^\d+$/u.test(String(excluded.ino)) && excluded.runnerExecutableSha256 === runnerdSha256
+    && typeof scope.observedPrpEnvironmentLeaseId === "string" && /^[-a-zA-Z0-9._:]{1,256}$/u.test(scope.observedPrpEnvironmentLeaseId)
+    && scope.prpEnvironmentLeaseIdVerified === false, "evidence_scope");
   fail(setup.path === actionFile && typeof setup.published === "boolean" && (setup.published ? sha(setup.sha256) : setup.sha256 === null), "setup_shape");
   if (row.attached !== null) {
     const a = record(row.attached), exit = record(a.commandExit);
@@ -217,15 +245,21 @@ function readSnapshot(value: unknown, binding: RemoteNativeBinding, names: strin
 
 /** Must be called while the initial native input-file bootstrap holds the run.
  * No effect-producing task is published until baseline proves watcher + PID
- * admission. Same-UID observer opacity is not an OS adversarial sandbox. */
+ * admission. The exact controller runtime subtree is excluded only after its
+ * directory inode/realpath, pinned executable and run/state-dir binding agree.
+ * The PRP environment ID can be a durable workspace identity, not the sandbox
+ * database lease ID; it is retained as observed, explicitly unverified metadata.
+ * Same-UID observer opacity is not an OS adversarial sandbox. */
 export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOptions): Promise<RemoteNativeFixture> {
   const { authority, api, daytona } = options;
   fail(options.sdkVersion === REMOTE_FIXTURE_DAYTONA_SDK_VERSION, "sdk_pin");
   fail(Object.entries(authority).every(([key, value]) => key === "image" ? typeof value === "string" && /^[^\s]+@sha256:[a-f0-9]{64}$/u.test(value) : typeof value === "string" && id(value)), "authority_shape");
   fail(sha(options.nodeSha256) && sha(options.runnerdSha256), "binary_pins");
+  fail(Number.isFinite(options.deadlineAt) && options.deadlineAt - Date.now() >= 27_000, "insufficient_setup_budget");
   fail(options.targets.length <= 8 && new Set(options.targets).size === options.targets.length, "target_bound");
   const targets = options.targets.map(relative), actionFile = relative(options.actionFile);
   fail(!targets.includes(actionFile), "setup_target_overlap");
+  fail([...targets, actionFile].every(path => path !== RUNTIME_RELATIVE && !path.startsWith(`${RUNTIME_RELATIVE}/`)), "runtime_target_forbidden");
   fail(!options.crossRoot || Buffer.byteLength(options.crossRoot.initialText) <= 4096, "cross_root_bound");
   const root = `/tmp/pc-native-${randomBytes(18).toString("hex")}`, nonce = randomBytes(32).toString("hex");
   let binding: RemoteNativeBinding | undefined, sentinel: { path: string; token: string } | undefined, identityKey: string | undefined;
@@ -256,14 +290,15 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
   }
   async function rpc(request: Record<string, unknown>, admitted?: Awaited<ReturnType<typeof admittedSandbox>>) {
     const sandbox = admitted ?? await admittedSandbox();
+    if (request.op === "install") fail(options.deadlineAt - Date.now() >= 27_000, "insufficient_setup_budget");
     const payload = Buffer.from(JSON.stringify({ ...request, root, nonce, nodeSha256: options.nodeSha256 })).toString("base64");
-    const command = `/usr/bin/env -i PATH=/usr/bin:/bin ${quote(NODE)} -e ${quote(RPC)} ${quote(payload)}`;
+    const command = `/usr/bin/env -i PATH=/usr/bin:/bin ${quote(NODE)} -e ${quote(rpcSource())} ${quote(payload)}`;
     let deadline: ReturnType<typeof setTimeout> | undefined;
     let response: { exitCode: number; result: string };
     try {
       response = await Promise.race([
-        sandbox.process.executeCommand(command, binding!.remoteCwd, {}, request.op === "wait" ? 295 : 10),
-        new Promise<never>((_resolve, reject) => { deadline = setTimeout(() => reject(new Error("deadline")), request.op === "wait" ? 300_000 : 12_000); deadline.unref(); }),
+        sandbox.process.executeCommand(command, binding!.remoteCwd, {}, request.op === "wait" ? 295 : request.op === "install" ? 25 : 10),
+        new Promise<never>((_resolve, reject) => { deadline = setTimeout(() => reject(new Error("deadline")), request.op === "wait" ? 300_000 : request.op === "install" ? 27_000 : 12_000); deadline.unref(); }),
       ]);
     } catch { throw new Error("remote_native_fixture:remote_command_failed_or_deadline"); }
     finally { if (deadline) clearTimeout(deadline); }
@@ -275,10 +310,10 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
   }
   const sandbox = await admittedSandbox();
   const names = [...targets, ...(options.crossRoot ? ["@cross-root"] : [])];
-  const config = { root, nonce, binding, sentinel, targets, actionFile, crossRoot: options.crossRoot, runnerdSha256: options.runnerdSha256 };
+  const config = { root, nonce, binding, sentinel, targets, actionFile, crossRoot: options.crossRoot, runtimeRelative: RUNTIME_RELATIVE, runnerdSha256: options.runnerdSha256 };
   let baseline: RemoteNativeSnapshot;
   try {
-    baseline = readSnapshot(await rpc({ op: "install", config, source: observerSource() }, sandbox), binding!, names, actionFile);
+    baseline = readSnapshot(await rpc({ op: "install", config, source: observerSource() }, sandbox), binding!, names, actionFile, options.runnerdSha256);
     fail(baseline.complete && baseline.processes.captured && baseline.processes.live.length > 0 && baseline.watcher.complete && !baseline.setup.published, "bootstrap_not_held");
   } catch (error) {
     // Only the nonce/inode-bound observer can acknowledge this cleanup. If
@@ -306,7 +341,7 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
     async snapshot(label) {
       fail(typeof label === "string" && /^[a-zA-Z0-9_-]{1,80}$/u.test(label), "snapshot_label");
       fail(!closed && !finished, "fixture_closed");
-      return readSnapshot(await rpc({ op: "snapshot" }), binding!, names, actionFile);
+      return readSnapshot(await rpc({ op: "snapshot" }), binding!, names, actionFile, options.runnerdSha256);
     },
     async readFile(path) {
       fail(!closed && names.includes(path), "unregistered_read");
@@ -337,7 +372,7 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
       if (finished) return finished;
       const receipt = await terminal;
       if ("error" in receipt) throw receipt.error;
-      const result = readSnapshot(receipt.value, binding!, names, actionFile);
+      const result = readSnapshot(receipt.value, binding!, names, actionFile, options.runnerdSha256);
       fail(published && result.setup.published && result.complete && result.watcher.complete && result.processes.captured && result.processes.live.length === 0, "terminal_evidence_incomplete");
       const files = record(record(receipt.value).files);
       for (const name of names) {
