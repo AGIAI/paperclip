@@ -1,20 +1,23 @@
 # Rich ACP integration and qualification report
 
-Updated: 2026-09-29. Base: `c65fc9e3c81c41aafe421aa90a00514b84343285`.
-Mainline integration: `3ca196b0a642aa21b8feba1fcd89edb53d1c622e`.
-Status: implementation is split into a shared foundation and three provider PRs.
-Provider review and qualification remain separate from foundation acceptance.
-All three new profiles remain **pending qualification**. Cursor passed all five
-local semantic Product E2E cases. Copilot passed completion, file validation,
-plan approval and controller restart; its question case failed the required final
-marker. Pi passed completion, file validation and semantic question continuation,
-plus real native denial, active steering and queued follow-up probes on v2/v3/v4.
-Pi completion/file/question passes retain their v2/v3 identities. The latest
-Pi candidate is profile v5 with a patched dependency closure; its paid native
-control probe passed, but its Product qualification remains blocked. Copilot
-passed real native denial and detached-command settlement probes. Failed attempts remain in the evidence;
-no Daytona resources have been started. This report does not certify a provider
-from its ACP listing or a partial run.
+Updated: 2026-09-29. Foundation PR #14430 is merged at
+`24beb005755465f71a19ec92a85da0958d1b9740`. Basic extended Runner Eval definitions
+are merged in `paperclip-evals` PR #29. Provider PRs remain separate review units
+and all three providers remain **pending qualification**.
+
+Current candidates are Cursor profile v3, Copilot profile v3 and Pi profile v6.
+Earlier paid local results below retain their historical profile identities;
+they do not qualify these revised runtime closures. Cursor v3 disables ambient
+MCP and hooks in the verified native distribution and preserves typed entitlement
+errors. Copilot v3 enforces manual agent policy at the ACP stream boundary and
+rejects unsupported detached work before permission delivery or execution.
+Pi v6 aligns native tool paths with SDK normalization, grants only registered
+agent files, and provides the four native question forms through an owned tool.
+
+Credential-free tests cover the new policy boundaries, real pinned native
+processes, clean runtime builds and Product E2E assertions. Authenticated tests
+of the current profiles, remaining platform coverage and Daytona Product E2E
+are still required. No Daytona resources have been started for this task.
 
 The [harness priorities report](https://pages.paperclip.ing/2026-09-25-harness-priorities/)
 recommends Cursor and Copilot, followed by Pi, using the existing qualified ACPX
@@ -47,7 +50,8 @@ The provider branches were implemented in parallel from the foundation. Final
 shared registration and packaging conflicts are resolved in dependency order:
 foundation → Cursor → Copilot → Pi. They remain four separate worktrees and PR
 review units; the later PR bases include their prerequisite providers. Foundation
-acceptance requires Apex review and CI to pass. Provider PRs remain unmerged
+acceptance completed with Apex 5/5 and passing CI; that result does not cover
+subsequent provider changes. Provider PRs remain unmerged
 pending qualification. Source reports on the provider branches are
 `doc/architecture/runner-cursor-capabilities.md`,
 `doc/architecture/runner-copilot-capabilities.md`, and
@@ -84,7 +88,7 @@ deterministic evidence are mapped separately after the comparison.
 | Text and tools | Typed thread/turn/item events | Standard ACP updates; child activity kept separate | Standard ACP plus opt-in native session events | Wrapper text/tool updates and owned tool gates |
 | Active steering | Dedicated `turn/steer` | Concurrent prompt replaces/cancels, so it is not steering | Concurrent prompt replaces/cancels, so it is not steering | Owned `pi/steer` requires handshake, exact active turn and acknowledgment; real active-turn probe passed |
 | Queued follow-up | Product continuation controls | Controller can schedule a later prompt; native queue not established | Native pending-message activity exists; no qualified ACP queue responder | Owned `pi/follow_up`, separately named and ordered; real queued marker followed the steered current response |
-| Cancellation | Typed interrupt and process lifecycle | ACP cancel; paid command cleanup pending | ACP cancel; bounded live detached-command settlement and cleanup passed | Native abort; wrapper waits for `agent_settled` and treats provider errors as failure |
+| Cancellation | Typed interrupt and process lifecycle | ACP cancel; paid command cleanup pending | ACP cancel; attached async native settlement passes offline. Explicit detached work is rejected before side effects; it is not supported background settlement | Native abort; wrapper waits for `agent_settled` and treats provider errors as failure |
 | Session continuity | Read/load/history/fork and durable identity | Session load/list observed; paid semantic warm continuation passed; native history replay unverified and fork absent in tested methods | Session load plus native history events; semantic pending-question controller recovery passed | Private Pi JSONL mapping/load; native RPC `fork`, `clone`, `get_fork_messages` are not mapped through this ACP wrapper; unresolved UI promises cannot survive provider death |
 | Questions | Typed input requests and response correlation | `cursor/ask_question`, option identity and multiple selection preserved | Native ask-user capability exists, but pinned ACP does not wire its responder; do not display a false answerable form | `select`, `confirm`, `input`, `editor` through typed form elicitation |
 | Permissions | Durable typed approvals | Standard ACP permission options; denied shell write had no observed side effects; separately labeled exact-correlation assessment | Standard ACP; real native reject_once prevented marker creation; session decision scope inspected | Native pre-tool gate; allow once, exact-operation session grant, deny; paths rechecked after wait |
@@ -178,10 +182,10 @@ provider's branch. Local and remote pack verification includes the complete
 candidate asset tree. The corresponding Daytona build argument is documented in
 `docker/daytona-runner/README.md`. Candidate packaging never promotes a profile.
 
-ACP is not an OS sandbox. Cursor still reads project MCP/hooks beyond its
-`--disable-project-configs` flag; the adapter rejects known ambient execution
-configuration. Mutations during a run and remote team hooks still require
-qualification. Pi's tool policy supplements the execution boundary; arbitrary
+ACP is not an OS sandbox. Cursor v3 patches the verified native ACP
+distribution to disable project and ambient MCP discovery and local/remote
+hooks. Offline poison-configuration tests exercise the actual transformed
+vendor functions; paid and remote qualification remain required. Pi's tool policy supplements the execution boundary; arbitrary
 shell commands and filesystem races require the host boundary. These are
 qualification gates, not claims that a JavaScript path check confines a shell.
 
@@ -189,13 +193,13 @@ qualification gates, not claims that a JavaScript path check confines a shell.
 
 | Priority | Exposed but unused, partial, or unverified | Reason and next proof |
 | --- | --- | --- |
-| P0 | Remaining paid product cases on local and Daytona | Credentials are explicitly bound. Cursor's five local semantic cases passed. Copilot completion/file/plan/restart cases and Pi completion/file/question passed. Copilot question continuation reached the correct UI and warm session but failed its final marker. Copilot question qualification, remaining Pi cases and all remote cases remain open. The 30-cell Product E2E and private 21-cell Runner Eval extended suites are explicit-only. Daytona billing access still requires user email verification. |
-| P0 | Pi fresh-profile Product verification blocked by host resources | The next paid plan case failed during embedded PostgreSQL initialization before any provider prompt. A disposable reproduction found 16 free SysV semaphores when Postgres required a set of 17. Resume the unchanged canonical case only after task-owned cleanup or a supported isolated test host restores capacity; do not remove unrelated IPC objects or substitute an unqualified database fixture. |
+| P0 | Remaining paid product cases on local and Daytona | Credentials are explicitly bound. Cursor's five local semantic cases passed. Copilot completion/file/plan/restart cases and Pi completion/file/question passed. Copilot question continuation reached the correct UI and warm session but failed its final marker. Copilot question qualification, remaining Pi cases and all remote cases remain open. The 30-cell Product E2E and private 21-cell Runner Eval extended suites are explicit-only. The authorized Daytona API key can read the separate analytics API. Per-sandbox cost attribution and cleanup evidence must accompany each new remote attempt; aggregate organization usage includes unrelated work. |
+| P0 | Pi fresh-profile Product verification | Historical v4 plan startup failed because the host lacked a Postgres semaphore set. A new read-only capacity check has sufficient headroom. Preserve that infrastructure attempt, then run unchanged canonical cases against the fresh v6 build; do not remove unrelated IPC objects. |
 | P0 | Copilot native ask-user and plan-decision callbacks | Pinned ACP does not install native responders. Prove no blocking request is exposed, or add a qualified responder/wrapper; never swallow the request. |
-| P0 | Broader Copilot denial and background settlement qualification | Two bounded real-service probes passed on pinned 1.0.88: native reject_once prevented a requested file write, and an observed detach:true command completed before end_turn. These establish the selected cases only; retain broader local/Daytona qualification before promotion. |
+| P0 | Broader Copilot denial and background settlement qualification | Pinned 1.0.88 and isolated 1.0.89 settle attached async commands, but deliberately detached work can finish after end_turn. The earlier paid detached success depended on that model waiting and is not general settlement evidence. Profile v3 rejects explicit detached admission before effects; governed long-lived background work remains unsupported. Denial and process-death recovery pass offline; paid local/Daytona proof remains required. |
 | P0 | Cursor native question availability | A real default-mode prompt with no semantic MCP tools reported that native AskQuestion was unavailable. No native request arrived. The pinned client implements the RPC and mode controls, but inspected local guards do not explain the negotiated tool availability. Inspect the actual catalog/flags before another live probe; do not infer permanent harness absence or native success from semantic question tests. |
-| P0 | Typed Cursor entitlement failure | Exact models and successful inference are observed on the selected paid accounts. Cursor's first-account entitlement denial became ordinary text and normal completion. Preserve this failure and qualify typed failure handling; never infer a successful task from terminal status alone. |
-| P0 | Cursor project and remote hooks; native shell boundaries | Configuration flags do not cover every native source. Demonstrate policy cannot be bypassed before production qualification. |
+| P0 | Typed Cursor entitlement failure | The v3 native patch preserves typed entitlement/authentication errors. Offline transformed-vendor tests and clean native authentication failure probes pass. The historical first-account failure remains retained; authenticated Product proof on the revised runtime is still required. |
+| P0 | Cursor project and remote hooks; native shell boundaries | The verified v3 patch disables native ambient MCP/hooks at their actual initialization points on all three platforms. Retain real paid/remote isolation and command cleanup qualification before promotion. |
 | P1 | Native Pi queue selection in the product UI | The runner API exposes negotiated `follow_up` separately from active steering. The current composer has no native queue selector; add one without confusing it with controller-scheduled later turns. |
 | P1 | Pi `queue_update` contents and delivery state | RPC acknowledgment proves acceptance, not model consumption. Add bounded queued/delivered events and durable message correlation with explicit retention rules for user content; preserve this distinction on reconnect. The selected live marker-order probe proves its own consumed messages only. |
 | P1 | Pi structured retry and compaction progress | Current text projection drops some `attempt`, `maxAttempts`, `delayMs`, `errorMessage`, `success`, `finalError`, `reason` and `willRetry` fields. Add bounded redacted provider notices with source-event provenance and outcome regressions; keep terminal failure authority separate. |
