@@ -171,11 +171,55 @@ function stepLabelsOnScreen(): string[] {
 }
 
 /**
- * Advance past the Access step (PAP-17835), which now sits between picking a
- * curated app and entering its credential. Picks "Any agent" so Continue is
- * enabled without depending on the agent list.
+ * Open the Advanced disclosure that now holds the identity and agent-reach
+ * controls the Access step used to own (PAP-659 C0). Closed by default and
+ * unmounted while closed, so a test that asserts on those controls has to open
+ * it first — which is itself the assertion that they are one click away.
+ */
+async function openAccessAdvanced() {
+  const change = Array.from(document.body.querySelectorAll("button")).find(
+    (b) => b.textContent?.trim() === "Change" && b.getAttribute("aria-expanded") === "false",
+  );
+  if (!change) return;
+  await act(async () => {
+    change.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  await flushReact();
+}
+
+/**
+ * PAP-659 deleted the Access step: picking a connector now opens its connect
+ * screen directly, and identity/agent reach are a stated default with an
+ * Advanced disclosure rather than a screen to pass.
+ *
+ * What remains is the one-click handoff the Access step used to perform for
+ * automatic-OAuth definitions, which is now the primary action of the sign-in
+ * screen itself. Everywhere else this is a no-op, so the call sites keep
+ * reading as "get to the part this test is about".
  */
 async function passAccessStep() {
+  const onOAuthEntryScreen = Boolean(
+    document.body.textContent?.includes("Paperclip will open")
+      || document.body.textContent?.includes("Your connection is saved."),
+  );
+  if (onOAuthEntryScreen) {
+    const handoff = Array.from(document.body.querySelectorAll("button")).find((b) => {
+      const label = b.textContent?.trim() ?? "";
+      return label.startsWith("Continue to") || label.startsWith("Finish with");
+    });
+    await act(async () => {
+      handoff?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flushReact();
+    return;
+  }
+  // The remote-MCP aggregator setup (arcade, composio, executor, zapier) keeps
+  // its own Access step until PAP-659's no-auth pass replaces it. Recognise it
+  // by its own stepper rather than by any control the shared flow also has.
+  if (!stepLabelsOnScreen().includes("Access")) {
+    await flushReact();
+    return;
+  }
   const anyAgent = Array.from(document.body.querySelectorAll('[role="radio"]'))
     .find((option) => option.textContent?.includes("Any agent"));
   if (anyAgent) {
@@ -184,11 +228,10 @@ async function passAccessStep() {
     });
     await flushReact();
   }
-  const submit = Array.from(document.body.querySelectorAll("button")).find(
-    (b) => b.textContent?.trim() === "Save and continue"
-      || b.textContent?.trim() === "Continue"
-      || b.textContent?.trim().startsWith("Continue to"),
-  );
+  const submit = Array.from(document.body.querySelectorAll("button")).find((b) => {
+    const label = b.textContent?.trim() ?? "";
+    return label === "Save and continue" || label === "Continue";
+  });
   await act(async () => {
     submit?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
@@ -579,6 +622,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       buttonByText("Continue")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
+    await openAccessAdvanced();
 
     expect(container.textContent).toContain("Which humans can use this credential?");
     expect(container.textContent).toContain("Which agents can use this connection?");
@@ -678,12 +722,19 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(container.textContent).not.toContain("Connect for tool access instead");
   });
 
-  it("asks for a GitHub identity and defaults to the current user and every agent", async () => {
+  it("states the GitHub identity default and keeps its controls one click away", async () => {
     mockParams.appKey = "github";
     listGalleryMock.mockResolvedValue({ apps: [GITHUB_MANAGED] });
     await render();
 
-    expect(container.textContent).toContain("Access");
+    // PAP-659 C0: the default is printed, not asked. Nothing about identity or
+    // reach blocks the primary action.
+    expect(container.textContent).toContain("Connects as you, available to all agents.");
+    expect(container.textContent).not.toContain("Connect GitHub as");
+    expect(container.querySelector('[role="radio"]')).toBeNull();
+
+    await openAccessAdvanced();
+
     expect(container.textContent).toContain("Connect GitHub as");
     expect(container.textContent).toContain("Which agents may use your GitHub when you’re responsible?");
     expect(container.textContent).not.toContain("Choose access before adding credentials");
@@ -715,11 +766,12 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(anyAgent?.getAttribute("aria-checked")).toBe("true");
   });
 
-  it("keeps provider guidance and card styling out of the shared access step", async () => {
+  it("keeps provider guidance and card styling out of the access controls", async () => {
     mockParams.appKey = "pagerduty";
     listGalleryMock.mockResolvedValue({ apps: [PAGERDUTY] });
 
     await render();
+    await openAccessAdvanced();
 
     expect(container.textContent).toContain("Which humans can use this credential?");
     expect(container.textContent).toContain("Which agents can use this connection?");
@@ -736,11 +788,14 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(accessCard?.classList.contains("shadow-sm")).toBe(false);
   });
 
-  it("defaults to every agent and only blocks an empty explicit selection", async () => {
+  it("defaults to every agent and states an empty explicit selection", async () => {
     mockParams.appKey = "github";
     await render();
+    await openAccessAdvanced();
 
-    expect(buttonByText("Save and continue")?.disabled).toBe(false);
+    // PAP-659 C0: narrowing reach never blocks Connect. An empty selection is
+    // reported in the stated default instead of disabling the primary action.
+    expect(container.textContent).toContain("available to all agents.");
 
     await act(async () => {
       Array.from(document.body.querySelectorAll('[role="radio"]'))
@@ -749,43 +804,28 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     });
     await flushReact();
 
-    expect(buttonByText("Save and continue")?.disabled).toBe(true);
+    expect(container.textContent).toContain("no agents selected yet.");
   });
 
-  it("keeps the access selections when the wizard moves backward", async () => {
+  it("reflects a changed access selection in the stated default", async () => {
     mockParams.appKey = "github";
     await render();
+    await openAccessAdvanced();
 
     await act(async () => {
       Array.from(document.body.querySelectorAll('[role="radio"]'))
-        .find((r) => r.textContent?.includes("My GitHub account"))
-        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushReact();
-    await act(async () => {
-      Array.from(document.body.querySelectorAll('[role="radio"]'))
-        .find((r) => r.textContent?.includes("Any agent"))
+        .find((r) => r.textContent?.includes("A dedicated account for an agent"))
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
 
-    await act(async () => {
-      buttonByText("Save and continue")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushReact();
-    expect(container.textContent).toContain("Connect GitHub");
+    // The sentence above the primary action is the only place this is said, so
+    // it has to track the controls rather than print a fixed default.
+    expect(container.textContent).toContain("Connects as a dedicated agent account");
 
-    await act(async () => {
-      buttonByText("Back")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushReact();
-
-    // Moving backward must not silently reset the identity the operator chose.
     const radios = Array.from(document.body.querySelectorAll('[role="radio"]'));
-    expect(radios.find((r) => r.textContent?.includes("My GitHub account"))?.getAttribute("aria-checked"))
-      .toBe("true");
-    expect(radios.find((r) => r.textContent?.includes("Any agent"))?.getAttribute("aria-checked"))
-      .toBe("true");
+    expect(radios.find((r) => r.textContent?.includes("A dedicated account for an agent"))
+      ?.getAttribute("aria-checked")).toBe("true");
   });
 
   it("uses Cancel to exit while the bottom Back button stays in the wizard", async () => {
@@ -824,6 +864,8 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     });
     await flushReact();
 
+    await openAccessAdvanced();
+
     const github = identityChoices();
     expect(github.wholeOrg?.getAttribute("aria-checked")).toBe("true");
     expect(github.justMe?.getAttribute("aria-checked")).toBe("false");
@@ -842,10 +884,6 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       Array.from(document.body.querySelectorAll('[role="radio"]'))
         .find((r) => r.textContent?.includes("Any agent"))
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushReact();
-    await act(async () => {
-      buttonByText("Save and continue")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
 
@@ -986,6 +1024,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     mockSearch.value = "source=asana";
 
     await render();
+    await openAccessAdvanced();
 
     expect(document.body.textContent).toContain("Which humans can use this credential?");
     expect(document.body.textContent).toContain("Which agents can use this connection?");
@@ -1011,9 +1050,12 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
 
     await render();
 
-    expect(document.body.textContent).toContain("Step 1 of 2");
-    expect(document.body.textContent).toContain("Access   ·   Choose connection");
+    // PAP-659: a selected app is one screen, so there is no stepper and no
+    // Access stage to deep-link into; a legacy stage=access URL lands here.
+    expect(document.body.textContent).not.toContain("Step 1 of 2");
     expect(document.body.textContent).not.toContain("Pick app   ·");
+    expect(document.body.textContent).toContain("Connects for everyone in your organization");
+    await openAccessAdvanced();
     expect(document.body.textContent).toContain("Which humans can use this credential?");
     expect(document.body.textContent).toContain("Just me");
     expect(mockNavigate).not.toHaveBeenCalledWith("/apps/connect", { replace: true });
@@ -1647,9 +1689,9 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     mockParams.appKey = "posthog";
     listGalleryMock.mockResolvedValueOnce({ apps: [POSTHOG] });
     await render();
-    // Access comes first for a curated app; the method chooser shares a screen
-    // with the credential fields, so it sits behind it (PAP-17835).
-    expect(container.textContent).toContain("Which humans can use this credential?");
+    // PAP-659: identity is stated, not asked, and the method chooser moved
+    // into the same Advanced disclosure.
+    expect(container.textContent).toContain("Connects for everyone in your organization");
     await passAccessStep();
 
     expect(container.textContent).toContain("How do you want to connect?");
@@ -1838,7 +1880,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
         requestedAgentId="agent-1"
       />
     ));
-    expect(container.textContent).toContain("This task grants access only to Ada");
+    expect(container.textContent).toContain("available to the agent that asked for it");
     const continueButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.trim() === "Continue",
     );
@@ -1995,6 +2037,8 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
 
     expect(connectAppMock).not.toHaveBeenCalled();
     expect(navigateTopLevelMock).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Connects for everyone in your organization");
+    await openAccessAdvanced();
     expect(container.textContent).toContain("Which humans can use this credential?");
     expect(container.textContent).not.toContain("Choose access before sign-in");
     const identityRadios = Array.from(document.body.querySelectorAll('[role="radio"]'));
@@ -2041,19 +2085,20 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
 
     await render();
 
-    const stepsOnAccess = stepLabelsOnScreen();
-    expect(stepsOnAccess).toEqual(["Access", "Sign in"]);
+    // PAP-659: a curated connector is a single screen, so it shows no stepper
+    // at all. Connecting must not conjure one.
+    expect(stepLabelsOnScreen()).toEqual([]);
+    expect(stepDotCount()).toBe(0);
 
     await passAccessStep();
     await submitCuratedOAuthSetup();
 
     expect(container.textContent).toContain("Preparing secure sign-in");
-    // Connecting must not grow the stepper a step the flow never lands on.
-    expect(stepLabelsOnScreen()).toEqual(stepsOnAccess);
-    expect(stepDotCount()).toBe(stepsOnAccess.length);
+    expect(stepLabelsOnScreen()).toEqual([]);
+    expect(stepDotCount()).toBe(0);
   });
 
-  it("backs from the sign-in checkpoint to Access without exiting the wizard", async () => {
+  it("backs from the sign-in checkpoint out to the connector gallery", async () => {
     mockSearch.value = "source=notion";
     listGalleryMock.mockResolvedValueOnce({ apps: [NOTION] });
     connectAppMock.mockReturnValueOnce(new Promise(() => {}));
@@ -2067,9 +2112,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     });
     await flushReact();
 
-    expect(container.textContent).toContain("Which humans can use this credential?");
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/connect?source=notion&stage=access");
-    expect(mockNavigate).not.toHaveBeenCalledWith("/apps");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps");
   });
 
   it("resumes an existing Notion OAuth connection instead of creating another draft", async () => {
@@ -2103,7 +2146,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
 
     await render();
     expect(container.textContent).not.toContain("Reconnect keeps this identity type");
-    expect(container.textContent).toContain("Existing agent access stays the same");
+    expect(container.textContent).toContain("agent access stays as it is");
     expect(startOAuthMock).not.toHaveBeenCalled();
     await passAccessStep();
     await submitCuratedOAuthSetup();
@@ -2269,9 +2312,9 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
 
     await render();
     expect(container.textContent).toContain(
-      credentialPolicy === "per_user" ? "Just me" : "Any human in the organization",
+      credentialPolicy === "per_user" ? "Connects as you" : "Connects for everyone in your organization",
     );
-    expect(container.textContent).toContain("Existing agent access stays the same");
+    expect(container.textContent).toContain("agent access stays as it is");
     await passAccessStep();
     await submitCuratedOAuthSetup();
 
@@ -2529,7 +2572,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(connectAppMock).not.toHaveBeenCalled();
     expect(startOAuthMock).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain("Reconnect keeps this identity type");
-    expect(container.textContent).toContain("Existing agent access stays the same");
+    expect(container.textContent).toContain("agent access stays as it is");
     await passAccessStep();
     await submitCuratedOAuthSetup();
     expect(startOAuthMock).toHaveBeenCalledWith("conn-refreshed", {
@@ -2575,7 +2618,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(connectAppMock).not.toHaveBeenCalled();
     expect(startOAuthMock).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain("Reconnect keeps this identity type");
-    expect(container.textContent).toContain("Existing agent access stays the same");
+    expect(container.textContent).toContain("agent access stays as it is");
     await passAccessStep();
     await submitCuratedOAuthSetup();
     expect(startOAuthMock).toHaveBeenCalledWith("conn-after-retry", {
@@ -2708,6 +2751,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     await render();
 
     expect(connectAppMock).not.toHaveBeenCalled();
+    await openAccessAdvanced();
     expect(container.textContent).toContain("Which humans can use this credential?");
     expect(mockNavigate).not.toHaveBeenCalledWith("/apps/connect", { replace: true });
   });
@@ -2798,6 +2842,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       buttonByText("Continue")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
+    await openAccessAdvanced();
 
     expect(container.textContent).toContain("Which humans can use this credential?");
     expect(container.textContent).toContain("Which agents can use this connection?");
@@ -2941,6 +2986,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     mockSearch.value =
       "link=https%3A%2F%2Fwww.example.com%2Factions&name=Bla&applicationId=app-77";
     await render();
+    await openAccessAdvanced();
 
     expect(container.textContent).toContain("Which humans can use this credential?");
     await passAccessStep();
@@ -3051,21 +3097,15 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     );
   });
 
-  it("steps back from the key step to Access, and from Access to Connectors", async () => {
+  it("steps back from the single connect screen straight to Connectors", async () => {
     mockSearch.value = "";
     mockParams.appKey = "github";
     await render();
     await passAccessStep();
     expect(container.textContent).toContain("Connect GitHub");
 
-    // Back from the credential goes to Access, not all the way out: the
-    // selections made there have to survive (PAP-17835).
-    await act(async () => {
-      buttonByText("Back")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushReact();
-    expect(container.textContent).toContain("Connect GitHub as");
-
+    // PAP-659: there is no Access step to return to, so Back is a single hop
+    // out of the connector rather than a two-hop wizard retreat.
     await act(async () => {
       buttonByText("Back")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -3510,10 +3550,10 @@ describe("AppsConnect — guided generic MCP flow (PAP-17087)", () => {
   });
 
   // The curated flow has its own regression test for this. The generic flow is
-  // a separate three-step model with a separate override, so it needs its own —
+  // a separate two-step model with a separate override, so it needs its own —
   // otherwise the waiting screen could quietly drop back to the curated
-  // two-step labels here and nothing would catch it.
-  it("keeps the generic three-step model when a pasted endpoint hands off to sign-in", async () => {
+  // single-step label here and nothing would catch it.
+  it("keeps the generic two-step model when a pasted endpoint hands off to sign-in", async () => {
     connectAppMock.mockResolvedValue({
       connectionId: "conn-1",
       application: { id: "app-1", name: "mcp.example.test" },
@@ -3526,7 +3566,7 @@ describe("AppsConnect — guided generic MCP flow (PAP-17087)", () => {
     await gotoLinkFrame(container, "https://mcp.example.test/mcp");
 
     const stepsBeforeHandoff = stepLabelsOnScreen();
-    expect(stepsBeforeHandoff).toEqual(["Pick app", "Access", "Add your key"]);
+    expect(stepsBeforeHandoff).toEqual(["Pick app", "Add your key"]);
 
     await act(async () => {
       buttonByText("Check link")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
