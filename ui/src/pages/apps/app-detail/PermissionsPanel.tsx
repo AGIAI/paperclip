@@ -384,9 +384,40 @@ function ActionGroup({
   onSetPermission: (id: string, next: ActionPermission) => void;
 }) {
   if (actions.length === 0) return null;
+  const groupValue = (() => {
+    const first = actionPermission(actions[0]!.id, enabledIds, askFirstIds);
+    return actions.every((action) => actionPermission(action.id, enabledIds, askFirstIds) === first)
+      ? first
+      : "";
+  })();
   return (
     <div>
-      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+        {canConfigure ? (
+          // PAP-659 C6b: set the whole group at once. Setting seventeen write
+          // actions one row at a time is the reason the armed default would
+          // otherwise be hard to live with; per-row overrides stay underneath.
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="sr-only">{`Set every action in ${title}`}</span>
+            <select
+              aria-label={`Set every action in ${title}`}
+              value={groupValue}
+              disabled={disabled}
+              onChange={(event) => {
+                const next = event.target.value as ActionPermission;
+                for (const action of actions) onSetPermission(action.id, next);
+              }}
+              className="h-7 rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
+            >
+              {groupValue === "" ? <option value="">Mixed</option> : null}
+              {PERMISSION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{`Set all: ${option.label}`}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
       <div className="divide-y divide-border">
         {actions.map((action) => (
           <ActionRow
@@ -455,7 +486,18 @@ function ActionRow({
         data-action-id={action.id}
       >
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-foreground">{title}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-foreground">{title}</span>
+            {/* PAP-659 C7: the gate is only as good as the classifier, so say
+                what each action was classified as. A misfiled tool is then one
+                glance to spot and one click to move. */}
+            <span
+              className="rounded-full border border-border px-1.5 py-px text-xs font-medium uppercase tracking-wide text-muted-foreground"
+              title={`Paperclip classified this action as ${action.riskLevel}`}
+            >
+              {action.riskLevel}
+            </span>
+          </div>
           {action.description ? (
             <div className="truncate text-xs text-muted-foreground">{action.description}</div>
           ) : null}

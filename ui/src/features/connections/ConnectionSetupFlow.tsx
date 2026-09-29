@@ -1918,8 +1918,12 @@ function StandardConnectionSetupFlow({
         : "api_key";
   // PAP-659 C0: the resolved default is stated, not asked. `Change` opens the
   // same controls the deleted Access step owned, inline and never blocking.
-  const connectionDefaults = step === "key" ? (
+  const renderConnectionDefaults = step === "key" ? (
+    (extra?: ReactNode, forceOpen?: boolean) => (
     <ConnectionAccessDefaults
+      key="connection-defaults"
+      extra={extra}
+      forceOpen={forceOpen}
       companyId={selectedCompanyId}
       sentence={connectionDefaultSummarySentence({
         grantKind: effectiveGrantKind,
@@ -1929,17 +1933,17 @@ function StandardConnectionSetupFlow({
         lockedAgentId: requestedAgentId ?? null,
         preserveAgentAccess: Boolean(automaticOAuthEntry && (resumableOAuthConnection || reconnectConnection)),
       })}
-      notice={
+      notice={[
         galleryQuery.data?.capabilities?.canCreateOrganizationGrant === false
           ? galleryQuery.data.capabilities.organizationGrantReason
             ?? "Only a connection manager can share this credential with the organization."
-          : galleryQuery.data?.capabilities?.canSetCompanyInstall === false
-            ? galleryQuery.data.capabilities.companyInstallReason
-              ?? "Only someone who can configure this connection can give every agent access."
-            : requestedAgentId
-              ? "This task grants access only to the agent that asked for it."
-              : null
-      }
+          : null,
+        galleryQuery.data?.capabilities?.canSetCompanyInstall === false
+          ? galleryQuery.data.capabilities.companyInstallReason
+            ?? "Only someone who can configure this connection can give every agent access."
+          : null,
+        requestedAgentId ? "This task grants access only to the agent that asked for it." : null,
+      ].filter((reason): reason is string => Boolean(reason))}
       authKind={accessStepAuthKind}
       grantKinds={fixedGrantKind ? [fixedGrantKind] : accessStepMethod?.grantKinds}
       grantKind={effectiveGrantKind}
@@ -1955,7 +1959,9 @@ function StandardConnectionSetupFlow({
       preserveAgentAccess={Boolean(automaticOAuthEntry && (resumableOAuthConnection || reconnectConnection))}
       disabled={connectMutation.isPending || oauthStartMutation.isPending}
     />
+    )
   ) : null;
+  const connectionDefaults = renderConnectionDefaults?.() ?? null;
 
   const showCuratedOAuthState = Boolean(
     automaticOAuthEntry
@@ -2007,11 +2013,22 @@ function StandardConnectionSetupFlow({
         defaults={connectionDefaults}
         onOpenAuthorization={openAuthorizationTab}
         onRetry={async () => {
+          const firstAttempt = !directOAuthAccessConfirmedRef.current;
+          directOAuthAccessConfirmedRef.current = true;
           setOAuthError(null);
           setOAuthPhase("starting");
           const connection = connectResult?.connection ?? resumableOAuthConnection;
           if (connection) {
             startOAuth(connection);
+            return;
+          }
+          if (
+            firstAttempt
+            && !resumeConnectionId
+            && !applicationsQuery.isError
+            && !connectionsQuery.isError
+          ) {
+            connectApp(automaticOAuthEntry);
             return;
           }
 
@@ -2274,6 +2291,7 @@ function StandardConnectionSetupFlow({
                 </a>
               </p>
             ) : null}
+            {connectionDefaults}
             <div className="mt-6 flex items-center justify-between gap-3">
               <Button type="button" variant="ghost" onClick={backToGallery}>
                 Back
@@ -2339,7 +2357,7 @@ function StandardConnectionSetupFlow({
             setGoogleSheetsError(null);
           }}
           submitting={connectMutation.isPending}
-          defaults={connectionDefaults}
+          renderDefaults={renderConnectionDefaults}
           // Back returns to the connector gallery for new, resumed, and
           // reconnected accounts. Cancel is the separate exit to the app list.
           onBack={backToGallery}
@@ -2386,6 +2404,17 @@ function StandardConnectionSetupFlow({
           }}
         />
       ) : null}
+
+      {/* A deep link can arrive before the gallery resolves its definition.
+          The Access step used to carry that wait; without it the connect screen
+          has to show the wait itself rather than render nothing. */}
+      {step === "key" && !entry && !linkUrl && !zapierSource && requestedAppKey && (
+        <div className="mx-auto max-w-xl" aria-busy="true" aria-label={`Loading ${requestedAppKey} setup`}>
+          <Skeleton className="h-6 w-2/3 rounded-md" />
+          <Skeleton className="mt-3 h-4 w-full rounded-md" />
+          <Skeleton className="mt-8 h-11 w-40 rounded-md" />
+        </div>
+      )}
 
       {step === "key" && !entry && linkUrl && !zapierSource && (
         <LinkConnectStep
@@ -3365,7 +3394,7 @@ function KeyStep({
   googleSheetsError,
   onGoogleSheetsLinksChange,
   submitting,
-  defaults,
+  renderDefaults,
   onBack,
   onConnect,
 }: {
@@ -3393,8 +3422,11 @@ function KeyStep({
   googleSheetsError: string | null;
   onGoogleSheetsLinksChange: (next: string) => void;
   submitting: boolean;
-  /** The stated default and its Advanced disclosure (PAP-659 C0). */
-  defaults?: ReactNode;
+  /**
+   * Builds the one Advanced disclosure this screen has (PAP-659 C0). The key
+   * step contributes its own settings to it rather than opening a second one.
+   */
+  renderDefaults?: (extra?: ReactNode, forceOpen?: boolean) => ReactNode;
   onBack: () => void;
   onConnect: () => void;
 }) {
@@ -3472,7 +3504,6 @@ function KeyStep({
   const configFields = allConfigFields.filter((field) => !field.hidden);
   const standardConfigFields = configFields.filter((field) => field.advanced !== true);
   const advancedConfigFields = configFields.filter((field) => field.advanced === true);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const configFilled = allConfigFields.every((field) => {
     if (!field.required) return true;
     const value = configValues[field.key];
@@ -3558,13 +3589,39 @@ function KeyStep({
       {!method && <p className="mt-2 text-xs text-muted-foreground">Choose a connection method to continue.</p>}
     </div>
   ) : null;
-  const advancedMethodSelection = authenticationSelection;
   const hasAdvancedSettings = advancedConfigFields.length > 0
     || optionalCustomerOAuthClient
     || hasAlternateMethods;
   // Keep the disclosure open when what is inside it is load-bearing right now:
   // a non-default method in use, or a selection the connector still needs.
   const forceAdvancedOpen = usingCustomGoogleOAuth || !hasMethodSelection;
+  const advancedSettings = hasAdvancedSettings ? (
+    <div className="space-y-6">
+      {capabilitySelection}
+      {authenticationSelection}
+      {advancedConfigFields.map((field) => (
+        <MethodConfigField
+          key={field.key}
+          field={field}
+          value={configValues[field.key]}
+          onChange={(value) => onConfigChange({ ...configValues, [field.key]: value })}
+        />
+      ))}
+      {optionalCustomerOAuthClient ? (
+        <OAuthClientFields
+          entry={entry}
+          method={method!}
+          callbackUrl={oauthCallbackUrl}
+          clientId={oauthClientId}
+          onClientIdChange={onOAuthClientIdChange}
+          clientSecret={oauthClientSecret}
+          onClientSecretChange={onOAuthClientSecretChange}
+          required={false}
+        />
+      ) : null}
+    </div>
+  ) : null;
+  const defaults = renderDefaults?.(advancedSettings, forceAdvancedOpen) ?? null;
 
   if (isGoogleSheetsRobotMethod(entry, method)) {
     const parsed = parseGoogleSheetIds(googleSheetsLinks);
@@ -3694,40 +3751,6 @@ function KeyStep({
           />
         ))}
 
-        {hasAdvancedSettings && (
-          <Collapsible open={advancedOpen || forceAdvancedOpen} onOpenChange={setAdvancedOpen}>
-            <CollapsibleTrigger className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-              <ChevronDown className={cn("h-4 w-4 transition-transform", advancedOpen && "rotate-180")} />
-              Advanced
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-4">
-              <div className="space-y-6">
-                {capabilitySelection}
-                {advancedMethodSelection}
-                {advancedConfigFields.map((field) => (
-                  <MethodConfigField
-                    key={field.key}
-                    field={field}
-                    value={configValues[field.key]}
-                    onChange={(value) => onConfigChange({ ...configValues, [field.key]: value })}
-                  />
-                ))}
-                {optionalCustomerOAuthClient ? (
-                  <OAuthClientFields
-                    entry={entry}
-                    method={method!}
-                    callbackUrl={oauthCallbackUrl}
-                    clientId={oauthClientId}
-                    onClientIdChange={onOAuthClientIdChange}
-                    clientSecret={oauthClientSecret}
-                    onClientSecretChange={onOAuthClientSecretChange}
-                    required={false}
-                  />
-                ) : null}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        )}
 
         {!usingVercel && method?.auth === "oauth" && customerOAuthClientRequired ? (
           <div id={googleOAuthFieldsId} role="region" aria-label="Your OAuth app">
@@ -4310,16 +4333,27 @@ export function ConnectionAccessDefaults({
   companyId,
   sentence,
   notice,
+  extra,
+  forceOpen = false,
   disabled = false,
   ...accessProps
 }: Omit<Parameters<typeof AccessStepContent>[0], "agents" | "agentsLoading" | "submitLabel" | "onBack" | "onContinue" | "pending" | "continuesToProvider" | "hideFooter" | "bare"> & {
   companyId: string;
   sentence: string;
   /** Shown when the resolved default genuinely cannot apply. Never a step. */
-  notice?: string | null;
+  notice?: string[];
+  /**
+   * Connector-specific advanced settings — alternate methods, access level,
+   * provider config, a customer-owned OAuth client. They share this one
+   * disclosure rather than opening a second one on the same screen.
+   */
+  extra?: ReactNode;
+  /** Something inside is load-bearing right now, so do not hide it. */
+  forceOpen?: boolean;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const expanded = open || forceOpen;
   return (
     <div className="mt-6 rounded-lg border border-border bg-muted/30 px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -4328,21 +4362,24 @@ export function ConnectionAccessDefaults({
           type="button"
           variant="link"
           className="h-auto p-0 text-xs font-semibold underline underline-offset-2"
-          aria-expanded={open}
+          aria-expanded={expanded}
           disabled={disabled}
           onClick={() => setOpen((previous) => !previous)}
         >
           Change
         </Button>
       </div>
-      {notice ? <p className="mt-2 text-xs text-muted-foreground">{notice}</p> : null}
-      <Collapsible open={open} onOpenChange={setOpen}>
+      {(notice ?? []).map((reason) => (
+        <p key={reason} className="mt-2 text-xs text-muted-foreground">{reason}</p>
+      ))}
+      <Collapsible open={expanded} onOpenChange={setOpen}>
         <CollapsibleTrigger className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground">
-          {open ? <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />}
+          {expanded ? <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />}
           Advanced
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="mt-3">
+          <div className="mt-3 space-y-6">
+            {extra}
             <AccessStep {...accessProps} companyId={companyId} bare hideFooter submitLabel="" onBack={() => {}} onContinue={() => {}} />
           </div>
         </CollapsibleContent>

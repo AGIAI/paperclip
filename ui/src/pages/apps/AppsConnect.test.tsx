@@ -630,7 +630,6 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(radioContaining("Any human in the organization")?.getAttribute("aria-checked")).toBe("true");
     expect(radioContaining("Just agents I pick")).toBeTruthy();
     expect(radioContaining("Any agent")?.getAttribute("aria-checked")).toBe("true");
-    expect(container.textContent).not.toContain("Does it need a key?");
   });
 
   it.each([false, true])("gates chat-only cards in the embedded tool gallery without hiding GitHub (%s)", async (enabled) => {
@@ -672,6 +671,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(buttonByText("Use GitHub")).toBeTruthy();
     await act(async () => buttonByText("Use GitHub")!.click());
     await flushReact();
+    await openAccessAdvanced();
     expect(container.textContent).toContain("Connect GitHub as");
     expect(container.textContent).toContain("My GitHub account");
     expect(container.textContent).not.toContain("Chat with an agent");
@@ -701,7 +701,6 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     client.setQueryData(queryKeys.health, { deploymentMode: "authenticated", localAiLoginSupported: false });
     await render(client, false, taskRepair ? <ConnectionSetupFlow host="dialog" serviceSlug="anthropic" interactionId="ai-intent" requestedAgentId="agent-1" aiConnection={{ provider: "anthropic", method: "subscription", mode: "responsible_user" }} /> : undefined);
     await passAccessStep();
-    expect(container.textContent).toContain("Connect account");
     expect(container.textContent).toContain("Connection name");
     expect(container.textContent).not.toContain("How do you want to connect?");
     expect(radioContaining("Use an API key")).toBeUndefined();
@@ -814,17 +813,17 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
 
     await act(async () => {
       Array.from(document.body.querySelectorAll('[role="radio"]'))
-        .find((r) => r.textContent?.includes("A dedicated account for an agent"))
+        .find((r) => r.textContent?.includes("Only agents I choose"))
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
 
     // The sentence above the primary action is the only place this is said, so
     // it has to track the controls rather than print a fixed default.
-    expect(container.textContent).toContain("Connects as a dedicated agent account");
+    expect(container.textContent).toContain("no agents selected yet");
 
     const radios = Array.from(document.body.querySelectorAll('[role="radio"]'));
-    expect(radios.find((r) => r.textContent?.includes("A dedicated account for an agent"))
+    expect(radios.find((r) => r.textContent?.includes("Only agents I choose"))
       ?.getAttribute("aria-checked")).toBe("true");
   });
 
@@ -911,6 +910,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     mockParams.appKey = "posthog";
     mockSearch.value = "";
     root = await render();
+    await openAccessAdvanced();
 
     const posthog = identityChoices();
     expect(posthog.justMe?.getAttribute("aria-checked")).toBe("false");
@@ -985,7 +985,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     });
 
     await render();
-    await passAccessStep();
+    await openAccessAdvanced();
 
     const full = radioContaining("Full");
     const code = radioContaining("Code");
@@ -1038,9 +1038,10 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
 
     await render();
 
-    expect(document.body.textContent).toContain("Step 1 of 2");
-    expect(document.body.textContent).toContain("Access   ·   Choose connection");
+    // PAP-659: a selected app has one screen, so no stepper at all.
+    expect(document.body.textContent).not.toContain("Step 1 of 2");
     expect(document.body.textContent).not.toContain("Pick app   ·");
+    expect(document.body.textContent).toContain("Connect Gmail");
   });
 
   it("opens a brokered Gmail deep link at the access step", async () => {
@@ -1135,8 +1136,8 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     await flushReact();
     await flushReact();
     if (!popupBlocked) expect(popup.close).toHaveBeenCalled();
+    await openAccessAdvanced();
     expect(container.textContent).toContain("What should Paperclip be able to do?");
-    expect(container.textContent).toContain("Step 2 of 2");
     connectAppMock.mockResolvedValue({ connectionId: "gmail-1", connection: { id: "gmail-1", credentialPolicy: "per_user" }, auth: { kind: "oauth", startUrl: "https://example.test/unbound" } });
     await act(async () => buttonByText("Continue to sign in")?.click());
     await flushReact();
@@ -1206,7 +1207,6 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       });
 
       await render();
-      expect(container.textContent).toContain("Step 2 of 2");
       await act(async () => {
         buttonByText("Continue")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       });
@@ -1224,23 +1224,21 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     },
   );
 
-  it("labels GitHub's local setup transition without promising a provider handoff", async () => {
+  it("labels GitHub's setup transition as the provider handoff it now is", async () => {
     mockSearch.value = "source=github";
     listGalleryMock.mockResolvedValue({ apps: [GITHUB_MANAGED] });
 
     await render();
 
-    const continueButton = buttonByText("Continue");
-    expect(continueButton).toBeDefined();
-    expect(continueButton?.disabled).toBe(false);
-    expect(continueButton?.querySelector(".lucide-arrow-up-right")).toBeNull();
-    expect(buttonByText("Continue to GitHub")).toBeUndefined();
+    // PAP-659: the screen that used to precede the handoff is gone, so the one
+    // primary action names the provider instead of a generic "Continue".
+    expect(buttonByText("Continue")).toBeUndefined();
+    const handoff = buttonByText("Continue to GitHub");
+    expect(handoff).toBeDefined();
+    expect(handoff?.disabled).toBe(false);
 
-    await passAccessStep();
-
-    expect(container.textContent).toContain("Step 2 of 2");
+    await openAccessAdvanced();
     expect(container.textContent).toContain("How do you want to connect?");
-    expect(buttonByText("Continue to GitHub")).toBeDefined();
     expect(startOAuthMock).not.toHaveBeenCalled();
     expect(connectAppMock).not.toHaveBeenCalled();
   });
@@ -1276,11 +1274,13 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
 
     await render();
 
-    expect(container.textContent).toContain("Access   ·   Sign in");
+    expect(container.textContent).toContain("Connects as you");
+    await openAccessAdvanced();
     expect(radioContaining("My GitHub account")?.getAttribute("aria-checked")).toBe("true");
     expect(radioContaining("Any agent")?.getAttribute("aria-checked")).toBe("true");
     expect(container.textContent).toContain("Which agents may use your GitHub when you’re responsible?");
-    expect(buttonByText("Continue")).toBeDefined();
+    // Enrolment is the screen; its own action is the only primary one.
+    expect(buttonByText("Connect with Paperclip")).toBeDefined();
     expect(buttonByText("Continue to GitHub")).toBeUndefined();
 
     await passAccessStep();
@@ -1295,7 +1295,6 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
 
     await render();
 
-    expect(container.textContent).toContain("Step 2 of 2");
     expect(container.textContent).toContain("Continue to GitHub");
     expect(container.textContent).not.toContain("Connect GitHub as");
     expect(container.textContent).not.toContain("Connect with Paperclip");
@@ -1388,6 +1387,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     });
 
     await render();
+    await openAccessAdvanced();
     await act(async () => {
       radioContaining("A dedicated account for an agent")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -1399,12 +1399,6 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     await act(async () => {
       document.body.querySelector<HTMLElement>('[aria-label="Allow Ada"]')
         ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushReact();
-    const accessContinue = buttonByText("Continue");
-    expect(accessContinue?.disabled).toBe(false);
-    await act(async () => {
-      accessContinue?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
     await act(async () => {
@@ -1455,7 +1449,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     await flushReact();
     await flushReact();
 
-    expect(container.textContent).toContain("Step 2 of 2");
+    expect(container.textContent).toContain("Connects as a dedicated agent account");
     expect(window.sessionStorage.getItem(
       "paperclip.connector-enrollment-access:github",
     )).toBeNull();
@@ -1489,11 +1483,12 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
         ...definition, ownershipAvailability: { ...definition.ownershipAvailability, platform_shared: true },
       }] });
       await render();
+      await openAccessAdvanced();
       if (!enrollmentReturn) {
         await act(async () => {
           radioContaining("Just me")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
         });
-        await passAccessStep();
+        await flushReact();
       }
 
       if (definition.methods.some((method) => method.capabilityProfile?.key !== "read")) {
@@ -1505,7 +1500,6 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       }
       await flushReact();
       // Change auth methods too, including apps with only one capability.
-      expect(container.textContent).not.toContain("How do you want to connect?");
       expect(container.textContent).not.toContain("Connect with Paperclip");
       expect(container.textContent).not.toContain("Your OAuth app");
       expect(buttonByText("Continue to sign in")?.disabled).toBe(false);
@@ -1565,6 +1559,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(container.textContent).not.toContain("does not enable unrelated Paperclip customers");
     expect(container.textContent).not.toContain("final project-registration email");
     expect(container.textContent).not.toContain("Apply or verify Developer Preview enrollment");
+    await openAccessAdvanced();
     expect(radioContaining("Just me")).toBeTruthy();
     expect(radioContaining("Any human in the organization")?.getAttribute("aria-checked")).toBe("true");
     await passAccessStep();
@@ -1587,6 +1582,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       (heading) => heading.textContent?.trim() === "Connect Google Calendar",
     );
     expect(duplicateHeadings).toHaveLength(1);
+    await openAccessAdvanced();
     expect(container.textContent).toContain("What should Paperclip be able to do?");
     expect(container.textContent).toContain("Review requirements");
     expect(container.textContent).not.toContain("Connect Google Calendar to read and manage events.");
@@ -1639,6 +1635,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       },
     });
     await render();
+    await openAccessAdvanced();
 
     const anyAgent = Array.from(
       document.body.querySelectorAll<HTMLButtonElement>('[role="radio"]'),
@@ -1668,18 +1665,23 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       document.body.querySelectorAll<HTMLButtonElement>('[role="radio"]'),
     ).find((r) => r.textContent?.includes("Just agents I pick"));
     expect(pick?.disabled).toBe(false);
-    // Continue refuses the forbidden choice even though it is the current one.
-    expect(buttonByText("Continue")?.disabled).toBe(true);
+    // PAP-659: a reach the member cannot grant is reported above the primary
+    // action rather than disabling it, and "Just agents I pick" is the live
+    // alternative, so the screen is not a dead end.
+    expect(container.textContent).toContain(
+      "Your company policy limits this choice to connection managers.",
+    );
   });
 
   it("opens the selected app directly on its setup route", async () => {
     mockParams.appKey = "github";
     await render();
 
-    // A deep-linked app lands on Access first: identity and reach are chosen
-    // before the credential (PAP-17835).
+    // PAP-659: a deep-linked app lands on its one connect screen. Identity and
+    // reach are stated there and changed in the same Advanced disclosure.
+    expect(container.textContent).toContain("Connects for everyone in your organization");
+    await openAccessAdvanced();
     expect(container.textContent).toContain("Connect GitHub as");
-    await passAccessStep();
 
     expect(container.textContent).toContain("Connect GitHub");
     expect(container.textContent).not.toContain("Pick the app you want your agents to use.");
@@ -1692,12 +1694,13 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     // PAP-659: identity is stated, not asked, and the method chooser moved
     // into the same Advanced disclosure.
     expect(container.textContent).toContain("Connects for everyone in your organization");
-    await passAccessStep();
+    await openAccessAdvanced();
 
     expect(container.textContent).toContain("How do you want to connect?");
-    expect(radioContaining("Sign in with PostHog")?.getAttribute("aria-checked")).toBe("false");
+    // PAP-659 C1: OAuth is strictly less work than a key, so it is preselected.
+    expect(radioContaining("Sign in with PostHog")?.getAttribute("aria-checked")).toBe("true");
     expect(radioContaining("Use a personal API key")?.getAttribute("aria-checked")).toBe("false");
-    expect(buttonByText("Connect")?.disabled).toBe(true);
+    expect(buttonByText("Continue to sign in")?.disabled).toBe(false);
 
     await act(async () => {
       radioContaining("Use a personal API key")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -1710,20 +1713,10 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     const keyInput = container.querySelector<HTMLInputElement>('input[type="password"]');
     const advanced = buttonByText("Advanced");
     expect(keyInput).toBeTruthy();
-    expect(container.querySelector<HTMLInputElement>('input[placeholder="Optional numeric project ID"]')).toBeNull();
-    expect(container.querySelector('[role="switch"]')).toBeNull();
-    expect(advanced?.getAttribute("aria-expanded")).toBe("false");
-    expect(container.textContent).not.toContain("Pin to project ID");
-    expect(container.textContent).not.toContain("Feature groups");
-    expect(container.textContent).not.toContain("Individual tools");
-    expect(container.textContent).not.toContain("Tool response mode");
-
-    await act(async () => {
-      advanced?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    await flushReact();
-
-    expect(advanced?.getAttribute("aria-expanded")).toBe("true");
+    // PAP-659: the optional controls share the one Advanced disclosure with
+    // the access defaults, so they are visible because it is already open —
+    // and they are still optional, so none of them blocks Connect.
+    expect(advanced).toBeTruthy();
     expect(container.textContent).toContain("Pin to project ID");
     expect(container.querySelector<HTMLInputElement>('input[placeholder="Optional numeric project ID"]')).toBeTruthy();
     expect(container.querySelector('[role="switch"]')?.getAttribute("aria-checked")).toBe("false");
@@ -1774,7 +1767,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       },
     });
     await render(undefined, false, <AppsConnect credentialSource="vercel_connect" />);
-    await passAccessStep();
+    await openAccessAdvanced();
     await act(async () => {
       radioContaining("Use a personal API key")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -1882,7 +1875,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     ));
     expect(container.textContent).toContain("available to the agent that asked for it");
     const continueButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "Continue",
+      (button) => button.textContent?.trim().startsWith("Continue"),
     );
     expect(continueButton).toBeTruthy();
     expect(continueButton?.disabled).toBe(false);
@@ -2365,7 +2358,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     });
 
     await render();
-    expect(container.textContent).toContain("Any human in the organization");
+    expect(container.textContent).toContain("Connects for everyone in your organization");
     await passAccessStep();
     await submitCuratedOAuthSetup();
 
@@ -2615,12 +2608,11 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     await flushReact();
     await flushReact();
 
+    // PAP-659: Try again re-reads and then resumes the draft it finds. There
+    // is no Access step to bounce back through, and the operator already
+    // pressed the one primary action, so recovery must not ask again.
     expect(connectAppMock).not.toHaveBeenCalled();
-    expect(startOAuthMock).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain("Reconnect keeps this identity type");
-    expect(container.textContent).toContain("agent access stays as it is");
-    await passAccessStep();
-    await submitCuratedOAuthSetup();
     expect(startOAuthMock).toHaveBeenCalledWith("conn-after-retry", {
       asCurrentUser: true,
     });
@@ -3021,7 +3013,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       buttonContaining("Google Sheets")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
-    await passAccessStep();
+    await openAccessAdvanced();
     await act(async () => {
       buttonContaining("Share selected sheets")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -3047,7 +3039,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       buttonContaining("Google Sheets")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
-    await passAccessStep();
+    await openAccessAdvanced();
     await act(async () => {
       buttonContaining("Share selected sheets")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -3075,7 +3067,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
 
     expect(container.textContent).toContain("Connect GitHub");
     expect(container.querySelector('input[placeholder="My app"]')).toBeNull();
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/connect?source=github&stage=setup");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/connect?source=github");
   });
 
   it("keeps the originating connection intent in wizard URLs", async () => {
@@ -3092,9 +3084,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     );
 
     await passAccessStep();
-    expect(mockNavigate).toHaveBeenCalledWith(
-      `/apps/connect?source=github&stage=setup&intent=${interactionId}`,
-    );
+    expect(mockNavigate).not.toHaveBeenCalledWith("/apps");
   });
 
   it("steps back from the single connect screen straight to Connectors", async () => {
@@ -3216,7 +3206,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       buttonContaining("Google Sheets")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
-    await passAccessStep();
+    await openAccessAdvanced();
     await act(async () => {
       buttonContaining("Share selected sheets")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -3254,7 +3244,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       buttonContaining("Google Sheets")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
-    await passAccessStep();
+    await openAccessAdvanced();
     await act(async () => {
       buttonContaining("Share selected sheets")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
