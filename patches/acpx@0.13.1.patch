@@ -20,7 +20,7 @@ index 5e2113a..45aff03 100644
    private setSessionModelThroughConfig;
    private setSessionModelThroughLegacyMethod;
 diff --git a/dist/live-checkpoint-BSIrfgVo.js b/dist/live-checkpoint-BSIrfgVo.js
-index d454fd7..bf3a537 100644
+index d454fd7..2386544 100644
 --- a/dist/live-checkpoint-BSIrfgVo.js
 +++ b/dist/live-checkpoint-BSIrfgVo.js
 @@ -1068,6 +1068,7 @@ function serializeSessionRecordForDisk(record) {
@@ -268,7 +268,7 @@ index d454fd7..bf3a537 100644
  			clientInfo: resolveClientInfo(launch.devinAcp)
  		});
  		const initialized = launch.geminiAcp ? await withTimeout(initializePromise, resolveGeminiAcpStartupTimeoutMs()) : await initializePromise;
-@@ -4358,6 +4430,48 @@ var AcpClient = class {
+@@ -4358,6 +4430,49 @@ var AcpClient = class {
  		throw normalizedError;
  	}
  	createTappedStream(base) {
@@ -278,6 +278,7 @@ index d454fd7..bf3a537 100644
 +		const enforceProtocol = (direction, message) => {
 +			try { protocolGuard?.(direction, message); }
 +			catch (error) {
++				this.rejectPendingConnectionRequests(error);
 +				abortResponseDeliveries();
 +				this.activePrompt?.elicitationController.abort(error);
 +				try { this.agent?.kill("SIGTERM"); } catch {}
@@ -317,7 +318,7 @@ index d454fd7..bf3a537 100644
  		const onAcpMessage = () => this.eventHandlers.onAcpMessage;
  		const onAcpOutputMessage = () => this.eventHandlers.onAcpOutputMessage;
  		const elicitationRequestIds = /* @__PURE__ */ new Set();
-@@ -4367,8 +4481,12 @@ var AcpClient = class {
+@@ -4367,8 +4482,12 @@ var AcpClient = class {
  		const shouldSuppressInboundReplaySessionUpdate = (message) => {
  			return this.suppressReplaySessionUpdateMessages && isSessionUpdateNotification(message);
  		};
@@ -331,7 +332,7 @@ index d454fd7..bf3a537 100644
  			if (requestId !== void 0) {
  				elicitationRequestIds.add(requestId);
  				return;
-@@ -4379,6 +4497,7 @@ var AcpClient = class {
+@@ -4379,6 +4498,7 @@ var AcpClient = class {
  			}
  		};
  		return {
@@ -339,7 +340,7 @@ index d454fd7..bf3a537 100644
  			readable: new ReadableStream({ async start(controller) {
  				const reader = base.readable.getReader();
  				try {
-@@ -4386,16 +4505,27 @@ var AcpClient = class {
+@@ -4386,16 +4506,27 @@ var AcpClient = class {
  						const { value, done } = await reader.read();
  						if (done) break;
  						if (!value) continue;
@@ -369,7 +370,7 @@ index d454fd7..bf3a537 100644
  				const promptOwner = promptRequestOwner(message);
  				if (promptOwner) bindPromptOwner(promptOwner);
  				const id = responseId(message);
-@@ -4403,10 +4533,20 @@ var AcpClient = class {
+@@ -4403,10 +4534,20 @@ var AcpClient = class {
  					onAcpOutputMessage()?.("outbound", message);
  					onAcpMessage()?.("outbound", message);
  				}
@@ -390,7 +391,7 @@ index d454fd7..bf3a537 100644
  					writer.releaseLock();
  				}
  			} })
-@@ -4422,7 +4562,10 @@ var AcpClient = class {
+@@ -4422,7 +4563,10 @@ var AcpClient = class {
  			const createPromise = this.runConnectionRequest(() => connection.newSession({
  				cwd: sessionCwd,
  				mcpServers: this.options.mcpServers ?? [],
@@ -402,7 +403,7 @@ index d454fd7..bf3a537 100644
  			}));
  			result = claudeAcp ? await withTimeout(createPromise, resolveClaudeAcpSessionCreateTimeoutMs()) : await createPromise;
  		} catch (error) {
-@@ -4864,7 +5007,7 @@ var AcpClient = class {
+@@ -4864,7 +5008,7 @@ var AcpClient = class {
  	}
  	selectAuthMethod(methods) {
  		for (const method of methods) {
@@ -411,7 +412,7 @@ index d454fd7..bf3a537 100644
  			if (envCredential) return {
  				methodId: method.id,
  				credential: envCredential,
-@@ -4890,7 +5033,7 @@ var AcpClient = class {
+@@ -4890,7 +5034,7 @@ var AcpClient = class {
  	}
  	readAgentSpecificEnvCredential(methodId) {
  		if (!this.isGrokBuildAcpCommand() || methodId !== "xai.api_key") return;
@@ -420,7 +421,7 @@ index d454fd7..bf3a537 100644
  		return typeof value === "string" && value.trim().length > 0 ? value : void 0;
  	}
  	selectAgentManagedAuthMethod(methodId) {
-@@ -4915,9 +5058,9 @@ var AcpClient = class {
+@@ -4915,9 +5059,9 @@ var AcpClient = class {
  		await connection.authenticate({ methodId: selected.methodId });
  		this.log(`authenticated with method ${selected.methodId} (${selected.source})`);
  	}
@@ -432,7 +433,7 @@ index d454fd7..bf3a537 100644
  		if (hostResponse) return hostResponse;
  		const { response, recorded } = await this.resolvePermissionRequestFromMode(params);
  		if (!recorded) {
-@@ -4926,14 +5069,81 @@ var AcpClient = class {
+@@ -4926,14 +5070,81 @@ var AcpClient = class {
  		}
  		return response;
  	}
@@ -516,7 +517,7 @@ index d454fd7..bf3a537 100644
  		})).then((response) => ({
  			kind: "response",
  			response
-@@ -4970,7 +5180,7 @@ var AcpClient = class {
+@@ -4970,7 +5181,7 @@ var AcpClient = class {
  	isElicitationSessionCancelling(sessionId) {
  		return this.closing || this.cancellingSessionIds.has(sessionId);
  	}
@@ -525,7 +526,7 @@ index d454fd7..bf3a537 100644
  		if (!this.options.onPermissionRequest) return;
  		const signal = this.cancellationSignalForSession(params.sessionId);
  		try {
-@@ -4978,7 +5188,7 @@ var AcpClient = class {
+@@ -4978,7 +5189,7 @@ var AcpClient = class {
  				sessionId: params.sessionId,
  				raw: params,
  				inferredKind: inferToolKind(params)
@@ -534,7 +535,7 @@ index d454fd7..bf3a537 100644
  			return this.hostPermissionDecisionResponse(params, signal, decision);
  		} catch (error) {
  			return this.hostPermissionErrorResponse(params, signal, error);
-@@ -5028,6 +5238,12 @@ var AcpClient = class {
+@@ -5028,6 +5239,12 @@ var AcpClient = class {
  	attachAgentLifecycleObservers(child) {
  		child.once("exit", (exitCode, signal) => {
  			this.recordAgentExit("process_exit", exitCode, signal);
@@ -547,7 +548,7 @@ index d454fd7..bf3a537 100644
  		});
  		child.once("close", (exitCode, signal) => {
  			this.recordAgentExit("process_close", exitCode, signal);
-@@ -5771,10 +5987,20 @@ function recordSessionUpdate(conversation, state, notification, timestamp = isoN
+@@ -5771,10 +5988,20 @@ function recordSessionUpdate(conversation, state, notification, timestamp = isoN
  	trimConversationForRuntime(conversation);
  	return acpx;
  }
@@ -570,7 +571,7 @@ index d454fd7..bf3a537 100644
  	updateConversationTimestamp(conversation, timestamp);
  	trimConversationForRuntime(conversation);
  	return true;
-@@ -6435,6 +6661,27 @@ async function withConnectedSession(options) {
+@@ -6435,6 +6662,27 @@ async function withConnectedSession(options) {
  //#region src/runtime/engine/prompt-turn.ts
  const SESSION_REPLY_IDLE_MS = 1e3;
  const SESSION_REPLY_DRAIN_TIMEOUT_MS = 5e3;
@@ -598,7 +599,7 @@ index d454fd7..bf3a537 100644
  async function runPromptTurn(params) {
  	try {
  		const promptPromise = params.client.prompt(params.sessionId, params.prompt, params.onPromptRequestStarted, params.onElicitation);
-@@ -6444,7 +6691,21 @@ async function runPromptTurn(params) {
+@@ -6444,7 +6692,21 @@ async function runPromptTurn(params) {
  			idleMs: SESSION_REPLY_IDLE_MS,
  			timeoutMs: SESSION_REPLY_DRAIN_TIMEOUT_MS
  		}).catch(() => {});
@@ -620,7 +621,7 @@ index d454fd7..bf3a537 100644
  		return {
  			stopReason: response.stopReason,
  			source: "rpc"
-@@ -6518,4 +6779,4 @@ var LiveSessionCheckpoint = class {
+@@ -6518,4 +6780,4 @@ var LiveSessionCheckpoint = class {
  //#endregion
  export { writeSessionRecord as $, PERMISSION_POLICY_ACTIONS as $t, REQUESTED_MODEL_UNSUPPORTED_ERROR_CODE as A, TimeoutError as At, getAcpxVersion as B, formatErrorMessage as Bt, mergeSessionOptions as C, PromptInputValidationError as Ct, applyLifecycleSnapshotToRecord as D, promptToDisplayText as Dt, applyConversation as E, parsePromptSource as Et, modelStateFromConfigOptions as F, normalizeAgentName$1 as Ft, findSession as G, toAcpErrorPayload as Gt, DEFAULT_HISTORY_LIMIT as H, normalizeOutputError as Ht, normalizeAgentCommandInput as I, resolveAgentArgv as It, listSessions as J, NON_INTERACTIVE_PERMISSION_POLICIES as Jt, findSessionByDirectoryWalk as K, AUTH_POLICIES as Kt, renderArgvIdentity as L, resolveAgentCommand as Lt, RequestedModelUnsupportedError as M, withTimeout as Mt, assertRequestedModelSupported as N, DEFAULT_AGENT_NAME as Nt, reconcileAgentSessionId as O, textPrompt as Ot, isRequestedModelUnsupportedError as P, listBuiltInAgents as Pt, resolveSessionRecord as Q, PERMISSION_MODES as Qt, runTimedExecFile as R, resolveCanonicalAgentName as Rt, advertisedModelState as S, parsePromptStopReason as St, sessionOptionsFromRecord as T, mergePromptSourceWithText as Tt, absolutePath as U, extractAcpError as Ut, permissionModeSatisfies as V, isRetryablePromptError as Vt, findGitRepositoryRoot as W, isAcpResourceNotFoundError as Wt, normalizeName as X, OUTPUT_ERROR_ORIGINS as Xt, listSessionsForAgent as Y, OUTPUT_ERROR_CODES as Yt, pruneSessions as Z, OUTPUT_FORMATS as Zt, createSessionConversation as _, sessionEventLockPath as _t, applyRequestedModelIfAdvertised as a, measurePerf as at, recordSessionUpdate as b, isAcpJsonRpcMessage as bt, setCurrentModelId as c, setPerfGauge as ct, setDesiredModelId as d, serializeSessionRecordForDisk as dt, SESSION_RECORD_SCHEMA as en, createAtomicWriteTempPath as et, syncAdvertisedModelState as f, normalizeRuntimeSessionId as ft, cloneSessionConversation as g, sessionEventActivePath as gt, cloneSessionAcpxState as h, sessionBaseDir$1 as ht, connectAndLoadSession as i, QueueProtocolError as in, incrementPerfCounter as it, REQUESTED_MODEL_UNSUPPORTED_REASONS as j, withInterrupt as jt, AcpClient as k, InterruptedError as kt, setDesiredConfigOption as l, startPerfTimer as lt, applyConfigOptionsToState as m, defaultSessionEventLog as mt, runPromptTurn as n, AgentSpawnError as nn, formatPerfMetric as nt, currentModelIdFromSetModelResponse as o, recordPerfDuration as ot, applyConfigOptionsToRecord as p, DEFAULT_EVENT_SEGMENT_MAX_BYTES as pt, isoNow$2 as q, EXIT_CODES as qt, withConnectedSession as r, QueueConnectionError as rn, getPerfMetricsSnapshot as rt, clearDesiredConfigOption as s, resetPerfMetrics as st, LiveSessionCheckpoint as t, AcpxOperationalError as tn, assertPersistedKeyPolicy as tt, setDesiredModeId as u, parseSessionRecord as ut, recordClientOperation as v, sessionEventSegmentPath as vt, persistSessionOptions as w, isPromptInput as wt, trimConversationForRuntime as x, parseJsonRpcErrorMessage as xt, recordPromptSubmission as y, extractSessionUpdateNotification as yt, splitCommandLine as z, exitCodeForOutputErrorCode as zt };
  

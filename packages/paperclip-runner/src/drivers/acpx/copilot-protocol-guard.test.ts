@@ -23,7 +23,7 @@ function connection(guarded = true) {
     readable: new ReadableStream({ start(controller) { inbound = controller; } }),
     writable: new WritableStream({ write(message) { written.push(message); } }),
   });
-  return { writer: stream.writable.getWriter(), reader: stream.readable.getReader(), inbound, written, kill };
+  return { client, writer: stream.writable.getWriter(), reader: stream.readable.getReader(), inbound, written, kill };
 }
 
 describe("patched ACPX admission guard", () => {
@@ -67,12 +67,15 @@ describe("patched ACPX admission guard", () => {
     c.inbound.enqueue({ id: 0, result: safe }); await c.reader.read();
     await c.writer.write({ id: 1, method: "session/prompt", params: { sessionId: "s", prompt: [{ type: "text", text: "Run task" }] } });
     const read = c.reader.read();
+    const pendingSdkRequest = c.client.runConnectionRequest(() => new Promise(() => {}));
+    const pendingRejection = expect(pendingSdkRequest).rejects.toMatchObject({ code: "COPILOT_DETACHED_WORK_UNSUPPORTED" });
     c.inbound.enqueue({ method: "session/update", params: { sessionId: "s", update: {
       sessionUpdate: "tool_call", toolCallId: "native-detached", kind: "execute", status: "pending",
       rawInput: { command: "fixture", mode: "async", detach: true },
     } } });
     c.inbound.enqueue({ id: 0, method: "session/request_permission", params: { sessionId: "s", toolCall: { toolCallId: "native-detached" } } });
     await expect(read).rejects.toMatchObject({ code: "COPILOT_DETACHED_WORK_UNSUPPORTED", message: expect.stringContaining("Run the command attached") });
+    await pendingRejection;
     expect(c.written).toHaveLength(2); // Only session/new and session/prompt; no permission response.
     expect(c.kill).toHaveBeenCalledWith("SIGTERM");
   });

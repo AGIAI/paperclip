@@ -13,7 +13,7 @@ export const COPILOT_CLOSURE_SHA256 = Object.freeze({
 /** Admission primitive only. Pending candidates remain gated by qualification. */
 export async function verifyCopilotInstallation(profile: QualifiedAcpxProfile): Promise<VerifiedAcpxInstallation> {
   const expected = QUALIFIED_ACPX_PROFILES.copilot;
-  if (profile.agent !== "copilot" || profile.agentProfileVersion !== 2
+  if (profile.agent !== "copilot" || profile.agentProfileVersion !== expected.agentProfileVersion
     || profile.acpxVersion !== expected.acpxVersion || profile.agentServerPackage !== "@github/copilot"
     || profile.agentServerVersion !== COPILOT_VERSION || profile.commandDigest !== expected.commandDigest
     || profile.agentRuntimePackage !== null || profile.agentRuntimeVersion !== null) {
