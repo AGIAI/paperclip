@@ -105,6 +105,13 @@ is a separate lifecycle operation.
 
 ### Native instruction delivery
 
+The current candidate is profile v4. Its declaration binds native personal-file
+instruction delivery, including replacement before every admission. The isolated
+`COPILOT_HOME/copilot-instructions.md` is written atomically with mode 0600 under
+the protected provider home, and empty instructions replace any stale content.
+Profile v3 identities are rejected before native launch; historical evidence
+below remains labeled with its original profile and source.
+
 The [native model-request probe](../../packages/paperclip-runner/test/fixtures/copilot-native-instruction-delivery-2026-09-29.json)
 retains a separate instruction-delivery failure: Copilot 1.0.88 ignores generic
 ACP `_meta.systemPrompt` on new sessions, and ACPX does not include it on load.
@@ -119,7 +126,10 @@ reopening with fresh instructions, actual `session/load` and a second explicit
 turn completed. The second model request contained the current directory and
 updated entry, with neither old value in its system message. Both attempts used
 two synthetic loopback responses and no paid calls. This probe is not a final
-built-production or authenticated qualification result.
+built-production or authenticated qualification result. A follow-up
+[source-level v4 probe](../../packages/paperclip-runner/test/fixtures/copilot-v4-native-instruction-delivery-2026-09-29.json)
+uses the actual production sandbox writer and confirms the same new/load model
+request behavior; the final frozen pack still requires independent verification.
 
 ### Native detached work is explicitly unsupported
 

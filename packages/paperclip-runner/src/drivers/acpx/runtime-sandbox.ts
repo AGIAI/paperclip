@@ -1,3 +1,4 @@
+import { COPILOT_SYSTEM_INSTRUCTIONS_FILE } from "./copilot-profile.js";
 import { randomBytes } from "node:crypto";
 import {
   constants,
@@ -433,6 +434,12 @@ export async function prepareAcpxRuntimeSandbox(input: {
     );
   }
   if (input.agent === "copilot") {
+    // Native Copilot ignores ACP systemPrompt metadata. Its personal instruction
+    // file is reloaded on session/load; replace it even when instructions clear.
+    await writePrivateFile(
+      join(agentHomeDirectory, COPILOT_SYSTEM_INSTRUCTIONS_FILE),
+      `${policy.systemInstructions}\n`,
+    );
     await writePrivateFile(join(agentHomeDirectory, "config.json"), `${JSON.stringify({
       autoUpdate: false,
       trustedFolders: [],
