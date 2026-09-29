@@ -190,3 +190,14 @@ test("direct or transitive public harness exposure revokes the dev-only exceptio
     }
   }
 });
+
+
+test("unexpanded wildcard exports cannot expose the reviewed development harness", async (t) => {
+  const violations = await fixtureBoundary(t, {
+    manifest: { ...reviewedManifest, exports: { "./eval/*": "./dist/eval/*.js" } },
+    files: { [harness]: `import "${kernel}";` },
+  });
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0].specifier, kernel);
+  assert.match(violations[0].reason, /outside the standalone boundary/);
+});
