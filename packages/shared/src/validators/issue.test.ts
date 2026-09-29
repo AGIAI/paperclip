@@ -643,8 +643,15 @@ describe("persisted canonical question initial text", () => {
       expect(paperclipQuestionSetPayloadSchema.parse(input({ initialText }))).toEqual(input({ initialText }));
     }
   });
+  it("counts mixed BMP and astral draft text like JSON Schema", () => {
+    for (const codePoints of [100_000, 100_001]) {
+      const initialText = "a".repeat(codePoints - 1) + "😀";
+      expect(Buffer.byteLength(JSON.stringify(input({ initialText })))).toBeLessThan(196 * 1024);
+      expect(paperclipQuestionSetPayloadSchema.safeParse(input({ initialText })).success).toBe(codePoints === 100_000);
+    }
+  });
   it("rejects non-text modes and unbounded or nonstring defaults", () => {
-    for (const initialText of [null, 1, "x".repeat(100_001), "😀".repeat(50_001)]) {
+    for (const initialText of [null, 1, "x".repeat(100_001), "a".repeat(100_000) + "😀"]) {
       expect(paperclipQuestionSetPayloadSchema.safeParse(input({ initialText })).success).toBe(false);
     }
     expect(paperclipQuestionSetPayloadSchema.safeParse(input({ answerMode: "single_select", options: [{ id: "a", label: "A" }], initialText: "a" })).success).toBe(false);
