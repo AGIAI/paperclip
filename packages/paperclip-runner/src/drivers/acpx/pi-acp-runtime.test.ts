@@ -94,6 +94,23 @@ describe("Pi ACP bridge", () => {
     expect(f.process.sendExtensionUiResponse).toHaveBeenCalledExactlyOnceWith({ id: "canonical", value: "\nAccepted text\n" });
   });
 
+  it.each(["", "  Draft\n界 🌒\n\\n literal  "])("delivers editor prefill %j through canonical initialText and returns only the exact edited answer", async prefill => {
+    const f = fixture();
+    const edited = "  Revised\n界 🌒\n\\n stays literal  ";
+    f.connection.unstable_createElicitation.mockImplementation(async request => {
+      const normalized = normalizeAcpFormElicitation(request)!;
+      const question = normalized.questionSet.questions[0]!;
+      expect(question).toMatchObject({ answerMode: "text", initialText: prefill, required: true });
+      // Initial content is an editable draft, never an implicit answer.
+      expect(f.process.sendExtensionUiResponse).not.toHaveBeenCalled();
+      expect(() => normalized.accept({ schema: "paperclip.question_response.v1", answers: {} })).toThrow();
+      expect(() => normalized.accept({ schema: "paperclip.question_response.v1", answers: { [question.id]: { text: "" } } })).toThrow("is required");
+      return normalized.accept({ schema: "paperclip.question_response.v1", answers: { [question.id]: { text: edited } } });
+    });
+    await f.bridge.handle({ id: "canonical-prefill", method: "editor", title: "Draft", prefill });
+    expect(f.process.sendExtensionUiResponse).toHaveBeenCalledExactlyOnceWith({ id: "canonical-prefill", value: edited });
+  });
+
   it.each(["a".repeat(1000), "界".repeat(1000), "🌒".repeat(500)])("passes the canonical character limit through the real form normalizer", async (label) => {
     const f = fixture();
     f.connection.unstable_createElicitation.mockImplementation(async request => {
