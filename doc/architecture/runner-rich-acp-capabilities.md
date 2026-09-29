@@ -116,6 +116,11 @@ state save that removes the pending request. A restart before journal delivery
 retains that resolution for normal event replay and acknowledgment. A restart
 before this state save instead expires the unresolved request; neither path sends
 the provider response again.
+If persistence fails, the current executor stops accepting commands and exposing
+or acknowledging retained events. Cleanup still terminates its owned provider,
+but leaves the uncertain snapshot untouched. A fresh executor reads the complete
+atomic snapshot that survived; it cannot publish an in-memory resolution that
+conflicts with a later recovery expiry.
 Standard ACP does not acknowledge application of a permission reply; a lost
 transport acknowledgment is not proof of exactly-once external effects. A
 replacement provider process cannot inherit an old approval promise. A bounded durable ledger expires pending requests after provider loss or unsafe restart, including requests whose creation events were already acknowledged. No tool
