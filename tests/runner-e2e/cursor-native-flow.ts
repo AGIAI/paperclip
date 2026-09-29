@@ -13,7 +13,7 @@ import type { MatrixExecution } from "./types.js";
 type Row = Record<string, any>;
 type Check = { id: string; passed: boolean; detail: string };
 
-/** Independent bounded snapshot; symlinks are recorded without following them. */
+/** Independent bounded snapshot; symlinks are rejected without following them. */
 export async function cursorNativeWorkspaceSnapshot(root: string): Promise<Record<string, string>> {
   const files: Record<string, string> = {}; let bytes = 0;
   async function scan(relative = "") {
@@ -51,7 +51,7 @@ export async function runCursorNativeFlow(input: {
   const agent = await api.get<Row>(`/api/agents/${fixtures.agent.id}`);
   const configured = await api.patch<Row>(`/api/agents/${fixtures.agent.id}`, { adapterConfig: { ...agent.adapterConfig, acpxSessionMode: design.cursorMode, acpxPermissionMode: design.permissionMode } });
   check("explicit-mode-policy", configured.adapterConfig.acpxSessionMode === design.cursorMode && configured.adapterConfig.acpxPermissionMode === design.permissionMode, "Public agent configuration selected mode and permission policy separately before provider startup");
-  await input.evidence("cursor-native-contract.json", { caseId: design.id, mode: design.cursorMode, permissionMode: design.permissionMode, method: design.method, expectedRunCount: 1, nativeCallbackObserved: false, artifactGate: cursorNativePlanArtifactGate });
+  await input.evidence("cursor-native-contract.json", { caseId: design.id, mode: design.cursorMode, permissionMode: design.permissionMode, method: design.method, expectedRunCount: 1, nativeCallbackRequired: true, artifactGate: cursorNativePlanArtifactGate });
   const project = await api.post<Row>(`/api/companies/${fixtures.company.id}/projects`, {
     name: `Cursor native workspace ${nonce}`, executionWorkspacePolicy: { enabled: true, defaultMode: "shared_workspace", sharedWorkspaceConcurrency: "serialize", allowIssueOverride: false, environmentId: fixtures.environment.id, workspaceStrategy: { type: "project_primary" } },
     workspace: { name: "Primary", sourceType: "local_path", cwd: input.workspacePath, isPrimary: true },
