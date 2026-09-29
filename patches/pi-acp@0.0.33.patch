@@ -313,7 +313,7 @@
              if (snapshot.oldText === null || newText !== snapshot.oldText) {
                hasStructuredDiff = true;
                content = [
-@@ -1154,14 +1199,11 @@
+@@ -1154,14 +1199,16 @@
          break;
        }
        case "extension_ui_request": {
@@ -328,7 +328,12 @@
 +          sessionUpdate: "session_info_update",
 +          _meta: { paperclipPi: { notice: { message: typeof ev.message === "string" ? ev.message.slice(0, 4096) : "Pi notification", level: ev.notifyType } } }
          });
-+        void this.uiBridge.handle(ev).catch(() => { this.proc.dispose("SIGKILL"); });
++        void this.uiBridge.handle(ev).catch(() => {
++          this.emit({ sessionUpdate: "session_info_update", _meta: { paperclipPi: { notice: {
++            message: "Pi structured question is unsupported or invalid; the session was stopped", level: "error"
++          } } } });
++          this.proc.dispose("SIGKILL");
++        });
          break;
        }
        case "auto_retry_start": {
@@ -675,7 +680,7 @@
    try {
 --- /dev/null
 +++ b/dist/paperclip-runtime.js
-@@ -0,0 +1,382 @@
+@@ -0,0 +1,394 @@
 +/** Source for the helper embedded in patches/pi-acp@0.0.33.patch. */
 +import { createHash, randomUUID } from "node:crypto";
 +import { StringDecoder } from "node:string_decoder";
@@ -905,6 +910,13 @@
 +  return { command, args, invocationNamespace, env };
 +}
 +
++// Same UTF-16 character bound as the canonical question-set title/header/label.
++export const PI_QUESTION_LABEL_MAX_LENGTH = 1_000;
++export function piQuestionLabel(value         )         {
++  if (typeof value !== "string" || !value.trim() || value.length > PI_QUESTION_LABEL_MAX_LENGTH) throw new Error("Pi question label is invalid or oversized");
++  return value;
++}
++
 +
 +
 +
@@ -960,10 +972,11 @@
 +        await finish(selected ? { value: selected.name } : { cancelled: true });
 +        return;
 +      }
++      piQuestionLabel(title);
 +      const property              = { type: method === "confirm" ? "boolean" : "string", title };
 +      if (method === "select") {
 +        if (!Array.isArray(event.options) || event.options.length < 1 || event.options.length > 128) throw new Error("Invalid Pi question options");
-+        property.enum = event.options.map((option) => text(option, 4096));
++        property.enum = event.options.map((option) => piQuestionLabel(option));
 +        if (new Set(property.enum            ).size !== event.options.length) throw new Error("Ambiguous Pi question options");
 +      }
 +      if (method === "input" && typeof event.placeholder === "string") property.description = text(event.placeholder);
@@ -983,7 +996,11 @@
 +        if (method === "select" && !(property.enum            ).includes(value)) throw new Error("Invalid Pi question response");
 +        await finish({ value });
 +      }
-+    } catch { await finish({ cancelled: true }).catch(() => {}); }
++    } catch {
++      if (done) return; // An expired request cannot fail a later live session.
++      await finish({ cancelled: true }).catch(() => {});
++      throw new Error("Pi structured question is unsupported or invalid");
++    }
 +  }
 +}
 +

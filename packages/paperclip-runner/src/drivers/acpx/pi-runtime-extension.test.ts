@@ -97,12 +97,44 @@ describe("owned Pi runtime extension", () => {
       { method: "input", title: "Question", command: "touch forbidden" },
       { method: "editor", title: "Question", prefill: "x".repeat(16385) },
       { method: "multi-select", title: "Question" },
+      { method: "input", title: "x".repeat(1001) },
+      { method: "select", title: "Question", options: [{ id: "a", label: "界".repeat(1001) }] },
     ];
     for (const [index, args] of invalid.entries()) await expect(h.nativeTools[0]!.execute(`invalid-${index}`, args, undefined, undefined, context)).rejects.toThrow();
     expect(Object.values(ui).every(fn => fn.mock.calls.length === 0)).toBe(true);
     const abort = new AbortController(); abort.abort();
     expect((await h.nativeTools[0]!.execute("cancelled", { method: "input", title: "Question" }, abort.signal, undefined, context)).details).toEqual({ status: "cancelled" });
   });
+  it("aliases MCP punctuation and long names without changing authenticated call identity", async () => {
+    const { config } = await workspace(); const h = harness();
+    const names = ["connection:search", "connection_search", "connection.search", "x".repeat(128)];
+    const request = vi.fn(async (_server, method) => method === "tools/list"
+      ? { tools: names.map(name => ({ name, inputSchema: { type: "object", properties: {} } })) }
+      : { content: [{ type: "text", text: "recorded" }] });
+    const assigned = { ...config, servers: [{ type: "http" as const, name: "paperclip", url: "http://127.0.0.1:1234", headers: [] }] };
+    await installPiRuntimeExtension(h.api, assigned, request); h.handlers.get("turn_start")!();
+    expect(h.tools.map(tool => tool.name).every(name => /^[A-Za-z0-9_-]{1,64}$/.test(name))).toBe(true);
+    expect(new Set(h.tools.map(tool => tool.name)).size).toBe(names.length);
+    for (const [index, tool] of h.tools.entries()) {
+      await tool.execute(`call-${index}`, { index });
+      expect(request).toHaveBeenLastCalledWith(assigned.servers[0], "tools/call", { name: names[index], arguments: { index } }, expect.any(String), undefined);
+    }
+    const again = harness(); await installPiRuntimeExtension(again.api, assigned, request);
+    expect(again.tools.map(tool => tool.name)).toEqual(h.tools.map(tool => tool.name));
+    const duplicate = harness();
+    await expect(installPiRuntimeExtension(duplicate.api, assigned, async (_server, method) => method === "tools/list"
+      ? { tools: [names[0], names[0]].map(name => ({ name, inputSchema: { type: "object" } })) } : {})).rejects.toThrow("ambiguous");
+    expect(duplicate.api.registerCommand).not.toHaveBeenCalled();
+  });
+
+  it.each(["a".repeat(1000), "界".repeat(1000), "🌒".repeat(500)])("admits the exact shared label boundary before native UI", async label => {
+    const { config } = await workspace(); const h = harness();
+    await installPiRuntimeExtension(h.api, config); h.handlers.get("turn_start")!();
+    const select = vi.fn().mockResolvedValue(label);
+    expect((await h.nativeTools[0]!.execute("boundary", { method: "select", title: label, options: [{ id: "choice", label }] }, undefined, undefined, { cwd: config.workspace, ui: { select } })).details).toEqual({ status: "answered", optionId: "choice" });
+    expect(select).toHaveBeenCalledWith(label, [label], expect.any(Object));
+  });
+
   it("requires explicit assigned configuration, authenticated HTTPS or numeric loopback HTTP", () => {
     expect(() => readPiRuntimeConfiguration({})).toThrow("missing");
     const value = { invocationNamespace: "00000000-0000-4000-8000-000000000000", workspace: "/work/project", readOnly: false, readRoots: [], protectedRoots: [], instructions: "", servers: [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1234/mcp", headers: [{ name: "Authorization", value: "Bearer 1234567890123456" }] }] };

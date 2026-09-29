@@ -1,8 +1,31 @@
 # Pi rich ACP runtime
 
-Status: implementation candidate, 2026-09-29. Profile version 6 adds the native
+Status: implementation candidate, 2026-09-29. Current profile version 7 repairs
+MCP tool-name admission and native question labels. MCP names containing colons
+or periods, or exceeding model name limits, receive deterministic collision-checked
+aliases of at most 64 characters; authenticated calls retain the exact original
+name. Titles and select labels admit at most 1,000 UTF-16 code units, matching
+the canonical question contract. Invalid owned arguments fail before a UI promise;
+unsupported external UI requests emit an explicit error notice and stop the session.
+The editor draft requires the shared `initialText` normalization and editable UI
+roundtrip. These repairs change the native closure and require fresh qualification;
+no v7 paid Product or Runner proof exists yet. The canonical
+[v7 declaration](../../packages/paperclip-runner/test-fixtures/pi-acp/profile-v7-identity.json)
+binds the exact wrapper, helper, extension and three target closures.
+
+Credential-free regressions run the pinned SDK with synthetic model streams to
+verify all four question methods and original MCP call names behind aliases. The
+actual patched wrapper proves visible unsupported-dialog failure; the real form
+normalizer verifies the 1,000-unit ASCII, CJK and surrogate-pair boundaries. The
+closed snapshot admission test exercises the candidate assets without inference.
+
+Profile version 6 added the native
 question tool, the authenticated agent-files root, and matching SDK path
 normalization. Its authenticated Product and Runner qualification is pending.
+The later v6 Product hello on source `97217c531` passed with one observed attempt
+and an exclusive-key cost delta of $0.00065884. Its launcher omitted the explicit
+zero-retry CLI flag, so it is retained as `passed_with_retry_policy_gap`, never
+as v7 qualification.
 The first frozen v6 Product hello attempt fails before provider startup because
 the shared native-execution parser still admits only profile versions 1–5.
 Both assignment and automatic recovery runs reject the same input; no usage
@@ -135,7 +158,7 @@ lifecycle correlation and stable, disjoint historical replay identities.
 The historical v5 command digest is
 `sha256:020d96ccbd3c45c3f62680814776394ed5a56d9572a1a4dccda56a74d16c7803`.
 Versions 1–4 cannot reopen under this identity. Paid and image proofs below remain
-evidence of their recorded versions, not v6 qualification. The historical v4
+evidence of their recorded versions, not v7 qualification. The historical v4
 digest is `sha256:2324d9b47650c12b16f8e2c44dc33637d52f1b22ba8e914623eac4049e7e1991`.
 
 ## Lifetime and recovery
@@ -176,7 +199,7 @@ Credential-free tests exercise all four methods through the actual pinned Pi
 AgentSession tool dispatcher and separately through the installed ACP wrapper's
 form transport. They do not establish browser persistence, reconnect delivery,
 provider-death expiry, or live model behavior. Those remain distinct Product
-qualification requirements for version 6.
+qualification requirements for version 7.
 
 ## Verified launch and packaging contract
 
@@ -397,7 +420,7 @@ that those targets have executed successfully.
 
 ### Installation authority and token semantics
 
-`verifyPiInstallation(profile)` admits only profile version 6 and the source-owned
+`verifyPiInstallation(profile)` admits only profile version 7 and the source-owned
 Pi identity. It resolves `provider-assets/pi/<platform>-<arch>` inside the verified
 Runner package, checks the complete runtime against source-pinned closure hashes,
 and opens a guarded immutable native snapshot. The snapshot bootstrap binds Node,

@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { normalizeAcpFormElicitation } from "./acp-question-adapter.js";
 import { createPiLaunchSpec, PiToolIdentities, PiRpcFrames, PiTurnUsage, PiUiBridge } from "./pi-acp-runtime.js";
 
 const temporary: string[] = [];
@@ -68,6 +69,38 @@ describe("Pi ACP bridge", () => {
     expect(f.process.sendExtensionUiResponse).toHaveBeenCalledExactlyOnceWith({ id: "q1", ...expected });
   });
 
+  it("retains blank editor prefill and distinguishes an accepted empty string from cancellation", async () => {
+    const f = fixture(); f.connection.unstable_createElicitation.mockResolvedValue({ action: "accept", content: { answer: "" } });
+    await f.bridge.handle({ id: "blank", method: "editor", title: "Draft", prefill: "" });
+    expect(f.connection.unstable_createElicitation.mock.calls[0]![0]).toMatchObject({ requestedSchema: { properties: { answer: { default: "" } } } });
+    expect(f.process.sendExtensionUiResponse).toHaveBeenCalledExactlyOnceWith({ id: "blank", value: "" });
+    f.connection.unstable_createElicitation.mockResolvedValue({ action: "cancel" });
+    await f.bridge.handle({ id: "dismissed", method: "editor", title: "Draft", prefill: "" });
+    expect(f.process.sendExtensionUiResponse).toHaveBeenLastCalledWith({ id: "dismissed", cancelled: true });
+  });
+
+  it.each(["a".repeat(1000), "界".repeat(1000), "🌒".repeat(500)])("passes the canonical character limit through the real form normalizer", async (label) => {
+    const f = fixture();
+    f.connection.unstable_createElicitation.mockImplementation(async request => {
+      const normalized = normalizeAcpFormElicitation(request)!;
+      expect(normalized.questionSet.title).toBe(label);
+      expect(normalized.questionSet.questions[0]!.options![0]!.label).toBe(label);
+      return normalized.accept({ schema: "paperclip.question_response.v1", answers: { [normalized.questionSet.questions[0]!.id]: { selectedOptionIds: ["option-1"] } } });
+    });
+    await f.bridge.handle({ id: "boundary", method: "select", title: label, options: [label] });
+    expect(f.process.sendExtensionUiResponse).toHaveBeenCalledWith({ id: "boundary", value: label });
+  });
+
+  it.each([
+    { title: "a".repeat(1001), options: ["ok"] },
+    { title: "ok", options: ["界".repeat(1001)] },
+  ])("reports external unsupported questions without presenting or silently cancelling them", async extra => {
+    const f = fixture();
+    await expect(f.bridge.handle({ id: "oversize", method: "select", ...extra })).rejects.toThrow("unsupported or invalid");
+    expect(f.connection.unstable_createElicitation).not.toHaveBeenCalled();
+    expect(f.process.sendExtensionUiResponse).toHaveBeenCalledExactlyOnceWith({ id: "oversize", cancelled: true });
+  });
+
   it("sends only offered native permission choices and keeps questions separate", async () => {
     const f = fixture(); f.connection.requestPermission.mockResolvedValue({ outcome: { outcome: "selected", optionId: "allow_always" } });
     const event = { id: "p1", method: "select", title: 'paperclip.pi.permission.v1:{"toolCallId":"tool-a","nativeToolCallId":"native-a","modelIteration":1,"toolName":"bash","input":{"command":"pwd"}}' };
@@ -92,10 +125,10 @@ describe("Pi ACP bridge", () => {
     f.connection.unstable_createElicitation.mockImplementation(() => new Promise((resolve) => { answer = resolve; }));
     const request = f.bridge.handle({ id: "q", method: "select", title: "Question", options: ["A"], timeout: 100 });
     await vi.advanceTimersByTimeAsync(100);
-    answer({ action: "accept", content: { answer: "A" } }); await request;
+    answer({ action: "accept", content: { answer: "not-an-offered-option" } }); await request;
     expect(f.process.sendExtensionUiResponse).toHaveBeenCalledExactlyOnceWith({ id: "q", cancelled: true });
     f.connection.unstable_createElicitation.mockResolvedValue({ action: "accept", content: { answer: "other" } });
-    await f.bridge.handle({ id: "q2", method: "select", title: "Question", options: ["A"] });
+    await expect(f.bridge.handle({ id: "q2", method: "select", title: "Question", options: ["A"] })).rejects.toThrow("unsupported or invalid");
     expect(f.process.sendExtensionUiResponse).toHaveBeenLastCalledWith({ id: "q2", cancelled: true });
   });
 
