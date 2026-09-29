@@ -60,10 +60,10 @@ export const QUALIFIED_ACPX_PROFILES: Readonly<
   },
   cursor: {
     driverKind: ACPX_DRIVER_KIND, protocolVersion: ACPX_DRIVER_PROTOCOL_VERSION,
-    acpxVersion: QUALIFIED_ACPX_VERSION, agent: "cursor", agentProfileVersion: 2,
+    acpxVersion: QUALIFIED_ACPX_VERSION, agent: "cursor", agentProfileVersion: 3,
     agentServerPackage: "cursor-agent", agentServerVersion: "2026.09.26-dd393fe",
     agentRuntimePackage: null, agentRuntimeVersion: null,
-    commandDigest: "sha256:1157a5d071abbd57ab132f22bace75c65e84cc47a045b0023475488755e14899",
+    commandDigest: "sha256:c91aa592ec867071ec4457b9b7230399ce42ad918787ceed99b4b651ea5607e2",
     // Authenticated discovery has not established a qualification model. Never
     // turn this empty declaration into a default; callers must select an ID.
     qualificationModel: "", reportedModelId: "", permissionPolicy: "interactive",

@@ -88,7 +88,7 @@ Three real ACP stream tests prove child lifecycle/transcript preservation before
 The full `build-provider-pack.mjs --candidate-providers=cursor` path passed on source `25fb1b5b317e52a8ad50208d7681a1ee34bd939c` (foundation includes upstream master `18e8c121d`). It used standalone Node, pnpm 9.15.4, a fresh production deployment and the pinned vendor archive. The build checked portable Node relocation, fresh ACPX import and complete Cursor materialization. The retained manifest is `packages/paperclip-runner/test/fixtures/cursor-acp/provider-pack-darwin-arm64.json`; it contains only relative paths and digests.
 
 - Pack digest: `sha256:38bc6dd39c13b0f5478a1018e26deb61b0333ab0242f3d857e3c79d3a34b7682`.
-- Cursor declaration: `sha256:1157a5d071abbd57ab132f22bace75c65e84cc47a045b0023475488755e14899`.
+- Cursor declaration: `sha256:c91aa592ec867071ec4457b9b7230399ce42ad918787ceed99b4b651ea5607e2`.
 - macOS ARM64 closure: `sha256:77394184a89b0e7384971181da19c3c82d83a399b04e7944b3f94fe3d7e62b25`.
 - Resolved dependency lock: `sha256:9eea60187c6c808efb4d936a234a8d8000beac45253091abd4c5348132bd1408`, also the reviewed Daytona build digest for this branch. This digest was resolved from the clean tracked lock with the exact Docker resolution-only command. A second resolution from the clean tracked lock produced the identical digest; the frozen install applied the Cursor/Grok combined patch successfully. The image consumes the reviewed resolved-lock artifact without registry resolution. Image creation rejects a different digest before execution.
 
