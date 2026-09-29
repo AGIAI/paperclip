@@ -878,15 +878,14 @@ const apps = [
     {
       docsUrl: "https://enterpret.support.site/article/enterpret-mcp-server",
       redirectConstraints: "https-or-loopback-http",
-      // Neither method has been validated against a real Enterpret account, and
-      // the runbook keeps a card unavailable until its required path completes
-      // against the provider. Store-hiding alone still leaves the slug directly
-      // connectable, so the definition also refuses setup. Clear this field,
-      // and the hidden-slug entries, once the nine scenarios pass.
+      // Live OAuth validation found a write-capable grant for a read-only
+      // request. Store-hiding alone still leaves the slug directly connectable,
+      // so the definition also refuses setup. Keep this gate until a fresh
+      // authorization and refresh verify a grant without unreviewed scopes.
       availability: {
         available: false,
         reason:
-          "Enterpret is not validated yet. Paperclip turns on this connection after it tests sign-in and tool discovery with a real Enterpret account.",
+          "Enterpret grants write scope when Paperclip requests read-only access. This connection is unavailable until Enterpret provides a verified read-only grant.",
       },
     },
   ],
