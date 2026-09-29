@@ -52,6 +52,7 @@ const GITHUB_MANAGED = {
 };
 const NOTION = CONNECTABLE_APP_DEFINITIONS.find((app) => app.slug === "notion")!;
 const ASANA = CONNECTABLE_APP_DEFINITIONS.find((app) => app.slug === "asana")!;
+const BOX = CONNECTABLE_APP_DEFINITIONS.find((app) => app.slug === "box")!;
 const POSTHOG = CONNECTABLE_APP_DEFINITIONS.find((app) => app.slug === "posthog")!;
 const POSTMAN = CONNECTABLE_APP_DEFINITIONS.find((app) => app.slug === "postman")!;
 const SHOPIFY = CONNECTABLE_APP_DEFINITIONS.find((app) => app.slug === "shopify")!;
@@ -933,14 +934,17 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
   });
 
   it("collects customer-owned OAuth client details for a curated manual OAuth app", async () => {
-    listGalleryMock.mockResolvedValue({ apps: [ASANA] });
-    mockParams.appKey = "asana";
+    listGalleryMock.mockResolvedValue({ apps: [BOX] });
+    mockParams.appKey = "box";
     await render();
     await passAccessStep();
 
-    expect(container.textContent).toContain("Your OAuth app");
-    expect(container.textContent).toContain("Open Asana app settings");
-    expect(container.textContent).not.toContain("Create an Asana MCP OAuth app");
+    expect(container.textContent).toContain("needs its own OAuth app");
+    expect(container.textContent).toContain("Open Box app settings");
+    // The extra work reads as the provider's limitation, not as Box's normal path.
+    expect(container.textContent).toContain(
+      "does not let Paperclip register itself automatically",
+    );
     expect(container.textContent).toContain("Paperclip callback URL");
     expect(container.textContent).toContain(
       "http://localhost:3000/api/tools/oauth/callback",
@@ -950,8 +954,8 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     const clientId = container.querySelector<HTMLInputElement>("#curated-oauth-client-id")!;
     const clientSecret = container.querySelector<HTMLInputElement>("#curated-oauth-client-secret")!;
     await act(async () => {
-      setInputValue(clientId, "asana-client-id");
-      setInputValue(clientSecret, "asana-client-secret");
+      setInputValue(clientId, "box-client-id");
+      setInputValue(clientSecret, "box-client-secret");
     });
     await flushReact();
     expect(buttonByText("Continue to sign in")?.disabled).toBe(false);
@@ -962,13 +966,29 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     await flushReact();
 
     expect(connectAppMock).toHaveBeenCalledWith("company-1", expect.objectContaining({
-      galleryKey: "asana",
+      galleryKey: "box",
       connectionMethodKey: "mcp-own-oauth",
       oauthClient: {
-        clientId: "asana-client-id",
-        clientSecret: "asana-client-secret",
+        clientId: "box-client-id",
+        clientSecret: "box-client-secret",
       },
     }));
+  });
+
+  it("gives Asana the one-click path now that its server advertises registration", async () => {
+    listGalleryMock.mockResolvedValue({ apps: [ASANA] });
+    mockParams.appKey = "asana";
+    await render();
+    await flushReact();
+
+    // No console detour: the connect screen is the handoff, not a form.
+    expect(container.textContent).not.toContain("needs its own OAuth app");
+    expect(container.querySelector("#curated-oauth-client-id")).toBeNull();
+    const primary = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.trim().startsWith("Continue to"),
+    );
+    expect(primary).toBeTruthy();
+    expect(primary?.disabled).toBe(false);
   });
 
   it("submits the Postman access mode selected on the setup screen", async () => {
@@ -1089,7 +1109,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     );
     expect(buttonByText("Connect with Paperclip")?.closest(".rounded-xl")?.classList.contains("border-border")).toBe(true);
     expect(container.textContent).not.toContain("Required once for managed Google sign-in.");
-    expect(container.textContent).not.toContain("Your OAuth app");
+    expect(container.textContent).not.toContain("needs its own OAuth app");
 
     await act(async () => {
       buttonByText("Connect with Paperclip")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -1501,7 +1521,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
       await flushReact();
       // Change auth methods too, including apps with only one capability.
       expect(container.textContent).not.toContain("Connect with Paperclip");
-      expect(container.textContent).not.toContain("Your OAuth app");
+      expect(container.textContent).not.toContain("needs its own OAuth app");
       expect(buttonByText("Continue to sign in")?.disabled).toBe(false);
       const customerAuth = buttonByText("Use your own Google OAuth app");
       expect(customerAuth).toBeDefined();
@@ -1510,7 +1530,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
         customerAuth!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       });
       await flushReact();
-      expect(container.textContent).toContain("Your OAuth app");
+      expect(container.textContent).toContain("needs its own OAuth app");
       expect(container.textContent).toContain("Client ID");
       expect(buttonByText("Continue to sign in")?.disabled).toBe(true);
       const managedAuth = buttonByText("Use Paperclip instead");
@@ -1523,7 +1543,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
         managedAuth!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       });
       await flushReact();
-      expect(container.textContent).not.toContain("Your OAuth app");
+      expect(container.textContent).not.toContain("needs its own OAuth app");
       await act(async () => {
         buttonByText("Continue to sign in")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       });
@@ -1568,7 +1588,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(radioContaining("Read only")?.getAttribute("aria-checked")).toBe("false");
     expect(container.textContent).not.toContain("Before connecting, enroll the signed-in Workspace account");
     expect(container.textContent).toContain("Review requirements");
-    expect(container.textContent).toContain("Your OAuth app");
+    expect(container.textContent).toContain("needs its own OAuth app");
   });
 
   it("renders Google Calendar as one minimal, unboxed setup screen", async () => {
