@@ -52,6 +52,34 @@ describe("QuestionForm initial text", () => {
     expect(Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Submit answers")!.disabled).toBe(true);
     expect(submit).not.toHaveBeenCalled();
   });
+  it("isolates pending requests with the same field ids and restores each edited draft when switching back", async () => {
+    async function showRequest(id: string, initialText: string) {
+      const set = { ...questionSet, questions: [{ ...questionSet.questions[0]!, initialText }] };
+      await act(async () => root.render(
+        <QuestionForm id={id} questionSet={set} draftKey={`question:${id}`} onSubmit={submit} />,
+      ));
+    }
+    const storedText = (id: string) => JSON.parse(localStorage.getItem(`question:${id}`)!).answers.draft.text;
+
+    await showRequest("request-a", "Provider draft A");
+    await edit("Operator edit A");
+    await showRequest("request-b", "Provider draft B");
+    expect(input().value).toBe("Provider draft B");
+    expect(storedText("request-a")).toBe("Operator edit A");
+    expect(storedText("request-b")).toBe("Provider draft B");
+    await edit("Operator edit B");
+
+    await showRequest("request-a", "Refreshed provider draft A");
+    expect(input().value).toBe("Operator edit A");
+    await showRequest("request-b", "Refreshed provider draft B");
+    expect(input().value).toBe("Operator edit B");
+    expect(storedText("request-a")).toBe("Operator edit A");
+    expect(storedText("request-b")).toBe("Operator edit B");
+    expect(submit).not.toHaveBeenCalled();
+    await act(async () => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Submit answers")!.click());
+    expect(submit).toHaveBeenCalledExactlyOnceWith({ schema: "paperclip.question_response.v1", answers: { draft: { text: "Operator edit B" } } });
+  });
+
   it("prefers an existing response and keeps text constraints on defaults", async () => {
     await render(questionSet, { schema: "paperclip.question_response.v1", answers: { draft: { text: "Existing answer" } } });
     expect(input().value).toBe("Existing answer");

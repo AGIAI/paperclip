@@ -230,7 +230,13 @@ export function QuestionResponseSummary({
   );
 }
 
-export function QuestionForm({
+export function QuestionForm(props: QuestionFormProps) {
+  // Takeovers can reuse this component for another pending request. Remount
+  // before draft persistence runs so one request cannot overwrite another.
+  return <QuestionFormForRequest key={JSON.stringify([props.id, props.draftKey])} {...props} />;
+}
+
+function QuestionFormForRequest({
   id,
   questionSet,
   initialResponse,
