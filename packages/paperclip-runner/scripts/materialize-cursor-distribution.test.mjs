@@ -78,6 +78,7 @@ test("retained executable vendor proof matches every checked-in patch identity",
     assert.equal(row.sourceSha256, pin.before);
     assert.equal(row.patchedSha256, pin.after);
     for (const field of ["driftRejected", "fullChunkCompiles", "ownedMcpPreserved", "typedActionErrors", "assistantProseIgnored"]) assert.equal(row[field], true);
+    for (const field of ["boundedPayloadRejected", "explicitEmptyInstructions", "nativeGlobalRule", "nativeResourceAdditionalRules"]) assert.equal(row.instructions[field], true);
     for (const field of ["ambientMcpAccesses", "hookConfigReads", "remoteTeamHookFetches"]) assert.equal(row[field], 0);
   }
 });

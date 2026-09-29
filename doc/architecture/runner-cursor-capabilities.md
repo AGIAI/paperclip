@@ -2,6 +2,8 @@
 
 Evidence updated: 2026-09-29. Candidate: `2026.09.26-dd393fe`. This profile is **not live-qualified**. One authorized task-context prompt on the initial free account returned an upgrade requirement, invoked no semantic tools, and supplied no usage receipt. Its cost is unknown; the account dashboard remained unchanged at coarse precision. The user then selected another account, whose exact-model local Runner Eval passed task-context and history tools with clean terminal settlement. Its dashboard attributed 56K rounded tokens to included usage and no incremental charge; ACP still supplied no token or dollar receipt. The local Product hello subsequently passed through the real browser, server, database, native runner, and authenticated completion tool. A second local Product case passed file creation, editing, command validation, an independent exact-byte matcher, and visible workspace artifact presentation. The merged-source local Product question and revision-bound Plan approval also passed browser response and semantic-tool continuation. A serialized follow-up passed pending semantic-question recovery across a server restart. A verified native ACP probe also denied a shell write before any observed side effect. Native Cursor questions/plans and their recovery, durable permission presentation, interruption, and Daytona execution remain required qualification gates.
 
+Current source uses **profile v4**, with the instruction admission correction described below. Prior paid results and packaged v3 builds remain historical and cannot qualify the current source.
+
 The reference is the runner's Codex app-server integration and its closed thread-item inventory in `src/provider-events.ts`. Cursor ACP and its private extension methods are the transport; the legacy Cursor adapter is unchanged.
 
 ## Evidence and packaging
@@ -54,7 +56,7 @@ Question and plan requests lack a session ID. The shared hook binds them to the 
 
 Fixed launch arguments are `--disable-project-configs --disable-auto-update acp`, using the verified bundled Node and absolute verified `index.js`. Private HOME/XDG roots are required together with CURSOR_CONFIG_DIR, CURSOR_DATA_DIR, disabled compilation caching, `AGENT_CLI_CREDENTIAL_STORE=memory`, and `NO_OPEN_BROWSER=1`. Only explicitly bound CURSOR_API_KEY or CURSOR_AUTH_TOKEN may enter. The controller creates a provider/session-scoped credential-name binding from the explicit task environment, ignoring inherited or caller-supplied markers. Rust forwards it through the closed sidecar environment boundary. Before host admission, the sidecar rejects missing, stale, wrong-provider or unbound credentials and removes the marker before provider launch. Tests cover this full boundary and preserve legacy credential behavior. Do not use `--force`, `--trust`, or `--approve-mcps` to paper over governance.
 
-`--disable-project-configs` only suppresses `.cursor/cli.json`. It does not suppress project MCP, Cursor/Claude hooks, or installed plugins. `assertCursorWorkspacePolicy` refuses ambient project execution config from the workspace through its nearest Git root, including symlinks and unreadable configuration. Ordinary Claude settings with neither hooks nor plugins remain admissible. Enterprise system hooks are checked too. The host repeats admission checks before native launch. The vendor admission check alone cannot prevent a concurrent file mutation. The `paperclip-cursor-isolation-v1` distribution patch now removes local hook loading, asynchronous team hook synchronization, ambient MCP loader initialization, and ambient-client merging from the ACP source. The retained admission check remains defense in depth. This closes those discovery paths independently of filesystem polling; authenticated validation on the patched final runtime remains required.
+`--disable-project-configs` only suppresses `.cursor/cli.json`. It does not suppress project MCP, Cursor/Claude hooks, or installed plugins. `assertCursorWorkspacePolicy` refuses ambient project execution config from the workspace through its nearest Git root, including symlinks and unreadable configuration. Ordinary Claude settings with neither hooks nor plugins remain admissible. Enterprise system hooks are checked too. The host repeats admission checks before native launch. The vendor admission check alone cannot prevent a concurrent file mutation. The current `paperclip-cursor-instructions-v2` distribution patch removes local hook loading, asynchronous team hook synchronization, ambient MCP loader initialization, and ambient-client merging from the ACP source. The retained admission check remains defense in depth. This closes those discovery paths independently of filesystem polling; authenticated validation on the patched final runtime remains required.
 
 Artifact paths are never automatically read or uploaded. References require a present regular file under the physical workspace, reject traversal and symbolic links, and retain `registered:false`. Private/outside paths are omitted and produce a visible warning. This is metadata validation, not durable file ownership or a replacement for artifact registration checks.
 
@@ -163,9 +165,9 @@ This source audit follows pinned native update → ACPX runtime → `canonicalPr
 
 True steering, native queueing, fork/resume, native usage receipts and interactive child questions are absent from this pinned ACP implementation as described above. Their absence is distinct from the implemented-but-unused fields in this table. Remote team hooks, provider-native artifact traces, interruption settlement and authenticated Linux/Daytona behavior remain unverified, not confirmed absent.
 
-## Owned runtime patch (2026-09-29)
+## Initial isolation patch, profile v3 (2026-09-29)
 
-The candidate now materializes `paperclip-cursor-isolation-v1` on top of the
+The initial profile v3 materialized `paperclip-cursor-isolation-v1` on top of the
 unchanged vendor `2026.09.26-dd393fe` archives. The materializer first verifies
 the archive and **vendor** execution closure, requires exact single-occurrence
 source anchors in an input-digest-pinned ACP chunk, applies the owned patch,
@@ -240,3 +242,73 @@ The new `cursor-runtime-patch.mjs` is present in the Docker build context. It is
 also a required Daytona content-identity input: changing patch source must change
 the image identity even when another declared input is unchanged. Publishing or
 qualification must use an image whose content hash includes that script.
+
+
+## Profile v4: instruction delivery and admission (2026-09-29)
+
+The pinned native ACP implementation ignores `_meta.systemPrompt` on session
+creation, and ACPX does not send it on load. Native workspace rules do not read
+Paperclip's registered `AGENT_HOME`. The hidden `--system-prompt` option is an
+internal-team-gated interactive CLI feature and is not used by this integration.
+Those facts invalidate any assumption that prior transport success alone proved
+canonical governance or custom entry instructions reached Cursor.
+
+The owned `paperclip-cursor-instructions-v2` patch preserves the v3 isolation and
+typed-error changes and adds the composed instructions through Cursor's native
+`LocalResourceProvider.additionalRules` path. The sandbox supplies an ephemeral,
+controller-owned `PAPERCLIP_CURSOR_INSTRUCTIONS` payload. Ambient environment
+cannot select or replace it, and it is not persisted in ACPX's launch environment
+record. The payload binds exact UTF-8 content (maximum 32 KiB, no NUL) to SHA-256;
+it includes the already-composed governance, custom entry content and registered
+agent-home context, without discovering another workspace instruction file.
+Explicit empty content has an empty rules list and the SHA-256 of empty bytes.
+
+Native session creation and load both use this process-owned snapshot and return
+`_meta.paperclipCursorInstructions` with schema, exact digest, and byte length.
+The additional rule uses the native global-rule representation and retains
+native ordering: additional rules precede the ordinarily discovered project
+rules in `RequestContext.rules`. It is not prepended to the user's message and
+does not replace Cursor's built-in system prompt. The synthetic rule identifier
+is `paperclip://runtime/instructions`; no generated instruction file is exposed
+to workspace discovery.
+
+A synchronous ACPX `protocolGuardFactory` checks each connection independently.
+It correlates the acknowledgement with the exact new/load request and session,
+rejects missing or mismatched acknowledgements before SDK dispatch, and blocks
+outbound prompts until that session is admitted. Provider death and automatic
+reload reset authority. The adapter also asserts admission immediately after
+`ensureSession`. A best-effort observer cannot authorize a prompt. The shared
+patch retains upstream terminal-failure diagnostics, rich interaction callbacks,
+response-delivery receipts, and Cursor child-event handling.
+
+[The v4 declaration](../../packages/paperclip-runner/test/fixtures/cursor-acp/profile-v4-identity.json)
+binds profile digest `sha256:b1440d559ebc4eef5c7a582f1c81fc153270cfbafa1731a8ee76d83713bdf61b`
+to all platform closures and ACPX patch SHA-256
+`64180c194ab841d6f4bba7e6eca5ead621c6222c9a8057e4bb2bb6f007d8bb3c`.
+Vendor archive and vendor closure hashes are unchanged. All three pinned archives
+passed fresh materialization and the new patched closure check:
+
+| Platform | Patched closure SHA-256 |
+|---|---|
+| macOS ARM64 | `912a37edb67fd7737809c24049dce2db20b1330f98b15a6e43809f0e0943cb6c` |
+| macOS x64 | `322f54c7bd533b202a311ce8e2c8916bfe0202790ef8a40fbb36bb89cbd506cb` |
+| Linux x64 | `a375fc771dfe86b9b24532f95956ec4b02c5f4f24d80f5db06565160eb3b672c` |
+
+`qualify-cursor-instructions.mjs`, called by the existing patch qualifier, executes
+all three digest-verified native resource constructors and bounded payload logic.
+On ARM64 it additionally executes the exact patched new/load methods and native
+cache/RequestContext construction with explicit dependency doubles, proving the
+composed bytes and native ordering at that boundary. This is an offline source
+execution proof, not a claim that an authenticated model obeyed the instructions.
+[The retained proof](../../packages/paperclip-runner/test/fixtures/cursor-acp/instructions-v4-offline-proof.json)
+and `runtime-patch-offline-proof.json` record the limits.
+
+Nine new deterministic tests cover exact UTF-8 and empty instructions, ambient
+injection exclusion, recovery refresh, request/session/connection authority,
+actual SDK new/load admission, and actual runtime automatic reload after provider
+death. Valid acknowledgements permit the prompt; missing or wrong digests fail
+before prompt bytes. Another 113 adapter/sandbox/identity tests, 25 fresh isolated
+ACPX contracts, seven materializer cases, and the runner TypeScript compile pass.
+No paid calls or billing mutations were made. A new final-source provider pack
+and daemon, authenticated instruction semantics, and the remaining live gates
+are still required before qualification.
