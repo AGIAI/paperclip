@@ -22,9 +22,10 @@ function projected(name: string) {
   return { rows, notices: readCopilotToolEvidence(rows, "run") };
 }
 describe("Copilot Product protection integration", () => {
-  it("registers exactly two explicit local cells with honest terminal expectations", () => {
+  it("registers two explicit cases on both environments with honest terminal expectations", () => {
     const cells = runnerMatrix.filter(x => x.suite.id === "copilot-protection");
-    expect(cells).toHaveLength(2); expect(cells.every(c => c.environment.id === "local" && c.profile.qualificationCandidate === "copilot" && c.task.expectedRunCount === 1)).toBe(true);
+    expect(cells).toHaveLength(4); expect(new Set(cells.map(c => c.environment.id))).toEqual(new Set(["local", "daytona"]));
+    expect(cells.every(c => c.profile.qualificationCandidate === "copilot" && c.task.expectedRunCount === 1)).toBe(true);
     expect(cells.find(c => c.task.id === "native-permission-deny-write")!.task.expectedTerminalState).toEqual({ issue: "in_progress", run: "cancelled" });
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"])).some(x => x.suite.id === "copilot-protection")).toBe(false);
   });

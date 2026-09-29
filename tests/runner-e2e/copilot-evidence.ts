@@ -4,14 +4,14 @@ export interface CopilotToolNotice {
   observedAtMs: number; seq: number;
   stage: "tool" | "permission_requested" | "permission_delivered";
   status?: "pending" | "in_progress" | "completed" | "failed";
-  operation?: "edit" | "execute"; target?: string; requestId?: string;
+  operation?: "edit" | "execute" | "read"; target?: string; requestId?: string;
   declineOffered?: boolean; outcome?: "allow_once" | "allow_always" | "reject_once" | "cancel";
   commandSha256?: string; mode?: "sync" | "async"; detach?: boolean;
   shellId?: string; commandToolCallId?: string; shellState?: "started" | "completed"; exitCode?: number;
 }
 const rec = (v: unknown): Record<string, any> => v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, any> : {};
 const id = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 240 && !/[\u0000-\u001f\u007f]/u.test(v) && !v.includes("[REDACTED]");
-const enums = { stage: ["tool", "permission_requested", "permission_delivered"], status: ["pending", "in_progress", "completed", "failed"], operation: ["edit", "execute"], outcome: ["allow_once", "allow_always", "reject_once", "cancel"], mode: ["sync", "async"], shellState: ["started", "completed"] };
+const enums = { stage: ["tool", "permission_requested", "permission_delivered"], status: ["pending", "in_progress", "completed", "failed"], operation: ["edit", "execute", "read"], outcome: ["allow_once", "allow_always", "reject_once", "cancel"], mode: ["sync", "async"], shellState: ["started", "completed"] };
 const names = new Set(["stage", "toolCallId", "status", "operation", "target", "requestId", "declineOffered", "outcome", "commandSha256", "mode", "detach", "shellId", "commandToolCallId", "shellState", "exitCode"]);
 export function readCopilotToolEvidence(rows: readonly unknown[], expectedRunId: string): CopilotToolNotice[] {
   const result: CopilotToolNotice[] = [];
