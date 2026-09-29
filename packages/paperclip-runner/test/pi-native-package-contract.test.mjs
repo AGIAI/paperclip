@@ -64,7 +64,7 @@ for (const brokenCatalog of [false, true]) {
       response.setHeader("Content-Type", "application/json");
       const result = rpc.method === "initialize"
         ? { protocolVersion: "2025-03-26", capabilities: { tools: {} }, serverInfo: { name: "fixture", version: "1" } }
-        : { tools: [{ name: brokenCatalog ? "invalid/name" : "report_progress", description: "Report progress", inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } }] };
+        : { tools: [{ name: brokenCatalog ? "invalid/name" : "connection:search", description: "Report progress", inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } }] };
       response.end(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result }));
     });
     server.listen(0, "127.0.0.1"); await once(server, "listening");
@@ -217,6 +217,49 @@ test("real pinned Pi executes all four owned native question methods without per
     assert.deepEqual(dialogs.map(dialog => dialog.method), ["select", "confirm", "input", "editor"]);
     assert.ok(dialogs.every(dialog => !dialog.title.startsWith("paperclip.pi.permission.v1:")));
     assert.deepEqual(results.map(event => event.result.details), [{ status: "answered", optionId: "blue" }, { status: "negative_or_cancelled", confirmed: false }, { status: "answered", value: "Ada" }, { status: "answered", value: "New\ntext" }]);
+  } finally { session?.dispose(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("real pinned Pi dispatches aliased MCP tools with their exact original names", { timeout: 20_000 }, async () => {
+  const load = (name) => import(pathToFileURL(join(packageRoot, `dist/core/${name}.js`)).href);
+  const [{ createAgentSession }, { DefaultResourceLoader }, { ModelRuntime }, { SessionManager }, { SettingsManager }, { AuthStorage }] = await Promise.all(
+    ["sdk", "resource-loader", "model-runtime", "session-manager", "settings-manager", "auth-storage"].map(load),
+  );
+  const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-mcp-alias-")));
+  let session;
+  try {
+    await writeFile(join(root, "extension.mjs"), stripTypeScriptTypes(extensionSource));
+    await writeFile(join(root, "pi-acp-runtime.js"), stripTypeScriptTypes(await readFile(new URL("../src/drivers/acpx/pi-acp-runtime.ts", import.meta.url), "utf8")));
+    const { installPiRuntimeExtension } = await import(pathToFileURL(join(root, "extension.mjs")).href);
+    const names = ["connection:search", "connection_search", "connection.search", "x".repeat(128)];
+    const calls = [];
+    const request = async (_server, method, params) => method === "tools/list"
+      ? { tools: names.map(name => ({ name, description: name, inputSchema: { type: "object", properties: { index: { type: "number" } } } })) }
+      : method === "tools/call" ? (calls.push(params), { content: [{ type: "text", text: "recorded" }] }) : {};
+    const settings = SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } });
+    const modelRuntime = await ModelRuntime.create({ credentials: AuthStorage.inMemory({}), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false });
+    const model = { id: "fixture", name: "Fixture", api: "openai-completions", provider: "fixture", baseUrl: "http://127.0.0.1:1", reasoning: false, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 8192, maxTokens: 64 };
+    const resourceLoader = new DefaultResourceLoader({ cwd: root, agentDir: root, settingsManager: settings, noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true,
+      extensionFactories: [pi => installPiRuntimeExtension(pi, { invocationNamespace: "00000000-0000-4000-8000-000000000000", workspace: root, readOnly: true, readRoots: [], protectedRoots: [], instructions: "", servers: [{ type: "http", name: "paperclip", url: "http://127.0.0.1:1", headers: [] }] }, request)] });
+    await resourceLoader.reload();
+    ({ session } = await createAgentSession({ cwd: root, agentDir: root, model, modelRuntime, settingsManager: settings, sessionManager: SessionManager.inMemory(root), resourceLoader, noTools: "builtin", thinkingLevel: "off" }));
+    const errors = []; const results = [];
+    await session.bindExtensions({ onError: error => errors.push(error.event) });
+    session.subscribe(event => { if (event.type === "tool_execution_end") results.push(event); });
+    let streams = 0;
+    session.agent.streamFunction = (_model, context) => {
+      const index = streams++; const original = names[index];
+      const exposed = context.tools.filter(tool => names.includes(tool.description));
+      assert.equal(exposed.length, names.length);
+      assert.equal(new Set(exposed.map(tool => tool.name)).size, names.length);
+      assert.ok(exposed.every(tool => /^[A-Za-z0-9_-]{1,64}$/.test(tool.name)));
+      const name = exposed.find(tool => tool.description === original)?.name;
+      const message = { role: "assistant", content: name ? [{ type: "toolCall", id: "call_0", name, arguments: { index } }] : [{ type: "text", text: "done" }], api: model.api, provider: model.provider, model: model.id, usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }, stopReason: name ? "toolUse" : "stop", timestamp: streams };
+      return { async *[Symbol.asyncIterator]() { yield { type: "start", partial: message }; yield { type: "done", reason: message.stopReason, message }; }, result: async () => message };
+    };
+    await session.agent.prompt("fixture aliases"); await session.agent.waitForIdle();
+    assert.deepEqual(errors, []); assert.equal(results.length, names.length); assert.ok(results.every(event => !event.isError));
+    assert.deepEqual(calls, names.map((name, index) => ({ name, arguments: { index } })));
   } finally { session?.dispose(); await rm(root, { recursive: true, force: true }); }
 });
 

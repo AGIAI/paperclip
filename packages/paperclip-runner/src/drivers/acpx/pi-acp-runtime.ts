@@ -227,6 +227,13 @@ export function createPiLaunchSpec(
   return { command, args, invocationNamespace, env };
 }
 
+// Same UTF-16 character bound as the canonical question-set title/header/label.
+export const PI_QUESTION_LABEL_MAX_LENGTH = 1_000;
+export function piQuestionLabel(value: unknown): string {
+  if (typeof value !== "string" || !value.trim() || value.length > PI_QUESTION_LABEL_MAX_LENGTH) throw new Error("Pi question label is invalid or oversized");
+  return value;
+}
+
 interface UiConnection {
   requestPermission(params: RecordValue): Promise<unknown>;
   unstable_createElicitation(params: RecordValue): Promise<unknown>;
@@ -282,10 +289,11 @@ export class PiUiBridge {
         await finish(selected ? { value: selected.name } : { cancelled: true });
         return;
       }
+      piQuestionLabel(title);
       const property: RecordValue = { type: method === "confirm" ? "boolean" : "string", title };
       if (method === "select") {
         if (!Array.isArray(event.options) || event.options.length < 1 || event.options.length > 128) throw new Error("Invalid Pi question options");
-        property.enum = event.options.map((option) => text(option, 4096));
+        property.enum = event.options.map((option) => piQuestionLabel(option));
         if (new Set(property.enum as string[]).size !== event.options.length) throw new Error("Ambiguous Pi question options");
       }
       if (method === "input" && typeof event.placeholder === "string") property.description = text(event.placeholder);
@@ -305,7 +313,11 @@ export class PiUiBridge {
         if (method === "select" && !(property.enum as string[]).includes(value)) throw new Error("Invalid Pi question response");
         await finish({ value });
       }
-    } catch { await finish({ cancelled: true }).catch(() => {}); }
+    } catch {
+      if (done) return; // An expired request cannot fail a later live session.
+      await finish({ cancelled: true }).catch(() => {});
+      throw new Error("Pi structured question is unsupported or invalid");
+    }
   }
 }
 

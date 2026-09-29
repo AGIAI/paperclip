@@ -165,6 +165,13 @@ for (const [method, answer, expected] of [["select", "Blue", { value: "Blue" }],
   });
 }
 
+test("actual patched ACP reports unsupported external UI as an error and stops the session", async t => {
+  const f = await fixture(t); const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
+  await assert.rejects(f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "oversized-question" }] }), /exited/);
+  assert.equal(f.requests.length, 0);
+  assert.ok(f.notifications.some(event => event.params?.update?._meta?.paperclipPi?.notice?.message === "Pi structured question is unsupported or invalid; the session was stopped"));
+});
+
 test("native steering is explicit and does not replace the active ACP turn", async (t) => {
   const f = await fixture(t); const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
   const prompt = f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "long" }] });

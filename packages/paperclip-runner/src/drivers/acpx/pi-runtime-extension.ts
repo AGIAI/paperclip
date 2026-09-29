@@ -3,7 +3,8 @@
  * this immutable module explicitly; project/global extension discovery is off.
  * Structural types keep this module independent of Pi's optional UI packages.
  */
-import { PiToolIdentities } from "./pi-acp-runtime.js";
+import { createHash } from "node:crypto";
+import { PI_QUESTION_LABEL_MAX_LENGTH, piQuestionLabel, PiToolIdentities } from "./pi-acp-runtime.js";
 import { lstat, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -205,7 +206,7 @@ async function askPiNativeQuestion(args: Record<string, unknown>, ui: PiUi, sign
     if (typeof value !== "string" || Buffer.byteLength(value) > limit) throw new Error("Pi question text is invalid or oversized");
     return value;
   };
-  const title = boundedText(args.title, 4096);
+  const title = piQuestionLabel(args.title);
   if (!title.trim() || title.startsWith(PI_PERMISSION_TITLE_PREFIX)) throw new Error("Pi question title is invalid");
   const method = args.method;
   const permitted = ["method", "title", ...(method === "select" ? ["options"] : method === "confirm" ? ["message"] : method === "input" ? ["placeholder"] : method === "editor" ? ["prefill"] : [])];
@@ -214,7 +215,7 @@ async function askPiNativeQuestion(args: Record<string, unknown>, ui: PiUi, sign
   if (method === "select") {
     if (!Array.isArray(args.options) || args.options.length < 1 || args.options.length > 128) throw new Error("Pi question options are invalid");
     const options = args.options.map(value => {
-      const option = asRecord(value); const id = boundedText(option.id, 128); const label = boundedText(option.label, 4096);
+      const option = asRecord(value); const id = boundedText(option.id, 128); const label = piQuestionLabel(option.label);
       if (!/^[A-Za-z0-9_-]+$/.test(id) || !label.trim() || Object.keys(option).some(key => !["id", "label"].includes(key))) throw new Error("Pi question option is invalid");
       return { id, label };
     });
@@ -370,8 +371,8 @@ export async function installPiRuntimeExtension(
     name: PI_NATIVE_QUESTION_TOOL, label: "Ask a native question",
     description: "Ask the human a native Pi select, confirm, input, or editor question. Select is single-choice and returns the supplied stable option ID. This cannot approve tools or a Paperclip Plan. For durable task questions or Plan approval use the assigned Paperclip semantic tools. Cancellation is not an answer; confirm false means No or dismissal.",
     parameters: { type: "object", additionalProperties: false, required: ["method", "title"], properties: {
-      method: { type: "string", enum: ["select", "confirm", "input", "editor"] }, title: { type: "string", maxLength: 4096 },
-      options: { type: "array", minItems: 1, maxItems: 128, items: { type: "object", additionalProperties: false, required: ["id", "label"], properties: { id: { type: "string", pattern: "^[A-Za-z0-9_-]{1,128}$" }, label: { type: "string", maxLength: 4096 } } } },
+      method: { type: "string", enum: ["select", "confirm", "input", "editor"] }, title: { type: "string", maxLength: PI_QUESTION_LABEL_MAX_LENGTH },
+      options: { type: "array", minItems: 1, maxItems: 128, items: { type: "object", additionalProperties: false, required: ["id", "label"], properties: { id: { type: "string", pattern: "^[A-Za-z0-9_-]{1,128}$" }, label: { type: "string", maxLength: PI_QUESTION_LABEL_MAX_LENGTH } } } },
       message: { type: "string", maxLength: 16384 }, placeholder: { type: "string", maxLength: 16384 }, prefill: { type: "string", maxLength: 16384 },
     } },
     async execute(callId, args, signal, _onUpdate, context) {
@@ -389,8 +390,13 @@ export async function installPiRuntimeExtension(
     if (!Array.isArray(catalog.tools) || catalog.nextCursor) throw new Error("Pi MCP catalog is incomplete");
     for (const rawTool of catalog.tools) {
       const tool = asRecord(rawTool);
-      if (typeof tool.name !== "string" || !/^[A-Za-z0-9_.-]{1,128}$/.test(tool.name)) throw new Error("Pi MCP tool name is invalid");
-      const nativeName = `mcp__${server.name}__${tool.name}`;
+      if (typeof tool.name !== "string" || !/^[A-Za-z0-9_.:-]{1,128}$/.test(tool.name)) throw new Error("Pi MCP tool name is invalid");
+      const readableName = `mcp__${server.name}__${tool.name}`;
+      // MCP names may contain colons/periods and exceed model tool-name limits.
+      // Preserve the exact source identity only in the authenticated call closure;
+      // a framed digest avoids lossy replacement collisions (a:b versus a_b).
+      const nativeName = /^[A-Za-z0-9_-]{1,64}$/.test(readableName) ? readableName
+        : `mcp__${createHash("sha256").update(JSON.stringify([server.name, tool.name])).digest("hex").slice(0, 59)}`;
       if (bridgeTools.has(nativeName) || ++count > MAX_TOOLS) throw new Error("Pi MCP catalog is ambiguous or oversized");
       const schema = asRecord(tool.inputSchema);
       if (schema.type !== "object") throw new Error("Pi MCP tool parameters must be an object");
