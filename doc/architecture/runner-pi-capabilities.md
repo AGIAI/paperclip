@@ -9,7 +9,26 @@ Both assignment and automatic recovery runs reject the same input; no usage
 receipt exists. The early exclusive-key billing delta is $0 and cleanup passes.
 The [retained failure](../../packages/paperclip-runner/test-fixtures/pi-acp/product-hello-profile-rejection.v6.darwin-arm64.json)
 includes the actual local sidecar, Node, daemon, closure and pack identities.
-A parser repair and new frozen build are required before another reserved attempt.
+The parser repair is included in frozen source `edf14a067`. Its second hello
+attempt passes that boundary but fails at the 30-second `session.open` deadline.
+No terminal usage exists; both immediate and delayed exclusive-key deltas are $0,
+and all 40 owned process identities are gone. The
+[v6 startup proof](../../packages/paperclip-runner/test-fixtures/pi-acp/startup-diagnostic.v6.darwin-arm64.json)
+retains that failure and the credential-free diagnosis. Bounded 32-worker file
+hashing and snapshot copying preserve all integrity checks, canonical ordering,
+the 32 MiB snapshot batch ceiling, and fully drained failure cleanup. A diagnostic
+build completes the full no-key Runner rejection in 9.8 seconds; its repeatable
+protocol regression settles in 10.7 seconds and closes cleanly. A separate actual
+ACP test asserts the precise missing-credential error. Timings vary with filesystem
+cache and load; these are admission diagnostics, not authenticated qualification.
+No timeout or provider-closure identity changes in this repair.
+
+The opt-in regression is `node --test test/pi-closed-startup.test.mjs` from the
+Runner package, with `PAPERCLIP_TEST_PI_STARTUP_PACKAGE_ROOT` pointing at a built
+Runner package containing Pi assets and `PAPERCLIP_TEST_PI_STARTUP_RUNNER_BINARY`
+pointing at its compatible daemon. It spawns a clean environment, submits no
+prompt, asserts terminal admission rejection within the unchanged 30-second
+deadline, and verifies the daemon closes. It does not inherit provider credentials.
 
 Historical profile version 5 repairs the
 Undici dependency and bundled Node runtime affected by GHSA-3wwx-pv8p-q78v.

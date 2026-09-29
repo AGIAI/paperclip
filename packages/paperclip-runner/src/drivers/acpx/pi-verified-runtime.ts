@@ -27,6 +27,9 @@ function contained(root: string, path: string): boolean {
 function safeRelative(path: string): boolean {
   return path.length > 0 && !isAbsolute(path) && !/[\0\r\n\\]/.test(path) && path.split("/").every((part) => part !== "" && part !== "." && part !== "..");
 }
+// Hash streams are bounded; at most 32 descriptors/stream buffers are live.
+const PI_INVENTORY_HASH_CONCURRENCY = 32;
+
 function hash(bytes: Uint8Array | string): string { return `sha256:${createHash("sha256").update(bytes).digest("hex")}`; }
 
 /**
@@ -38,6 +41,7 @@ export async function inventoryPiRuntimeFiles(root: string): Promise<PiRuntimeFi
   const physicalRoot = await realpath(root);
   if ((await lstat(root)).isSymbolicLink()) throw new Error("Pi runtime root must not be a symlink");
   const files: PiRuntimeFile[] = [];
+  const regular: Array<{ path: string; entry: PiRuntimeFile }> = [];
   const visit = async (directory: string): Promise<void> => {
     const entries = (await readdir(directory)).sort();
     for (const name of entries) {
@@ -53,11 +57,22 @@ export async function inventoryPiRuntimeFiles(root: string): Promise<PiRuntimeFi
         files.push({ path: rel, kind: "symlink", target, sha256: hash(target) });
       } else if (stat.isFile()) {
         if (stat.nlink !== 1) throw new Error("Pi runtime file has another writable name");
-        files.push({ path: rel, kind: "file", sha256: await hashFile(path) });
+        const entry: PiRuntimeFile = { path: rel, kind: "file", sha256: "" };
+        files.push(entry); regular.push({ path, entry });
       } else throw new Error("Pi runtime contains a non-file resource");
     }
   };
   await visit(physicalRoot);
+  // Keep discovery order independent of completion order. Do not cache: every
+  // admission still reads every regular file through its checked descriptor.
+  for (let index = 0; index < regular.length; index += PI_INVENTORY_HASH_CONCURRENCY) {
+    const batch = regular.slice(index, index + PI_INVENTORY_HASH_CONCURRENCY);
+    const results = await Promise.allSettled(batch.map(async ({ path, entry }) => { entry.sha256 = await hashFile(path); }));
+    // Await every worker's finally/close before reporting a failed batch. No
+    // subsequent batch is scheduled after a rejection.
+    const failed = results.find(result => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
+  }
   return files;
 }
 
