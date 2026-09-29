@@ -369,8 +369,20 @@ function cursorChildActivitySummary(update: Record<string, unknown>): { text: st
 }
 
 function boundedChildActivity(text: string): string {
+  if (text.length <= 4_000) return text;
+  const prefix = "[Earlier child activity omitted]\n";
   const points = Array.from(text);
-  return points.length <= 4_000 ? text : `[Earlier child activity omitted]\n${points.slice(-3_960).join("")}`;
+  const tail: string[] = [];
+  let length = prefix.length;
+  // Bound both UTF-16 consumers and the schema's Unicode code-point count.
+  // Keep each complete code point when retaining the most recent activity.
+  for (let index = points.length - 1; index >= 0; index -= 1) {
+    const point = points[index]!;
+    if (length + point.length > 4_000) break;
+    tail.push(point);
+    length += point.length;
+  }
+  return prefix + tail.reverse().join("");
 }
 
 /** Preserve identity across delta state updates; use a fresh reducer per turn. */

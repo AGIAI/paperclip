@@ -50,14 +50,17 @@ describe("Copilot provider registry conformance", () => {
     binder.onExtensionNotification(COPILOT_ACP_EVENT_METHOD, { sessionId: context.sessionId, type: "subagent.completed", data,
       agentId: "agent-2", timestamp: "2026-09-28T00:00:00Z" });
     await binder.drain();
-    expect(emitted.map(event => event.eventType)).toEqual(["delegation.completed", "provider.notice.recorded"]);
-    expect(emitted[0]!.payload).toMatchObject({ schema: "paperclip.delegation.v1", action: "spawn", status: "completed",
-      children: [{ role: "Reviewer", model: "exact-model", status: "completed", summary: "Review the change" }] });
-    expect(emitted[1]!.payload).toMatchObject({ summary: "Copilot subagent completed.", provenance: {
-      method: COPILOT_ACP_EVENT_METHOD, eventType: "subagent.completed", agentId: "agent-2",
-      sessionId: "backend-1", turnId: "turn-1", timestamp: "2026-09-28T00:00:00Z",
-    } });
-    expect(emitted[1]!.payload.details).toEqual(Object.entries(data).map(([name, value]) => ({ name, value: String(value) })));
+    expect(emitted.map(event => event.eventType)).toEqual(["provider.notice.recorded"]);
+    expect(emitted[0]!.payload).toMatchObject({ summary: "Copilot subagent completed.", details: expect.arrayContaining([
+      { name: "source.method", value: COPILOT_ACP_EVENT_METHOD },
+      { name: "source.eventType", value: "subagent.completed" },
+      { name: "source.agentId", value: "agent-2" },
+      { name: "source.sessionId", value: "backend-1" },
+      { name: "source.timestamp", value: "2026-09-28T00:00:00Z" },
+    ]) });
+    expect(emitted[0]!.payload.scope).toBe("session");
+    expect(emitted[0]!.payload).not.toHaveProperty("provenance");
+    expect(emitted[0]!.payload.details).toEqual(expect.arrayContaining(Object.entries(data).map(([name, value]) => ({ name, value: String(value) }))));
   });
 
   it.each(["wrong_session", "stale_turn"])("rejects %s events at the shared boundary before presentation", async scenario => {

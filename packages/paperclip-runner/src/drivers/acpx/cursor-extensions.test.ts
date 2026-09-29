@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { validateAcpxRichEvent } from "./profile-extensions.js";
 import { PAPERCLIP_QUESTION_RESPONSE_SCHEMA } from "../../contracts/question-set.js";
 import {
   createCursorNotificationNormalizer, createCursorProfileExtensionAdapter, createCursorSubagentNormalizer, cursorWorkspaceArtifactReference,
@@ -142,6 +143,20 @@ describe("Cursor active-turn extension adapter", () => {
     await expect(adapter.notification("cursor/subagent_update", { sessionId: "parent", update: { ...state, _meta: { cursor: { ...update._meta.cursor, toolCallId: "forged" } } } })).rejects.toThrow("origin identity");
     await expect(adapter.notification("cursor/subagent_update", { sessionId: "parent", update: spawned })).rejects.toThrow("duplicated");
     await expect(createCursorProfileExtensionAdapter({ ...context, turnId: "next" }).notification("cursor/subagent_update", { sessionId: "parent", update: state })).rejects.toThrow("no spawn");
+  });
+
+  it.each(["😀".repeat(2_500), "😀".repeat(5_000), "漢😀".repeat(2_000)])("bounds Unicode child activity for UTF-16 consumers without splitting code points (%#)", async message => {
+    const adapter = createCursorProfileExtensionAdapter({ workspacePath: await workspace(), sessionId: "parent", turnId: "turn" });
+    await adapter.notification("cursor/subagent_update", { sessionId: "parent", update: { sessionUpdate: "subagent_spawned", subagentSessionId: "child", name: "Explore", task: "", _meta: { cursor: { toolCallId: "task", agentId: "agent" } } } });
+    const events = await adapter.notification("cursor/subagent_update", { sessionId: "parent", childSessionId: "child", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: message } } });
+    const event = events[0]!;
+    expect(() => validateAcpxRichEvent(event)).not.toThrow();
+    const summary = (event.payload.children as { activitySummary: string }[])[0]!.activitySummary;
+    expect(summary.length).toBeLessThanOrEqual(4_000);
+    expect(summary.isWellFormed()).toBe(true);
+    expect(summary).toMatch(/^\[Earlier child activity omitted\]\n/);
+    const tail = summary.slice("[Earlier child activity omitted]\n".length);
+    expect(message.endsWith(tail)).toBe(true);
   });
 
   it("attributes nested child transcripts, reports partial tool detail, and settles disconnected children honestly", async () => {
