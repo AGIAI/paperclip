@@ -272,6 +272,15 @@ fn validate_text_constraints(
 }
 
 fn validate_persisted_question(question: &Value) -> Result<(), LocalRunnerError> {
+    if question
+        .get("initialText")
+        .and_then(Value::as_str)
+        .is_some_and(|text| javascript_string_length(text) > MAX_QUESTION_ANSWER_CODE_UNITS)
+    {
+        return Err(LocalRunnerError::invalid(
+            "persisted initial text exceeds its UTF-16 bound",
+        ));
+    }
     let question_id = question
         .get("id")
         .and_then(Value::as_str)

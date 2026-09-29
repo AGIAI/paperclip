@@ -2843,6 +2843,10 @@ export const questionSetSchema = {
             "text"
           ]
         },
+        "initialText": {
+          "type": "string",
+          "maxLength": 100000
+        },
         "options": {
           "type": "array",
           "maxItems": 128,
@@ -2901,6 +2905,11 @@ export const questionSetSchema = {
             "required": [
               "options"
             ],
+            "not": {
+              "required": [
+                "initialText"
+              ]
+            },
             "properties": {
               "options": {
                 "type": "array",
