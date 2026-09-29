@@ -5,6 +5,8 @@ import { posix } from "node:path";
 export const REMOTE_FIXTURE_DAYTONA_SDK_VERSION = "0.203.0";
 const NODE = "/opt/paperclip-runner/provider-pack/node_modules/node/bin/node";
 const MAX_OUTPUT = 256 * 1024;
+const TEARDOWN_RESERVE_MS = 15_000;
+const CLOSE_GRACE_MS = 10_000;
 // createRunnerdBackend stages its verified executable, pack symlink, mutable
 // sessions, homes and injected context beneath this exact path. Qualification
 // covers user workspace files, not these controller/provider runtime internals.
@@ -156,7 +158,7 @@ const server=net.createServer(socket=>{sockets.add(socket);socket.on('close',()=
  socket.end(JSON.stringify({ok:true,result})+'\n');
  }catch{socket.end(JSON.stringify({ok:false,error:'observer_evidence_incomplete'})+'\n')}})});
 let closing=false;async function shutdown(reply){if(closing){reply?.end(JSON.stringify({ok:false,error:'closing'})+'\n');return}closing=true;sealed=true;workspaceWatch.close();for(const t of targets.values())t.watch.close();clearInterval(observer);let settled=true;try{if(child&&child.exitCode===null&&child.signalCode===null){child.kill('SIGTERM');const exited=new Promise(resolve=>child.once('exit',resolve));await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,2000))]);if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,2000))]);}settled=child.exitCode!==null||child.signalCode!==null;}if(reply)reply.end(JSON.stringify({ok:settled,result:{closed:settled}})+'\n');}finally{for(const s of sockets)if(s!==reply)s.destroy();server.close();if(attached?.server)attached.server.close();setTimeout(()=>{reply?.destroy();if(settled){const current=fs.lstatSync(config.root,{bigint:true});if(current.dev===rootStat.dev&&current.ino===rootStat.ino&&!current.isSymbolicLink())fs.rmSync(config.root,{recursive:true,force:true});else settled=false;}process.exit(settled?0:2)},100)}}
-server.listen(path.join(config.root,'control.sock'));setTimeout(()=>{complete=false;shutdown(null)},300000).unref();
+server.listen(path.join(config.root,'control.sock'));setTimeout(()=>{complete=false;shutdown(null)},config.observerTtlMs).unref();
 `;
 const ATTACHED_CLIENT = String.raw`const net=require('node:net');const s=net.connect(process.argv[2]);let b='';s.setTimeout(15000,()=>process.exit(3));s.on('error',()=>process.exit(4));s.on('connect',()=>s.write(JSON.stringify({nonce:process.argv[3],pid:process.pid})+'\n'));s.on('data',x=>{b+=x;if(b.length>1024)process.exit(6);if(b.includes('\n')){const r=JSON.parse(b);s.end();process.exit(r.code===0?0:5)}});`;
 function observerSource() {
@@ -164,10 +166,11 @@ function observerSource() {
     .replace("WATCH_TARGET", () => createRemoteTargetWatch.toString()).replace("ATTACHED_CLIENT", () => JSON.stringify(ATTACHED_CLIENT));
 }
 const RPC = String.raw`const fs=require('node:fs'),net=require('node:net'),cp=require('node:child_process'),crypto=require('node:crypto');const r=JSON.parse(Buffer.from(process.argv[1],'base64').toString());const hash=x=>'sha256:'+crypto.createHash('sha256').update(x).digest('hex');
+const startedAt=Date.now();if(!Number.isInteger(r.timeoutMs)||r.timeoutMs<1000||r.timeoutMs>300000)throw Error('rpc_deadline');setTimeout(()=>process.exit(2),r.timeoutMs).unref();
 const parseStat=PARSE_STAT,runRoot=RUN_ROOT;
-async function waitRuntime(c){const root=c.binding.remoteCwd+'/'+c.runtimeRelative,boot=fs.readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim(),until=Date.now()+20000;while(Date.now()<until){try{const s=fs.lstatSync(root);if(!s.isDirectory()||s.isSymbolicLink()||fs.realpathSync(root)!==root)throw Error('runtime_root_identity');const matches=[];const entries=fs.readdirSync('/proc');if(entries.length>8192)throw Error('proc_bound');for(const name of entries){if(!/^\d+$/.test(name)||Number(name)<2)continue;try{const p=parseStat(Number(name),fs.readFileSync('/proc/'+name+'/stat','utf8'),boot),argv=fs.readFileSync('/proc/'+name+'/cmdline').toString().split('\0').filter(Boolean);if(runRoot(argv,c.binding.runId,p)){if(argv[0]!==root+'/bin/paperclip-runnerd'||hash(fs.readFileSync('/proc/'+name+'/exe'))!==c.runnerdSha256)throw Error('runtime_binary_identity');matches.push(p)}}catch(e){if(e.code!=='ENOENT'&&e.code!=='ESRCH')throw e}}if(matches.length>1)throw Error('ambiguous_run_root');if(matches.length===1)return;}catch(e){if(e.code!=='ENOENT')throw e}await new Promise(resolve=>setTimeout(resolve,50))}throw Error('runtime_not_ready')}
-(async()=>{if(hash(fs.readFileSync(process.execPath))!==r.nodeSha256)throw Error('node_identity');if(r.op==='install'){const c=r.config;await waitRuntime(c);const st=fs.lstatSync(c.sentinel.path);if(!st.isFile()||st.isSymbolicLink()||st.size>16384||fs.realpathSync(c.sentinel.path)!==c.sentinel.path)throw Error('sentinel_type');const s=JSON.parse(fs.readFileSync(c.sentinel.path,'utf8'));if(s.version!==1||s.provider!=='daytona'||s.token!==c.sentinel.token||s.companyId!==c.binding.companyId||s.environmentId!==c.binding.environmentId)throw Error('sentinel');if(fs.realpathSync(c.binding.remoteCwd)!==c.binding.remoteCwd)throw Error('cwd');fs.mkdirSync(c.root,{mode:0o700});fs.writeFileSync(c.root+'/observer.cjs',r.source,{flag:'wx',mode:0o400});const child=cp.spawn(process.execPath,[c.root+'/observer.cjs',Buffer.from(JSON.stringify(c)).toString('base64')],{detached:true,stdio:'ignore',env:{PATH:'/usr/bin:/bin'}});child.unref();r.root=c.root;r.nonce=c.nonce;r.op='snapshot';}
-for(let i=0;!fs.existsSync(r.root+'/control.sock')&&i<200;i++)await new Promise(resolve=>setTimeout(resolve,10));const socket=net.connect(r.root+'/control.sock');let output='';socket.setTimeout(r.op==='wait'?290000:5000);socket.on('timeout',()=>{socket.destroy();process.exitCode=2});socket.on('error',()=>{process.exitCode=2});socket.on('connect',()=>socket.write(JSON.stringify(r)+'\n'));socket.on('data',b=>{output+=b;if(Buffer.byteLength(output)>262144){socket.destroy();process.exitCode=2}});socket.on('end',()=>{if(!process.exitCode)process.stdout.write(output)});
+async function waitRuntime(c){const root=c.binding.remoteCwd+'/'+c.runtimeRelative,boot=fs.readFileSync('/proc/sys/kernel/random/boot_id','utf8').trim(),until=Math.min(startedAt+20000,startedAt+r.timeoutMs-1000);while(Date.now()<until){try{const s=fs.lstatSync(root);if(!s.isDirectory()||s.isSymbolicLink()||fs.realpathSync(root)!==root)throw Error('runtime_root_identity');const matches=[];const entries=fs.readdirSync('/proc');if(entries.length>8192)throw Error('proc_bound');for(const name of entries){if(!/^\d+$/.test(name)||Number(name)<2)continue;try{const p=parseStat(Number(name),fs.readFileSync('/proc/'+name+'/stat','utf8'),boot),argv=fs.readFileSync('/proc/'+name+'/cmdline').toString().split('\0').filter(Boolean);if(runRoot(argv,c.binding.runId,p)){if(argv[0]!==root+'/bin/paperclip-runnerd'||hash(fs.readFileSync('/proc/'+name+'/exe'))!==c.runnerdSha256)throw Error('runtime_binary_identity');matches.push(p)}}catch(e){if(e.code!=='ENOENT'&&e.code!=='ESRCH')throw e}}if(matches.length>1)throw Error('ambiguous_run_root');if(matches.length===1)return;}catch(e){if(e.code!=='ENOENT')throw e}await new Promise(resolve=>setTimeout(resolve,50))}throw Error('runtime_not_ready')}
+(async()=>{if(hash(fs.readFileSync(process.execPath))!==r.nodeSha256)throw Error('node_identity');if(r.op==='install'){const c=r.config;await waitRuntime(c);const st=fs.lstatSync(c.sentinel.path);if(!st.isFile()||st.isSymbolicLink()||st.size>16384||fs.realpathSync(c.sentinel.path)!==c.sentinel.path)throw Error('sentinel_type');const s=JSON.parse(fs.readFileSync(c.sentinel.path,'utf8'));if(s.version!==1||s.provider!=='daytona'||s.token!==c.sentinel.token||s.companyId!==c.binding.companyId||s.environmentId!==c.binding.environmentId)throw Error('sentinel');if(fs.realpathSync(c.binding.remoteCwd)!==c.binding.remoteCwd)throw Error('cwd');fs.mkdirSync(c.root,{mode:0o700});fs.writeFileSync(c.root+'/observer.cjs',r.source,{flag:'wx',mode:0o400});c.observerTtlMs=Math.max(1,c.observerTtlMs-(Date.now()-startedAt));const child=cp.spawn(process.execPath,[c.root+'/observer.cjs',Buffer.from(JSON.stringify(c)).toString('base64')],{detached:true,stdio:'ignore',env:{PATH:'/usr/bin:/bin'}});child.unref();r.root=c.root;r.nonce=c.nonce;r.op='snapshot';}
+for(let i=0;!fs.existsSync(r.root+'/control.sock')&&i<200;i++)await new Promise(resolve=>setTimeout(resolve,10));const socket=net.connect(r.root+'/control.sock');let output='';socket.setTimeout(Math.max(1,r.timeoutMs-(Date.now()-startedAt)));socket.on('timeout',()=>{socket.destroy();process.exitCode=2});socket.on('error',()=>{process.exitCode=2});socket.on('connect',()=>socket.write(JSON.stringify(r)+'\n'));socket.on('data',b=>{output+=b;if(Buffer.byteLength(output)>262144){socket.destroy();process.exitCode=2}});socket.on('end',()=>{if(!process.exitCode)process.stdout.write(output)});
 })().catch(()=>{process.exitCode=2});`;
 
 function rpcSource() {
@@ -199,6 +202,7 @@ export interface RemoteNativeFixtureOptions {
   runnerdSha256: string;
   targets: string[];
   actionFile: string;
+  /** Cell deadline; receipt collection stops 15s earlier for public teardown. */
   deadlineAt: number;
   crossRoot?: { initialText: string };
 }
@@ -252,10 +256,13 @@ function readSnapshot(value: unknown, binding: RemoteNativeBinding, names: strin
  * Same-UID observer opacity is not an OS adversarial sandbox. */
 export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOptions): Promise<RemoteNativeFixture> {
   const { authority, api, daytona } = options;
+  // This reserve is never borrowed by normal RPCs or finish(). Only observer
+  // close has an independent 10s cleanup grace; public lease teardown is caller-owned.
+  const receiptDeadlineAt = options.deadlineAt - TEARDOWN_RESERVE_MS;
   fail(options.sdkVersion === REMOTE_FIXTURE_DAYTONA_SDK_VERSION, "sdk_pin");
   fail(Object.entries(authority).every(([key, value]) => key === "image" ? typeof value === "string" && /^[^\s]+@sha256:[a-f0-9]{64}$/u.test(value) : typeof value === "string" && id(value)), "authority_shape");
   fail(sha(options.nodeSha256) && sha(options.runnerdSha256), "binary_pins");
-  fail(Number.isFinite(options.deadlineAt) && options.deadlineAt - Date.now() >= 27_000, "insufficient_setup_budget");
+  fail(Number.isFinite(options.deadlineAt) && options.deadlineAt - Date.now() >= 27_000 + TEARDOWN_RESERVE_MS, "insufficient_setup_budget");
   fail(options.targets.length <= 8 && new Set(options.targets).size === options.targets.length, "target_bound");
   const targets = options.targets.map(relative), actionFile = relative(options.actionFile);
   fail(!targets.includes(actionFile), "setup_target_overlap");
@@ -288,27 +295,47 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
     binding = current.binding; sentinel = current.sentinel; identityKey = key;
     return sandbox;
   }
-  async function rpc(request: Record<string, unknown>, admitted?: Awaited<ReturnType<typeof admittedSandbox>>) {
-    const sandbox = admitted ?? await admittedSandbox();
-    if (request.op === "install") fail(options.deadlineAt - Date.now() >= 27_000, "insufficient_setup_budget");
-    const payload = Buffer.from(JSON.stringify({ ...request, root, nonce, nodeSha256: options.nodeSha256 })).toString("base64");
-    const command = `/usr/bin/env -i PATH=/usr/bin:/bin ${quote(NODE)} -e ${quote(rpcSource())} ${quote(payload)}`;
-    let deadline: ReturnType<typeof setTimeout> | undefined;
-    let response: { exitCode: number; result: string };
+  async function bounded<T>(operation: () => Promise<T>, budgetMs: number): Promise<T> {
+    fail(budgetMs >= 1, "receipt_deadline");
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      response = await Promise.race([
-        sandbox.process.executeCommand(command, binding!.remoteCwd, {}, request.op === "wait" ? 295 : request.op === "install" ? 25 : 10),
-        new Promise<never>((_resolve, reject) => { deadline = setTimeout(() => reject(new Error("deadline")), request.op === "wait" ? 300_000 : request.op === "install" ? 27_000 : 12_000); deadline.unref(); }),
+      return await Promise.race([
+        operation(),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error("remote_native_fixture:remote_command_failed_or_deadline")), budgetMs);
+          timer.unref();
+        }),
       ]);
-    } catch { throw new Error("remote_native_fixture:remote_command_failed_or_deadline"); }
-    finally { if (deadline) clearTimeout(deadline); }
-    fail(response.exitCode === 0 && typeof response.result === "string" && Buffer.byteLength(response.result) <= MAX_OUTPUT, "command_failed_or_output_bound");
-    let parsed: Record<string, unknown>;
-    try { parsed = record(JSON.parse(response.result)); } catch { throw new Error("remote_native_fixture:invalid_observer_json"); }
-    fail(parsed.ok === true, "observer_incomplete");
-    return parsed.result;
+    } finally { if (timer) clearTimeout(timer); }
   }
-  const sandbox = await admittedSandbox();
+  async function rpc(request: Record<string, unknown>, admitted?: Awaited<ReturnType<typeof admittedSandbox>>) {
+    const available = request.op === "close" ? CLOSE_GRACE_MS : receiptDeadlineAt - Date.now();
+    const cap = request.op === "install" ? 27_000 : request.op === "wait" ? 300_000 : 12_000;
+    const budgetMs = Math.floor(Math.min(available, cap) / 1000) * 1000;
+    fail(budgetMs >= 1000, "receipt_deadline");
+    if (request.op === "install") fail(budgetMs >= 25_000, "insufficient_setup_budget");
+    const operationDeadline = Date.now() + budgetMs;
+    return bounded(async () => {
+      const sandbox = admitted ?? await admittedSandbox();
+      const commandCap = request.op === "install" ? 25_000 : request.op === "wait" ? 300_000 : 10_000;
+      const timeoutMs = Math.floor(Math.min(operationDeadline - Date.now(), commandCap) / 1000) * 1000;
+      fail(timeoutMs >= 1000, "receipt_deadline");
+      const config = request.op === "install"
+        ? { ...record(request.config), observerTtlMs: Math.floor((receiptDeadlineAt - Date.now()) / 1000) * 1000 }
+        : undefined;
+      const payload = Buffer.from(JSON.stringify({ ...request, ...(config ? { config } : {}), root, nonce, nodeSha256: options.nodeSha256, timeoutMs })).toString("base64");
+      const command = `/usr/bin/env -i PATH=/usr/bin:/bin ${quote(NODE)} -e ${quote(rpcSource())} ${quote(payload)}`;
+      let response: { exitCode: number; result: string };
+      try { response = await sandbox.process.executeCommand(command, binding!.remoteCwd, {}, timeoutMs / 1000); }
+      catch { throw new Error("remote_native_fixture:remote_command_failed_or_deadline"); }
+      fail(response.exitCode === 0 && typeof response.result === "string" && Buffer.byteLength(response.result) <= MAX_OUTPUT, "command_failed_or_output_bound");
+      let parsed: Record<string, unknown>;
+      try { parsed = record(JSON.parse(response.result)); } catch { throw new Error("remote_native_fixture:invalid_observer_json"); }
+      fail(parsed.ok === true, "observer_incomplete");
+      return parsed.result;
+    }, budgetMs);
+  }
+  const sandbox = await bounded(admittedSandbox, Math.min(10_000, receiptDeadlineAt - Date.now()));
   const names = [...targets, ...(options.crossRoot ? ["@cross-root"] : [])];
   const config = { root, nonce, binding, sentinel, targets, actionFile, crossRoot: options.crossRoot, runtimeRelative: RUNTIME_RELATIVE, runnerdSha256: options.runnerdSha256 };
   let baseline: RemoteNativeSnapshot;
@@ -325,13 +352,17 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
   }
   // Start receiving while the lease is still authorized, before publishAction.
   // Rejection is retained (no unhandled rejection); finish reports it unchanged.
-  const terminal = rpc({ op: "wait" }, sandbox).then(value => ({ value }), error => ({ error }));
+  let stopReceipt!: () => void;
+  const cancelledReceipt = new Promise<never>((_resolve, reject) => { stopReceipt = () => reject(new Error("remote_native_fixture:closed_before_receipt")); });
+  const terminal = Promise.race([rpc({ op: "wait" }, sandbox), cancelledReceipt])
+    .then(value => ({ value, receivedAtMs: Date.now() }), error => ({ error }));
   try {
     const armed = record(await rpc({ op: "arm" }, sandbox));
     fail(armed.armed === true && armed.sealed === false, "receipt_channel_not_armed");
   } catch (error) {
     try { await rpc({ op: "close" }, sandbox); }
     catch { throw new Error("remote_native_fixture:receipt_channel_failed_cleanup_unproven", { cause: error }); }
+    stopReceipt();
     throw error;
   }
   let closed = false, published = false, finished: RemoteNativeSnapshot | undefined;
@@ -372,6 +403,7 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
       if (finished) return finished;
       const receipt = await terminal;
       if ("error" in receipt) throw receipt.error;
+      fail(receipt.receivedAtMs <= receiptDeadlineAt, "receipt_deadline");
       const result = readSnapshot(receipt.value, binding!, names, actionFile, options.runnerdSha256);
       fail(published && result.setup.published && result.complete && result.watcher.complete && result.processes.captured && result.processes.live.length === 0, "terminal_evidence_incomplete");
       const files = record(record(receipt.value).files);
@@ -383,6 +415,7 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
         fail(bytes.length <= 65536 && `sha256:${createHash("sha256").update(bytes).digest("hex")}` === target.sha256, "terminal_file_digest");
         retainedFiles.set(name, bytes);
       }
+      result.receivedAtMs = receipt.receivedAtMs;
       finished = result; return result;
     },
     async close() {
@@ -390,7 +423,7 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
       closed = true;
       // A finalized receipt survives ordinary public lease deletion. If the
       // lease still exists, clean our opaque observer; never discover by name.
-      if (!finished) await rpc({ op: "close" });
+      if (!finished) { stopReceipt(); await rpc({ op: "close" }); }
     },
   };
 }

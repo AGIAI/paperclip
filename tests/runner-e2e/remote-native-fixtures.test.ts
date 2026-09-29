@@ -75,7 +75,7 @@ describe("remote native lease admission", () => {
   it("arms before publish, binds long receipt before teardown and preserves exact final bytes", async () => {
     const h = harness(), f = await bindRemoteNativeFixture(h.options);
     expect(h.calls.map(c => c.request.op)).toEqual(["install", "wait", "arm"]); expect(f.baseline.processes.live).toEqual([21]);
-    expect(h.calls[1]!.timeout).toBe(295);
+    expect(h.calls[1]!.timeout).toBeLessThanOrEqual(45); expect(h.calls[1]!.request.timeoutMs).toBe(h.calls[1]!.timeout! * 1000);
     await f.publishAction("action.txt", "write only result.txt");
     await expect(f.publishAction("action.txt", "retry")).rejects.toThrow("publish_bound");
     const bytes = "\nUnicode 🪴 literal \\n\n";
@@ -136,11 +136,57 @@ describe("remote native lease admission", () => {
     const rpcQuoted = install.command.match(/ -e (.+) '[A-Za-z0-9+/=]+'$/su)![1]!;
     const rpc = rpcQuoted.slice(1, -1).replaceAll("'\\''", "'");
     expect(() => new Script(rpc)).not.toThrow();
-    expect(rpc).toContain("Date.now()+20000"); expect(install.timeout).toBe(25);
+    expect(rpc).toContain("startedAt+20000"); expect(install.timeout).toBeLessThanOrEqual(27); expect(rpc).toContain("r.timeoutMs-(Date.now()-startedAt)");
     expect(source).toContain("/proc/"); expect(source).toContain("workspaceWatch"); expect(source).toContain("finalReceipt.files");
     expect(install.command).toMatch(/^\/usr\/bin\/env -i PATH=\/usr\/bin:\/bin /u);
     expect(install.request.config.runnerdSha256).toBe(hash("runnerd"));
     expect(source).not.toMatch(/execSync|execFileSync/u);
+  });
+});
+
+describe("cell deadline and cleanup bounds", () => {
+  it("expires finish with 15s reserved, bounds SDK/socket/observer clocks, and handles late SDK failure", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(1_000_000);
+    try {
+      const h = harness(), f = await bindRemoteNativeFixture(h.options);
+      await f.publishAction("action.txt", "task");
+      const install = h.calls.find(c => c.request.op === "install")!, wait = h.calls.find(c => c.request.op === "wait")!;
+      expect(wait.timeout).toBe(45); expect(wait.request.timeoutMs).toBe(45_000);
+      expect(install.request.config.observerTtlMs).toBe(45_000); expect(install.timeout).toBe(25);
+      let settled = false;
+      const result = f.finish().then(() => { settled = true; return "unexpected pass"; }, error => { settled = true; return error.message; });
+      await vi.advanceTimersByTimeAsync(44_999); expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1); expect(await result).toContain("deadline");
+      expect(Date.now()).toBe(h.options.deadlineAt - 15_000);
+      h.rejectTerminal(new Error("late SDK close after host deadline")); await Promise.resolve();
+      await f.close(); expect(h.calls.at(-1)!.request.op).toBe("close"); expect(h.calls.at(-1)!.timeout).toBe(10);
+    } finally { vi.useRealTimers(); }
+  });
+  it("shortens a late ordinary RPC and never gives it a fresh timeout window", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(1_000_000);
+    try {
+      const h = harness(), f = await bindRemoteNativeFixture(h.options);
+      await vi.advanceTimersByTimeAsync(42_000);
+      await f.snapshot("late-but-bounded"); const call = h.calls.at(-1)!;
+      expect(call.timeout).toBe(3); expect(call.request.timeoutMs).toBe(3000);
+      await vi.advanceTimersByTimeAsync(3000);
+      const count = h.calls.length; await expect(f.snapshot("too-late")).rejects.toThrow("receipt_deadline"); expect(h.calls).toHaveLength(count);
+      await f.close(); h.rejectTerminal(new Error("late SDK rejection")); await Promise.resolve();
+    } finally { vi.useRealTimers(); }
+  });
+  it("bounds cleanup after cell expiry and rejects finish immediately after explicit close", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(1_000_000);
+    try {
+      const h = harness(), f = await bindRemoteNativeFixture(h.options); await vi.advanceTimersByTimeAsync(60_000);
+      h.override(r => r.op === "close" ? new Promise(() => {}) : undefined);
+      const close = f.close().then(() => "unexpected", error => error.message);
+      await vi.advanceTimersByTimeAsync(9999); expect(h.calls.at(-1)!.request.timeoutMs).toBe(10_000);
+      await vi.advanceTimersByTimeAsync(1); expect(await close).toContain("deadline");
+      await expect(f.finish()).rejects.toThrow("deadline"); h.rejectTerminal(new Error("late")); await Promise.resolve();
+      const h2 = harness(), f2 = await bindRemoteNativeFixture(h2.options);
+      await f2.close(); await expect(f2.finish()).rejects.toThrow("closed_before_receipt");
+      h2.rejectTerminal(new Error("ordinary close ended socket")); await Promise.resolve();
+    } finally { vi.useRealTimers(); }
   });
 });
 
