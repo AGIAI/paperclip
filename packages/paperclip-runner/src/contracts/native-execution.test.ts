@@ -504,6 +504,20 @@ describe("native task context ownership", () => {
     });
   }
 
+  it.each(["agent", "plan", "ask"])("round-trips Cursor mode %s through the closed execution contract", cursorMode => {
+    const { qualificationModel: _model, reportedModelId: _reported, permissionPolicy: _permission,
+      modelPolicy: _policy, qualificationStatus: _status, ...profile } = QUALIFIED_ACPX_PROFILES.cursor;
+    const value = { ...currentInput(), session: { ...currentInput().session, driverKind: "acpx_runtime" },
+      provider: { kind: "acpx", agent: "cursor", model: "explicit-model", permissionMode: "deny-all", cursorMode, profile } };
+    const result = parseNativeExecutionInput(value);
+    expect(result.provider).toEqual(value.provider);
+    expect(parseNativeExecutionInput(result)).toEqual(result);
+    for (const mode of [null, "", "PLAN", "auto", true, { toString: () => "plan" }]) {
+      expect(() => parseNativeExecutionInput({ ...value, provider: { ...value.provider, cursorMode: mode } })).toThrow("cursorMode");
+    }
+    expect(() => parseNativeExecutionInput({ ...value, provider: { ...value.provider, agent: "copilot" } })).toThrow("cursorMode");
+  });
+
   it.each([
     ["v4", "paperclip.native-execution-input.v4", "paperclip.native-model-envelope.v2"],
     ["v5", NATIVE_EXECUTION_INPUT_SCHEMA, "paperclip.native-model-envelope.v3"],

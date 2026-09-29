@@ -12397,6 +12397,7 @@ async function createRunnerdBackendWithinSessionClaim(
               // Read only the server operator environment, never agent/runtime env.
               acpxCandidateProfile: resolveAcpxQualification(input.execution.provider, process.env),
               acpxPermissionMode: input.execution.provider.permissionMode,
+              acpxCursorMode: input.execution.provider.cursorMode,
               acpxPermissionModePinned:
                 input.execution.schema === "paperclip.native-execution-input.v4" ||
                 input.execution.schema === "paperclip.native-execution-input.v5",

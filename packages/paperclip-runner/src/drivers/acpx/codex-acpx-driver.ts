@@ -142,6 +142,7 @@ export interface CodexAcpxDriverOptions {
   runtimeDirectory: string;
   model: string;
   permissionMode?: NativeAcpxPermissionMode;
+  cursorMode?: "agent" | "plan" | "ask";
   providerPolicy?: { readOnly: boolean };
   runtimeContext?: OpenAcpxRuntimeHostOptions["runtimeContext"];
   systemInstructions?: string;
@@ -455,6 +456,7 @@ export class CodexAcpxDriver implements HarnessDriver {
         clientCapabilities: acpxProfileClientCapabilities(this.#options.agent ?? "codex"),
         model: this.#options.model,
         permissionMode: this.#options.permissionMode ?? "approve-all",
+        cursorMode: this.#options.cursorMode,
         providerPolicy: this.#options.providerPolicy,
         runtimeContext: this.#options.runtimeContext,
         systemInstructions: this.#options.systemInstructions,
@@ -1270,6 +1272,7 @@ class CodexAcpxSession implements HarnessSession {
         requestedModel: identity.requestedModel,
         effectiveModel: identity.effectiveModel,
         permissionMode: identity.permissionMode,
+        ...(identity.cursorMode === undefined ? {} : { cursorMode: identity.cursorMode }),
         providerLifetimeFenceCandidates:
           identity.providerLifetimeFenceCandidates,
       },
@@ -2102,6 +2105,7 @@ function validateRecoverySnapshot(snapshot: PersistedHarnessSession): void {
       !["approve-all", "approve-paperclip", "approve-reads", "deny-all"].includes(
         identity.permissionMode,
       )) ||
+    (identity.cursorMode !== undefined && !["agent", "plan", "ask"].includes(identity.cursorMode)) ||
     !validProviderLifetimeFenceCandidates(
       identity.providerLifetimeFenceCandidates,
     )
