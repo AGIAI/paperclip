@@ -69,6 +69,16 @@ export function createCursorModeAdmission(expected: CursorSessionMode) {
             }
             return;
           }
+          if (message.method === "session/update" && object(params.update).sessionUpdate === "config_option_update") {
+            const update = object(params.update);
+            // Config updates may contain only model options. A mode entry is
+            // authoritative observation, but never an admission acknowledgement.
+            if (Array.isArray(update.configOptions) && update.configOptions.some(value => object(value).id === "mode")) {
+              if (!state.sessionId || params.sessionId !== state.sessionId) throw failure("mode update belongs to a different session");
+              if (readMode(update, false) !== expected) throw failure("native mode drifted from the selected mode");
+            }
+            return;
+          }
           if (message.method === "session/update" && object(params.update).sessionUpdate === "current_mode_update") {
             if (!state.sessionId || params.sessionId !== state.sessionId) throw failure("mode update belongs to a different session");
             if (object(params.update).currentModeId !== expected) throw failure("native mode drifted from the selected mode");

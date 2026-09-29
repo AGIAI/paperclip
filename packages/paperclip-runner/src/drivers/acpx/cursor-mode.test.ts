@@ -60,6 +60,24 @@ describe("Cursor native mode admission", () => {
     const other = opened("plan").guard;
     expect(() => other("outbound", { id: 3, method: "session/set_config_option", params: { sessionId: "other", configId: "mode", value: "plan" } })).toThrow(/different session/);
   });
+  it.each([false, true])("rejects config-option mode drift with active prompt=%s", active => {
+    const { admission, guard } = opened("plan");
+    if (active) guard("outbound", prompt);
+    expect(() => guard("inbound", { method: "session/update", params: { sessionId: "native", update: { sessionUpdate: "config_option_update", configOptions: config("agent") } } })).toThrow(/drifted/);
+    expect(admission.assertReady).toThrow(/drifted/);
+  });
+  it.each(["foreign", "duplicate", "invalid"])("rejects %s mode configuration notifications", kind => {
+    const { guard } = opened("plan");
+    const options = kind === "duplicate" ? [...config("plan"), ...config("plan")] : config(kind === "invalid" ? "architect" : "plan");
+    expect(() => guard("inbound", { method: "session/update", params: { sessionId: kind === "foreign" ? "other" : "native", update: { sessionUpdate: "config_option_update", configOptions: options } } })).toThrow(/mode admission/);
+  });
+  it("ignores model-only partial updates and cannot admit from a mode notification", () => {
+    const { admission, guard } = opened("plan", "agent");
+    for (const options of [[{ id: "model", currentValue: "fixture" }], config("plan")]) {
+      guard("inbound", { method: "session/update", params: { sessionId: "native", update: { sessionUpdate: "config_option_update", configOptions: options } } });
+      expect(admission.isReady()).toBe(false);
+    }
+  });
   it("does not mistake a bare set_mode response for configuration proof", () => {
     const { admission, guard } = opened("plan", "agent");
     guard("outbound", { id: 4, method: "session/set_mode", params: { sessionId: "native", modeId: "plan" } });
