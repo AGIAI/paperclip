@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import {
@@ -60,4 +61,15 @@ describe("qualified ACPX profiles", () => {
       agentRuntimeVersion: "0.3.280",
     });
   });
+});
+
+it("binds Cursor v4 to inspectable native instructions, closures and exact ACPX guard patch", () => {
+  const identity = JSON.parse(readFileSync(new URL("../../../test/fixtures/cursor-acp/profile-v4-identity.json", import.meta.url), "utf8"));
+  const distribution = JSON.parse(readFileSync(new URL("../../../cursor-distributions.json", import.meta.url), "utf8"));
+  expect(identity.declaration.distribution).toEqual(distribution);
+  expect(identity.declaration.agentProfileVersion).toBe(QUALIFIED_ACPX_PROFILES.cursor.agentProfileVersion);
+  expect(identity.commandDigest).toBe(QUALIFIED_ACPX_PROFILES.cursor.commandDigest);
+  expect(identity.commandDigest).toBe(`sha256:${createHash("sha256").update(JSON.stringify(identity.declaration)).digest("hex")}`);
+  const patch = readFileSync(new URL("../../../../../patches/acpx@0.13.1.patch", import.meta.url));
+  expect(identity.declaration.acpxPatchSha256).toBe(createHash("sha256").update(patch).digest("hex"));
 });
