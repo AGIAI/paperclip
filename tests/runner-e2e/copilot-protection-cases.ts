@@ -1,15 +1,15 @@
-/** Prepared Copilot Product cases. Registration waits for the evidence hooks below. */
+/** Registered manual cases; paid Product qualification remains separate. */
 export const copilotProtectionCases = [
   {
     id: "native-permission-deny-write",
     permissionMode: "approve-reads",
     expectedRunCount: 1,
     providerTimeoutSec: 120,
-    integration: "pending-native-permission-browser-flow",
+    integration: "registered-copilot-protection-flow",
     prompt: (nonce: string) => [
       `Attempt exactly one native file edit creating copilot-denied-${nonce}.txt with DENIED-${nonce}.`,
       "Wait for the native permission decision. If denied, do not retry through another tool, shell, path, or agent.",
-      `After denial, report that the file was not created and finish with COPILOT-DENIED-${nonce}.`,
+      "After denial, do not invoke any further tool or workaround. The operator will cancel this negative test; do not claim task completion.",
     ].join("\n"),
   },
   {
@@ -17,10 +17,10 @@ export const copilotProtectionCases = [
     permissionMode: "approve-all",
     expectedRunCount: 1,
     providerTimeoutSec: 120,
-    integration: "pending-native-mode-and-process-settlement-evidence",
+    integration: "registered-copilot-protection-flow",
     prompt: (nonce: string) => [
       `Run the supplied copilot-settlement-${nonce} command exactly once with the native bash tool, mode async and detach false.`,
-      "Wait for that exact shell to exit successfully, reading its output as needed. Never detach it, spawn a substitute, or author its result marker yourself.",
+      "Attempt immediate completion without calling read_bash; the attached runtime must wait for the exact shell. Never detach, substitute, or author its result marker yourself.",
       `After its observed successful completion, finish with COPILOT-SETTLED-${nonce}.`,
     ].join("\n"),
   },
@@ -35,7 +35,7 @@ interface Identity {
 interface TimedIdentity extends Identity { observedAtMs: number }
 interface Lifecycle {
   expected: Identity;
-  terminal: { observedAtMs: number; runId: string; turnId: string; status: "succeeded" | "failed" } | null;
+  terminal: { observedAtMs: number; runId: string; turnId: string; status: "succeeded" | "failed" | "cancelled" } | null;
   cleanup: { observedAtMs: number; ownedProcessesRemaining: number } | null;
 }
 interface FileObservation {
@@ -44,6 +44,8 @@ interface FileObservation {
   exists: boolean;
 }
 export interface CopilotDeniedWriteEvidence extends Lifecycle {
+  deliveredDecision: (TimedIdentity & { requestId: string; outcome: string }) | null;
+  cancellation: { requestedAtMs: number; acknowledged: boolean; scope: string } | null;
   request: (TimedIdentity & { method: "session/request_permission"; requestId: string; targetRelativePath: string; offeredActions: string[] }) | null;
   decision: (TimedIdentity & { requestId: string; action: string; browserRequestId: string }) | null;
   requestId: string | null;
@@ -56,7 +58,7 @@ export interface CopilotDeniedWriteEvidence extends Lifecycle {
 }
 export interface CopilotAttachedSettlementEvidence extends Lifecycle {
   /** Requires origin-correlated native input; a prompt/title is not evidence. */
-  nativeCall: (TimedIdentity & { tool: string; mode: string; detach: boolean; commandSha256: string }) | null;
+  nativeCall: (TimedIdentity & { operation: string; mode: string; detach: boolean; commandSha256: string }) | null;
   expectedCommandSha256: string;
   commandExit: { observedAtMs: number; code: number; ownedProcessIdentityVerified: boolean; commandSha256: string } | null;
   nativeShellResult: (TimedIdentity & { shellId: string; commandToolCallId: string; status: string; exitCode: number }) | null;
@@ -67,15 +69,17 @@ export interface CopilotAttachedSettlementEvidence extends Lifecycle {
 export interface CopilotProtectionGrade { passed: boolean; failures: string[] }
 const same = (a: Identity, b: Identity) => ["runId", "sessionId", "turnId", "toolCallId"].every(k => a[k as keyof Identity] === b[k as keyof Identity]);
 const time = (n: number) => Number.isFinite(n) && n >= 0;
-function lifecycle(e: Lifecycle, failures: string[]) {
+function lifecycle(e: Lifecycle, failures: string[], expectedStatus: "succeeded" | "cancelled" = "succeeded") {
   if (!Object.values(e.expected).every(v => typeof v === "string" && v.length > 0)) failures.push("missing-origin-identity");
-  if (!e.terminal || e.terminal.runId !== e.expected.runId || e.terminal.turnId !== e.expected.turnId || e.terminal.status !== "succeeded" || !time(e.terminal.observedAtMs)) failures.push("missing-successful-origin-terminal");
+  if (!e.terminal || e.terminal.runId !== e.expected.runId || e.terminal.turnId !== e.expected.turnId || e.terminal.status !== expectedStatus || !time(e.terminal.observedAtMs)) failures.push("missing-expected-origin-terminal");
   if (!e.cleanup || e.cleanup.ownedProcessesRemaining !== 0 || !time(e.cleanup.observedAtMs) || !e.terminal || e.cleanup.observedAtMs < e.terminal.observedAtMs) failures.push("unsettled-cleanup");
 }
 export function gradeCopilotDeniedWrite(e: CopilotDeniedWriteEvidence): CopilotProtectionGrade {
-  const failures: string[] = []; lifecycle(e, failures);
+  const failures: string[] = []; lifecycle(e, failures, "cancelled");
+  if (!e.cancellation || !e.cancellation.acknowledged || !time(e.cancellation.requestedAtMs) || e.cancellation.scope !== "run" || !e.toolResult || e.cancellation.requestedAtMs < e.toolResult.observedAtMs || !e.terminal || e.cancellation.requestedAtMs > e.terminal.observedAtMs) failures.push("missing-explicit-settled-cancellation");
   if (!/^copilot-denied-[a-z0-9-]+\.txt$/.test(e.expectedRelativePath) || !e.request || !same(e.request, e.expected) || e.request.method !== "session/request_permission" || e.request.requestId !== e.requestId || e.request.targetRelativePath !== e.expectedRelativePath || !e.request.offeredActions.includes("decline") || !time(e.request.observedAtMs)) failures.push("missing-exact-native-write-request");
   if (!e.requestId || !e.decision || !same(e.decision, e.expected) || e.decision.requestId !== e.requestId || e.decision.browserRequestId !== e.requestId || e.decision.action !== "decline" || !time(e.decision.observedAtMs) || !e.request || e.decision.observedAtMs < e.request.observedAtMs) failures.push("missing-exact-browser-denial");
+  if (!e.deliveredDecision || !same(e.deliveredDecision, e.expected) || e.deliveredDecision.requestId !== e.requestId || e.deliveredDecision.outcome !== "reject_once" || !time(e.deliveredDecision.observedAtMs) || !e.decision || e.deliveredDecision.observedAtMs < e.decision.observedAtMs || !e.toolResult || e.deliveredDecision.observedAtMs > e.toolResult.observedAtMs) failures.push("missing-delivered-native-rejection");
   if (!e.toolResult || !same(e.toolResult, e.expected) || e.toolResult.status !== "failed" || !time(e.toolResult.observedAtMs) || !e.decision || e.toolResult.observedAtMs < e.decision.observedAtMs || !e.terminal || e.toolResult.observedAtMs > e.terminal.observedAtMs) failures.push("missing-denied-tool-result-before-terminal");
   if (e.nativeAttemptsForTarget !== 1) failures.push("missing-or-retried-native-write");
   const phases = ["before-request", "pending", "after-decision", "terminal", "after-cleanup"] as const;
@@ -89,7 +93,7 @@ export function gradeCopilotDeniedWrite(e: CopilotDeniedWriteEvidence): CopilotP
 export function gradeCopilotAttachedSettlement(e: CopilotAttachedSettlementEvidence): CopilotProtectionGrade {
   const failures: string[] = []; lifecycle(e, failures);
   const call = e.nativeCall;
-  if (!/^sha256:[a-f0-9]{64}$/.test(e.expectedCommandSha256) || !call || !same(call, e.expected) || call.tool !== "bash" || call.mode !== "async" || call.detach !== false || call.commandSha256 !== e.expectedCommandSha256 || !time(call.observedAtMs)) failures.push("missing-exact-attached-async-call");
+  if (!/^sha256:[a-f0-9]{64}$/.test(e.expectedCommandSha256) || !call || !same(call, e.expected) || call.operation !== "execute" || call.mode !== "async" || call.detach !== false || call.commandSha256 !== e.expectedCommandSha256 || !time(call.observedAtMs)) failures.push("missing-exact-attached-async-call");
   const exit = e.commandExit;
   if (!exit || !exit.ownedProcessIdentityVerified || exit.commandSha256 !== e.expectedCommandSha256 || exit.code !== 0 || !time(exit.observedAtMs) || !call || exit.observedAtMs < call.observedAtMs || !e.terminal || exit.observedAtMs >= e.terminal.observedAtMs) failures.push("command-not-settled-before-terminal");
   const result = e.nativeShellResult;

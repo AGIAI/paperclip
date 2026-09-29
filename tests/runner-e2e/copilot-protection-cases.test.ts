@@ -5,9 +5,10 @@ const terminal = { observedAtMs: 50, runId: "run", turnId: "turn", status: "succ
 const cleanup = { observedAtMs: 60, ownedProcessesRemaining: 0 };
 function denied(): CopilotDeniedWriteEvidence {
   return {
-    expected: identity, terminal, cleanup, requestId: "permission-0", expectedRelativePath: "copilot-denied-nonce.txt",
+    expected: identity, terminal: { ...terminal, status: "cancelled" }, cleanup, cancellation: { requestedAtMs: 40, acknowledged: true, scope: "run" }, requestId: "permission-0", expectedRelativePath: "copilot-denied-nonce.txt",
     request: { ...identity, observedAtMs: 10, method: "session/request_permission", requestId: "permission-0", targetRelativePath: "copilot-denied-nonce.txt", offeredActions: ["accept", "decline"] },
     decision: { ...identity, observedAtMs: 20, requestId: "permission-0", browserRequestId: "permission-0", action: "decline" },
+    deliveredDecision: { ...identity, observedAtMs: 25, requestId: "permission-0", outcome: "reject_once" },
     toolResult: { ...identity, observedAtMs: 30, status: "failed" }, nativeAttemptsForTarget: 1,
     fileObservations: [
       { phase: "before-request", observedAtMs: 0, exists: false }, { phase: "pending", observedAtMs: 15, exists: false },
@@ -20,24 +21,29 @@ function denied(): CopilotDeniedWriteEvidence {
 function attached(): CopilotAttachedSettlementEvidence {
   const digest = `sha256:${"a".repeat(64)}`;
   return {
-    expected: identity, terminal, cleanup, expectedCommandSha256: digest, expectedShellId: "0",
-    nativeCall: { ...identity, observedAtMs: 10, tool: "bash", mode: "async", detach: false, commandSha256: digest },
+    expected: identity, terminal: { ...terminal }, cleanup: { ...cleanup }, expectedCommandSha256: digest, expectedShellId: "0",
+    nativeCall: { ...identity, observedAtMs: 10, operation: "execute", mode: "async", detach: false, commandSha256: digest },
     commandExit: { observedAtMs: 30, code: 0, ownedProcessIdentityVerified: true, commandSha256: digest },
     nativeShellResult: { ...identity, toolCallId: "read-shell-tool", commandToolCallId: "tool", observedAtMs: 40, shellId: "0", status: "completed", exitCode: 0 },
     terminalMarkerMatches: true, afterCleanupMarkerMatches: true,
   };
 }
-describe("prepared Copilot protection Product cases", () => {
-  it("declares one bounded run and leaves discovery integration explicitly pending", () => {
+describe("Copilot protection Product oracles", () => {
+  it("declares one bounded run and explicit discovery integration", () => {
     expect(copilotProtectionCases.map(c => c.id)).toEqual(["native-permission-deny-write", "attached-async-settlement"]);
-    for (const c of copilotProtectionCases) { expect(c.expectedRunCount).toBe(1); expect(c.providerTimeoutSec).toBe(120); expect(c.integration).toMatch(/^pending-/); }
+    for (const c of copilotProtectionCases) { expect(c.expectedRunCount).toBe(1); expect(c.providerTimeoutSec).toBe(120); expect(c.integration).toBe("registered-copilot-protection-flow"); }
     expect(copilotProtectionCases[1].prompt("nonce")).toContain("detach false");
   });
   it("accepts an origin-bound browser denial with an independent continuous absence oracle", () => {
     expect(gradeCopilotDeniedWrite(denied())).toEqual({ passed: true, failures: [] });
   });
-  it.each(["request", "decision", "toolResult", "terminal", "cleanup", "mutationObservation"] as const)("rejects missing %s instead of treating no write as denial", field => {
+  it.each(["request", "decision", "deliveredDecision", "toolResult", "terminal", "cleanup", "mutationObservation"] as const)("rejects missing %s instead of treating no write as denial", field => {
     const e = denied(); e[field] = null; expect(gradeCopilotDeniedWrite(e).passed).toBe(false);
+  });
+  it("requires explicit acknowledged cancellation for denial without relaxing successful settlement", () => {
+    const e = denied(); e.cancellation = null; expect(gradeCopilotDeniedWrite(e).passed).toBe(false);
+    const finished = denied(); finished.terminal!.status = "succeeded"; expect(gradeCopilotDeniedWrite(finished).passed).toBe(false);
+    const cancelled = attached(); cancelled.terminal!.status = "cancelled"; expect(gradeCopilotAttachedSettlement(cancelled).passed).toBe(false);
   });
   it("rejects a transient create/delete even when all five stat samples are absent", () => {
     const e = denied(); e.mutationObservation!.targetMutationCount = 2; expect(gradeCopilotDeniedWrite(e).failures).toContain("missing-or-mutated-filesystem-watch");
