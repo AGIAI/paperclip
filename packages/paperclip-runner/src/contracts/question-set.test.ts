@@ -51,6 +51,20 @@ describe("Paperclip question-set contract", () => {
     });
   });
 
+  it("preserves bounded initial text only as presentation, including empty text", () => {
+    for (const initialText of ["", "  Draft\n漢字\n", "a".repeat(100_000)]) {
+      const input = { schema: PAPERCLIP_QUESTION_SET_SCHEMA, questions: [{ id: "draft", prompt: "Edit", required: true, answerMode: "text", initialText }] };
+      expect(parsePaperclipQuestionSet(input)).toEqual(input);
+      expect(() => parsePaperclipQuestionResponse(input, { schema: PAPERCLIP_QUESTION_RESPONSE_SCHEMA, answers: {} })).toThrow(/required/);
+    }
+    for (const initialText of [null, 1, "a".repeat(100_001), "😀".repeat(50_001)]) {
+      expect(() => parsePaperclipQuestionSet({ ...questionSet, questions: [{ ...questionSet.questions[1], initialText }] })).toThrow(/initialText/);
+    }
+    expect(() => parsePaperclipQuestionSet({ ...questionSet, questions: [{ ...questionSet.questions[0], initialText: "staging" }] })).toThrow(/only text/);
+    const input = { ...questionSet, questions: [{ ...questionSet.questions[1], initialText: "21" }] };
+    expect(() => parsePaperclipQuestionResponse(input, { schema: PAPERCLIP_QUESTION_RESPONSE_SCHEMA, answers: { replicas: { text: "21" } } })).toThrow(/at most 20/);
+  });
+
   it("rejects missing, unknown, and provider-shaped answers", () => {
     expect(() => parsePaperclipQuestionResponse(questionSet, {
       schema: PAPERCLIP_QUESTION_RESPONSE_SCHEMA,
