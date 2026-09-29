@@ -77,6 +77,25 @@ boundaries explicit.
 `nativePlan: false`, and `pendingRequestRecovery: "live-process-only"`. The common
 host must inspect this advertisement before sending provider extension requests.
 
+## Native model instruction delivery (profile version 6)
+
+The [fresh/load model-request proof](../../packages/paperclip-runner/test-fixtures/pi-acp/prompt-delivery.v6.darwin-arm64.json)
+uses the actual pinned wrapper launch helper, owned extension, and Pi SDK
+`AgentSession.prompt` with a synthetic model stream. Captured model requests
+contain the exact composed Paperclip execution prompt, custom instruction-entry
+content, and current `AGENT_HOME` guidance. A disk-loaded session retains its
+prior reply while receiving changed entry content and a new agent-files root in
+its current system prompt and latest task constraints. The old root is absent
+from the current system prompt; historical user messages still retain prior
+root text, which the current guidance explicitly supersedes.
+
+Pi uses `PAPERCLIP_PI_SYSTEM_INSTRUCTIONS` in its runner-owned launch
+configuration and appends it through `before_agent_start`. Generic ACP
+`_meta.systemPrompt` is ignored, so that metadata alone is insufficient. This
+proof captures the native model-request boundary, beyond host options or wire
+metadata. It uses no real credentials or network inference and does not exercise
+a complete ACPX/PRP process or qualify an authenticated Product journey.
+
 ## Occurrence identity (profile version 4)
 
 Pi can reuse a native ID such as `call_0` in a later model iteration, including
