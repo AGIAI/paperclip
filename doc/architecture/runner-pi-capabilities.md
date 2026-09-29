@@ -3,6 +3,14 @@
 Status: implementation candidate, 2026-09-29. Profile version 6 adds the native
 question tool, the authenticated agent-files root, and matching SDK path
 normalization. Its authenticated Product and Runner qualification is pending.
+The first frozen v6 Product hello attempt fails before provider startup because
+the shared native-execution parser still admits only profile versions 1–5.
+Both assignment and automatic recovery runs reject the same input; no usage
+receipt exists. The early exclusive-key billing delta is $0 and cleanup passes.
+The [retained failure](../../packages/paperclip-runner/test-fixtures/pi-acp/product-hello-profile-rejection.v6.darwin-arm64.json)
+includes the actual local sidecar, Node, daemon, closure and pack identities.
+A parser repair and new frozen build are required before another reserved attempt.
+
 Historical profile version 5 repairs the
 Undici dependency and bundled Node runtime affected by GHSA-3wwx-pv8p-q78v.
 Full authenticated v5 qualification is pending; its bounded native controls probe passes. Historical version 4 repairs native
