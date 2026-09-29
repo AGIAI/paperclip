@@ -79,14 +79,25 @@ than being credited as passing.
 On `807feaecf`, typecheck/build and CI reproduced a test-fixture typing error;
 shared prerequisite commit `bb56af7fb` fixes it. These sources predate the latest
 review and continuation fixes.
-On integrated `bd4cc29c3`, full build, recursive typecheck and token gates pass;
-the full test suite and runner verification remain in progress. The shared PR
-now includes test-only repairs for connection setup context and waiting for the
-startup row’s persisted PID; targeted tests, typechecks and token gates pass.
+On integrated `bd4cc29c3`, full build, recursive typecheck and token gates pass.
+The completed full test attempt records 11,598 passing tests, six failed tests,
+2,640 skipped tests and 43 failed files. Four cases fail before assertions during
+database bootstrap; other files fail setup or cleanup. Two separate cases time
+out at 15 seconds and 300 seconds and remain unclassified. This is not a green
+repository test run. All Runner verification stages pass across retained,
+targeted retries, including 2,533 base TypeScript tests, Rust, 22 SDK tests,
+537 scenario tests, 25 main browser tests, six SDK browser tests, 43 scenario
+browser tests, 112 issue-thread browser tests, import/package gates and an actual
+clean-consumer pack/install. The aggregate `verify` command was not rerun from
+the beginning after those repairs. The
+[validation checkpoint](runner-rich-acp-validation-2026-09-29.json) retains source
+revisions, log hashes, failed attempts and the exact scope of each pass.
+The shared PR includes test setup/settlement repairs, corrected baseline browser
+expectations, the standalone devtool loader repair and verification-script fixes.
 The private embedded Postgres package required its declared postinstall to
 restore shipped dylib symlinks before live startup; a credential-free server
 health check and subsequent paid question passed with the repair hashed in
-their evidence. Final full-suite results and current-head CI remain required.
+their evidence. A green full-suite run and final-head CI remain required.
 
 The Copilot attempt increased the visible included-credit counter from 5 to 6;
 additional usage remained disabled at a $0 budget. Per-run USD is unknown.
