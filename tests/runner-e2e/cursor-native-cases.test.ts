@@ -1,3 +1,4 @@
+import { cursorDeniedCommand, type CursorToolNotice } from "./cursor-native-evidence.js";
 import { describe, expect, it } from "vitest";
 import { cursorNativeCaseDesigns, cursorNativePrompt, hasDeliveredCursorNativeRequest, hasCursorPlanDecision, hasCursorDenialBoundary, CURSOR_DENIAL_SAMPLE_PHASES, hasExactCursorNativeResponse } from "./cursor-native-cases.js";
 
@@ -41,9 +42,10 @@ it("binds plan decisions to the full revision and rejects stale answers", () => 
   expect(hasCursorPlanDecision(questionSet, answer, "reject")).toBe(false);
 });
 it("requires supported denial choices, native IDs and complete no-effect boundaries", () => {
-  const input = { request: { requestId: "request", type: "permission", status: "pending", details: { toolCallId: "tool" },
+  const input = { request: { requestId: "request", turnId: "turn", type: "permission", status: "pending", details: { toolCallId: "tool" },
     origin: { adapter: "acpx-runtime", provider: "cursor", method: "session/request_permission" },
-    choices: [{ key: "accept" }, { key: "decline" }, { key: "cancel" }] }, expectedRequestId: "request", expectedToolCallId: "tool", path: "/fixture/denied.txt",
+    choices: [{ key: "accept" }, { key: "decline" }, { key: "cancel" }] }, expectedRequestId: "request", expectedToolCallId: "tool", path: "/fixture/denied.txt", runId: "run", turnId: "turn",
+    notices: ([{ stage: "tool", status: "pending" }, { stage: "permission_requested", requestId: "request", declineOffered: true }, { stage: "permission_delivered", requestId: "request", outcome: "reject_once" }, { stage: "tool", status: "failed" }].map((row, index) => ({ ...row, seq: index + 1, runId: "run", sessionId: "session", turnId: "turn", toolCallId: "tool", operation: "execute", commandSha256: cursorDeniedCommand("/fixture/denied.txt").commandSha256 })) as CursorToolNotice[]),
     samples: CURSOR_DENIAL_SAMPLE_PHASES.map((phase, observedAt) => ({ phase, observedAt, absent: true, path: "/fixture/denied.txt" })) };
   expect(hasCursorDenialBoundary(input)).toBe(true);
   expect(hasCursorDenialBoundary({ ...input, samples: input.samples.slice(1) })).toBe(false);

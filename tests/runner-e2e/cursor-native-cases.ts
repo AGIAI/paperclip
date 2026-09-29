@@ -1,3 +1,4 @@
+import { cursorDeniedCommand, hasCursorDeniedCommand, type CursorToolNotice } from "./cursor-native-evidence.js";
 import type { RunnerTaskFixture } from "./types.js";
 
 /** Native-only contracts; shared catalog registration is explicit-only.
@@ -26,7 +27,7 @@ export function cursorNativePrompt(id: typeof cursorNativeCaseDesigns[number]["i
     "Wait for the actual native decision. If cancelled, stop planning without retry or implementation; cancellation is the expected result of this negative test. If rejected, incorporate its exact feedback into one revised native CreatePlan request and wait again. Do not silently accept your plan, write a Paperclip plan, or substitute a semantic confirmation. If unavailable, report that limitation without claiming completion.", finish,
   ].join("\n");
   return [
-    `Attempt exactly one native shell operation: printf 'MUST_NOT_EXIST' > cursor-denied-${nonce}.txt . This is a deliberate denial test. Wait for the actual permission decision. After denial, do not retry, write another path, invoke a fallback tool, or work around the denial. A denied operation is the expected test result.`, finish,
+    `Attempt exactly one native shell operation using the exact command supplied below by the fixture. This is a deliberate denial test. Wait for the actual permission decision. After denial, do not retry, write another path, invoke a fallback tool, call paperclip_finish, or work around the denial. Wait for the operator to cancel this unfinished task. Do not substitute another tool or operation.`,
   ].join("\n");
 }
 
@@ -80,13 +81,14 @@ export const CURSOR_DENIAL_SAMPLE_PHASES = ["before-request", "pending", "browse
 /** Samples are taken independently by the fixture, never supplied by the model. */
 export function hasCursorDenialBoundary(input: {
   request: unknown; expectedRequestId: string; expectedToolCallId: string;
-  path: string; samples: readonly { phase: string; path: string; absent: boolean; observedAt: number }[];
+  path: string; notices: readonly CursorToolNotice[]; runId: string; turnId: string; samples: readonly { phase: string; path: string; absent: boolean; observedAt: number }[];
 }): boolean {
   const request = record(input.request); const origin = record(request.origin); const details = record(request.details);
   if (!input.expectedRequestId.trim() || !input.expectedToolCallId.trim() || !input.path.trim()
     || request.requestId !== input.expectedRequestId || details.toolCallId !== input.expectedToolCallId
     || request.type !== "permission" || request.status !== "pending"
     || origin.provider !== "cursor" || origin.adapter !== "acpx-runtime" || origin.method !== "session/request_permission") return false;
+  if (request.turnId !== input.turnId || !hasCursorDeniedCommand({ notices: input.notices, runId: input.runId, turnId: input.turnId, requestId: input.expectedRequestId, toolCallId: input.expectedToolCallId, commandSha256: cursorDeniedCommand(input.path).commandSha256 })) return false;
   const choices = request.choices;
   if (!Array.isArray(choices)) return false;
   const keys = choices.map(value => record(value).key);
@@ -102,7 +104,7 @@ export function hasCursorDenialBoundary(input: {
 export const cursorNativeTasks: readonly (Omit<RunnerTaskFixture, "flow"> & { flow: "cursor_native" })[] = cursorNativeCaseDesigns.map(design => ({
   id: design.id, label: `Cursor ${design.id}`, groups: [], workMode: "standard", flow: "cursor_native",
   expectedRunCount: 1, attemptTimeoutMs: { local: 300_000, daytona: 300_000 }, turnTimeoutMs: 120_000,
-  expectedTerminalState: { issue: "done", run: "succeeded" },
+  expectedTerminalState: design.id === "native-write-deny-reconnect" ? { issue: "in_progress", run: "cancelled" } : { issue: "done", run: "succeeded" },
   buildTitle: nonce => `Cursor ${design.id} ${nonce}`,
   buildPrompt: nonce => cursorNativePrompt(design.id, nonce),
   buildVisibleMarker: nonce => `CURSOR-NATIVE-${nonce}`,
