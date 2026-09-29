@@ -1,0 +1,126 @@
+{
+  "schema": "paperclip.copilot-policy-conformance.v1",
+  "providerVersion": "1.0.88",
+  "platform": "darwin-arm64",
+  "executableSha256": "a9ff8babb10b7e443182ae96a8bc50a9c826ef1c773e1344c396eb5bf7f512c3",
+  "sourceBaseRevision": "9f4476feb87df5574edf121b86a1093efb006ac3",
+  "authentication": "none; explicit fresh environment contains no credential values",
+  "modelTransport": "COPILOT_OFFLINE=true; COPILOT_PROVIDER_TYPE=openai; COPILOT_PROVIDER_BASE_URL points only to ephemeral 127.0.0.1 Python HTTPServer; fixture model gpt-4.1 is synthetic",
+  "paidProviderCalls": 0,
+  "modelSpendUsd": 0,
+  "qualification": "offline protocol evidence only; no GitHub model, final pack, or Daytona qualification",
+  "attempts": [
+    {
+      "evidenceFile": "agent-inputs.json",
+      "sha256": "3def3bcf95db103611722d5e04f803bed555c7c8274a1833c661ef9d87a4b757",
+      "scenario": "discover-inputs",
+      "mode": "agent",
+      "resumed": false,
+      "loopbackModelRequests": 1,
+      "nativeInputToolsAdvertised": [],
+      "forcedToolRejectedAsUnavailable": false,
+      "permissionRequestCount": 0,
+      "permissionRequestIds": [],
+      "markerPresent": false,
+      "rpcErrorCodes": [],
+      "disposition": "passed"
+    },
+    {
+      "evidenceFile": "plan-inputs.json",
+      "sha256": "446ee3a2b9e5e4ac3249a8ae18a09f1c33fadc75f94a98d8c6f5fb50a8a73b61",
+      "scenario": "discover-inputs",
+      "mode": "plan",
+      "resumed": false,
+      "loopbackModelRequests": 1,
+      "nativeInputToolsAdvertised": [],
+      "forcedToolRejectedAsUnavailable": false,
+      "permissionRequestCount": 0,
+      "permissionRequestIds": [],
+      "markerPresent": false,
+      "rpcErrorCodes": [],
+      "disposition": "passed"
+    },
+    {
+      "evidenceFile": "native-question.json",
+      "sha256": "1cdff42aa31e27a796ecceb4d4fea89c271737a0094982956bb228f03752e21d",
+      "scenario": "native-question",
+      "mode": "agent",
+      "resumed": false,
+      "loopbackModelRequests": 2,
+      "nativeInputToolsAdvertised": [],
+      "forcedToolRejectedAsUnavailable": true,
+      "permissionRequestCount": 0,
+      "permissionRequestIds": [],
+      "markerPresent": false,
+      "rpcErrorCodes": [],
+      "disposition": "passed"
+    },
+    {
+      "evidenceFile": "native-plan.json",
+      "sha256": "fecfca013ea072e4e880c77b244b42843f25486206c2e8f64411216ad5c738ea",
+      "scenario": "native-plan",
+      "mode": "plan",
+      "resumed": false,
+      "loopbackModelRequests": 2,
+      "nativeInputToolsAdvertised": [],
+      "forcedToolRejectedAsUnavailable": true,
+      "permissionRequestCount": 0,
+      "permissionRequestIds": [],
+      "markerPresent": false,
+      "rpcErrorCodes": [],
+      "disposition": "passed"
+    },
+    {
+      "evidenceFile": "deny-read.json",
+      "sha256": "88d1ad8865b3252963ce12178d6a3a3819f50a2c20ddf95ab557f1cacd127975",
+      "scenario": "deny-read",
+      "mode": "agent",
+      "resumed": false,
+      "loopbackModelRequests": 1,
+      "nativeInputToolsAdvertised": [],
+      "forcedToolRejectedAsUnavailable": false,
+      "permissionRequestCount": 1,
+      "permissionRequestIds": [
+        0
+      ],
+      "markerPresent": false,
+      "rpcErrorCodes": [],
+      "disposition": "passed"
+    },
+    {
+      "evidenceFile": "resumed-deny-shell.json",
+      "sha256": "3826ca1247b99c3000bff1e8e0e53d0244c0c22f8ec3089b6ca83bfba80ae3bb",
+      "scenario": "deny-shell",
+      "mode": "agent",
+      "resumed": true,
+      "loopbackModelRequests": 0,
+      "nativeInputToolsAdvertised": [],
+      "forcedToolRejectedAsUnavailable": false,
+      "permissionRequestCount": 0,
+      "permissionRequestIds": [],
+      "markerPresent": false,
+      "rpcErrorCodes": [
+        -32002
+      ],
+      "disposition": "probe_setup_failure"
+    },
+    {
+      "evidenceFile": "resumed-deny-shell-attempt-2.json",
+      "sha256": "14bdd262303d9273c3612d502fefb4b6f887ce903af590a58bbaea3e00297ff6",
+      "scenario": "deny-shell",
+      "mode": "agent",
+      "resumed": true,
+      "loopbackModelRequests": 2,
+      "nativeInputToolsAdvertised": [],
+      "forcedToolRejectedAsUnavailable": false,
+      "permissionRequestCount": 1,
+      "permissionRequestIds": [
+        0
+      ],
+      "markerPresent": false,
+      "rpcErrorCodes": [],
+      "disposition": "passed"
+    }
+  ],
+  "emptySessionLoadDiagnosis": "Copilot does not retain an empty conversation for load. Initial resource-not-found retained; second attempt seeds one loopback-only text turn before close/load. It then requests shell permission and rejects the write."
+}

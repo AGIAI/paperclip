@@ -5,7 +5,9 @@ This proves a protocol fixture, never GitHub/model/Daytona qualification.
 import argparse,json,subprocess,tempfile,pathlib,os,select,time,threading,http.server,hashlib,shutil,contextlib,sys
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--package-root',required=True)
-parser.add_argument('--scenario',choices=['deny-write','attached-shell'],default='deny-write')
+parser.add_argument('--scenario',choices=['deny-write','deny-shell','deny-read','attached-shell','discover-inputs','native-question','native-plan'],default='deny-write')
+parser.add_argument('--mode',choices=['agent','plan','autopilot'],default='agent')
+parser.add_argument('--resume',action='store_true',help='Close and load the same native session before prompting')
 args=parser.parse_args()
 package_root=pathlib.Path(args.package_root).resolve()
 metadata=json.loads((package_root/'package.json').read_text())
@@ -14,6 +16,7 @@ assert metadata['version']=='1.0.88' and metadata['name'] in pins
 assert not (package_root/'copilot').is_symlink()
 assert hashlib.sha256((package_root/'copilot').read_bytes()).hexdigest()==pins[metadata['name']]
 model_tool_names=[]
+model_tool_results=[]
 command='sleep 2; printf ACP_SHELL_DONE > settlement.txt'
 
 binary=str(package_root/'copilot')
@@ -34,22 +37,31 @@ with contextlib.ExitStack() as cleanup:
  root=pathlib.Path(tempfile.mkdtemp(prefix='paperclip-copilot-offline-'))
  cleanup.callback(shutil.rmtree, root)
  calls=0
+ total_model_calls=0
  session=None
+ final_prompt_id=None
+ outside=root.parent/(root.name+'-protected.txt')
+ outside.write_text('PRIVATE_FIXTURE_SENTINEL')
+ cleanup.callback(outside.unlink,missing_ok=True)
+ tool_name={'deny-write':'create','deny-shell':'bash','deny-read':'view','attached-shell':'bash','native-question':'ask_user','native-plan':'exit_plan_mode'}.get(args.scenario)
+ tool_arguments={'deny-write':{'path':str(root/'denied.txt'),'file_text':'MUST NOT EXIST'},'deny-shell':{'command':'printf MUST_NOT_EXIST > denied.txt','description':'Denied command fixture'},'deny-read':{'path':str(outside)},'attached-shell':{'command':command,'description':'Bounded settlement fixture','mode':'async','detach':False},'native-question':{'question':'Choose one','choices':['A','B'],'allowFreeform':False},'native-plan':{'summary':'Fixture plan','planContent':'Do fixture work'}}.get(args.scenario)
  marker_at_prompt_result=False
  class Handler(http.server.BaseHTTPRequestHandler):
   def log_message(self,*args):pass
   def do_GET(self):
    self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(json.dumps({'data':[{'id':'gpt-4.1','object':'model','owned_by':'fixture'}]}).encode())
   def do_POST(self):
-   global calls,model_tool_names
+   global calls,total_model_calls,model_tool_names,model_tool_results
    calls+=1
+   total_model_calls+=1
    data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
-   model_tool_names=[x.get('function',{}).get('name') for x in data.get('tools',[])]
-   if calls>4:raise RuntimeError('Fixture model exceeded its bounded request count')
+   model_tool_names=sorted(set(model_tool_names+[x.get('function',{}).get('name') for x in data.get('tools',[]) if x.get('function',{}).get('name')]))
+   model_tool_results.extend(x.get('content') for x in data.get('messages',[]) if x.get('role')=='tool')
+   if total_model_calls>5:raise RuntimeError('Fixture model exceeded its bounded request count')
    if data.get('stream'):
     self.send_response(200);self.send_header('Content-Type','text/event-stream');self.end_headers()
     values=[{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{'role':'assistant','content':'Fixture complete.'},'finish_reason':None}]},{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{},'finish_reason':'stop'}],'usage':{'prompt_tokens':10,'completion_tokens':3,'total_tokens':13}}]
-    if calls==1:values=[{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{'role':'assistant','tool_calls':[{'index':0,'id':'fixture-tool','type':'function','function':{'name':'create' if args.scenario=='deny-write' else 'bash','arguments':json.dumps({'path':str(root/'denied.txt'),'file_text':'MUST NOT EXIST'} if args.scenario=='deny-write' else {'command':command,'description':'Bounded settlement fixture','mode':'async','detach':False})}}]},'finish_reason':None}]},{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{},'finish_reason':'tool_calls'}]}]
+    if calls==1 and tool_name:values=[{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{'role':'assistant','tool_calls':[{'index':0,'id':'fixture-tool','type':'function','function':{'name':tool_name,'arguments':json.dumps(tool_arguments)}}]},'finish_reason':None}]},{'id':'fixture-1','object':'chat.completion.chunk','choices':[{'index':0,'delta':{},'finish_reason':'tool_calls'}]}]
     for value in values:self.wfile.write(('data: '+json.dumps(value)+'\n\n').encode())
     self.wfile.write(b'data: [DONE]\n\n')
    else:
@@ -58,8 +70,8 @@ with contextlib.ExitStack() as cleanup:
  cleanup.callback(server.server_close)
  threading.Thread(target=server.serve_forever,daemon=True).start()
  cleanup.callback(server.shutdown)
- env={'PATH':'/usr/bin:/bin','HOME':str(root/'home'),'XDG_CONFIG_HOME':str(root/'config'),'XDG_CACHE_HOME':str(root/'cache'),'XDG_DATA_HOME':str(root/'data'),'COPILOT_HOME':str(root/'copilot'),'COPILOT_CACHE_HOME':str(root/'copilot-cache'),'COPILOT_AUTO_UPDATE':'false','COPILOT_OFFLINE':'true','COPILOT_PROVIDER_BASE_URL':f'http://127.0.0.1:{server.server_port}','COPILOT_PROVIDER_TYPE':'openai','COPILOT_PROVIDER_MODEL_ID':'gpt-4.1','COPILOT_MODEL':'gpt-4.1','NO_COLOR':'1'}
- for key in ('HOME','XDG_CONFIG_HOME','XDG_CACHE_HOME','XDG_DATA_HOME','COPILOT_HOME','COPILOT_CACHE_HOME'):pathlib.Path(env[key]).mkdir()
+ env={'PATH':'/usr/bin:/bin','HOME':str(root/'home'),'XDG_CONFIG_HOME':str(root/'config'),'XDG_CACHE_HOME':str(root/'cache'),'XDG_DATA_HOME':str(root/'data'),'COPILOT_HOME':str(root/'copilot'),'COPILOT_CACHE_HOME':str(root/'copilot-cache'),'COPILOT_ALLOW_ALL':'false','COPILOT_PKG_CACHE_HOME':str(root/'extract'),'COPILOT_AUTO_UPDATE':'false','COPILOT_OFFLINE':'true','COPILOT_PROVIDER_BASE_URL':f'http://127.0.0.1:{server.server_port}','COPILOT_PROVIDER_TYPE':'openai','COPILOT_PROVIDER_MODEL_ID':'gpt-4.1','COPILOT_MODEL':'gpt-4.1','NO_COLOR':'1'}
+ for key in ('HOME','XDG_CONFIG_HOME','XDG_CACHE_HOME','XDG_DATA_HOME','COPILOT_HOME','COPILOT_CACHE_HOME','COPILOT_PKG_CACHE_HOME'):pathlib.Path(env[key]).mkdir()
  (root/'copilot/config.json').write_text(json.dumps({'trustedFolders':[],'disableAllHooks':True,'memory':False,'ide':{'autoConnect':False}}))
  p=subprocess.Popen([binary,'--acp','--stdio','--no-auto-update','--disable-builtin-mcps','--no-remote','--no-remote-export','--no-bash-env'],env=env,cwd=root,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
  cleanup.callback(stop_process, p)
@@ -93,20 +105,42 @@ with contextlib.ExitStack() as cleanup:
   request('initialize',{'protocolVersion':1,'clientCapabilities':{'_meta':{'github.com/copilot':{'events':['session.idle','session.plan_changed','session.background_tasks_changed','session.completion_receipt','user_input.requested','exit_plan_mode.requested','assistant.usage']}}},'clientInfo':{'name':'paperclip-offline-fixture','version':'1'}})
   session=request('session/new',{'cwd':str(root),'mcpServers':[]})
   if 'result' in session:
-   request('session/prompt',{'sessionId':session['result']['sessionId'],'prompt':[{'type':'text','text':'Reply with Fixture complete.'}]})
-   marker_at_prompt_result=(root/('denied.txt' if args.scenario=='deny-write' else 'settlement.txt')).exists()
+   session_id=session['result']['sessionId']
+   if args.mode!='agent':
+    request('session/set_mode',{'sessionId':session_id,'modeId':'https://agentclientprotocol.com/protocol/session-modes#'+args.mode})
+   if args.resume:
+    # A native session with no conversation is not durably resumable.
+    calls=-1
+    request('session/prompt',{'sessionId':session_id,'prompt':[{'type':'text','text':'Initialize the fixture conversation.'}]})
+    calls=0
+    request('session/close',{'sessionId':session_id})
+    session=request('session/load',{'sessionId':session_id,'cwd':str(root),'mcpServers':[]})
+   if 'error' in session:raise RuntimeError('Copilot rejected session load')
+   final_prompt_id=nextid+1
+   request('session/prompt',{'sessionId':session_id,'prompt':[{'type':'text','text':'Reply with Fixture complete.'}]})
+   marker_at_prompt_result=(root/('settlement.txt' if args.scenario=='attached-shell' else 'denied.txt')).exists()
    for _ in range(3):pump(.1)
  finally:
   failure=sys.exc_info()[1]
   try:
-   marker_exists=(root/('denied.txt' if args.scenario=='deny-write' else 'settlement.txt')).exists()
-   report={'schema':'paperclip.copilot-acp-evidence/v1','harnessVersion':'1.0.88','package':metadata['name'],'executableSha256':pins[metadata['name']],'modelSource':'deterministic loopback fixture, COPILOT_OFFLINE=true; not a live model qualification','scenario':args.scenario,'costUsd':0,'filesystemMarkerExistedAtPromptResult':marker_at_prompt_result,'filesystemMarkerExistedAfterPrompt':marker_exists,'modelCalls':calls,'modelToolNames':model_tool_names,'permissionResponses':permission_responses,'wire':wire}
+   marker_exists=(root/('settlement.txt' if args.scenario=='attached-shell' else 'denied.txt')).exists()
+   report={'schema':'paperclip.copilot-acp-evidence/v1','harnessVersion':'1.0.88','package':metadata['name'],'executableSha256':pins[metadata['name']],'modelSource':'deterministic loopback fixture, COPILOT_OFFLINE=true; not a live model qualification','scenario':args.scenario,'mode':args.mode,'resumed':args.resume,'costUsd':0,'filesystemMarkerExistedAtPromptResult':marker_at_prompt_result,'filesystemMarkerExistedAfterPrompt':marker_exists,'modelCalls':total_model_calls,'modelToolNames':model_tool_names,'modelToolResults':model_tool_results,'permissionResponses':permission_responses,'wire':wire}
    serialized=json.dumps(report,indent=2).replace(str(root),'/fixture/workspace').replace(str(root).lstrip('/'),'fixture/workspace').replace(binary,'/fixture/verified/copilot')
    print(serialized)
   except Exception:
    if failure is None:raise
 
- if not session or 'result' not in session or responses.get(3,{}).get('result',{}).get('stopReason')!='end_turn':
+ if not session or 'result' not in session or responses.get(final_prompt_id,{}).get('result',{}).get('stopReason')!='end_turn':
   raise RuntimeError('Copilot did not complete the fixture turn')
  if marker_at_prompt_result != (args.scenario=='attached-shell') or marker_exists != marker_at_prompt_result:
   raise RuntimeError('Copilot violated the fixture filesystem expectation')
+
+ if args.scenario.startswith('deny-') and not permission_responses:
+  raise RuntimeError('Copilot did not request permission before the denied operation')
+ if args.scenario=='deny-read' and any('PRIVATE_FIXTURE_SENTINEL' in str(result) for result in model_tool_results):
+  raise RuntimeError('Copilot leaked the denied file to the model')
+ if args.scenario in ('native-question','native-plan','discover-inputs') and any(name in model_tool_names for name in ('ask_user','exit_plan_mode')):
+  raise RuntimeError('Native blocking input is advertised without a qualified responder')
+
+ if args.scenario in ('native-question','native-plan') and not any("Tool '"+str(tool_name)+"' does not exist" in str(result) for result in model_tool_results):
+  raise RuntimeError('Forced native input did not prove explicit tool unavailability')

@@ -1,6 +1,6 @@
 # Cursor ACP capability inventory
 
-Evidence date: 2026-09-28. Candidate: `2026.09.26-dd393fe`. This profile is **not live-qualified**. One authorized task-context prompt on the initial free account returned an upgrade requirement, invoked no semantic tools, and supplied no usage receipt. Its cost is unknown; the account dashboard remained unchanged at coarse precision. The user then selected another account, whose exact-model local Runner Eval passed task-context and history tools with clean terminal settlement. Its dashboard attributed 56K rounded tokens to included usage and no incremental charge; ACP still supplied no token or dollar receipt. The local Product hello subsequently passed through the real browser, server, database, native runner, and authenticated completion tool. A second local Product case passed file creation, editing, command validation, an independent exact-byte matcher, and visible workspace artifact presentation. The merged-source local Product question and revision-bound Plan approval also passed browser response and semantic-tool continuation. A serialized follow-up passed pending semantic-question recovery across a server restart. A verified native ACP probe also denied a shell write before any observed side effect. Native Cursor questions/plans and their recovery, durable permission presentation, interruption, and Daytona execution remain required qualification gates.
+Evidence updated: 2026-09-29. Candidate: `2026.09.26-dd393fe`. This profile is **not live-qualified**. One authorized task-context prompt on the initial free account returned an upgrade requirement, invoked no semantic tools, and supplied no usage receipt. Its cost is unknown; the account dashboard remained unchanged at coarse precision. The user then selected another account, whose exact-model local Runner Eval passed task-context and history tools with clean terminal settlement. Its dashboard attributed 56K rounded tokens to included usage and no incremental charge; ACP still supplied no token or dollar receipt. The local Product hello subsequently passed through the real browser, server, database, native runner, and authenticated completion tool. A second local Product case passed file creation, editing, command validation, an independent exact-byte matcher, and visible workspace artifact presentation. The merged-source local Product question and revision-bound Plan approval also passed browser response and semantic-tool continuation. A serialized follow-up passed pending semantic-question recovery across a server restart. A verified native ACP probe also denied a shell write before any observed side effect. Native Cursor questions/plans and their recovery, durable permission presentation, interruption, and Daytona execution remain required qualification gates.
 
 The reference is the runner's Codex app-server integration and its closed thread-item inventory in `src/provider-events.ts`. Cursor ACP and its private extension methods are the transport; the legacy Cursor adapter is unchanged.
 
@@ -41,7 +41,7 @@ The reference is the runner's Codex app-server integration and its closed thread
 | Available commands | `available_commands_update`, including skills/slash commands | ACPX persists command metadata; runner canonical mapper deliberately emits no display event | Command picker and bounded command-discovery surface are not implemented |
 | Session metadata | `session_info_update` title after automatic naming | Capability documented | Runner owns normalized session identity; provider title is currently not surfaced |
 | Prompt media | Image=true, audio=false, embeddedContext=false in observed initialize | The shared runner turn contract accepts text only; it does not forward image attachment blocks to ACP | P1: implement bounded, validated attachment-to-ACP conversion with capability checks, then qualify the exact model. Audio/embedded context are explicitly unsupported by this advertisement |
-| MCP and semantic tools | Session MCP injection supports stdio/HTTP/SSE; user/project config also loaded | Runner-owned authenticated MCP bridge only; fail closed on ambient project MCP | Exact tool discovery and company/token boundary remain live tests |
+| MCP and semantic tools | Session MCP injection supports stdio/HTTP/SSE; user/project config also loaded | Runner-owned authenticated MCP bridge only; the owned distribution patch never initializes ambient MCP | Exact tool discovery and company/token boundary remain live tests |
 | Usage/cost | No `usage_update`/token-usage emission found in pinned ACP implementation; prompt result contains stopReason | Must report usage unavailable, never zero or estimates presented as actual | Dollar accounting unavailable without another explicit measured source. Live spend needs a measurable bound before starting |
 | Reviews, compaction, hooks, memory | Native mode changes, hooks present internally; no dedicated ACP counterparts to Codex context/hook/memory lifecycle found | No fabricated event families | Distinguish confirmed absence of ACP event mapping from unverified native internals |
 | Goal controls / lineage | No ACP goal or fork lineage protocol found | Unsupported | No equivalent of Codex native goals/thread lineage |
@@ -54,7 +54,7 @@ Question and plan requests lack a session ID. The shared hook binds them to the 
 
 Fixed launch arguments are `--disable-project-configs --disable-auto-update acp`, using the verified bundled Node and absolute verified `index.js`. Private HOME/XDG roots are required together with CURSOR_CONFIG_DIR, CURSOR_DATA_DIR, disabled compilation caching, `AGENT_CLI_CREDENTIAL_STORE=memory`, and `NO_OPEN_BROWSER=1`. Only explicitly bound CURSOR_API_KEY or CURSOR_AUTH_TOKEN may enter. The controller creates a provider/session-scoped credential-name binding from the explicit task environment, ignoring inherited or caller-supplied markers. Rust forwards it through the closed sidecar environment boundary. Before host admission, the sidecar rejects missing, stale, wrong-provider or unbound credentials and removes the marker before provider launch. Tests cover this full boundary and preserve legacy credential behavior. Do not use `--force`, `--trust`, or `--approve-mcps` to paper over governance.
 
-`--disable-project-configs` only suppresses `.cursor/cli.json`. It does not suppress project MCP, Cursor/Claude hooks, or installed plugins. `assertCursorWorkspacePolicy` refuses ambient project execution config from the workspace through its nearest Git root, including symlinks and unreadable configuration. Ordinary Claude settings with neither hooks nor plugins remain admissible. Enterprise system hooks are checked too. The host repeats admission checks before native launch. Continuous protection of these config paths during execution remains a qualification requirement. Admission alone cannot prevent a concurrent file mutation. Team-provided remote hooks are another upstream boundary and remain unqualified under restrictive execution.
+`--disable-project-configs` only suppresses `.cursor/cli.json`. It does not suppress project MCP, Cursor/Claude hooks, or installed plugins. `assertCursorWorkspacePolicy` refuses ambient project execution config from the workspace through its nearest Git root, including symlinks and unreadable configuration. Ordinary Claude settings with neither hooks nor plugins remain admissible. Enterprise system hooks are checked too. The host repeats admission checks before native launch. The vendor admission check alone cannot prevent a concurrent file mutation. The `paperclip-cursor-isolation-v1` distribution patch now removes local hook loading, asynchronous team hook synchronization, ambient MCP loader initialization, and ambient-client merging from the ACP source. The retained admission check remains defense in depth. This closes those discovery paths independently of filesystem polling; authenticated validation on the patched final runtime remains required.
 
 Artifact paths are never automatically read or uploaded. References require a present regular file under the physical workspace, reject traversal and symbolic links, and retain `registered:false`. Private/outside paths are omitted and produce a visible warning. This is metadata validation, not durable file ownership or a replacement for artifact registration checks.
 
@@ -88,7 +88,7 @@ Three real ACP stream tests prove child lifecycle/transcript preservation before
 The full `build-provider-pack.mjs --candidate-providers=cursor` path passed on source `25fb1b5b317e52a8ad50208d7681a1ee34bd939c` (foundation includes upstream master `18e8c121d`). It used standalone Node, pnpm 9.15.4, a fresh production deployment and the pinned vendor archive. The build checked portable Node relocation, fresh ACPX import and complete Cursor materialization. The retained manifest is `packages/paperclip-runner/test/fixtures/cursor-acp/provider-pack-darwin-arm64.json`; it contains only relative paths and digests.
 
 - Pack digest: `sha256:38bc6dd39c13b0f5478a1018e26deb61b0333ab0242f3d857e3c79d3a34b7682`.
-- Cursor declaration: `sha256:1157a5d071abbd57ab132f22bace75c65e84cc47a045b0023475488755e14899`.
+- Cursor declaration: `sha256:c91aa592ec867071ec4457b9b7230399ce42ad918787ceed99b4b651ea5607e2`.
 - macOS ARM64 closure: `sha256:77394184a89b0e7384971181da19c3c82d83a399b04e7944b3f94fe3d7e62b25`.
 - Resolved dependency lock: `sha256:9eea60187c6c808efb4d936a234a8d8000beac45253091abd4c5348132bd1408`, also the reviewed Daytona build digest for this branch. This digest was resolved from the clean tracked lock with the exact Docker resolution-only command. A second resolution from the clean tracked lock produced the identical digest; the frozen install applied the Cursor/Grok combined patch successfully. The image consumes the reviewed resolved-lock artifact without registry resolution. Image creation rejects a different digest before execution.
 
@@ -116,7 +116,7 @@ Credential setup uses [Cursor's documented browser login](https://cursor.com/doc
 
 `test/fixtures/cursor-acp/authenticated-qualification-attempts.json` retains sanitized per-attempt source, package, daemon, model, timing, cleanup, and cost evidence. The first canonical `get-task-context` attempt used pack source `e5159fb67ad28bf6a691bfa64ffddb332d96f8be`, exact Luna selection, one turn, a 60-second limit, a $0.50 declared envelope inside a $2 reservation, and zero retries. This is a Runner Eval against the mock control plane, not Product E2E or restrictive-permission qualification.
 
-The provider returned only an upgrade requirement and then normal completion. Source inspection of pinned `5672.index.js` confirms that actionable authentication/entitlement errors are rendered as ordinary assistant text and lose their typed failure before ACP settlement. No text-matching terminal heuristic is used. This is a P1 native-wrapper gap: preserve typed errors upstream or through a verified owned hook. The semantic oracle must still fail a response that did not invoke the required tool.
+The provider returned only an upgrade requirement and then normal completion. Source inspection of pinned `5672.index.js` confirms that actionable authentication/entitlement errors are rendered as ordinary assistant text and lose their typed failure before ACP settlement. No text-matching terminal heuristic is used. This was a native-wrapper gap in that unmodified candidate. The owned distribution patch described below preserves those typed errors as failed ACP RPC responses; the historical attempt is unchanged. The semantic oracle must still fail a response that did not invoke the required tool.
 
 The replacement-account attempt passed all four canonical `get-task-context` checks at source `01959b8a602683f13706807983f02c3cba9d36a0`, using newly rebuilt daemon source `f77ae83aeb6d802c73f1c955760017ae272eba29`. Both `get_task_context` and `get_task_history` returned successful authenticated semantic results. It took 29.291 seconds and exited cleanly. The Usage page showed a new `gpt-5.6-luna-medium` row at 19:28:55 UTC with 56K tokens, marked Included. Incremental cash was zero for that row; metered dollars remain unavailable. A conservative $0.07 list-price bound assumes at most 57K rounded tokens at the maximum listed $1.20/M rate and is not an invoice amount. There was no retry.
 
@@ -162,3 +162,52 @@ This source audit follows pinned native update → ACPX runtime → `canonicalPr
 | Session list, model parameters, generic mode control | Confirmed native ACP methods | No operator UI or cross-session discovery API in this integration; recovery loads only the runner-owned exact session | P2: explicit company-scoped controls; authenticated model catalog first |
 
 True steering, native queueing, fork/resume, native usage receipts and interactive child questions are absent from this pinned ACP implementation as described above. Their absence is distinct from the implemented-but-unused fields in this table. Remote team hooks, provider-native artifact traces, interruption settlement and authenticated Linux/Daytona behavior remain unverified, not confirmed absent.
+
+## Owned runtime patch (2026-09-29)
+
+The candidate now materializes `paperclip-cursor-isolation-v1` on top of the
+unchanged vendor `2026.09.26-dd393fe` archives. The materializer first verifies
+the archive and **vendor** execution closure, requires exact single-occurrence
+source anchors in an input-digest-pinned ACP chunk, applies the owned patch,
+then verifies a separately pinned **patched** execution closure. Both identities
+remain in the distribution manifest. Unknown, changed, already-patched, or
+ambiguously matched source fails closed. The patch does not change the legacy
+Cursor adapter or the vendor interactive CLI.
+
+The ACP shared-services initializer no longer initializes or loads its ambient
+MCP loader. Each ACP session starts with an empty client lease and adds only the
+explicit session MCP definitions, preserving native last-definition-wins behavior.
+It never borrows an earlier or ambient lease, including when the session MCP list
+is empty or invalid. Local hook config is an empty snapshot, and the remote team
+hook fetch/install/update path cannot start. Newly created project config during
+a session therefore cannot enter either removed discovery path. This is source
+isolation, not an operating-system sandbox: explicitly allowed native shell
+commands still have their granted filesystem/network powers.
+
+Typed `ActionRequiredError` instances now produce a failed JSON-RPC response
+with data schema `paperclip.cursor.provider-error.v1`, kind `action_required`,
+and the closed action enum `login`, `upgrade`, `payment`, `config`, or `unknown`.
+Login and native `ConnectError` with the Unauthenticated code use ACP error
+`-32000`; other action requirements use `-32603`. Provider-private error detail
+is not copied into these responses. Ordinary assistant text is never examined to
+infer an entitlement failure. Generic provider exceptions outside these typed
+branches retain the vendor behavior and remain an upstream audit item.
+
+`qualify-cursor-runtime-patch.mjs` executes expressions extracted from each actual
+input-digest-verified platform chunk. Its poisoned ambient loaders prove no
+ambient access while owned MCP, empty sessions, and duplicate definitions work;
+it also executes all typed error branches and ignores entitlement-shaped ordinary
+errors. The entire patched chunks compile for macOS ARM64/x64 and Linux x64.
+`runtime-patch-offline-proof.json` records these checks with zero provider calls.
+All three authentic archives separately passed materialization and post-patch
+closure verification. Seven materializer tests cover drift, ambiguous anchors,
+closure tampering, links, archive tampering, identity consistency, and overwrites.
+Both patched macOS binaries also returned ACP v1 from credential-free real-process
+initialization and exited after explicit SIGTERM; x64 ran through the ARM host
+compatibility layer. `runtime-patch-initialization.json` retains this distinction.
+These are offline checks, not authenticated macOS x64 or Linux/Daytona qualification.
+
+Prior Product/Runner results above measured the earlier unpatched runtime. The
+profile must retain pending qualification until the rebuilt final foundation
+runtime passes the remaining native interaction, durable approval, cancellation,
+recovery, accounting, and authenticated target-platform gates.

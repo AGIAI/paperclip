@@ -28,7 +28,7 @@ export async function materializeCandidateProviderPack({ provider, outputRoot })
   if (provider === "cursor") {
     const result = await materializePinnedCursorDistribution({ destination: outputRoot });
     return { version: result.version,
-      profileDigest: "sha256:1157a5d071abbd57ab132f22bace75c65e84cc47a045b0023475488755e14899",
+      profileDigest: "sha256:c91aa592ec867071ec4457b9b7230399ce42ad918787ceed99b4b651ea5607e2",
       closureDigest: `sha256:${result.closureSha256}` };
   }
   throw new Error(`The ${provider} candidate distribution builder is not included in this source revision`);
