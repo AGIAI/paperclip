@@ -24,7 +24,8 @@ export interface CopilotSessionEvent {
   sourceMethod: typeof COPILOT_ACP_EVENT_METHOD;
   sourceType: string;
   sessionId: string;
-  turnId: string;
+  /** The pinned passthrough does not identify the originating prompt. */
+  turnId: null;
   agentId?: string;
   timestamp?: string;
   data: Record<string, unknown>;
@@ -51,7 +52,7 @@ export function normalizeCopilotSessionEvent(
   try { if (Buffer.byteLength(JSON.stringify(params)) > MAX_EVENT_BYTES) return null; } catch { return null; }
   const result: CopilotSessionEvent = {
     kind: "activity", sourceMethod: COPILOT_ACP_EVENT_METHOD, sourceType: params.type,
-    sessionId: binding.sessionId, turnId: binding.turnId, data: {},
+    sessionId: binding.sessionId, turnId: null, data: {},
   };
   if (validText(params.agentId, 256)) result.agentId = params.agentId;
   if (validText(params.timestamp, 128) && Number.isFinite(Date.parse(params.timestamp))) result.timestamp = params.timestamp;

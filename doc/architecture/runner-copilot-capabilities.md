@@ -278,16 +278,22 @@ backpressure can drop events. There is no event ID or reliable replay contract.
 even when subscribed. These are provider restrictions, not missing runner parsing.
 
 `copilot-events.ts` requests 22 event types and projects only bounded declared
-fields after matching the active session and turn. It records source method/type,
+fields after matching the admitted session and an active receiver. The pinned
+notification has no originating turn ID; arrival during a later turn cannot
+establish attribution. It records source method/type,
 provider timestamp and subagent identity. Payloads cannot authorize filesystem
 reads, workspace rebinding, permission changes, native-input replies or terminal
 settlement. Inline binary assets are content-address verified; only metadata is
 forwarded until a provider-session artifact resolver can upload them safely.
 
-`copilot-extension-adapter.ts` converts the normalized events into canonical
-delegation, compaction and unregistered artifact activity. Every safe projected
-field is retained in bounded provider-notice details with method/event/session/
-turn provenance. Notices have readable summaries; secret-shaped string values
+`copilot-extension-adapter.ts` retains every safe projected field in bounded,
+session-scoped provider notices with method/event/session provenance and an
+explicit unknown originating-turn attribution. Typed delegation, compaction and
+artifact projections are withheld because they would falsely attribute delayed
+session notifications to the receiving turn. Native correlated ACP turn events
+remain separate. Follow-up: a versioned provider correlation contract is required
+before promoting these notices into typed turn activity. Notices have readable
+summaries; secret-shaped string values
 are scrubbed without erasing numeric token counters. These display events never
 create a usage charge, input-resolution acknowledgment, registered artifact, or
 turn terminal event. The provider registry installs this factory and initialize
@@ -316,6 +322,7 @@ Daytona claims require the separate live product qualification.
 | Plan approval | Native `exit_plan_mode` callback; notification contains plan content/actions but lacks qualified ACP responder. | Capability-gap notice only; never synthesize plan acceptance. | Agent-mode tool list omits exit_plan_mode. Paperclip semantic plan/revision approval passes through the UI; Native plan-mode input is confirmed unavailable offline; production mode controls remain disabled. |
 | Plan progress | Standard plan from todos SQL; native `session.plan_changed` has operation only. | Existing ACP plan/activity; native operation preserved, `planContentAvailable:false`. | Source; plan document reads require native interface. P1. |
 | Models / reasoning / config | Source `session/set_model`, config options for model, reasoning, mode, custom agents, allow_all. | Explicit model admission. Mode/governance changes must remain policy-gated. | Authenticated catalog, exact set_model/config echo and real inference verified for gpt-5.6-luna. Other models and config-mode changes remain unqualified. |
+| Native notification attribution | Copilot passthrough identifies the session, optional subagent and timestamp, but no originating turn. | Bounded redacted session notices retain all admitted details; typed delegation/artifact/compaction projection is withheld. | Delayed same-session regression; P1 require a provider-origin turn correlation contract. Arrival time and optional payload IDs cannot establish it. |
 | Usage | Standard prompt usage and context usage; native assistant usage, AI-unit checkpoint. | Token/counter metadata with source; multiplier and nano-AI-units distinct from USD. | Real token counters retain GitHub provenance; authoritative per-turn USD is unavailable. External included-credit snapshots are separate, with additional cash billing disabled. CLI requested-cost coverage fails closed when unknown. Never double-count passthrough. |
 | Subagent activity | Native started/configured/completed/failed, model and tool IDs, token/call/duration stats. | Bounded structured activity retaining attribution and model-selection details. | Source and unit fixtures; live UI attribution pending. |
 | Task file changes / diffs | Standard tools carry locations/diff content for create/edit/str_replace/apply_patch. | Shared ACP tool activity retains bounded `rawOutput`, `inputUpdated` and the first validated relative location. Structured tool `content` diffs/images, `rawInput` and secondary locations are dropped; no complete diff presentation is claimed. | Real denied-create wire contains a diff, but wire presence is not runner/UI preservation. P1 add typed, bounded diff/image content and all validated locations with tool/session provenance; Product file-edit/validation and downloadable-file presentation pass; rich diff rendering remains unqualified. |

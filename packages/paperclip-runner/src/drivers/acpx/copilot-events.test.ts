@@ -6,13 +6,20 @@ const binding = { sessionId: "session-1", turnId: "turn-1" };
 const event = (type: string, data: unknown, extra = {}) => ({ method: COPILOT_ACP_EVENT_METHOD, params: { sessionId: "session-1", type, data, ...extra } });
 
 describe("Copilot native event projection", () => {
-  it("subscribes explicitly and fences events to the active session and turn", () => {
+  it("subscribes explicitly and requires an active receiver without inventing originating turn", () => {
     const events = COPILOT_ACP_CLIENT_CAPABILITIES._meta["github.com/copilot"].events;
     expect(events).toContain("session.workspace_file_changed");
     expect(events).not.toContain("assistant.reasoning");
     expect(normalizeCopilotSessionEvent(event("session.idle", {}), { ...binding, sessionId: "other" })).toBeNull();
     expect(normalizeCopilotSessionEvent(event("session.idle", {}), { ...binding, turnId: "" })).toBeNull();
     expect(normalizeCopilotSessionEvent(event("assistant.reasoning", { text: "private" }), binding)).toBeNull();
+  });
+  it("retains session evidence without treating receipt or provider payload as originating turn", () => {
+    const delayed = event("assistant.usage", { inputTokens: 10 }, { turnId: "unqualified-provider-field" });
+    const earlier = normalizeCopilotSessionEvent(delayed, binding);
+    const later = normalizeCopilotSessionEvent(delayed, { ...binding, turnId: "next-turn" });
+    expect(earlier).toEqual(later);
+    expect(later).toMatchObject({ sessionId: "session-1", turnId: null, data: { inputTokens: 10 } });
   });
   it("preserves subagent attribution and useful metrics while dropping undeclared fields", () => {
     expect(normalizeCopilotSessionEvent(event("subagent.completed", { toolCallId: "t", agentName: "review", agentDisplayName: "Reviewer", model: "m", totalTokens: 42, cancelled: true, private: "secret" }, { agentId: "child" }), binding)).toMatchObject({ kind: "activity", agentId: "child", data: { model: "m", totalTokens: 42, cancelled: true } });

@@ -16,69 +16,32 @@ export function createCopilotProfileExtensionAdapter(context: AcpxProfileExtensi
       const event = normalizeCopilotSessionEvent({ method, params }, context);
       if (!event) return [];
       const noticeId = identity(context, "notice", String(++sequence));
-      const details = detailFields(event.data);
+      // The optional canonical provenance object requires an originating turn.
+      // Session-only evidence keeps its complete source identity in details.
+      const details = detailFields({ ...event.data,
+        source: { method, eventType: event.sourceType, sessionId: event.sessionId,
+          ...(event.agentId ? { agentId: event.agentId } : {}),
+          ...(event.timestamp ? { timestamp: event.timestamp } : {}),
+        },
+        turnAttribution: "unknown: provider session notification has no originating turn ID",
+      });
       const notice: CanonicalProviderEvent = {
         itemId: noticeId,
         eventType: "provider.notice.recorded",
         payload: {
           schema: "paperclip.provider.notice.v1", noticeId,
           severity: event.kind === "capability_gap" ? "warning" : "info",
-          category: `copilot.${event.sourceType}`, scope: "turn",
+          category: `copilot.${event.sourceType}`, scope: "session",
           recoverable: true, userActionable: false,
           summary: summary(event),
-          provenance: {
-            method, eventType: event.sourceType, sessionId: bounded(context.sessionId, 240), turnId: bounded(context.turnId, 240),
-            ...(event.agentId ? { agentId: bounded(event.agentId, 240) } : {}),
-            ...(event.timestamp ? { timestamp: bounded(event.timestamp, 80) } : {}),
-          },
           details,
         },
       };
-      const typed = typedProjection(event, context, noticeId);
-      return typed ? [typed, notice] : [notice];
+      // Receipt during this turn is not proof of origin. Keep all safe fields
+      // as session evidence; typed turn activity would misattribute late events.
+      return [notice];
     },
   };
-}
-
-function typedProjection(event: CopilotSessionEvent, context: AcpxProfileExtensionContext, fallbackId: string): CanonicalProviderEvent | null {
-  const data = event.data;
-  if (event.kind === "capability_gap") return null;
-  if (event.sourceType.startsWith("subagent.")) {
-    const correlation = event.agentId ?? string(data.toolCallId);
-    const itemId = correlation ? identity(context, "delegation", correlation) : fallbackId;
-    const status = data.cancelled === true ? "interrupted"
-      : event.sourceType === "subagent.completed" ? "completed"
-      : event.sourceType === "subagent.failed" ? "failed" : "running";
-    return {
-      itemId,
-      eventType: status === "running" ? (event.sourceType === "subagent.started" ? "delegation.started" : "delegation.updated") : "delegation.completed",
-      payload: {
-        schema: "paperclip.delegation.v1", delegationId: itemId, action: "spawn", status,
-        children: [{
-          childId: itemId, role: optional(data.agentDisplayName ?? data.agentName ?? data.agentType, 160),
-          model: optional(data.model, 240), status,
-          summary: optional(data.agentDescription ?? data.error, 4000),
-          activitySummary: summary(event),
-        }],
-      },
-    };
-  }
-  if (event.sourceType === "session.compaction_complete" && data.success === true) {
-    const itemId = identity(context, "compaction", String(data.checkpointNumber ?? fallbackId));
-    return { itemId, eventType: "context.compacted", payload: {
-      schema: "paperclip.context.compacted.v1", compactionId: itemId, reason: "provider",
-      preTokens: nonnegativeInteger(data.preCompactionTokens), postTokens: nonnegativeInteger(data.postCompactionTokens), sameSession: true,
-    } };
-  }
-  if (event.kind === "artifact_reference") {
-    const itemId = identity(context, "artifact", string(data.assetId) || string(data.path) || fallbackId);
-    return { itemId, eventType: "artifact.generated", payload: {
-      schema: "paperclip.artifact.generated.v1", artifactId: itemId, status: "completed",
-      // Provider-session paths are not task-workspace paths or registered URLs.
-      reference: null, mediaType: optional(data.mimeType, 160), registered: false, failure: null,
-    } };
-  }
-  return null;
 }
 
 function summary(event: CopilotSessionEvent): string {
@@ -134,6 +97,3 @@ function bounded(value: string, max: number): string {
   const safe = String(redactPaperclipSemanticValue(value));
   return safe.length <= max ? safe : `${safe.slice(0, max - 12)} [truncated]`;
 }
-function optional(value: unknown, max: number): string | null { return typeof value === "string" && value ? bounded(value, max) : null; }
-function string(value: unknown): string { return typeof value === "string" ? value : ""; }
-function nonnegativeInteger(value: unknown): number | null { return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : null; }
