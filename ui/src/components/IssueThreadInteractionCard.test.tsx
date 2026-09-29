@@ -62,6 +62,15 @@ const connectionIntentsApiMocks = vi.hoisted(() => ({
   decline: vi.fn(),
 }));
 
+const routerMocks = vi.hoisted(() => ({
+  searchParams: new URLSearchParams(),
+  readSearchParams: vi.fn(),
+  setSearchParams: vi.fn(),
+  navigate: vi.fn(),
+  setBreadcrumbs: vi.fn(),
+  pushToast: vi.fn(),
+}));
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 async function act(callback: () => void | Promise<void>) {
@@ -79,9 +88,28 @@ async function act(callback: () => void | Promise<void>) {
 }
 
 vi.mock("@/lib/router", () => ({
+  useParams: () => ({}),
+  useSearchParams: () => {
+    routerMocks.readSearchParams();
+    return [routerMocks.searchParams, routerMocks.setSearchParams];
+  },
+  useNavigate: () => routerMocks.navigate,
   Link: ({ to, children, className }: { to: string; children: ReactNode; className?: string }) => (
     <a href={to} className={className}>{children}</a>
   ),
+}));
+
+vi.mock("@/context/CompanyContext", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../context/CompanyContext")>(),
+  useCompany: () => ({ selectedCompanyId: issueThreadInteractionFixtureMeta.companyId, selectedCompany: null }),
+}));
+vi.mock("@/context/BreadcrumbContext", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../context/BreadcrumbContext")>(),
+  useBreadcrumbs: () => ({ setBreadcrumbs: routerMocks.setBreadcrumbs }),
+}));
+vi.mock("@/context/ToastContext", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../context/ToastContext")>(),
+  useToast: () => ({ pushToast: routerMocks.pushToast }),
 }));
 
 vi.mock("@/api/connection-intents", () => ({ connectionIntentsApi: connectionIntentsApiMocks }));
@@ -128,6 +156,7 @@ afterEach(() => {
   root = null;
   container = null;
   localStorage.clear();
+  routerMocks.readSearchParams.mockClear();
 });
 
 describe("IssueThreadInteractionCard", () => {
@@ -196,6 +225,15 @@ describe("IssueThreadInteractionCard", () => {
         "interaction-connection-intent-default",
       ),
     );
+    // setupOptions being called precedes React Query publishing its result.
+    // Wait for the real setup flow, not just the dialog's loading shell.
+    await vi.waitFor(async () => {
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+      const setupDialog = document.body.querySelector('[role="dialog"]');
+      expect(setupDialog).toBeTruthy();
+      expect(setupDialog?.textContent).not.toContain("Loading connection options");
+      expect(routerMocks.readSearchParams).toHaveBeenCalled();
+    });
     const dialog = document.body.querySelector('[role="dialog"]');
     expect(dialog).toBeTruthy();
     expect(dialog?.textContent).toContain("Connect Notion");
