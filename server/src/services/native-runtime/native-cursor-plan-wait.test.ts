@@ -24,15 +24,17 @@ function fixture(): CursorPlanWaitFacts {
     run: { id: b.runId, companyId: b.companyId, agentId: b.agentId, nativeIssueId: b.issueId, runtimeMode: "native", runnerInstanceId: "instance", status: "running", completionContractId: "contract", completionContractSha256: nativeSha256(contract), runnerProfileJson: { nativeExecutionInput: { binding: b, provider: { kind: "acpx", agent: "cursor", cursorMode: "plan", model: "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]", profile: resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]") }, session: { normalizedSessionId: "session" }, completionContract: { id: "contract", sha256: nativeSha256(contract), contract } } } },
     contract: { id: "contract", canonicalSha256: nativeSha256(contract), contractJson: contract },
     events: [
-      event(1, "runtime_request.created", { request: { schema: "paperclip.runtime_request.v2", status: "pending", type: "input", requestKind: "runtime", requestId: "request", turnId: "turn", origin: { provider: "cursor", method: "cursor/create_plan", adapter: "acpx-runtime-sidecar" }, input } }),
-      event(2, "runtime_request.resolved", { requestId: "request", turnId: "turn", action: "submit", response: envelope.response }),
-      event(3, "turn.completed", { status: "completed", error: null }),
+      event(275, "runtime_request.created", { request: { schema: "paperclip.runtime_request.v2", status: "pending", type: "input", requestKind: "runtime", requestId: "request", turnId: "turn", itemId: "native-plan-tool", origin: { provider: "cursor", method: "cursor/create_plan", adapter: "acpx-runtime-sidecar" }, input } }),
+      event(294, "tool.execution.started", { schema: "paperclip.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "running", name: "arbitrary display name" }),
+      event(300, "runtime_request.resolved", { requestId: "request", turnId: "turn", action: "submit", response: envelope.response }),
+      event(303, "tool.execution.completed", { schema: "paperclip.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "completed" }),
+      event(304, "turn.completed", { status: "completed", error: null }),
     ],
     interactions: [{ interaction: i, delivery: d }],
   } as unknown as CursorPlanWaitFacts;
 }
 function editEvent(f: CursorPlanWaitFacts, index: number, edit: (e: any) => void) {
-  const row = f.events[index]!;
+  const row = f.events.filter(row => !row.eventType.startsWith("tool.execution."))[index]!;
   const e = (row.payload as any).prpEvent;
   edit(e); row.sourcePayloadSha256 = nativeSha256(e);
 }
@@ -40,18 +42,56 @@ function editEvent(f: CursorPlanWaitFacts, index: number, edit: (e: any) => void
 describe("accepted Cursor plan passive-wait authority", () => {
   it("records the accepted revision and explicitly unfinished Plan-mode continuation", () => {
     const value = nativeCursorPlanWaitFromFacts(fixture());
-    expect(value?.source).toMatchObject({ requestId: "request", planRevision: `plan-${"a".repeat(64)}`, terminalEventId: "instance:3" });
+    expect(value?.source).toMatchObject({ requestId: "request", planRevision: `plan-${"a".repeat(64)}`, terminalEventId: "instance:304", toolExecutionId: "native-plan-tool" });
     expect(value?.result).toMatchObject({ reportedWorkDisposition: "yielded", completionClaim: { objectiveSatisfied: false, remainingWork: [{ blocksCompletion: true }] }, continuation: { kind: "response_wake" } });
     expect(value?.result.summary).toContain("next message");
     const validated = validatePrpStructuredRunResult(value!.result);
     expect(validated.ok).toBe(true);
     if (validated.ok) expect(validated.result).toEqual(value!.result);
   });
+  it.each(["unrelated same-title tool", "cross turn", "cross session", "duplicate start", "duplicate completion", "missing start", "missing completion", "failed completion", "changed request tool", "uncommitted tool row"])("rejects correlated lifecycle corruption: %s", kind => {
+    const f = fixture();
+    const start = f.events.find(row => row.eventType === "tool.execution.started")!;
+    const end = f.events.find(row => row.eventType === "tool.execution.completed")!;
+    const event = (start.payload as any).prpEvent;
+    if (kind === "unrelated same-title tool") event.payload.executionId = "unrelated-tool";
+    if (kind === "cross turn") event.turnId = "other";
+    if (kind === "cross session") event.normalizedSessionId = "other";
+    if (kind === "duplicate start") f.events.splice(2, 0, structuredClone(start));
+    if (kind === "duplicate completion") f.events.splice(4, 0, structuredClone(end));
+    if (kind === "missing start") f.events = f.events.filter(row => row !== start);
+    if (kind === "missing completion") f.events = f.events.filter(row => row !== end);
+    if (kind === "failed completion") { (end.payload as any).prpEvent.payload.status = "failed"; end.sourcePayloadSha256 = nativeSha256((end.payload as any).prpEvent); }
+    if (kind === "changed request tool") editEvent(f, 0, e => { e.payload.request.itemId = "unrelated-tool"; });
+    start.sourcePayloadSha256 = kind === "uncommitted tool row" ? null : nativeSha256(event);
+    expect(nativeCursorPlanWaitFromFacts(f)).toBeNull();
+  });
+  it("rejects an additional same-title tool while the real plan tool remains correlated", () => {
+    const f = fixture();
+    const extra = structuredClone(f.events.find(row => row.eventType === "tool.execution.started")!);
+    extra.seq = 295; extra.sourceSeq = 295; extra.sourceEventId = "instance:295";
+    const e = (extra.payload as any).prpEvent;
+    Object.assign(e, { sourceSeq: 295, sourceEventId: extra.sourceEventId });
+    Object.assign(e.payload, { executionId: "unrelated", name: "Create Plan" });
+    extra.sourcePayloadSha256 = nativeSha256(e); f.events.splice(2, 0, extra);
+    expect(nativeCursorPlanWaitFromFacts(f)).toBeNull();
+  });
+  it("binds actual callback-before-tool-start order without trusting display names", () => {
+    const f = fixture(); const original = nativeCursorPlanWaitFromFacts(f)!;
+    expect(original.source.toolLifecycleSha256).toMatch(/^[a-f0-9]{64}$/);
+    const start = f.events.find(row => row.eventType === "tool.execution.started")!;
+    (start.payload as any).prpEvent.payload.name = "changed display text";
+    start.sourcePayloadSha256 = nativeSha256((start.payload as any).prpEvent);
+    const changed = nativeCursorPlanWaitFromFacts(f)!;
+    expect(changed).not.toBeNull();
+    expect(changed.source.authoritySha256).not.toBe(original.source.authoritySha256);
+    expect(changed.source.toolLifecycleSha256).not.toBe(original.source.toolLifecycleSha256);
+  });
   it("does not create a new wait from an earlier profile after the catalog advances", () => {
     const facts = fixture();
     expect(nativeCursorPlanWaitFromFacts(facts)).not.toBeNull();
     const current = resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]");
-    const resolver = vi.spyOn(runner, "resolveQualifiedAcpxProfile").mockReturnValue({ ...current, agentProfileVersion: 7, commandDigest: `sha256:${"b".repeat(64)}` });
+    const resolver = vi.spyOn(runner, "resolveQualifiedAcpxProfile").mockReturnValue({ ...current, agentProfileVersion: 8, commandDigest: `sha256:${"b".repeat(64)}` });
     try { expect(nativeCursorPlanWaitFromFacts(facts)).toBeNull(); }
     finally { resolver.mockRestore(); }
   });

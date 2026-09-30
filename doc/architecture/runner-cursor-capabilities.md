@@ -391,3 +391,29 @@ next-message guidance. Paid requalification of this controller behavior is still
 pending; the retained earlier Product failure is not reclassified as a pass.
 Runner, sidecar, provider distribution, profile, and image bytes are unchanged by
 this controller settlement change.
+
+
+### Cursor7 native plan lifecycle binding
+
+The retained ca702 Cursor6 local plan attempt delivered both native decisions,
+including the revised plan's acceptance, but failed controller settlement. The
+provider emitted the accepted `CreatePlan` tool's activity after the callback
+request had been created. The earlier proof treated that activity as unrelated
+work. Workspace snapshots remained unchanged; that failed attempt is preserved.
+
+Cursor7 binds the native callback's parent tool identity to the canonical
+`runtime_request` item identity through both the sidecar and direct driver. The
+controller requires exactly one successful lifecycle for that same tool, in the
+same session and turn, completing after the accepted answer and before the normal
+turn terminal. It rejects unrelated activity during this interval, failed or
+missing lifecycle records, and altered durable proof. Tool names and plan titles
+are not identity evidence. The committed receipt includes the correlated rows'
+digest. Existing exact Cursor6 committed waits retain their historical contract;
+Cursor6 cannot create a new wait or reopen under Cursor7 admission.
+
+Focused deterministic checks cover the actual observed event order, identity
+normalization boundaries, cancellation/expiry reconstruction, unrelated tools,
+and persisted historical waits and proof tampering. Cursor7 paid qualification
+and newly built runtime/sidecar/pack evidence remain pending. This changes the
+runtime projection and profile contract, while the pinned Cursor native
+executable and distribution patch stay unchanged.

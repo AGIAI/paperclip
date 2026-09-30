@@ -16,7 +16,7 @@ type Binding = { companyId: string; issueId: string; runId: string; agentId: str
 const record = (v: unknown): Record<string, any> => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, any> : {};
 const same = (a: unknown, b: unknown) => nativeSha256(a) === nativeSha256(b);
 const PREFIX = "cursor-plan-wait:";
-const EVENT_TYPES = ["runtime_request.created", "runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired", "turn.started", "turn.completed", "turn.failed", "turn.cancelled", "tool.execution.started", "tool.execution.completed"];
+const EVENT_TYPES = ["runtime_request.created", "runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired", "turn.started", "turn.completed", "turn.failed", "turn.cancelled", "tool.execution.started", "tool.execution.progressed", "tool.execution.completed"];
 const SUMMARY = "Plan accepted. This task is waiting for your next message. This run used Plan mode; no implementation or task completion is claimed.";
 
 export interface NativeCursorPlanWaitSource extends Binding {
@@ -34,6 +34,8 @@ export interface NativeCursorPlanWaitSource extends Binding {
   terminalEventId: string;
   deliveryId: string;
   authoritySha256: string;
+  toolExecutionId?: string;
+  toolLifecycleSha256?: string;
 }
 export interface CursorPlanWaitFacts {
   binding: Binding;
@@ -95,10 +97,29 @@ function cursorPlanWaitFromFacts(facts: CursorPlanWaitFacts, committedSource?: N
       const ends = turn.filter(e => ["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"].includes(e.eventType) && record(e.payload).requestId === id);
       if (ends.length !== 1 || ends[0]!.sourceSeq <= start.sourceSeq || ends[0]!.eventType !== "runtime_request.resolved") return null;
     }
-    if (turn.some(e => e.sourceSeq > created.sourceSeq && e.eventType === "tool.execution.started")) return null;
     const resolved = turn.find(e => e.eventType === "runtime_request.resolved" && record(e.payload).requestId === request.requestId)!;
     const resolution = record(resolved.payload);
     if (resolved.sourceSeq >= terminal.sourceSeq || resolution.action !== "submit" || resolution.turnId !== terminal.turnId) return null;
+    const historicalUnboundWait = committedSource !== undefined && committedSource.toolExecutionId === undefined && committedSource.toolLifecycleSha256 === undefined;
+    let toolBinding: { toolExecutionId: string; toolLifecycleSha256: string } | undefined;
+    if (historicalUnboundWait) {
+      if (profile.agentProfileVersion !== 6 || profile.commandDigest !== "sha256:377dcea64a727ce799cc112458d4b40ba4bc6574cd6c6f7233b6efd5917a6c4b") return null;
+      // Reconstruct only the previously committed contract; never create a new
+      // unbound wait or let a catalog upgrade authorize additional work.
+      if (turn.some(e => e.sourceSeq > created.sourceSeq && e.eventType === "tool.execution.started")) return null;
+    } else {
+      const id = request.itemId;
+      if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(id)) return null;
+      const tools = turn.filter(e => e.eventType.startsWith("tool.execution."));
+      const lifecycle = tools.filter(e => record(e.payload).executionId === id);
+      const starts = lifecycle.filter(e => e.eventType === "tool.execution.started");
+      const ends = lifecycle.filter(e => e.eventType === "tool.execution.completed");
+      if (starts.length !== 1 || ends.length !== 1 || starts[0]!.sourceSeq >= resolved.sourceSeq || ends[0]!.sourceSeq <= resolved.sourceSeq || ends[0]!.sourceSeq >= terminal.sourceSeq ||
+        lifecycle[0] !== starts[0] || lifecycle.at(-1) !== ends[0] ||
+        lifecycle.some(e => record(e.payload).schema !== "paperclip.tool.execution.v1" || record(e.payload).transport !== "builtin" || record(e.payload).operation !== "execute" || record(e.payload).status !== (e.eventType === "tool.execution.completed" ? "completed" : "running")) ||
+        tools.some(e => e.sourceSeq > created.sourceSeq && record(e.payload).executionId !== id)) return null;
+      toolBinding = { toolExecutionId: id, toolLifecycleSha256: nativeSha256(lifecycle) };
+    }
     const questionSet = parsePaperclipQuestionSet(request.input);
     const plan = questionSet.questions.filter(q => /^plan-[a-f0-9]{64}$/.test(q.id));
     if (plan.length !== 1 || plan[0]!.answerMode !== "single_select" || !plan[0]!.required || !same(plan[0]!.options?.map(o => o.id), ["accept", "reject", "cancel"])) return null;
@@ -116,7 +137,8 @@ function cursorPlanWaitFromFacts(facts: CursorPlanWaitFacts, committedSource?: N
       ...b, schema: "paperclip.native_cursor_plan_wait.v1", contractId: contract.id, contractSha256: contract.canonicalSha256, interactionId: i.id, requestId: request.requestId, planRevision: plan[0]!.id,
       turnId: terminal.turnId, normalizedSessionId: sessionId, sourceInstanceId: terminal.sourceInstanceId,
       requestEventId: created.sourceEventId, resolvedEventId: resolved.sourceEventId, terminalEventId: terminal.sourceEventId, deliveryId: d.id,
-      authoritySha256: nativeSha256({ admission, contract, created, resolved, terminal, interaction: i, delivery: d, resolvedAt: i.resolvedAt?.toISOString(), acknowledgedAt: d.acknowledgedAt.toISOString() }),
+      ...(toolBinding ?? {}),
+      authoritySha256: nativeSha256({ admission, contract, created, resolved, terminal, interaction: i, delivery: d, resolvedAt: i.resolvedAt?.toISOString(), acknowledgedAt: d.acknowledgedAt.toISOString(), ...(toolBinding ? { toolBinding } : {}) }),
     };
     if (committedSource && !same(source, committedSource)) return null;
     const ref = `interaction:${i.id}`;

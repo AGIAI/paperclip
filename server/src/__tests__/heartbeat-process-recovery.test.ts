@@ -13763,9 +13763,11 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     const port = new PaperclipControlPlanePort(db, { companyId: f.companyId, issueId: f.issueId, runId: f.runId, agentId: f.agentId,
       sessionId: f.runId, completionContractId: contractId, completionContractSha256: contractSha, sourceInstanceId: instance, controlPlaneSourceInstanceId: `control-${f.runId}` });
     const events = [
-      { eventType: "runtime_request.created", payload: { request: { schema: "paperclip.runtime_request.v2", requestKind: "runtime", requestId: "request", type: "input", status: "pending", turnId: "turn", prompt: "Review plan",
+      { eventType: "runtime_request.created", payload: { request: { schema: "paperclip.runtime_request.v2", requestKind: "runtime", requestId: "request", type: "input", status: "pending", turnId: "turn", itemId: "native-plan-tool", prompt: "Review plan",
         origin: { adapter: "acpx-runtime-sidecar", provider: "cursor", method: "cursor/create_plan" }, input: questionSet } } },
+      { eventType: "tool.execution.started", payload: { schema: "paperclip.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "running", readOnly: false, namespace: null, name: "Create Plan", target: null, inputUpdated: true, output: null, outputBytes: 0, outputTruncated: false, outputDigest: null, progress: null, exitCode: null, durationMs: null } },
       { eventType: "runtime_request.resolved", payload: { requestId: "request", turnId: "turn", action: "submit", response: answer.response } },
+      { eventType: "tool.execution.completed", payload: { schema: "paperclip.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "completed", readOnly: false, namespace: null, name: "Create Plan", target: null, inputUpdated: false, output: null, outputBytes: 0, outputTruncated: false, outputDigest: null, progress: null, exitCode: null, durationMs: null } },
       { eventType: "turn.completed", payload: { status: "completed", error: null } },
     ];
     for (const [index, event] of events.entries()) await port.appendEvent({ schema: "paperclip.prp.event.v1", sourceEventId: `${instance}:${index + 1}`, sourceSeq: index + 1,
@@ -13789,7 +13791,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(await db.select().from(issueComments).where(eq(issueComments.createdByRunId, f.runId))).toEqual([expect.objectContaining({ body: expect.stringContaining("next message") })]);
     const current = paperclipRunner.resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]");
     const resolver = vi.spyOn(paperclipRunner, "resolveQualifiedAcpxProfile").mockReturnValue({ ...current,
-      agentProfileVersion: 7, commandDigest: `sha256:${"b".repeat(64)}` });
+      agentProfileVersion: current.agentProfileVersion + 1, commandDigest: `sha256:${"b".repeat(64)}` });
     try {
       expect(await readNativeCursorPlanWait(db, f)).toBeNull(); // Old profile cannot create a new wait.
       for (const status of ["idle", "paused"] as const) {
@@ -13806,9 +13808,42 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(false);
       await db.update(heartbeatRuns).set({ runnerProfileJson: run!.runnerProfileJson }).where(eq(heartbeatRuns.id, f.runId));
       expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(true);
+      const [tool] = await db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.runId, f.runId), eq(heartbeatRunEvents.eventType, "tool.execution.completed")));
+      const changedTool = structuredClone(tool!.payload!) as { prpEvent: { payload: { name: string } } };
+      changedTool.prpEvent.payload.name = "mutated committed tool evidence";
+      await db.update(heartbeatRunEvents).set({ payload: changedTool, sourcePayloadSha256: nativeSha256(changedTool.prpEvent) }).where(eq(heartbeatRunEvents.id, tool!.id));
+      expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(false);
+      await db.update(heartbeatRunEvents).set({ payload: tool!.payload, sourcePayloadSha256: tool!.sourcePayloadSha256 }).where(eq(heartbeatRunEvents.id, tool!.id));
+      expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(true);
     } finally { resolver.mockRestore(); }
     expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(1);
     expect(mockAdapterExecute).not.toHaveBeenCalled(); expect(mockExecutePaperclipNativeSession).not.toHaveBeenCalled();
+  });
+
+  it("retains an exact historical Cursor6 committed wait without allowing new unbound admission", async () => {
+    const f = await seedAcceptedCursorPlanWait();
+    await finalizeNativeRun({ db, runId: f.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
+    const profile = structuredClone(run!.runnerProfileJson!) as any;
+    Object.assign(profile.nativeExecutionInput.provider.profile, { agentProfileVersion: 6, commandDigest: "sha256:377dcea64a727ce799cc112458d4b40ba4bc6574cd6c6f7233b6efd5917a6c4b" });
+    await db.update(heartbeatRuns).set({ runnerProfileJson: profile }).where(eq(heartbeatRuns.id, f.runId));
+    await db.delete(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.runId, f.runId), inArray(heartbeatRunEvents.eventType, ["tool.execution.started", "tool.execution.completed"])));
+    // Reconstruct the persisted Cursor6 receipt format using its unchanged
+    // source facts. This historical format had no tool lifecycle binding.
+    const rows = await db.select().from(heartbeatRunEvents).where(eq(heartbeatRunEvents.runId, f.runId));
+    const event = (kind: string) => (rows.find(r => r.eventType === kind)!.payload as any).prpEvent;
+    const [contract] = await db.select().from(completionContracts).where(eq(completionContracts.id, run!.completionContractId!));
+    const [interaction] = await db.select().from(issueThreadInteractions).where(eq(issueThreadInteractions.id, f.interactionId));
+    const [delivery] = await db.select().from(issueQuestionResponseDeliveries).where(eq(issueQuestionResponseDeliveries.id, f.deliveryId));
+    const legacy = { ...f.proof.source }; delete legacy.toolExecutionId; delete legacy.toolLifecycleSha256;
+    legacy.authoritySha256 = nativeSha256({ admission: profile.nativeExecutionInput, contract, created: event("runtime_request.created"), resolved: event("runtime_request.resolved"), terminal: event("turn.completed"), interaction, delivery, resolvedAt: interaction!.resolvedAt!.toISOString(), acknowledgedAt: delivery!.acknowledgedAt!.toISOString() });
+    const [decision] = await db.select().from(statusDecisions).where(eq(statusDecisions.runId, f.runId));
+    await db.update(statusDecisions).set({ decisionJson: { ...decision!.decisionJson, cursorPlanWait: legacy } }).where(eq(statusDecisions.id, decision!.id));
+    expect(await readNativeCursorPlanWait(db, f)).toBeNull();
+    expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(true);
+    profile.nativeExecutionInput.provider.profile.commandDigest = "tampered-history";
+    await db.update(heartbeatRuns).set({ runnerProfileJson: profile }).where(eq(heartbeatRuns.id, f.runId));
+    expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(false);
   });
 
   it("admits a later ordinary user message after an accepted Cursor plan without changing Plan mode or replaying its run", async () => {
