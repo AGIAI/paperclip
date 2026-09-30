@@ -108,14 +108,53 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
     f.events[1]!.payload.prpEvent.normalizedSessionId = "foreign";
     expect(() => copilotDenialSampleCursor(f.events, f.request)).toThrow(/cursor/);
   });
-  it("flow sends public Stop, awaits retirement, then reads the raced canonical terminal", async () => {
-    const f = fixture(), order: string[] = []; const held = f.events.splice(4, 1)[0];
-    const post = vi.fn(async (url: string) => { order.push(url); f.events.push(held); });
-    const settlement = await settleCopilotDeniedRun({ api: { post } as any, request: f.request,
-      awaitRetirement: async () => { order.push("retired-and-final-events-read"); return f; } });
-    expect(order).toEqual(["/api/heartbeat-runs/run/cancel", "retired-and-final-events-read"]);
-    expect(post).toHaveBeenCalledTimes(1); expect(settlement.branch).toBe("provider_completed_before_stop_settlement");
-    await expect(settleCopilotDeniedRun({ api: { post } as any, request: f.request,
-      awaitRetirement: async () => { throw new Error("remote descendants live"); } })).rejects.toThrow("remote descendants live");
+  it("waits for failed-edit persistence before Stop and terminal persistence before sampling", async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture("turn.cancelled"), order: string[] = []; let loads = 0;
+      const post = vi.fn(async (url: string) => { order.push(url); });
+      const load = async () => {
+        loads++;
+        // Native failed notice arrives first. Run cancellation and retirement
+        // also become visible before the durable canonical provider terminal.
+        const events = f.events.filter((_, i) => !(loads === 1 && i === 3) && !(loads < 4 && i === 4));
+        order.push(`load-${loads}`);
+        return { ...f, events, run: loads < 3 ? { ...f.run, status: "running" } : f.run, retired: loads >= 3 };
+      };
+      const afterDeniedEdit = vi.fn(async () => { order.push("sample-after-decision"); });
+      const afterSettlement = vi.fn(async () => { order.push("sample-terminal"); });
+      const result = settleCopilotDeniedRun({ api: { post } as any, request: f.request, deadlineAt: Date.now() + 2000,
+        load, afterDeniedEdit, afterSettlement });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(post).not.toHaveBeenCalled(); expect(afterDeniedEdit).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(200);
+      expect(post).toHaveBeenCalledTimes(1); expect(afterSettlement).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(200);
+      expect((await result).branch).toBe("provider_cancelled_or_interrupted");
+      expect(order).toEqual(["load-1", "load-2", "sample-after-decision", "/api/heartbeat-runs/run/cancel", "load-3", "load-4", "sample-terminal", "load-5"]);
+    } finally { vi.useRealTimers(); }
+  });
+  it.each(["missing-edit", "foreign-edit", "missing-terminal", "foreign-terminal", "live-process"])("fails closed on %s without premature side effects or terminal samples", async kind => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture(), post = vi.fn(async () => {}), sample = vi.fn(async () => {});
+      if (kind === "missing-edit") f.events.splice(3, 1);
+      if (kind === "foreign-edit") f.events[3]!.payload.prpEvent.normalizedSessionId = "foreign";
+      if (kind === "missing-terminal") f.events.splice(4, 1);
+      if (kind === "foreign-terminal") terminal(f).sourceInstanceId = "foreign";
+      const result = settleCopilotDeniedRun({ api: { post } as any, request: f.request, deadlineAt: Date.now() + 500,
+        load: async () => ({ ...f, retired: kind !== "live-process" }), afterDeniedEdit: async () => {}, afterSettlement: sample });
+      const rejected = expect(result).rejects.toThrow(/Timed out waiting/);
+      await vi.advanceTimersByTimeAsync(600); await rejected;
+      expect(post).toHaveBeenCalledTimes(kind.endsWith("edit") ? 0 : 1);
+      expect(sample).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+  it("retains completed-before-Stop settlement and propagates retirement sampling failure", async () => {
+    const f = fixture(), post = vi.fn(async () => {});
+    const input = { api: { post } as any, request: f.request, deadlineAt: Date.now() + 1000,
+      load: async () => ({ ...f, retired: true }), afterDeniedEdit: async () => {}, afterSettlement: async () => {} };
+    expect((await settleCopilotDeniedRun(input)).branch).toBe("provider_completed_before_stop_settlement");
+    await expect(settleCopilotDeniedRun({ ...input, afterSettlement: async () => { throw new Error("remote descendants live"); } })).rejects.toThrow("remote descendants live");
   });
 });
