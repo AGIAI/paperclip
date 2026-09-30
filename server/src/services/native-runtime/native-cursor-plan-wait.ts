@@ -10,6 +10,7 @@ import {
   type PrpStructuredRunResult,
 } from "../../vendor/paperclip-runner/index.js";
 import { buildQuestionResponseDeliveryEnvelope } from "../question-response-delivery.js";
+import { nativeCompletionContractSha256 } from "./completion-contracts.js";
 import { nativeSha256 } from "./canonical.js";
 
 type Binding = { companyId: string; issueId: string; runId: string; agentId: string };
@@ -43,7 +44,7 @@ export interface NativeCursorPlanWaitSource extends Binding {
 export interface CursorPlanWaitFacts {
   binding: Binding;
   run: Pick<typeof heartbeatRuns.$inferSelect, "id" | "companyId" | "agentId" | "nativeIssueId" | "runtimeMode" | "status" | "runnerProfileJson" | "runnerInstanceId" | "completionContractId" | "completionContractSha256">;
-  contract: Pick<typeof completionContracts.$inferSelect, "id" | "canonicalSha256" | "contractJson">;
+  contract: Pick<typeof completionContracts.$inferSelect, "id" | "canonicalSha256" | "contractJson" | "schemaVersion" | "policyVersion" | "risk" | "completionAuthority">;
   events: Array<Pick<typeof heartbeatRunEvents.$inferSelect, "companyId" | "agentId" | "runId" | "seq" | "eventType" | "payload" | "sourceInstanceId" | "sourceEventId" | "sourceSeq" | "sourcePayloadSha256" | "protocolSchemaVersion">>;
   interactions: Array<{ interaction: typeof issueThreadInteractions.$inferSelect; delivery: typeof issueQuestionResponseDeliveries.$inferSelect }>;
 }
@@ -71,7 +72,7 @@ function cursorPlanWaitFromFacts(facts: CursorPlanWaitFacts, committedSource?: N
     }
     if (run.id !== b.runId || run.companyId !== b.companyId || run.agentId !== b.agentId || run.nativeIssueId !== b.issueId || run.runtimeMode !== "native" || !["running", "succeeded"].includes(run.status) ||
       !Object.entries(b).every(([key, value]) => record(admission.binding)[key] === value) || provider.kind !== "acpx" || provider.agent !== "cursor" || provider.cursorMode !== "plan" || typeof provider.model !== "string" || !provider.model.trim() ||
-      record(admission.completionContract).id !== contract.id || record(admission.completionContract).sha256 !== contract.canonicalSha256 || nativeSha256(contract.contractJson) !== contract.canonicalSha256 || run.completionContractId !== contract.id || run.completionContractSha256 !== contract.canonicalSha256 || !same(contract.contractJson, record(admission.completionContract).contract)) return null;
+      record(admission.completionContract).id !== contract.id || record(admission.completionContract).sha256 !== contract.canonicalSha256 || nativeCompletionContractSha256(contract) !== contract.canonicalSha256 || run.completionContractId !== contract.id || run.completionContractSha256 !== contract.canonicalSha256 || !same(contract.contractJson, record(admission.completionContract).contract)) return null;
     const sessionId = record(admission.session).normalizedSessionId;
     if (typeof sessionId !== "string" || !sessionId || facts.events.length === 0 || facts.events.length > 1000) return null;
     const events: Array<Record<string, any>> = [];

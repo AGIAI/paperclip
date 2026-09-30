@@ -1,3 +1,4 @@
+import { ensureNativeCompletionContract } from "../services/native-runtime/completion-contracts.js";
 import { readNativeCursorPlanWait, hasCommittedNativeCursorPlanWait } from "../services/native-runtime/native-cursor-plan-wait.js";
 import { nativeSha256 } from "../services/native-runtime/canonical.js";
 import { buildQuestionResponseDeliveryEnvelope } from "../services/question-response-delivery.js";
@@ -13735,14 +13736,17 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
 
   async function seedAcceptedCursorPlanWait(semanticFinish = false, sourceSequenceOffset = 0) {
     const f = await seedStrandedIssueFixture({ status: "in_progress", runStatus: "succeeded", livenessState: "advanced" });
-    const contractId = randomUUID(), instance = randomUUID(), interactionId = randomUUID();
-    const contract = { revision: "1", objective: "Review the plan before further work", criteria: [{ id: "objective", requirement: "Explicit completion required" }] };
+    const instance = randomUUID(), interactionId = randomUUID();
+    const contractInput = { db, companyId: f.companyId,
+      issue: { id: f.issueId, title: "Review the plan before further work", description: "Explicit completion required" }, actorId: "test" };
+    const { row: persistedContract, contract } = await ensureNativeCompletionContract(contractInput);
+    const reused = await ensureNativeCompletionContract(contractInput);
+    expect(reused.row.id).toBe(persistedContract.id);
+    expect(reused.contract).toEqual(contract);
+    const contractId = persistedContract.id, contractSha = persistedContract.canonicalSha256;
+    // Production binds policy/schema as well as the body; a body-only hash is not a valid contract receipt.
+    expect(contractSha).not.toBe(nativeSha256(contract));
     const model = "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]";
-    const contractSha = nativeSha256(contract);
-    await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
-      revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "phase6-v7", risk: "low",
-      completionAuthority: "agent_claim_policy", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: contract,
-      canonicalSha256: contractSha, createdByActorType: "system", createdByActorId: "test" });
     await db.update(agents).set({ adapterType: "paperclip_runner", adapterConfig: { provider: "acpx", acpxAgent: "cursor", model, acpxSessionMode: "plan", acpxPermissionMode: "approve-all" } }).where(eq(agents.id, f.agentId));
     await db.update(agentWakeupRequests).set({ status: "completed" }).where(eq(agentWakeupRequests.id, f.wakeupRequestId));
     await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: f.issueId, nativeSessionId: f.runId,

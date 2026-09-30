@@ -2,12 +2,15 @@ import { describe, expect, it, vi } from "vitest";
 import * as runner from "../../vendor/paperclip-runner/index.js";
 import { resolveQualifiedAcpxProfile, validatePrpStructuredRunResult } from "../../vendor/paperclip-runner/index.js";
 import { buildQuestionResponseDeliveryEnvelope } from "../question-response-delivery.js";
+import { NATIVE_COMPLETION_CONTRACT_SCHEMA, NATIVE_COMPLETION_POLICY_VERSION } from "./completion-contracts.js";
 import { nativeSha256 } from "./canonical.js";
 import { nativeCursorPlanWaitFromFacts, type CursorPlanWaitFacts } from "./native-cursor-plan-wait.js";
 
 function fixture(): CursorPlanWaitFacts {
   const b = { companyId: "company", issueId: "issue", agentId: "agent", runId: "run" };
   const contract = { revision: "revision", criteria: [{ id: "criterion" }] };
+  const contractMetadata = { schemaVersion: NATIVE_COMPLETION_CONTRACT_SCHEMA, policyVersion: NATIVE_COMPLETION_POLICY_VERSION, risk: "low", completionAuthority: "agent_claim_policy" };
+  const contractSha = nativeSha256({ ...contractMetadata, contract });
   const planId = `plan-${"a".repeat(64)}`;
   const input = { schema: "paperclip.question_set.v1", title: "Plan", description: "Exact revised plan text", questions: [{ id: planId, prompt: "Proceed?", required: true, answerMode: "single_select", options: [{ id: "accept", label: "Accept" }, { id: "reject", label: "Reject" }, { id: "cancel", label: "Cancel" }] }] };
   const i = { id: "interaction", ...b, sourceRunId: b.runId, createdByAgentId: b.agentId, resolvedByUserId: "board", resolvedByAgentId: null, resolvedAt: new Date(0),
@@ -21,8 +24,8 @@ function fixture(): CursorPlanWaitFacts {
   };
   return {
     binding: b,
-    run: { id: b.runId, companyId: b.companyId, agentId: b.agentId, nativeIssueId: b.issueId, runtimeMode: "native", runnerInstanceId: "instance", status: "running", completionContractId: "contract", completionContractSha256: nativeSha256(contract), runnerProfileJson: { nativeExecutionInput: { binding: b, provider: { kind: "acpx", agent: "cursor", cursorMode: "plan", model: "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]", profile: resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]") }, session: { normalizedSessionId: "session" }, completionContract: { id: "contract", sha256: nativeSha256(contract), contract } } } },
-    contract: { id: "contract", canonicalSha256: nativeSha256(contract), contractJson: contract },
+    run: { id: b.runId, companyId: b.companyId, agentId: b.agentId, nativeIssueId: b.issueId, runtimeMode: "native", runnerInstanceId: "instance", status: "running", completionContractId: "contract", completionContractSha256: contractSha, runnerProfileJson: { nativeExecutionInput: { binding: b, provider: { kind: "acpx", agent: "cursor", cursorMode: "plan", model: "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]", profile: resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]") }, session: { normalizedSessionId: "session" }, completionContract: { id: "contract", sha256: contractSha, contract } } } },
+    contract: { id: "contract", ...contractMetadata, canonicalSha256: contractSha, contractJson: contract },
     events: [
       event(275, "runtime_request.created", { request: { schema: "paperclip.runtime_request.v2", status: "pending", type: "input", requestKind: "runtime", requestId: "request", turnId: "turn", itemId: "native-plan-tool", origin: { provider: "cursor", method: "cursor/create_plan", adapter: "acpx-runtime-sidecar" }, input } }),
       event(294, "tool.execution.started", { schema: "paperclip.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "running", name: "arbitrary display name" }),
@@ -110,6 +113,9 @@ describe("accepted Cursor plan passive-wait authority", () => {
     ["cancelled run", (f: CursorPlanWaitFacts) => { f.run.status = "cancelled"; }],
     ["Agent mode", (f: CursorPlanWaitFacts) => { (f.run.runnerProfileJson as any).nativeExecutionInput.provider.cursorMode = "agent"; }],
     ["stale profile", (f: CursorPlanWaitFacts) => { (f.run.runnerProfileJson as any).nativeExecutionInput.provider.profile = { ...resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]"), commandDigest: "old" }; }],
+    ["changed contract policy", (f: CursorPlanWaitFacts) => { f.contract.policyVersion = "tampered-policy"; }],
+    ["changed completion authority", (f: CursorPlanWaitFacts) => { f.contract.completionAuthority = "server_arbiter"; }],
+    ["changed contract hash", (f: CursorPlanWaitFacts) => { f.contract.canonicalSha256 = "f".repeat(64); }],
     ["changed contract", (f: CursorPlanWaitFacts) => { f.contract.contractJson.revision = "new"; }],
     ["unknown origin", (f: CursorPlanWaitFacts) => editEvent(f, 0, e => { e.payload.request.origin.provider = "acpx"; })],
     ["wrong method", (f: CursorPlanWaitFacts) => editEvent(f, 0, e => { e.payload.request.origin.method = "cursor/ask_question"; })],
