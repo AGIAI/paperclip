@@ -7,7 +7,7 @@ import { createTaskThroughUi } from "./user-actions.js";
 import { createDeniedTargetFixture, exists, observeRunProcesses } from "./copilot-local-fixtures.js";
 import { assertCopilotRemoteRetirement, copilotRemoteDeniedSample, prepareCopilotRemoteAction, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot } from "./copilot-protection-evidence.js";
 import { cursorDeniedCommand } from "./cursor-native-evidence.js";
-import { assertActiveStopRetirement, observeActiveStopPending, readActiveStopSettlement, type ActiveStopPending, type ActiveStopScope } from "./native-active-stop-evidence.js";
+import { assertActiveStopRetirement, readActiveStopCaller, observeActiveStopPending, readActiveStopSettlement, type ActiveStopCaller, type ActiveStopPending, type ActiveStopScope } from "./native-active-stop-evidence.js";
 import type { BootstrapReadProof } from "./native-bootstrap-read-proof.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
@@ -17,16 +17,16 @@ export interface ActiveStopState { run: Row; issue: Row; events: readonly unknow
 /** Retain a real pending API observation before the only mutating request.
  * Never answer first, wait for natural completion, or infer order from clocks. */
 export async function stopAtPendingPermission(input: {
-  scope: ActiveStopScope; bootstrap?: BootstrapReadProof; deadlineAt: number;
+  scope: ActiveStopScope; caller: ActiveStopCaller; bootstrap?: BootstrapReadProof; deadlineAt: number;
   load(): Promise<ActiveStopState>;
   retain(receipt: ActiveStopPending): Promise<void>;
   stop(runId: string, cancellationRequestId: string): Promise<Row>;
 }) {
   const cancellationRequestId = randomUUID();
   const state = await input.load();
-  const pending = observeActiveStopPending({ ...state, scope: input.scope, cancellationRequestId, bootstrap: input.bootstrap });
+  const pending = observeActiveStopPending({ ...state, scope: input.scope, caller: input.caller, cancellationRequestId, bootstrap: input.bootstrap });
   await input.retain(pending);
-  const fresh = observeActiveStopPending({ ...await input.load(), scope: input.scope, cancellationRequestId, bootstrap: input.bootstrap });
+  const fresh = observeActiveStopPending({ ...await input.load(), scope: input.scope, caller: input.caller, cancellationRequestId, bootstrap: input.bootstrap });
   if (fresh.requestRowSha256 !== pending.requestRowSha256 || fresh.permissionRowSha256 !== pending.permissionRowSha256 || Date.now() >= input.deadlineAt) throw new Error("Native active Stop pending boundary changed or expired");
   const dispatchMonotonicNs = process.hrtime.bigint().toString();
   const stopped = await input.stop(input.scope.runId, cancellationRequestId);
@@ -120,6 +120,7 @@ export async function runNativeActiveStopFlow(input: {
     ? `${execution.task.buildPrompt(nonce)}\nUse this exact native shell command once:\n${command!.command}`
     : `${execution.task.buildPrompt(nonce)}\nUse the native edit tool once to create exactly ${target} with content MUST_NOT_EXIST. Do not use a shell command.`;
   try {
+    const caller = readActiveStopCaller(await api.get("/api/health"), await api.get("/api/auth/get-session"));
     const agent = await api.get<Row>(`/api/agents/${fixtures.agent.id}`);
     const configured = await api.patch<Row>(`/api/agents/${fixtures.agent.id}`, { adapterConfig: { ...agent.adapterConfig, acpxPermissionMode: "approve-reads", ...(provider === "cursor" ? { acpxSessionMode: "agent" } : {}), timeoutSec: 120, lifecycleMode: "per_turn" } });
     check("explicit-per-turn-policy", configured.adapterConfig?.acpxPermissionMode === "approve-reads" && configured.adapterConfig?.lifecycleMode === "per_turn" && (provider !== "cursor" || configured.adapterConfig?.acpxSessionMode === "agent"), "Agent mode and per-turn restrictive permission policy selected before startup");
@@ -140,12 +141,12 @@ export async function runNativeActiveStopFlow(input: {
     const label = "unanswered native permission";
     await pollUntil({ label, deadlineAt: input.deadlineAt, intervalMs: 200, load: async () => {
       const state = await load(); if (["failed", "timed_out", "cancelled", "succeeded"].includes(state.run.status)) throw new Error(`Stopped waiting for ${label}: provider ended without pending callback`); return state;
-    }, accept: state => { observeActiveStopPending({ ...state, scope: scope(), cancellationRequestId: randomUUID(), bootstrap: bootstrap() }); return true; } });
+    }, accept: state => { observeActiveStopPending({ ...state, scope: scope(), caller, cancellationRequestId: randomUUID(), bootstrap: bootstrap() }); return true; } });
     await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
     const card = page.getByTestId("task-chat-runtime-request").filter({ visible: true });
     await expect(card).toHaveCount(1); await expect(card.getByRole("button", { name: "Deny", exact: true })).toBeEnabled();
     await input.capture("pending-permission", "Native permission left unanswered before Stop", "pending-permission.png"); await sample("pending");
-    completed = await stopAtPendingPermission({ scope: scope(), bootstrap: bootstrap(), deadlineAt: input.deadlineAt, load,
+    completed = await stopAtPendingPermission({ scope: scope(), caller, bootstrap: bootstrap(), deadlineAt: input.deadlineAt, load,
       retain: proof => input.evidence("native-active-stop-pending.json", proof), stop: (runId, cancellationRequestId) => api.post(`/api/heartbeat-runs/${runId}/cancel`, { cancellationRequestId }) });
     check("pending-callback-cancelled", true, "Unanswered native permission closed through a cancelled provider turn and the exact caller-owned Stop acknowledgement");
     await input.evidence("native-active-stop-settlement.json", completed);

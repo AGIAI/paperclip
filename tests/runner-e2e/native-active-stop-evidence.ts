@@ -6,11 +6,12 @@ import { readCursorToolEvidence } from "./cursor-native-evidence.js";
 import { bootstrapReadExecutionId, withoutProvenBootstrapReads, type BootstrapReadProof } from "./native-bootstrap-read-proof.js";
 
 type Row = Record<string, any>;
+export interface ActiveStopCaller { type: "board"; userId: "local-board"; source: "local_implicit" }
 export type ActiveStopProvider = "cursor" | "copilot";
 export interface ActiveStopScope { provider: ActiveStopProvider; companyId: string; issueId: string; runId: string; target: string; commandSha256?: string }
 export interface ActiveStopPending {
   schema: "paperclip.e2e.native-active-stop-pending.v1";
-  scope: ActiveStopScope; requestId: string; toolCallId: string; nativeSessionId: string; turnId: string;
+  caller: ActiveStopCaller; scope: ActiveStopScope; requestId: string; toolCallId: string; nativeSessionId: string; turnId: string;
   normalizedSessionId: string; sourceInstanceId: string; requestSourceSeq: number; permissionSourceSeq: number;
   requestRowSha256: string; permissionRowSha256: string; cancellationRequestId: string; observedMonotonicNs: string;
 }
@@ -19,6 +20,18 @@ const id = (v: unknown): v is string => typeof v === "string" && v.length > 0 &&
 const uuid = (v: unknown): v is string => typeof v === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u.test(v);
 const hash = (v: unknown) => `sha256:${createHash("sha256").update(canonicalJson(v)).digest("hex")}`;
 function fail(condition: unknown, reason: string): asserts condition { if (!condition) throw new Error(`Native active Stop: ${reason}`); }
+/** The isolated Product server uses local-trusted board authentication. Bind
+ * the same public session observed by the API client, never infer a null actor. */
+export function readActiveStopCaller(health: unknown, authentication: unknown): ActiveStopCaller {
+  const session = rec(rec(authentication).session);
+  fail(rec(health).deploymentMode === "local_trusted" && session.userId === "local-board"
+    && session.id === "paperclip:local_implicit:local-board", "expected isolated board caller missing");
+  return { type: "board", userId: "local-board", source: "local_implicit" };
+}
+function isActiveStopCaller(caller: unknown): caller is ActiveStopCaller {
+  const value = rec(caller);
+  return value.type === "board" && value.userId === "local-board" && value.source === "local_implicit";
+}
 function canonicalRows(events: readonly unknown[], scope: ActiveStopScope) {
   fail(events.length <= 20_000 && events.length > 0, "bounded durable evidence required");
   const rows = events.map(rec).filter(row => rec(row.payload).prpEvent !== undefined);
@@ -92,15 +105,15 @@ function origin(events: readonly unknown[], scope: ActiveStopScope, bootstrap?: 
     .every(x => rec(x.event.payload).status !== "completed"), "target operation completed");
   return { rows, notice, permission, created: created[0]!, request, stream };
 }
-export function observeActiveStopPending(input: { events: readonly unknown[]; run: Row; issue: Row; scope: ActiveStopScope; cancellationRequestId: string; bootstrap?: BootstrapReadProof }): ActiveStopPending {
+export function observeActiveStopPending(input: { events: readonly unknown[]; run: Row; issue: Row; scope: ActiveStopScope; caller: ActiveStopCaller; cancellationRequestId: string; bootstrap?: BootstrapReadProof }): ActiveStopPending {
   const { run, issue, scope } = input, proof = origin(input.events, scope, input.bootstrap);
-  fail(uuid(input.cancellationRequestId) && run.id === scope.runId && run.companyId === scope.companyId && run.nativeIssueId === scope.issueId
+  fail(isActiveStopCaller(input.caller) && uuid(input.cancellationRequestId) && run.id === scope.runId && run.companyId === scope.companyId && run.nativeIssueId === scope.issueId
     && run.status === "running" && run.runtimeMode === "native" && issue.id === scope.issueId && issue.companyId === scope.companyId && issue.status === "in_progress"
     && run.resultJson?.startupCancellation == null && run.resultJson?.nativeCancellation == null, "run is not fresh active work");
   fail(!(scope.provider === "cursor" ? readCursorToolEvidence(input.events, scope.runId) : readCopilotToolEvidence(input.events, scope.runId)).some(n => n.stage === "permission_delivered"), "permission already answered");
   fail(!proof.rows.some(x => terminals.has(x.event.eventType) || closures.has(x.event.eventType)), "request or provider already settled");
   fail(!proof.rows.some(x => x.event.eventType === "tool.execution.completed" && rec(x.event.payload).executionId === bootstrapReadExecutionId(proof.notice.toolCallId)), "operation already ended");
-  return { schema: "paperclip.e2e.native-active-stop-pending.v1", scope, requestId: proof.notice.requestId!, toolCallId: proof.notice.toolCallId,
+  return { schema: "paperclip.e2e.native-active-stop-pending.v1", scope, caller: input.caller, requestId: proof.notice.requestId!, toolCallId: proof.notice.toolCallId,
     nativeSessionId: proof.notice.sessionId, turnId: proof.notice.turnId, normalizedSessionId: proof.permission.event.normalizedSessionId,
     sourceInstanceId: proof.permission.event.sourceInstanceId, requestSourceSeq: proof.created.event.sourceSeq, permissionSourceSeq: proof.permission.event.sourceSeq,
     requestRowSha256: hash(proof.created.row), permissionRowSha256: hash(proof.permission.row), cancellationRequestId: input.cancellationRequestId,
@@ -108,7 +121,7 @@ export function observeActiveStopPending(input: { events: readonly unknown[]; ru
 }
 export function readActiveStopSettlement(input: { events: readonly unknown[]; run: Row; issue: Row; pending: ActiveStopPending; dispatchMonotonicNs: string; bootstrap?: BootstrapReadProof }) {
   const before = input.pending, { run, issue } = input;
-  fail(before?.schema === "paperclip.e2e.native-active-stop-pending.v1" && uuid(before.cancellationRequestId)
+  fail(before?.schema === "paperclip.e2e.native-active-stop-pending.v1" && isActiveStopCaller(before.caller) && uuid(before.cancellationRequestId)
     && /^[1-9][0-9]{0,29}$/u.test(before.observedMonotonicNs) && /^[1-9][0-9]{0,29}$/u.test(input.dispatchMonotonicNs)
     && BigInt(before.observedMonotonicNs) < BigInt(input.dispatchMonotonicNs), "pre-dispatch pending observation missing");
   const proof = origin(input.events, before.scope, input.bootstrap);
@@ -120,7 +133,7 @@ export function readActiveStopSettlement(input: { events: readonly unknown[]; ru
   const closed = proof.rows.filter(x => closures.has(x.event.eventType)), terminal = proof.rows.filter(x => terminals.has(x.event.eventType));
   fail(closed.length === 1 && terminal.length === 1, "one closed request and one terminal required");
   const c = closed[0]!, t = terminal[0]!, cp = rec(c.event.payload), tp = rec(t.event.payload);
-  fail(c.event.eventType === "runtime_request.cancelled" && cp.requestId === before.requestId && cp.turnId === before.turnId
+  fail(proof.stream(c.event) && proof.stream(t.event) && c.event.eventType === "runtime_request.cancelled" && cp.requestId === before.requestId && cp.turnId === before.turnId
     && cp.requestKind === "permission_approval" && cp.requestType === "permission" && cp.reason === "explicit_cancellation"
     && cp.provider === "acpx" && cp.itemId === proof.request.itemId && cp.replayAllowed === false && t.event.eventType === "turn.cancelled" && tp.status === "cancelled" && tp.provider === "acpx" && tp.providerTurnId === before.turnId && tp.error === null
     && c.event.sourceSeq > Math.max(before.requestSourceSeq, before.permissionSourceSeq) && t.event.sourceSeq > c.event.sourceSeq,
@@ -131,6 +144,7 @@ export function readActiveStopSettlement(input: { events: readonly unknown[]; ru
   const stop = rec(rec(run.resultJson).nativeCancellation), startup = rec(rec(run.resultJson).startupCancellation);
   fail(run.id === before.scope.runId && run.companyId === before.scope.companyId && run.nativeIssueId === before.scope.issueId && run.runtimeMode === "native" && run.status === "cancelled"
     && issue.id === before.scope.issueId && issue.companyId === before.scope.companyId && issue.status === "in_progress"
+    && rec(startup.requestedBy).type === before.caller.type && rec(startup.requestedBy).userId === before.caller.userId
     && startup.cancellationRequestId === before.cancellationRequestId && stop.intentId === `native-cancellation:${before.cancellationRequestId}`
     && stop.schema === "paperclip.native-cancellation.v1" && stop.companyId === before.scope.companyId && stop.runId === run.id && stop.issueId === issue.id
     && stop.scope === "run" && stop.dispatched === true && stop.dispatchState === "acknowledged" && stop.reasonCode === "cancellation_run_only"

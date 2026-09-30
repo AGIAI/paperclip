@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { assertActiveStopRetirement, observeActiveStopPending, readActiveStopSettlement, type ActiveStopProvider } from "./native-active-stop-evidence.js";
+import { assertActiveStopRetirement, readActiveStopCaller, observeActiveStopPending, readActiveStopSettlement, type ActiveStopProvider } from "./native-active-stop-evidence.js";
 import { stopAtPendingPermission } from "./native-active-stop-flow.js";
 import { runnerMatrix, runnerSuites, suiteDefinitionHash } from "./catalog.js";
 import { selectRunnerExecutions, parseRunnerSelectors } from "./selectors.js";
 
+const caller = readActiveStopCaller({ deploymentMode: "local_trusted" }, { session: { userId: "local-board", id: "paperclip:local_implicit:local-board" } });
 const cancellationRequestId = "11111111-2222-4333-8444-555555555555";
 type Row = Record<string, any>;
 function fixture(provider: ActiveStopProvider = "copilot") {
@@ -28,11 +29,11 @@ function fixture(provider: ActiveStopProvider = "copilot") {
   const run: Row = { id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", resultJson: {} };
   const issue = { id: "issue", companyId: "company", status: "in_progress" };
   const state = () => ({ events, run, issue });
-  const pending = () => observeActiveStopPending({ ...state(), scope, cancellationRequestId });
+  const pending = () => observeActiveStopPending({ ...state(), scope, caller, cancellationRequestId });
   const settle = (requestId = cancellationRequestId) => {
     events.push(row(5, "runtime_request.cancelled", { provider: "acpx", requestId: "request", turnId: "turn", requestKind: "permission_approval", requestType: "permission", itemId: "tool", reason: "explicit_cancellation", replayAllowed: false }),
       row(6, "turn.cancelled", { provider: "acpx", providerTurnId: "turn", status: "cancelled", error: null }));
-    run.status = "cancelled"; run.resultJson = { startupCancellation: { cancellationRequestId: requestId }, nativeCancellation: {
+    run.status = "cancelled"; run.resultJson = { startupCancellation: { cancellationRequestId: requestId, requestedBy: { type: "board", userId: "local-board" } }, nativeCancellation: {
       schema: "paperclip.native-cancellation.v1", intentId: `native-cancellation:${requestId}`, companyId: "company", runId: "run", issueId: "issue", scope: "run",
       dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentAuditId: "audit-intent", acknowledgementAuditId: "audit-ack",
     } };
@@ -61,9 +62,9 @@ describe("definitely active native permission Stop", () => {
       f.notice(3, "tool", { toolCallId: "bootstrap", operation: "read", status: "completed", readTargetSha256 }),
       f.row(4, "tool.execution.completed", { schema: "paperclip.tool.execution.v1", executionId: "bootstrap", transport: "builtin", status: "completed", operation: "read", target: actionFile }));
     const bootstrap = { actionFile, events: f.events };
-    expect(() => observeActiveStopPending({ ...f.state(), scope: f.scope, cancellationRequestId, bootstrap })).not.toThrow();
+    expect(() => observeActiveStopPending({ ...f.state(), scope: f.scope, caller, cancellationRequestId, bootstrap })).not.toThrow();
     payload(f.events[2]!).details.find((d: Row) => d.name === "readTargetSha256").value = `sha256:${"0".repeat(64)}`;
-    expect(() => observeActiveStopPending({ ...f.state(), scope: f.scope, cancellationRequestId, bootstrap })).toThrow(/bootstrap/);
+    expect(() => observeActiveStopPending({ ...f.state(), scope: f.scope, caller, cancellationRequestId, bootstrap })).toThrow(/bootstrap/);
   });
   it("does not compare remote wall clock or transaction timestamps to the operator clock", () => {
     const f = fixture(); for (const row of f.events) { frame(row).emittedAt = "2099-01-01T00:00:00Z"; row.createdAt = "1900-01-01T00:00:00Z"; }
@@ -97,6 +98,11 @@ describe("definitely active native permission Stop", () => {
     ["replay permitted", ({ f }: ReturnType<typeof settled>) => { payload(f.events[4]!).replayAllowed = true; }],
     ["tampered pending row", ({ f }: ReturnType<typeof settled>) => { payload(f.events[3]!).request.itemId = "changed"; }],
     ["missing pending receipt", (s: ReturnType<typeof settled>) => { s.pending.requestRowSha256 = ""; }],
+    ["missing caller", ({ f }: ReturnType<typeof settled>) => { delete f.run.resultJson.startupCancellation.requestedBy; }],
+    ["null caller", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.startupCancellation.requestedBy.userId = null; }],
+    ["foreign caller", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.startupCancellation.requestedBy.userId = "another-board-user"; }],
+    ["agent caller", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.startupCancellation.requestedBy.type = "agent"; }],
+    ["unbound caller receipt", (s: ReturnType<typeof settled>) => { (s.pending as Row).caller = null; }],
     ["foreign intent", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.nativeCancellation.intentId = "native-cancellation:other"; }],
     ["foreign ack scope", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.nativeCancellation.companyId = "other"; }],
     ["undispatched cancellation", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.nativeCancellation.dispatched = false; }],
@@ -107,6 +113,21 @@ describe("definitely active native permission Stop", () => {
     ["native session switched", ({ f }: ReturnType<typeof settled>) => { payload(f.events[0]!).provenance.sessionId = "other"; }],
     ["target operation completed", ({ f }: ReturnType<typeof settled>) => { f.events.push(f.row(7, "tool.execution.completed", { schema: "paperclip.tool.execution.v1", transport: "builtin", executionId: "tool", status: "completed" })); }],
   ] as const)("rejects %s", (_label, mutate) => { const s = settled(); mutate(s); expect(s.read).toThrow(); });
+  it.each(["closure", "terminal"] as const)("rejects missing/null envelope turn and foreign null-turn stream on %s", kind => {
+    for (const turn of [null, undefined]) for (const mismatch of ["none", "session", "source"]) {
+      const s = settled(), event = frame(s.f.events[kind === "closure" ? 4 : 5]!);
+      event.turnId = turn;
+      if (mismatch === "session") event.normalizedSessionId = "foreign-session";
+      if (mismatch === "source") { event.sourceInstanceId = "foreign-source"; event.sourceEventId = `foreign-source:run:${event.sourceSeq}`; }
+      expect(s.read).toThrow(/pending callback/);
+    }
+  });
+  it.each([
+    [{ deploymentMode: "authenticated" }, { session: { userId: "local-board", id: "paperclip:local_implicit:local-board" } }],
+    [{ deploymentMode: "local_trusted" }, { session: { userId: null, id: "paperclip:local_implicit:local-board" } }],
+    [{ deploymentMode: "local_trusted" }, { session: { userId: "another", id: "paperclip:local_implicit:another" } }],
+    [{ deploymentMode: "local_trusted" }, { session: { userId: "local-board", id: "paperclip:session:local-board" } }],
+  ])("rejects a non-fixture authentication context", (health, session) => expect(() => readActiveStopCaller(health, session)).toThrow());
   it("rejects a Stop dispatch not causally after the pending observation", () => {
     const { f, pending } = settled();
     expect(() => readActiveStopSettlement({ ...f.state(), pending, dispatchMonotonicNs: pending.observedMonotonicNs })).toThrow(/pre-dispatch/);
@@ -117,7 +138,7 @@ describe("active Stop flow wiring", () => {
   it("awaits retention and rechecks pending before issuing the single caller UUID request", async () => {
     const f = fixture(); const order: string[] = []; let retainedId = "";
     const stop = vi.fn(async (runId: string, id: string) => { expect(runId).toBe("run"); expect(id).toBe(retainedId); order.push("stop"); return f.settle(id); });
-    const result = await stopAtPendingPermission({ scope: f.scope, deadlineAt: Date.now() + 1000,
+    const result = await stopAtPendingPermission({ scope: f.scope, caller, deadlineAt: Date.now() + 1000,
       load: async () => { order.push("load"); return f.state(); },
       retain: async receipt => { order.push("retain-start"); await Promise.resolve(); retainedId = receipt.cancellationRequestId; order.push("retain-done"); }, stop });
     expect(order).toEqual(["load", "retain-start", "retain-done", "load", "stop", "load"]);
@@ -125,13 +146,13 @@ describe("active Stop flow wiring", () => {
   });
   it.each(["retention failed", "competing Stop", "answered after capture"])("never sends Stop when %s", async mode => {
     const f = fixture(), stop = vi.fn();
-    await expect(stopAtPendingPermission({ scope: f.scope, deadlineAt: Date.now() + 1000, load: async () => f.state(), stop,
+    await expect(stopAtPendingPermission({ scope: f.scope, caller, deadlineAt: Date.now() + 1000, load: async () => f.state(), stop,
       retain: async () => { if (mode === "retention failed") throw Error("disk failure"); if (mode === "competing Stop") f.run.resultJson.startupCancellation = { cancellationRequestId: "foreign" }; else f.events.push(f.row(5, "runtime_request.resolved", {})); },
     })).rejects.toThrow(); expect(stop).not.toHaveBeenCalled();
   });
   it("fails promptly on a definitive provider failure before calling a throwing evidence reader", async () => {
     const f = fixture(); const started = Date.now();
-    await expect(stopAtPendingPermission({ scope: f.scope, deadlineAt: started + 10000, load: async () => f.state(), retain: async () => {}, stop: async (_run, id) => {
+    await expect(stopAtPendingPermission({ scope: f.scope, caller, deadlineAt: started + 10000, load: async () => f.state(), retain: async () => {}, stop: async (_run, id) => {
       f.settle(id); f.run.status = "failed"; f.events.length = 0; return f.run;
     } })).rejects.toThrow(/Stopped waiting.*unexpected run terminal/);
     expect(Date.now() - started).toBeLessThan(500);
