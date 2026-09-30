@@ -41,6 +41,11 @@ import {
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { nativeSha256 } from "./canonical.js";
+import { agentDirectoryWorkingCopyService } from "../agent-directory-working-copies.js";
+import { probeAgentDirectory } from "../agent-directory-probe.js";
+import { AGENT_FILES_CONTRACT } from "../agent-file-store.js";
+import { captureDirectorySnapshot, directorySnapshotSha256, serializeDirectorySnapshot } from "@paperclipai/adapter-utils/workspace-restore-merge";
+import { agentInstructionWorkingCopies } from "@paperclipai/db";
 import * as noLaunchProofModule from "./native-maintenance-no-launch.js";
 import {
   NativeSessionCleanupQuarantinedError,
@@ -276,6 +281,7 @@ import {
   buildNativeHarnessBackupManifest,
   cancelNativeSession,
   closeWarmNativeSessionsForEnvironment,
+  claimWarmNativeInstructionCopy,
   closeIdleWarmNativeSessionsForRestart,
   createGovernedWaitEventObservation,
   createRemoteRunnerProcessLauncher,
@@ -5971,6 +5977,140 @@ describe("native session same-turn steering", () => {
 });
 
 describe("native warm session supervision", () => {
+  it.each(["idle", "edit", "add", "remove"])("retains the actual agent_files copy across warm turns, then retires for %s", async ending => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "warm-agent-files-")));
+    const localRoot = join(root, "run", "live");
+    await mkdir(localRoot, { recursive: true });
+    await writeFile(join(localRoot, "AGENTS.md"), "Keep the registered directory.\n");
+    const snapshot = await captureDirectorySnapshot(localRoot);
+    let row = { companyId: execution.binding.companyId, agentId: execution.binding.agentId,
+      runId: "warm-real-agent-files", localRoot, executionRoot: localRoot, location: "local",
+      entryFile: "AGENTS.md", state: "prepared", attempts: 0, processStoppedAt: null,
+      baseRevisionId: null, candidateBase64: null, candidateHash: null, errorCode: null, errorMessage: null, nextAttemptAt: null,
+      responsibleUserId: "test-user", createdAt: new Date(), updatedAt: new Date(),
+      baseHash: directorySnapshotSha256(snapshot), receipt: { schema: AGENT_FILES_CONTRACT, baseline: serializeDirectorySnapshot(snapshot), materializationIdentity: probeAgentDirectory(localRoot).identity },
+    } as typeof agentInstructionWorkingCopies.$inferSelect;
+    const copies = agentDirectoryWorkingCopyService({} as Db, async () => row,
+      async (_prior, values) => (row = { ...row, ...values } as typeof row));
+    const order: string[] = [];
+    const close = vi.fn(async () => { order.push("closed"); });
+    const collectStopped = async () => {
+      order.push("collected");
+      expect(close).toHaveBeenCalledOnce();
+      // The real DB service suite verifies changed-file persistence. Here the
+      // fake backend proves stop precedes granting its collection callback.
+      if (ending === "idle") await copies.collectStopped(row);
+    };
+    const identity = "warm-real-agent-files";
+    const warmExecution = { ...execution, binding: { ...execution.binding, runId: identity, executionWorkspaceId: `${identity}-workspace` },
+      session: { ...execution.session, normalizedSessionId: identity, lifecyclePolicy: { mode: "warm" as const, idleTimeoutMs: 60_000 } },
+    } as NativeExecutionInputV1;
+    const session = { close };
+    state.execute.mockReset().mockImplementation(async (options) => {
+      await options.onSession?.(session);
+      return { result: { summary: "completed" }, terminal: { runTerminalState: "succeeded" },
+        turnId: identity, normalizedSessionId: identity, providerSessionId: identity,
+        driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
+    });
+    try {
+      await executePaperclipNativeSession({ db: leaseDb(warmExecution), execution: warmExecution,
+        runnerInstanceId: identity, runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId: identity, remoteCwd: `/tmp/${identity}` },
+        instructionWorkingCopy: { runId: identity, preparationKey: "same-preparation", hasChanges: () => copies.hasChanges(row), collectStopped } });
+      expect(close).not.toHaveBeenCalled();
+      expect(order).toEqual([]);
+      expect(await readFile(join(localRoot, "AGENTS.md"), "utf8")).toContain("registered");
+      const second = { ...warmExecution, binding: { ...warmExecution.binding, runId: `${identity}-second` } };
+      const currentCopy = { runId: second.binding.runId, preparationKey: "same-preparation", hasChanges: () => copies.hasChanges(row), collectStopped };
+      const release = await claimWarmNativeInstructionCopy({ priorExecution: warmExecution,
+        companyId: warmExecution.binding.companyId, agentId: warmExecution.binding.agentId,
+        executionWorkspaceId: warmExecution.binding.executionWorkspaceId, cwd: warmExecution.workspace.cwd,
+        environmentId: identity, runId: second.binding.runId, preparationKey: "same-preparation",
+        adopt: async () => currentCopy });
+      expect(release).toBeTypeOf("function");
+      await executePaperclipNativeSession({ db: leaseDb(second), execution: second, runnerInstanceId: identity,
+        runnerExecutionTarget: { kind: "remote", transport: "sandbox", environmentId: identity, remoteCwd: `/tmp/${identity}` },
+        instructionWorkingCopy: currentCopy });
+      expect(state.execute.mock.calls.at(-1)?.[0].existingSession).toBe(session);
+      expect(close).not.toHaveBeenCalled();
+      expect(row.executionRoot).toBe(localRoot);
+      await release?.(); // Consumed preparation cannot retire the retained owner.
+      expect(close).not.toHaveBeenCalled();
+      if (ending === "idle") {
+        await closeWarmNativeSessionsForEnvironment({ environmentId: identity, reason: "idle retirement" });
+        await expect(access(localRoot)).rejects.toMatchObject({ code: "ENOENT" });
+      } else {
+        if (ending === "edit") await writeFile(join(localRoot, "AGENTS.md"), "Changed instructions");
+        if (ending === "add") await writeFile(join(localRoot, "memory.txt"), "New memory");
+        if (ending === "remove") await rm(join(localRoot, "AGENTS.md"));
+        const adopt = vi.fn(async () => currentCopy);
+        expect(await claimWarmNativeInstructionCopy({ priorExecution: second,
+          companyId: second.binding.companyId, agentId: second.binding.agentId,
+          executionWorkspaceId: second.binding.executionWorkspaceId, cwd: second.workspace.cwd,
+          environmentId: identity, runId: `${identity}-third`, preparationKey: "same-preparation", adopt })).toBeNull();
+        expect(adopt).not.toHaveBeenCalled();
+      }
+      expect(order).toEqual(["closed", "collected"]);
+    } finally {
+      await closeWarmNativeSessionsForEnvironment({ environmentId: identity, reason: "test cleanup" });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each(["final-config", "late-edit", "close-failure", "abandon", "concurrent", "foreign-company", "foreign-workspace"])("fences owned instruction preparation: %s", async scenario => {
+    const identity = `warm-copy-${scenario}`;
+    const order: string[] = [];
+    let allowClose = scenario !== "close-failure";
+    const session = { close: vi.fn(async () => { order.push("close"); if (!allowClose) throw new Error("retirement unconfirmed"); }) };
+    const retirementFailed = vi.fn(async () => {});
+    let lateEdit = false;
+    const copy = { runId: identity, preparationKey: "key", hasChanges: async () => lateEdit,
+      collectStopped: vi.fn(async () => { order.push("collect"); }), retirementFailed };
+    const first = { ...execution, binding: { ...execution.binding, runId: identity, executionWorkspaceId: `${identity}-workspace` },
+      session: { ...execution.session, normalizedSessionId: identity, lifecyclePolicy: { mode: "warm" as const, idleTimeoutMs: 60_000 } },
+    } as NativeExecutionInputV1;
+    const target = { kind: "remote" as const, transport: "sandbox" as const, environmentId: identity, remoteCwd: `/tmp/${identity}` };
+    state.execute.mockReset().mockImplementation(async options => {
+      await options.onSession?.(session);
+      return { result: { summary: "completed" }, terminal: { runTerminalState: "succeeded" },
+        turnId: identity, normalizedSessionId: identity, providerSessionId: identity,
+        driverKind: "test", driverVersion: "1", nativeEventCount: 1, highestContiguousSourceSeq: 1, usage: null };
+    });
+    const second = { ...first, binding: { ...first.binding, runId: `${identity}-second` } };
+    const current = { ...copy, runId: second.binding.runId };
+    const adopt = vi.fn(async () => current);
+    const claim = { priorExecution: first, companyId: first.binding.companyId, agentId: first.binding.agentId,
+      executionWorkspaceId: first.binding.executionWorkspaceId, cwd: first.workspace.cwd, environmentId: identity,
+      runId: second.binding.runId, preparationKey: "key", adopt };
+    try {
+      await executePaperclipNativeSession({ db: leaseDb(first), execution: first, runnerInstanceId: identity, runnerExecutionTarget: target, instructionWorkingCopy: copy });
+      if (scenario.startsWith("foreign")) {
+        expect(await claimWarmNativeInstructionCopy({ ...claim,
+          ...(scenario === "foreign-company" ? { companyId: "other" } : { executionWorkspaceId: "other" }) })).toBeNull();
+        expect(adopt).not.toHaveBeenCalled(); expect(session.close).not.toHaveBeenCalled();
+      } else {
+        const release = await claimWarmNativeInstructionCopy(claim);
+        if (scenario === "concurrent") await expect(claimWarmNativeInstructionCopy({ ...claim, runId: "competitor" })).rejects.toThrow("busy");
+        if (scenario === "final-config" || scenario === "late-edit") {
+          lateEdit = scenario === "late-edit";
+          const changed = scenario === "late-edit" ? second : { ...second, session: { ...second.session, lifecyclePolicy: { mode: "warm" as const, idleTimeoutMs: 99_000 } } };
+          await expect(executePaperclipNativeSession({ db: leaseDb(changed), execution: changed, runnerInstanceId: identity,
+            runnerExecutionTarget: target, instructionWorkingCopy: current })).rejects.toThrow(scenario === "late-edit"
+              ? "native_instruction_preparation_copy_changed" : "native_instruction_preparation_configuration_changed");
+          expect(state.execute).toHaveBeenCalledOnce();
+        }
+        if (scenario === "close-failure") {
+          await expect(release!()).rejects.toThrow("retirement unconfirmed");
+          expect(retirementFailed).toHaveBeenCalledOnce();
+          expect(copy.collectStopped).not.toHaveBeenCalled();
+          expect(order).toEqual(["close"]);
+        } else {
+          await release?.();
+          expect(order).toEqual(["close", "collect"]);
+        }
+      }
+    } finally { allowClose = true; await closeWarmNativeSessionsForEnvironment({ environmentId: identity, reason: "test cleanup" }); }
+  });
+
   it.each([
     { changed: false, closeFails: false },
     { changed: true, closeFails: false },

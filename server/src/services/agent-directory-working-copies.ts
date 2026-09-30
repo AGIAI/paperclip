@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { agents, environmentLeases, environments, agentInstructionWorkingCopies as copies, type Db } from "@paperclipai/db";
 import { syncDirectoryToSsh, restoreWorkspaceFromSshExecution } from "@paperclipai/adapter-utils/ssh";
 import { prepareAdapterExecutionTargetRuntime, runAdapterExecutionTargetShellCommand, type AdapterExecutionTarget, type PreparedAdapterExecutionTargetRuntime } from "@paperclipai/adapter-utils/execution-target";
@@ -13,6 +13,7 @@ import { HttpError, conflict, notFound } from "../errors.js";
 import type { AuthorizationActor } from "./authorization.js";
 import type { EnvironmentRuntimeService } from "./environment-runtime.js";
 import type { Environment, EnvironmentLease } from "@paperclipai/shared";
+import { agentDirectoryBaselineDigest, agentDirectoryProbeProgram, observeLocalAgentDirectory } from "./agent-directory-probe.js";
 import { hasRemoteTerminationReceipt } from "./remote-execution-termination.js";
 
 type Copy = typeof copies.$inferSelect;
@@ -50,21 +51,43 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
       workspaceBaseline: baseline(row), workspaceGitSnapshot: null, workspaceFileMode: "all",
       workspaceExclude: [".paperclip-runtime", ".paperclip-runtime/**"] });
   }
+  async function observe(row: Copy, target?: AdapterExecutionTarget | null) {
+    if (row.location === "local") {
+      const real = await fs.realpath(row.localRoot);
+      if (real !== row.localRoot && !(process.platform === "darwin" && real === `/private${row.localRoot}` && /^\/(tmp|var|etc)\//.test(row.localRoot))) throw new Error("Agent directory root changed");
+      // A bounded child keeps hashing off the controller event loop and inherits
+      // no provider credentials. execFile terminates it on timeout.
+      return observeLocalAgentDirectory(real);
+    }
+    if (!target || target.kind !== "remote" || row.location !== `remote:${target.environmentId ?? ""}`) throw new Error("Agent directory environment changed");
+    const origin = typeof row.receipt?.materializationRunId === "string" ? row.receipt.materializationRunId : row.runId;
+    if (row.executionRoot !== path.posix.join(target.remoteCwd, ".paperclip-runtime", "agent-files", row.agentId, origin)) throw new Error("Agent directory root changed");
+    const quote = (value: string) => `'${value.replaceAll("'", `'"'"'`)}'`;
+    const result = await runAdapterExecutionTargetShellCommand(row.runId, target,
+      `node -e ${quote(agentDirectoryProbeProgram)} ${quote(row.executionRoot)}`, { cwd: target.remoteCwd, env: {}, timeoutSec: 10 });
+    if (result.exitCode !== 0 || result.timedOut || result.stdout.length > 1024) throw new Error("Agent directory observation unavailable");
+    const value = JSON.parse(result.stdout);
+    if (!value || typeof value.digest !== "string" || !/^[a-f0-9]{64}$/.test(value.digest) || typeof value.identity !== "string") throw new Error("Invalid agent directory observation");
+    return value as { digest: string; identity: string };
+  }
   async function prepare(input: { companyId: string; agentId: string; runId: string; target?: AdapterExecutionTarget | null; cwd: string }) {
     const [agent] = await db.select().from(agents).where(and(eq(agents.id, input.agentId), eq(agents.companyId, input.companyId)));
     if (!agent) throw notFound("Agent not found");
     if (agentInstructionsBundleMode(agent) !== "managed") return null;
     const bound = await resolveInstructionActor(db, { type: "agent", companyId: input.companyId, agentId: input.agentId, runId: input.runId });
     const root = resolveManagedInstructionsRoot(agent);
-    const localRoot = path.join(path.dirname(root), "file-sync", "runs", input.runId, "live");
+    let row = await get(input.companyId, input.runId);
+    if (row?.receipt?.retainedByRunId) throw conflict("Agent directory ownership passed to another run");
+    const origin = typeof row?.receipt?.materializationRunId === "string" ? row.receipt.materializationRunId : input.runId;
+    if (!/^[a-zA-Z0-9_-]{1,128}$/.test(origin)) throw conflict("Invalid agent directory owner");
+    const localRoot = path.join(path.dirname(root), "file-sync", "runs", origin, "live");
     // Local copies live outside the task cwd. Remote copies use the reserved,
     // excluded runtime area inside the provider's confined workspace. They are
     // synchronized independently; provider HOME is never reinterpreted.
     const executionRoot = input.target?.kind === "remote"
-      ? path.posix.join(input.target.remoteCwd, ".paperclip-runtime", "agent-files", input.agentId, input.runId)
+      ? path.posix.join(input.target.remoteCwd, ".paperclip-runtime", "agent-files", input.agentId, origin)
       : localRoot;
     const location = input.target?.kind === "remote" ? `remote:${input.target.environmentId ?? ""}` : "local";
-    let row = await get(input.companyId, input.runId);
     if (row && (row.localRoot !== localRoot || row.executionRoot !== executionRoot || row.agentId !== input.agentId || row.location !== location)) throw conflict("Agent directory belongs to a different execution environment");
     if (row && !completed.has(row.state) && row.state !== "preparing") {
       if (input.target?.kind === "remote" && !transports.has(key(row))) transports.set(key(row), await transport(row, input.target, true));
@@ -74,7 +97,7 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
     // leaves a recoverable preparing receipt instead of an orphan directory.
     const preparing = { entryFile: deriveBundleState(agent).entryFile, baseRevisionId: null, baseHash: "preparing",
       localRoot, executionRoot, location, state: "preparing", candidateBase64: null, candidateHash: null,
-      receipt: { schema: AGENT_FILES_CONTRACT, ...(input.target?.kind === "remote"
+      receipt: { schema: AGENT_FILES_CONTRACT, workspaceCwd: input.cwd, materializationRunId: origin, ...(input.target?.kind === "remote"
         ? { cleanup: { leaseId: input.target.leaseId ?? null, remoteCwd: input.target.remoteCwd } } : {}) }, processStoppedAt: null, attempts: 0,
       nextAttemptAt: null, errorCode: null, errorMessage: null };
     if (row) row = await patch(row, preparing);
@@ -121,7 +144,9 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
         if (excluded.exitCode !== 0 || excluded.timedOut) throw new Error("Could not exclude agent files from task Git staging");
         transports.set(key(row), await transport(row, input.target, false));
       }
-      return await patch(row, { state: "prepared" });
+      const observed = await observe(row, input.target).catch(() => null);
+      return await patch(row, { state: "prepared", receipt: { ...row.receipt,
+        ...(observed?.digest === agentDirectoryBaselineDigest(snapshot) ? { materializationIdentity: observed.identity } : {}) } });
     } catch (error) {
       // Preparation failed before a provider could start using this copy.
       row = await patch(row, { state: "unavailable", processStoppedAt: new Date(), errorCode: "AGENT_FILES_PREPARE_FAILED",
@@ -143,16 +168,51 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
     }
     return inspectAgentDirectory(row.localRoot);
   }
-  async function hasChanges(_row: Copy, _target?: AdapterExecutionTarget | null) {
-    // A whole-directory collector needs a quiescent provider, including its
-    // child processes. Checkpoint and close at the turn boundary before reading
-    // either local or remote files. The provider conversation remains resumable;
-    // ordinary file edits do not change the session configuration digest.
-    return true;
+  async function hasChanges(row: Copy, target?: AdapterExecutionTarget | null) {
+    try {
+      if (row.receipt?.retainedByRunId || typeof row.receipt?.materializationIdentity !== "string") return true;
+      const observed = await observe(row, target);
+      if (observed.identity !== row.receipt.materializationIdentity || observed.digest !== agentDirectoryBaselineDigest(baseline(row))) return true;
+      const unchanged = await patch(row, { state: "unchanged_turn", nextAttemptAt: null });
+      return unchanged.state !== "unchanged_turn" || Boolean(unchanged.receipt?.retainedByRunId) || Boolean(unchanged.processStoppedAt);
+    } catch { return true; }
+  }
+  /** Rebind one physical materialization; earlier runs lose collection authority. */
+  async function adopt(input: { companyId: string; agentId: string; runId: string; previousRunId: string; target?: AdapterExecutionTarget | null; cwd: string }) {
+    let prior = await get(input.companyId, input.previousRunId);
+    if (!prior || prior.agentId !== input.agentId || prior.state !== "unchanged_turn" || prior.receipt?.retainedByRunId || prior.processStoppedAt
+      || prior.receipt?.workspaceCwd !== input.cwd || prior.location !== (input.target?.kind === "remote" ? `remote:${input.target.environmentId ?? ""}` : "local")) return null;
+    if (await hasChanges(prior, input.target)) return null;
+    prior = (await get(input.companyId, input.previousRunId))!;
+    const bound = await resolveInstructionActor(db, { type: "agent", companyId: input.companyId, agentId: input.agentId, runId: input.runId });
+    const adopted = await store.locked(input.companyId, input.agentId, bound, false, async (tx, _agent, canonical) => {
+      const current = await inspectAgentDirectory(canonical);
+      if (agentDirectoryBaselineDigest(current.snapshot) !== agentDirectoryBaselineDigest(baseline(prior))) return null;
+      const [claimed] = await tx.update(copies).set({ receipt: { ...prior.receipt, retainedByRunId: input.runId }, updatedAt: new Date() })
+        .where(and(eq(copies.companyId, input.companyId), eq(copies.runId, prior.runId), eq(copies.agentId, input.agentId), eq(copies.state, "unchanged_turn"),
+          eq(copies.updatedAt, prior.updatedAt), eq(copies.baseHash, prior.baseHash), eq(copies.localRoot, prior.localRoot),
+          isNull(copies.processStoppedAt), sql`${copies.receipt}->>'retainedByRunId' IS NULL`)).returning();
+      if (!claimed) throw conflict("Agent directory ownership changed");
+      const { createdAt: _createdAt, updatedAt: _updatedAt, ...values } = prior;
+      const [next] = await tx.insert(copies).values({ ...values, runId: input.runId, responsibleUserId: bound.onBehalfOfUserId!, state: "prepared",
+        receipt: { ...prior.receipt, materializationRunId: prior.receipt?.materializationRunId ?? prior.runId }, updatedAt: new Date(),
+      }).returning();
+      return next;
+    });
+    // Do not move the live transport until the database ownership commit succeeds.
+    if (adopted) {
+      const runtime = transports.get(key(prior));
+      if (runtime) { transports.delete(key(prior)); transports.set(key(adopted), runtime); }
+    }
+    return adopted;
   }
   async function collectStopped(row: Copy, target?: AdapterExecutionTarget | null) {
+    if (row.receipt?.retainedByRunId) return row;
     if (completed.has(row.state)) { await release(row); return (await get(row.companyId, row.runId))!; }
     row = await patch(row, { processStoppedAt: row.processStoppedAt ?? new Date() });
+    // Adoption may win between the initial read and the stop CAS. The returned
+    // current row is authoritative; a transferred alias cannot inspect or save.
+    if (row.receipt?.retainedByRunId || !row.processStoppedAt) return row;
     // The stopped working copy is the only temporary tree. Retry transient I/O
     // at this boundary, then clean it up; there are no preserved run snapshots.
     let inspected: Awaited<ReturnType<typeof retrieve>> | undefined;
@@ -188,6 +248,7 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
     return (await get(row.companyId, row.runId))!;
   }
   async function release(row: Copy, target?: AdapterExecutionTarget | null) {
+    if (row.receipt?.retainedByRunId || !row.processStoppedAt) return;
     // Collection and environment teardown can both release the same copy.
     // A compact successful cleanup receipt is final, even after restart.
     if (completed.has(row.state) && row.processStoppedAt && row.receipt?.cleanupPending === false) return;
@@ -197,7 +258,7 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
     await runtime?.cleanupWorkspaceSnapshot?.().catch(() => { cleanupPending = true; });
     const cleanupTarget = runtime?.target ?? target;
     if (row.processStoppedAt && completed.has(row.state) && cleanupTarget?.kind === "remote") {
-      const expected = path.posix.join(cleanupTarget.remoteCwd, ".paperclip-runtime", "agent-files", row.agentId, row.runId);
+      const expected = path.posix.join(cleanupTarget.remoteCwd, ".paperclip-runtime", "agent-files", row.agentId, typeof row.receipt?.materializationRunId === "string" ? row.receipt.materializationRunId : row.runId);
       if (row.executionRoot !== expected) throw new Error("Agent directory cleanup path changed");
       const quoted = `'${expected.replaceAll("'", `'"'"'`)}'`;
       const remoteCleanupFailed = await runAdapterExecutionTargetShellCommand(row.runId, cleanupTarget, `rm -rf -- ${quoted}`,
@@ -237,7 +298,7 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
     const [environment] = await db.select().from(environments).where(eq(environments.id, lease.environmentId));
     if (!environment) return false;
     const remoteCwd = cleanup?.remoteCwd ?? lease.metadata?.remoteCwd;
-    if (typeof remoteCwd !== "string" || row.executionRoot !== path.posix.join(remoteCwd, ".paperclip-runtime", "agent-files", row.agentId, row.runId)) return false;
+    if (typeof remoteCwd !== "string" || row.executionRoot !== path.posix.join(remoteCwd, ".paperclip-runtime", "agent-files", row.agentId, typeof row.receipt?.materializationRunId === "string" ? row.receipt.materializationRunId : row.runId)) return false;
     const result = await environmentRuntime.execute({ environment: environment as Environment, lease: lease as EnvironmentLease, command: "rm", args: ["-rf", "--", row.executionRoot],
       cwd: remoteCwd, env: {}, timeoutMs: 15_000, bypassSession: true });
     return result.exitCode === 0 && !result.timedOut;
@@ -251,7 +312,7 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
       return fn(current);
     });
   }
-  return { prepare, hasChanges,
+  return { prepare, hasChanges, adopt,
     collectStopped: (row: Copy, target?: AdapterExecutionTarget | null) => serial(row, current => collectStopped(current, target)),
     release: (row: Copy) => serial(row, release),
   };

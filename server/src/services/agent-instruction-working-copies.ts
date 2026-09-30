@@ -62,6 +62,7 @@ export function agentInstructionWorkingCopyService(db: Db, options: { environmen
   async function patch(row: Copy, values: Partial<typeof copies.$inferInsert>) {
     const [updated] = await db.update(copies).set({ ...values, updatedAt: new Date() }).where(and(
       scope(row.companyId, row.runId), eq(copies.state, row.state), eq(copies.attempts, row.attempts), eq(copies.baseHash, row.baseHash),
+      sql`${copies.receipt}->>'retainedByRunId' IS NOT DISTINCT FROM ${typeof row.receipt?.retainedByRunId === "string" ? row.receipt.retainedByRunId : null}`,
     )).returning();
     // A late cleanup must not overwrite an explicit resolution or a newer
     // baseline. Canonical content has its own independent head CAS.
@@ -294,8 +295,9 @@ export function agentInstructionWorkingCopyService(db: Db, options: { environmen
   async function recoverStopped() {
     const pending = await db.select({ copy: copies, runtimeMode: heartbeatRuns.runtimeMode }).from(copies)
       .innerJoin(heartbeatRuns, and(eq(heartbeatRuns.companyId, copies.companyId), eq(heartbeatRuns.id, copies.runId)))
-      .where(and(or(inArray(copies.state, ["prepared", "pending_collection"]),
+      .where(and(or(inArray(copies.state, ["prepared", "pending_collection", "unchanged_turn"]),
           and(eq(copies.state, "preparing"), sql`${copies.receipt}->>'schema' = 'paperclip.agent-files.v1'`)),
+        sql`NOT (coalesce(${copies.receipt}, '{}'::jsonb) ? 'retainedByRunId')`,
         inArray(heartbeatRuns.status, ["succeeded", "failed", "cancelled", "timed_out", "interrupted"]),
         lte(copies.attempts, MAX_COLLECTION_ATTEMPTS - 1))).limit(20);
     for (const { copy: row, runtimeMode } of pending) {
@@ -352,5 +354,19 @@ export function agentInstructionWorkingCopyService(db: Db, options: { environmen
   }
 
   async function release(companyId: string, runId: string) { liveTargets.delete(targetKey(companyId, runId)); const row = await get(companyId, runId); if (row && isAgentDirectoryCopy(row)) await directories.release(row); }
-  return { prepare, get, hasChanges, acknowledgeExplicitSave, collectStopped, recoverCaptured, recoverStopped, list, resolve, reportUnavailable, release };
+  async function reportRetirementUnconfirmed(companyId: string, runId: string) {
+    const row = await get(companyId, runId);
+    if (!row || !isAgentDirectoryCopy(row) || row.receipt?.retainedByRunId || row.processStoppedAt) return row;
+    return patch(row, { state: "pending_collection", errorCode: "INSTRUCTION_STOP_UNCONFIRMED",
+      errorMessage: "The retained provider did not confirm retirement. Its registered agent directory is preserved; no save is claimed.", nextAttemptAt: null });
+  }
+  async function adopt(input: Parameters<typeof directories.adopt>[0]) {
+    const row = await directories.adopt(input);
+    if (row) {
+      liveTargets.delete(targetKey(input.companyId, input.previousRunId));
+      if (input.target) liveTargets.set(targetKey(input.companyId, input.runId), input.target);
+    }
+    return row;
+  }
+  return { prepare, adopt, reportRetirementUnconfirmed, get, hasChanges, acknowledgeExplicitSave, collectStopped, recoverCaptured, recoverStopped, list, resolve, reportUnavailable, release };
 }

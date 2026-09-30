@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { agentFileStore, fileHash, inspectAgentFile, snapshotAgentFiles, MAX_AGENT_FILE_BYTES, MAX_AGENT_DIRECTORY_BYTES, MAX_AGENT_DIRECTORY_ENTRIES } from "../services/agent-file-store.js";
 import { agents, companies, authUsers, companyMemberships, principalPermissionGrants, heartbeatRuns, environmentLeases, environments, agentInstructionWorkingCopies, agentInstructionRevisions, agentInstructionHeads, createDb } from "@paperclipai/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
+import { agentDirectoryWorkingCopyService } from "../services/agent-directory-working-copies.js";
 import { agentInstructionRevisionService } from "../services/agent-instruction-revisions.js";
 import { agentInstructionWorkingCopyService, instructionWorkingCopyGuidance } from "../services/agent-instruction-working-copies.js";
 import { resolveManagedInstructionsRoot } from "../services/agent-instructions.js";
@@ -69,6 +70,161 @@ describe("persistent agent directories", () => {
     await db.insert(principalPermissionGrants).values({ companyId, principalType: "user", principalId: userId, permissionKey: "agents:configure", scope: { agentIds: [agentId] } });
     await fs.mkdir(path.dirname(path.join(root, entryFile)), { recursive: true });
     await fs.writeFile(path.join(root, entryFile), initial);
+  });
+
+  describe("warm directory ownership", () => {
+    async function nextRun() {
+      const runId = randomUUID();
+      await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", responsibleUserId: userId });
+      return runId;
+    }
+    it("adopts one physical root and fences stale cleanup through final save", async () => {
+      const first = await run();
+      expect(await copies.hasChanges({ companyId, runId: first.runId })).toBe(false);
+      const secondId = await nextRun();
+      const second = await copies.adopt({ companyId, agentId, runId: secondId, previousRunId: first.runId, cwd: home });
+      expect(second).toMatchObject({ runId: secondId, localRoot: first.localRoot, executionRoot: first.executionRoot,
+        responsibleUserId: userId, receipt: { materializationRunId: first.runId } });
+      expect((await copies.get(companyId, first.runId))?.receipt?.retainedByRunId).toBe(secondId);
+      await copies.release(companyId, first.runId);
+      expect((await copies.collectStopped({ companyId, runId: first.runId }))?.processStoppedAt).toBeNull();
+      await copies.reportUnavailable(companyId, first.runId);
+      expect(await fs.readFile(path.join(first.localRoot, entryFile), "utf8")).toBe(initial);
+      await copies.release(companyId, secondId);
+      expect(await copies.hasChanges({ companyId, runId: secondId })).toBe(false);
+      const thirdId = await nextRun();
+      const third = await copies.adopt({ companyId, agentId, runId: thirdId, previousRunId: secondId, cwd: home });
+      expect(third?.executionRoot).toBe(first.executionRoot);
+      await fs.writeFile(path.join(first.localRoot, "warm-memory.txt"), "third turn edit");
+      expect(await copies.hasChanges({ companyId, runId: thirdId })).toBe(true);
+      expect(await copies.collectStopped({ companyId, runId: thirdId })).toMatchObject({ state: "saved", receipt: { cleanupPending: false } });
+      expect(await fs.readFile(path.join(root, "warm-memory.txt"), "utf8")).toBe("third turn edit");
+      await expect(fs.stat(first.localRoot)).rejects.toMatchObject({ code: "ENOENT" });
+      await copies.release(companyId, first.runId);
+    });
+    it.each(["company", "agent", "workspace", "environment"])("rejects foreign %s adoption", async mismatch => {
+      const first = await run();
+      expect(await copies.hasChanges({ companyId, runId: first.runId })).toBe(false);
+      const secondId = await nextRun();
+      expect(await copies.adopt({ companyId: mismatch === "company" ? randomUUID() : companyId,
+        agentId: mismatch === "agent" ? randomUUID() : agentId, runId: secondId, previousRunId: first.runId,
+        cwd: mismatch === "workspace" ? `${home}-other` : home,
+        ...(mismatch === "environment" ? { target: { kind: "remote" as const, transport: "sandbox" as const, environmentId: randomUUID(), remoteCwd: "/workspace" } } : {}),
+      })).toBeNull();
+      expect((await copies.get(companyId, first.runId))?.receipt?.retainedByRunId).toBeUndefined();
+      await copies.collectStopped({ companyId, runId: first.runId });
+    });
+    it("allows only one stale concurrent adoption with identical updatedAt timestamps", async () => {
+      const fixed = new Date("2030-01-01T00:00:00.000Z");
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(fixed);
+      try {
+        const first = await run();
+        expect(await copies.hasChanges({ companyId, runId: first.runId })).toBe(false);
+        const next = await Promise.all([nextRun(), nextRun()]);
+        let reads = 0;
+        let releaseReads!: () => void;
+        const bothRead = new Promise<void>(resolve => { releaseReads = resolve; });
+        // Both claimants see the same unclaimed row before either can enter
+        // the agent-row transaction. Date precision cannot distinguish them.
+        const staleReader = async () => {
+          const captured = await copies.get(companyId, first.runId);
+          reads++;
+          if (reads >= 3) { if (reads === 4) releaseReads(); await bothRead; }
+          return captured;
+        };
+        const service = agentDirectoryWorkingCopyService(db, staleReader, async (row, values) => {
+          const [updated] = await db.update(agentInstructionWorkingCopies).set({ ...values, updatedAt: fixed })
+            .where(eq(agentInstructionWorkingCopies.runId, row.runId)).returning();
+          return updated;
+        });
+        const settled = await Promise.allSettled(next.map(runId => service.adopt({ companyId, agentId, runId, previousRunId: first.runId, cwd: home })));
+        const winners = settled.filter(result => result.status === "fulfilled" && result.value);
+        expect(winners).toHaveLength(1);
+        expect(settled.filter(result => result.status === "rejected")).toHaveLength(1);
+        const prior = await copies.get(companyId, first.runId);
+        expect(prior?.updatedAt).toEqual(fixed);
+        const winnerId = prior?.receipt?.retainedByRunId as string;
+        expect(next).toContain(winnerId);
+        expect(await copies.get(companyId, next.find(id => id !== winnerId)!)).toBeNull();
+        await copies.collectStopped({ companyId, runId: winnerId });
+      } finally { vi.useRealTimers(); }
+    });
+    it("fences a stale collector when adoption commits immediately before its stop CAS", async () => {
+      const first = await run();
+      expect(await copies.hasChanges({ companyId, runId: first.runId })).toBe(false);
+      const secondId = await nextRun();
+      const update = db.update.bind(db);
+      let injected = false;
+      const spy = vi.spyOn(db, "update").mockImplementation(table => {
+        const builder = update(table);
+        if (table !== agentInstructionWorkingCopies) return builder;
+        const set = builder.set.bind(builder);
+        builder.set = (values => {
+          const query = set(values);
+          if (!("processStoppedAt" in values) || !values.processStoppedAt || injected) return query;
+          const returning = query.returning.bind(query);
+          query.returning = (async () => {
+            injected = true;
+            expect(await copies.adopt({ companyId, agentId, runId: secondId, previousRunId: first.runId, cwd: home })).not.toBeNull();
+            return returning();
+          }) as typeof query.returning;
+          return query;
+        }) as typeof builder.set;
+        return builder;
+      });
+      try {
+        expect(await copies.collectStopped({ companyId, runId: first.runId })).toMatchObject({
+          receipt: { retainedByRunId: secondId }, processStoppedAt: null, attempts: 0,
+        });
+        expect(injected).toBe(true);
+        expect(await fs.readFile(path.join(first.localRoot, entryFile), "utf8")).toBe(initial);
+        expect((await copies.get(companyId, secondId))?.processStoppedAt).toBeNull();
+      } finally { spy.mockRestore(); }
+      await copies.collectStopped({ companyId, runId: secondId });
+    });
+    it("requires current-run authorization before transferring collection authority", async () => {
+      const first = await run();
+      expect(await copies.hasChanges({ companyId, runId: first.runId })).toBe(false);
+      const secondId = await nextRun();
+      await db.update(heartbeatRuns).set({ responsibleUserId: null }).where(eq(heartbeatRuns.id, secondId));
+      await expect(copies.adopt({ companyId, agentId, runId: secondId, previousRunId: first.runId, cwd: home })).rejects.toMatchObject({ status: 403 });
+      expect((await copies.get(companyId, first.runId))?.receipt?.retainedByRunId).toBeUndefined();
+      await copies.collectStopped({ companyId, runId: first.runId });
+    });
+    it("durably preserves an adopted directory after retirement failure", async () => {
+      const first = await run();
+      expect(await copies.hasChanges({ companyId, runId: first.runId })).toBe(false);
+      const secondId = await nextRun();
+      await copies.adopt({ companyId, agentId, runId: secondId, previousRunId: first.runId, cwd: home });
+      await db.update(heartbeatRuns).set({ status: "failed", runtimeMode: "native" }).where(eq(heartbeatRuns.id, secondId));
+      expect(await copies.reportRetirementUnconfirmed(companyId, secondId)).toMatchObject({
+        state: "pending_collection", errorCode: "INSTRUCTION_STOP_UNCONFIRMED", processStoppedAt: null,
+      });
+      await copies.reportRetirementUnconfirmed(companyId, first.runId);
+      await copies.release(companyId, first.runId);
+      await copies.release(companyId, secondId);
+      await copies.recoverStopped(); // A terminal run with no stop receipt grants no collection authority.
+      expect((await copies.get(companyId, secondId))?.processStoppedAt).toBeNull();
+      expect(await fs.readFile(path.join(first.localRoot, entryFile), "utf8")).toBe(initial);
+      await copies.collectStopped({ companyId, runId: secondId }); // Explicit test owner retirement.
+    });
+    it("declines reuse after canonical instruction changes", async () => {
+      const first = await run();
+      expect(await copies.hasChanges({ companyId, runId: first.runId })).toBe(false);
+      await fs.writeFile(path.join(root, entryFile), "Changed canonical instructions");
+      const secondId = await nextRun();
+      expect(await copies.adopt({ companyId, agentId, runId: secondId, previousRunId: first.runId, cwd: home })).toBeNull();
+      await copies.collectStopped({ companyId, runId: first.runId });
+    });
+    it("requires stop for matching bytes at a replaced materialized root", async () => {
+      const first = await run();
+      const replaced = `${first.localRoot}-old`;
+      await fs.rename(first.localRoot, replaced);
+      await fs.cp(replaced, first.localRoot, { recursive: true });
+      expect(await copies.hasChanges({ companyId, runId: first.runId })).toBe(true);
+      await copies.collectStopped({ companyId, runId: first.runId });
+    });
   });
 
   it.each([".paperclip-runtime/state", "notes/.paperclip-runtime/state", "promptTemplate.legacy.md"])("rejects reserved board path %s before mutation", async (reserved) => {
