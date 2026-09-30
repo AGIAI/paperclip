@@ -1092,9 +1092,18 @@ alive to stop the embedded database after the replacement starts. On Unix, the
 server has its own process group so Playwright's wrapper-group shutdown cannot
 signal it independently. Signal handling, restart cleanup, and final cleanup
 share one stop operation per server: one graceful signal, a 30-second wait, then
-SIGKILL to the owned server group and a 5-second exit wait if needed. Windows
-retains direct-child signaling. This prevents a second graceful signal from
-interrupting asynchronous warm-session retirement.
+SIGKILL to revalidated owned groups and a 5-second exit wait if needed. The
+wrapper retains observed descendants across an early server exit and checks
+PID/start identity before group signals. A failed cleanup can resume its saved
+phase without another graceful signal. Windows retains direct-child signaling.
+This prevents a second graceful signal from interrupting asynchronous warm-session
+retirement.
+
+Launcher cancellation first signals its outer group, so Playwright and the wrapper
+own graceful server shutdown. It allows 45 seconds for that chain before bounded
+5-second forced cleanup of revalidated descendants. Normal launcher exit uses the
+same retained descendant inventory. Zombies count as stopped; an unavailable or
+uncertain identity inspection fails cleanup instead of granting signal authority.
 
 Everyday restart and Stop scenarios exempt only their recorded cancellation,
 graceful-shutdown interruption, or process-loss outcome. A later adapter error

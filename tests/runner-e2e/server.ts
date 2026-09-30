@@ -106,7 +106,7 @@ function describeChildExit(candidate: ChildProcess) {
   return `server exited code=${String(candidate.exitCode)} signal=${String(candidate.signalCode)}`;
 }
 
-function startServer() {
+async function startServer() {
   if (shutdownRequested()) {
     throw new Error("Refusing to start Paperclip after wrapper shutdown");
   }
@@ -155,6 +155,7 @@ function startServer() {
     // The main/error path awaits this same promise and reports any failure.
     void stopServer(candidate, shutdownSignal).catch(() => {});
   }
+  await stopServer.watch(candidate);
   return candidate;
 }
 
@@ -280,7 +281,7 @@ async function restartServer(requestId: string) {
   }
 
   appendLog(`Restart request ${requestId}: starting Paperclip\n`);
-  const replacement = startServer();
+  const replacement = await startServer();
   await waitForHealth(replacement);
   if (shutdownRequested()) {
     throw new Error("Wrapper shutdown interrupted the Paperclip restart");
@@ -313,7 +314,7 @@ async function supervise() {
   });
   // Postgres needs the socket itself; release immediately before child spawn.
   await databaseReservation?.close();
-  startServer();
+  await startServer();
   let lastRestartRequestId: string | null = null;
   while (!shutdownRequested()) {
     if (unexpectedChildFailure) throw unexpectedChildFailure;
