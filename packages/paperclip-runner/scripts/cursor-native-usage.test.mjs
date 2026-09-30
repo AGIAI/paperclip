@@ -116,3 +116,16 @@ test("maximum bounded ACPX identities and envelope fit the final stored object",
   assert.ok(Buffer.byteLength(JSON.stringify(stored)) <= 16384);
   assert.ok(Buffer.byteLength(JSON.stringify(stored)) - Buffer.byteLength(JSON.stringify(receipt)) <= 640);
 });
+
+
+test("missing, invalid and reused child run ordinals are explicitly partial", () => {
+  for (const runs of [undefined, null, 0, -1, 1.5, "1", NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, 2]) {
+    const usage = createCursorNativeUsage(id);
+    const parent = usage.beginParent(); parent.observe(event({ inputTokens: 1 }));
+    usage.observeChild({ runs, terminal: false }, event({ inputTokens: 999 }));
+    const receipt = usage.finish();
+    assert.equal(receipt.completeness, "partial");
+    assert.equal(receipt.observations.length, 1);
+    assert.ok(receipt.reasons.includes("child_run_attribution_unverified"));
+  }
+});

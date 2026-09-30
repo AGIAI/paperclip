@@ -1,20 +1,25 @@
 # Rich ACP integration and qualification report
 
-Current source checkpoint (2026-09-30): **Cursor v8, Copilot v8 and Pi v10
+Current source checkpoint (2026-09-30): **Cursor v9, Copilot v8 and Pi v10
 remain unqualified**. All three declarations bind shared ACPX patch SHA-256
 `bd5393058a218040d217fa85449d59a6f30507de54cd645bf0ef21422823f85e`.
-Cursor additionally binds newly materialized `paperclip-cursor-usage-v3` closures;
+Cursor additionally binds newly materialized `paperclip-cursor-usage-v4` closures;
 Copilot and Pi native distribution bytes are unchanged. The new identities reject
-retained 7/7/9 sessions. Claude, Codex and Grok profile declarations stay unchanged.
+retained 7/7/9 sessions, plus Cursor v8 sessions. Claude, Codex and Grok profile declarations stay unchanged.
 The metadata is observation-only: native counters always remain partial, absent
 fields stay absent, and no token totals or dollar costs are inferred. A supported
 schema does not prove native counter aggregation semantics. No new paid pass,
 build, publication or production qualification is claimed for these identities.
-The external eval definitions still pin 7/7/9 and need a separate reviewed update.
+External eval definitions for 8/8/10 merged in [#35](https://github.com/paperclipai/paperclip-evals/pull/35)
+as `25303cf84953985b961b95f89aff0bdb864b2d65`, from head
+`b4ef1aa1296f8897714325d189e5a6f51dad9e01`: 136 deterministic tests,
+21 validated cells, passing CI and Apex 5/5. Models, pricing and graders are
+unchanged; this adds no paid proof. Those definitions remain the historical
+Cursor v8 checkpoint and require a separate reviewed Cursor v9 update.
 
 | Source candidate | Remaining production gate |
 | --- | --- |
-| Cursor v8 | Qualify the exact new runtime locally and on Daytona; resolve native counter semantics and verified exact-model pricing before treating observations as accounting. Native input, permissions, recovery, isolation and warm continuity remain required. |
+| Cursor v9 | Qualify the exact new runtime locally and on Daytona; resolve native counter semantics and verified exact-model pricing before treating observations as accounting. Native input, permissions, recovery, isolation and warm continuity remain required. |
 | Copilot v8 | Admit fresh exact-runtime packs/images and qualify the required local/Daytona cases. Prior v7 passes remain case-specific historical proof. Native external-tool/sampling/limits callbacks must not leave unresolved admitted requests. |
 | Pi v10 | Retain the enforced spending-bound requirement, then qualify the exact runtime locally and on Daytona. The optional transport-budget candidate remains unintegrated. |
 

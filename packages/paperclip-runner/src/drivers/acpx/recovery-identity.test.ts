@@ -28,9 +28,10 @@ afterEach(async () => {
 describe("ACPX recovery identity", () => {
   it.each([
     ["cursor", "../../../test/fixtures/cursor-acp/profile-v7-identity.json"],
+    ["cursor", "../../../test/fixtures/cursor-acp/profile-v8-identity.json"],
     ["copilot", "../../../test/fixtures/copilot-profile-v7-identity.json"],
     ["pi", "../../../test-fixtures/pi-acp/profile-v9-identity.json"],
-  ] as const)("rejects retained %s sessions after the shared patch identity changes", async (agent, path) => {
+  ] as const)("rejects retained %s sessions after the execution identity changes", async (agent, path) => {
     const fixture = await recoveryFixture();
     const historical = JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
     const current = resolveQualifiedAcpxProfile(agent, agent === "pi" ? "openrouter/deepseek/deepseek-v4-flash-0731" : fixture.input.requestedModel);
