@@ -540,13 +540,13 @@ describe("persistent agent directories", () => {
     expect(execute).toHaveBeenCalledTimes(2);
   });
 
-  it.each([false, true])("recovers a retained remote unchanged turn only with exact stop proof: %s", async stopped => {
+  it.each(["missing", "stopped", "destroyed"])("recovers a retained remote unchanged turn only with exact stop proof: %s", async stopped => {
     const copy = await run();
     const environmentId = randomUUID(), leaseId = randomUUID(), remoteCwd = "/fixture/task";
     const lease = { id: leaseId, companyId, environmentId, heartbeatRunId: copy.runId, provider: "daytona", providerLeaseId: "retained-sandbox" };
     await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "sandbox" });
     await db.insert(environmentLeases).values({ ...lease, status: "released", releasedAt: new Date(), cleanupStatus: "success",
-      metadata: stopped ? { remoteExecutionTermination: remoteTerminationReceipt(lease, { providerLeaseId: lease.providerLeaseId, state: "destroyed" }) } : {} });
+      metadata: stopped !== "missing" ? { remoteExecutionTermination: remoteTerminationReceipt(lease, { providerLeaseId: lease.providerLeaseId, state: stopped }) } : {} });
     await db.update(heartbeatRuns).set({ status: "succeeded", runtimeMode: "native" }).where(eq(heartbeatRuns.id, copy.runId));
     await db.update(agentInstructionWorkingCopies).set({ state: "unchanged_turn", location: `remote:${environmentId}`,
       executionRoot: path.posix.join(remoteCwd, ".paperclip-runtime", "agent-files", agentId, copy.runId),
@@ -556,17 +556,42 @@ describe("persistent agent directories", () => {
     expect((await copies.reportUnavailable(companyId, copy.runId))?.state).toBe("unchanged_turn");
     await copies.recoverStopped();
     const recovered = (await copies.get(companyId, copy.runId))!;
-    if (stopped) {
+    if (stopped === "destroyed") {
       expect(recovered).toMatchObject({ state: "unavailable", errorCode: "INSTRUCTION_COLLECTION_UNAVAILABLE", receipt: { cleanupPending: false } });
       expect(recovered.processStoppedAt).toBeInstanceOf(Date);
       await expect(fs.stat(copy.localRoot)).rejects.toMatchObject({ code: "ENOENT" });
       await copies.recoverStopped();
       expect((await copies.get(companyId, copy.runId))?.updatedAt).toEqual(recovered.updatedAt);
     } else {
-      expect(recovered).toMatchObject({ state: "unchanged_turn", processStoppedAt: null });
+      expect(recovered).toMatchObject({ state: stopped === "stopped" ? "pending_collection" : "unchanged_turn", processStoppedAt: null });
+      if (stopped === "stopped") {
+        expect(recovered.errorCode).toBe("INSTRUCTION_STOPPED_REMOTE_COLLECTION_PENDING");
+        expect(recovered.receipt?.baseline).toBeDefined();
+        await copies.release(companyId, copy.runId);
+        await copies.recoverCaptured();
+      }
       expect(await fs.readFile(path.join(copy.localRoot, entryFile), "utf8")).toBe(initial);
     }
     expect(execute).not.toHaveBeenCalled(); // Never restart a remote provider to recover bytes.
+  });
+
+  it.each([0, 2])("preserves a legacy no-ID remote copy with %s matching leases", async count => {
+    const copy = await run();
+    const environmentId = randomUUID(), remoteCwd = "/fixture/task";
+    await db.insert(environments).values({ id: environmentId, name: `Legacy remote ${environmentId}`, driver: "sandbox" });
+    for (let index = 0; index < count; index++) await db.insert(environmentLeases).values({
+      companyId, environmentId, heartbeatRunId: copy.runId, provider: "daytona", providerLeaseId: `allocation-${index}` });
+    await db.update(agentInstructionWorkingCopies).set({ location: `remote:${environmentId}`,
+      executionRoot: path.posix.join(remoteCwd, ".paperclip-runtime", "agent-files", agentId, copy.runId),
+      receipt: { ...copy.receipt, cleanup: { remoteCwd } } }).where(eq(agentInstructionWorkingCopies.runId, copy.runId));
+    const execute = vi.fn();
+    copies = agentInstructionWorkingCopyService(db, { environmentRuntime: { execute } as unknown as EnvironmentRuntimeService });
+    const pending = await copies.collectStopped({ companyId, runId: copy.runId });
+    expect(pending).toMatchObject({ state: "pending_collection", attempts: 0, processStoppedAt: null, errorCode: "INSTRUCTION_REMOTE_LEASE_UNVERIFIED" });
+    expect(pending!.receipt?.baseline).toBeDefined();
+    await copies.release(companyId, copy.runId);
+    expect(await fs.readFile(path.join(copy.localRoot, entryFile), "utf8")).toBe(initial);
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it("finishes remote cleanup from a destruction receipt after the environment is deleted", async () => {
@@ -650,10 +675,14 @@ describe("persistent agent directories", () => {
         }
       },
     };
-    const executionTarget = { kind: "remote" as const, transport: "sandbox" as const, environmentId: randomUUID(), remoteCwd, runner };
+    const executionTarget = { kind: "remote" as const, transport: "sandbox" as const, environmentId: randomUUID(), leaseId: "", remoteCwd, runner };
+    await db.insert(environments).values({ id: executionTarget.environmentId, name: "Fixture sandbox", driver: "sandbox" });
     const prepare = async () => {
       const runId = randomUUID();
       await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", responsibleUserId: userId });
+      executionTarget.leaseId = randomUUID();
+      await db.insert(environmentLeases).values({ id: executionTarget.leaseId, companyId, environmentId: executionTarget.environmentId,
+        heartbeatRunId: runId, provider: "daytona", providerLeaseId: "fixture-allocation" });
       return (await copies.prepare({ ...target(), runId, cwd: home, target: executionTarget }))!;
     };
     await fs.mkdir(path.join(root, "build"));
@@ -696,6 +725,9 @@ describe("persistent agent directories", () => {
       await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", responsibleUserId: userId });
       const target = { kind: "remote" as const, transport: "ssh" as const, environmentId: randomUUID(), remoteCwd,
         spec: { host: "unused.invalid", port: 22, username: "test", remoteCwd } };
+      await db.insert(environments).values({ id: target.environmentId, name: "Fixture SSH", driver: "ssh" });
+      // Legacy no-ID receipt: only the unique run/environment lease authorizes retrieval.
+      await db.insert(environmentLeases).values({ companyId, environmentId: target.environmentId, heartbeatRunId: runId, provider: "ssh", providerLeaseId: "fixture-host" });
       const copy = (await copies.prepare({ companyId, agentId, runId, cwd: home, target }))!;
       expect(stage).toHaveBeenCalledWith(expect.objectContaining({ remoteDir: copy.executionRoot }));
       expect(await fs.readFile(path.join(copy.executionRoot, entryFile), "utf8")).toBe(initial);

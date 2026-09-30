@@ -311,16 +311,8 @@ export function agentInstructionWorkingCopyService(db: Db, options: { environmen
         const result = await collectStopped({ companyId: row.companyId, runId: row.runId });
         if (result && isAgentDirectoryCopy(result) && completed.has(result.state)) await directories.release(result);
       } else if (row.location !== "local" && await remoteExecutionHasStopped(db, row.companyId, row.runId)) {
-        // An unchanged-turn receipt protects a live warm owner. Only this
-        // independently stop-proved branch may turn lost remote bytes into a
-        // terminal no-save receipt and release the retained materialization.
-        const unavailable = isAgentDirectoryCopy(row) && row.state === "unchanged_turn"
-          ? await patch(row, { state: "unavailable", errorCode: "INSTRUCTION_COLLECTION_UNAVAILABLE",
-              errorMessage: "The remote provider stopped before its retained agent directory could be retrieved. No instruction save is claimed.", nextAttemptAt: null })
-          : await reportUnavailable(row.companyId, row.runId);
-        if (unavailable && isAgentDirectoryCopy(unavailable)) {
-          await directories.release(await patch(unavailable, { processStoppedAt: unavailable.processStoppedAt ?? new Date() }));
-        }
+        if (isAgentDirectoryCopy(row)) await directories.recoverStoppedRemote(row);
+        else await reportUnavailable(row.companyId, row.runId);
       } else if (row.state === "prepared") {
         await patch(row, { state: "pending_collection", errorCode: "INSTRUCTION_STOP_UNCONFIRMED",
           errorMessage: "The provider's stop has not been confirmed. Instruction collection is pending; no save is claimed.", nextAttemptAt: null });

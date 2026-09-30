@@ -1,5 +1,77 @@
 # Rich ACP integration and qualification report
 
+## Qualification checkpoint — September 30, 2026, after 64 attempts
+
+All three providers remain unqualified. The retained paid baseline is Cursor v7,
+Copilot v7 and Pi v9, with native runtime source `5b8e4454ef0bf12d0bb068c2e41d8c9df9356a1c`.
+Controller and Product harness revisions are recorded independently below.
+New usage-projection source is under development and has no paid qualification.
+
+| New retained evidence | Outcome and boundary |
+| --- | --- |
+| Cursor v7 Daytona hello, controller3d21 | Six Product checks passed. One owned sandbox was deleted and remained absent through the late-create observation; local processes and temporary roots retired. Post-run authority passed. This qualifies only this case. |
+| Copilot v7 Daytona denial, controller40064, attempt02 | Failed remote observer startup before permission proof. Cleanup confirmed removal of the owned sandbox and local processes. Original end source-checkout audit failed because the checkout moved during its final audit; an additive audit after exact restoration passed, without regrading the failed attempt. |
+| Cursor v7 protocol get-task-context | All four semantic checks passed, but the unchanged eval rejected missing usage/cost coverage. No usage receipt or priced estimate was available. Preserve accounting_failure. |
+| Copilot v7 seven-case protocol suite | Six cases passed: task context, document creation, task completion, human confirmation, context/document/progress workflow and governed waiting. Context-before-action failed: progress was committed before the context read. Both calls succeeded and six of seven checks in that case passed. State history confirms ordering; no grader or projection defect was established. No automatic retries. |
+
+Protocol cases use the seeded mock control plane; they do not qualify browser,
+Daytona or production mutations. Copilot estimates for all seven measured cases
+have complete token-price coverage, while native billed dollars remain unknown.
+The failed orientation case is a model-behavior result, not an infrastructure
+retry candidate. The five final independent cases passed 35 checks in total.
+
+The remote observer fix in [#14696](https://github.com/paperclipai/paperclip/pull/14696)
+sends a small nonce-bound snapshot request instead of forwarding its source code
+over an 8 KiB control socket. The exact latest source `a1145db4d8dbde17e624f8a14ef2726b33d09083`
+passes Apex 5/5 and CI. Its 41 deterministic tests include generated install,
+snapshot and close traffic; negative tests require actual directory creation and
+socket listening. It still needs live proof in the combined controller candidate.
+
+The warm-directory review identified stable projectless scope, Darwin path
+aliases, current lease ownership, stopped-versus-destroyed recovery, and composed
+remote coverage gaps. New composed tests also exposed transfer scratch inside
+AGENT_HOME, stale first-lease callbacks during handoff and compact receipts losing
+the original materialization root. The corrected source passed 541 pure tests, direct server typecheck and all 63
+selected database-backed cases (49 directory-service and 14 composed remote
+scenarios), with owned process/IPC/temporary-root cleanup verified. These repairs
+are awaiting a fresh commit review in [#14695](https://github.com/paperclipai/paperclip/pull/14695). Earlier failing DB and
+paid attempts remain retained; neither source tests nor session-ID reuse alone
+prove paid warm process continuity.
+
+Cursor's pinned native `TurnEndedUpdate` has optional input, output, cache-read,
+cache-write and reasoning counters. Its vendor ACP prompt response does not
+project them. No evidence shows Paperclip dropped a supplied ACP usage receipt in
+the failed attempt. The new candidate records bounded per-invocation observations
+as explicitly partial diagnostics. It must not sum parent/child totals, invent
+missing zeros or claim billing until the backend's aggregation/cache/reasoning
+semantics and exact selected model pricing are verified. JSON-RPC errors do not
+return this diagnostic envelope; reused child runs lack unambiguous callback
+attribution. Those are explicit gaps, not complete accounting. The shared patch
+changes identity declarations, requiring new Cursor/Copilot/Pi candidate identities
+and new qualification; prior receipts remain bound to their original runtime.
+
+The private ledger has 64 closed records and no active paid invocation. Latest
+Copilot account observation: Pro active, 23/1,500 included credits used, additional
+usage disabled at $0. Latest Cursor observation: Pro+, fixed account-wide $25 cap,
+$0 on-demand observed. These account totals may lag and are not per-run invoices.
+Known Pi API cost is $0.040507624; the conservative retained infrastructure upper
+bound is $0.635265. Cursor's entire $25 cap remains reserved globally. Unknown
+native or infrastructure invoice totals remain unknown; no combined actual-spend
+total is inferred. The $100 campaign ceiling remains in force. Pi v9 still needs
+an enforceable provider spending bound before further paid calls.
+
+Evidence references (private attempts remain inspectable without publishing raw
+provider transcripts): Cursor Daytona hello result `3ec06ed1aee8a5523262d4855dca3483de24139480da76f37d75a38570ecb843`;
+Copilot denial02 result `048ec74bedf508080a099ea6be39f5d4ec159f31985dbe4c52f286a8f8813021`;
+Cursor accounting reconciliation `4999b3c0abec441a4de2c6f45c6cb683cbfe4d94413c30f0333da3b6e53dbc03`;
+Copilot ordering reconciliation `cf14df413fc9a98f6047842be21585e6c4d3fa72d4199ea9331885665193c152`;
+five-case account reconciliation `0063361b04c33d724c9649be3790857a640bbe04357ffafd8c078e8cea40eb22`.
+
+## Historical checkpoint before the latest 11 attempts
+
+The following source and cost observations are retained historical checkpoints;
+the dated qualification checkpoint above states the current result.
+
 Updated: 2026-09-30 UTC. **Cursor v7, Copilot v7 and Pi v9 remain unqualified.** Paid controller and Product harness source is recorded per case: `40064d28522de25fea85c1297f35b41bb8a8897a` or `3d21d375de2b6249d9f5322bf001ce0ce0e052aa`. Native runtime source remains `5b8e4454ef0bf12d0bb068c2e41d8c9df9356a1c`. Runtime builds for macOS ARM64, macOS x64 and Linux x64 are complete. The corrected 3d21 controller uses unchanged compiled UI/package outputs built on 40064; it executes the controller TypeScript from 3d21. These distinct source roles do not relabel the runtime or older failures.
 
 Exact-head CI and Greptile now pass for Cursor `c58a8881f2cb771b35e19e1bf56e08cb89397e83` (53 successful checks, two skips, Greptile 5/5) and Copilot `3d21d375de2b6249d9f5322bf001ce0ce0e052aa` (54 successes, four skips, Greptile 5/5). Copilot's first server-shard run timed out in an unchanged legacy Cursor test; an isolated reproduction and one failed-job rerun passed. Superseded cancelled checks are not failures. The new warm-directory fix needs its own full checks and live proof. Foundation [#14430](https://github.com/paperclipai/paperclip/pull/14430) and Runner Eval definitions [#33](https://github.com/paperclipai/paperclip-evals/pull/33) are merged. The v7/v7/v9 definition update [#34](https://github.com/paperclipai/paperclip-evals/pull/34) merged as `52f6e897c08d236776a21723257e12c909d71137`, with 136 deterministic tests and 21 validated cells. These definitions are not paid proof. Provider PRs remain drafts.

@@ -447,15 +447,18 @@ export async function claimWarmNativeInstructionCopy(input: {
   companyId: string;
   agentId: string;
   executionWorkspaceId: string;
-  cwd: string;
+  workspace: NativeExecutionInput["workspace"];
   environmentId: string | null;
   runId: string;
   preparationKey: string;
+  forceRetirement?: boolean;
   adopt: (previousRunId: string) => Promise<NativeInstructionWorkingCopy | null>;
 }): Promise<(() => Promise<void>) | null> {
   const prior = input.priorExecution;
   if (prior.binding.companyId !== input.companyId || prior.binding.agentId !== input.agentId
-    || prior.binding.executionWorkspaceId !== input.executionWorkspaceId || prior.workspace.cwd !== input.cwd) return null;
+    || JSON.stringify(nativeSessionWorkspaceScope(prior)) !== JSON.stringify(nativeSessionWorkspaceScope({
+      binding: { ...prior.binding, runId: input.runId, executionWorkspaceId: input.executionWorkspaceId }, workspace: input.workspace,
+    })) || prior.workspace.cwd !== input.workspace.cwd) return null;
   const scope = nativeSessionScopeKey(prior);
   const entry = warmNativeSessions.get(scope);
   if (!entry || !entry.instructionWorkingCopy?.runId || entry.environmentId !== input.environmentId) return null;
@@ -472,17 +475,21 @@ export async function claimWarmNativeInstructionCopy(input: {
     } finally { entry.busy = false; }
   };
   try {
-    if (entry.closeOnReleaseReason !== undefined || entry.instructionWorkingCopy.preparationKey !== input.preparationKey || await entry.instructionWorkingCopy.hasChanges()) {
+    const preparationChanged = input.forceRetirement === true || entry.instructionWorkingCopy.preparationKey !== input.preparationKey;
+    // The prior capability may close over an expired remote lease. Rebind
+    // collection authority first; adoption itself grants no reuse permission.
+    const adopted = await input.adopt(entry.instructionWorkingCopy.runId);
+    if (!adopted) {
+      await retire("warm instruction materialization cannot be handed off");
+      throw new Error("native_instruction_materialization_handoff_unavailable");
+    }
+    if (adopted.runId !== input.runId || adopted.preparationKey !== input.preparationKey) throw new Error("native_instruction_materialization_handoff_mismatch");
+    entry.instructionWorkingCopy = adopted;
+    entry.instructionPreparationRunId = input.runId;
+    if (entry.closeOnReleaseReason !== undefined || preparationChanged || await adopted.hasChanges()) {
       await retire("warm instruction materialization changed before preparation");
       return null;
     }
-    const adopted = await input.adopt(entry.instructionWorkingCopy.runId);
-    if (!adopted) {
-      await retire("warm instruction materialization cannot be adopted");
-      return null;
-    }
-    entry.instructionWorkingCopy = adopted;
-    entry.instructionPreparationRunId = input.runId;
     return async () => {
       if (entry.instructionPreparationRunId === input.runId) await retire("warm instruction preparation abandoned");
     };
@@ -1556,7 +1563,7 @@ function nativeSessionKey(execution: NativeExecutionInput): string {
   );
 }
 
-function nativeSessionWorkspaceScope(execution: NativeExecutionInput) {
+export function nativeSessionWorkspaceScope(execution: { binding: Pick<NativeExecutionInput["binding"], "runId" | "executionWorkspaceId">; workspace: Pick<NativeExecutionInput["workspace"], "cwd" | "repoUrl" | "repoRef" | "branchName"> }) {
   // Projectless local runs use the heartbeat run id as a durable placeholder
   // rather than fabricating an execution_workspaces row. Do not let that
   // per-run placeholder break continuity for the same provider session; the

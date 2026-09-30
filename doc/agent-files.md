@@ -109,7 +109,29 @@ probe must verify the full baseline and root identity without unsafe paths or
 concurrent changes. Local hashing runs in an isolated child; remote observation
 runs at the registered remote root. A failed or uncertain probe requires stopped
 collection. The next authorized run claims that same materialization within the
-company, agent, workspace, environment and configuration scope. The prior run
+company, agent, workspace, environment and configuration scope. Projectless runs
+use the stable workspace descriptor (cwd, repository URL/ref and branch), rather
+than the per-run workspace placeholder. A remote handoff verifies both DB leases
+belong to the same company, environment and provider allocation, then binds the
+successor run's active lease and collector without re-uploading the host mirror.
+Heartbeat explicitly permits a collection-only successor handoff before checking
+warm reuse. A changed or uncertain directory records durable `retirementRequired`;
+that receipt cannot authorize reuse. The successor capability is installed only
+after the ownership transaction commits. Configuration changes and abandoned
+preparation then stop the provider and collect through that current capability,
+never an expired prior lease. Ordinary adoption remains unchanged-only. Failed
+authorization or lease validation retires the prior owner without borrowing an
+unverified successor; if its lease is unusable, the bytes remain pending.
+Before initial admission, the remote transfer's two empty scratch directories are
+removed with exact-path, identity-checked `rmdir` operations. Any content, link or
+uncertain identity fails preparation; the complete probe never excludes them.
+An exact recorded lease that is missing or no longer matches the run/environment
+blocks retrieval as well as deletion. Legacy receipts without a lease ID require
+exactly one company/run/environment lease, including when a transport is still
+cached. Missing or ambiguous ownership preserves pending files without remote
+commands. No SSH exception bypasses this fence, and no-ID receipts grant no warm
+adoption authority.
+The original materialization root remains unchanged. The prior run
 loses collection authority; stale cleanup cannot remove the current owner's root.
 
 Edits, additions, removals or changed configuration retire the owner before
@@ -175,9 +197,14 @@ If retirement fails, the controller records unresolved ownership and preserves
 the materialized root. A crash after ownership transfer can leave the new run
 without independently recorded stop proof; terminal run status or the old run's
 alias is not enough to collect that root. Recovery leaves it preserved until the
-required proof is available. For a remote run with an exact termination receipt
-but unretrievable bytes, recovery records an explicit unavailable/no-save outcome
-and completes owned cleanup without restarting a provider.
+required proof is available. Exact destruction of the current owner's remote
+allocation permits an explicit unavailable/no-save outcome and owned local
+cleanup. A stopped-but-retained allocation instead stays pending with its files
+preserved. The current remote execute API may restart a stopped sandbox even
+when it bypasses a persistent session, so recovery cannot use it for retrieval
+or deletion. Safe retrieval from a stopped allocation remains a transport gap;
+live owner retirement still collects before the environment stops. No save is
+claimed for the pending case, and stale prior-run leases cannot authorize cleanup.
 
 ## Verification
 

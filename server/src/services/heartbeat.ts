@@ -221,6 +221,7 @@ import {
   cancelNativeSession,
   claimNativeRestartRecoveries,
   claimWarmNativeInstructionCopy,
+  nativeSessionWorkspaceScope,
   closeWarmNativeSessionsForEnvironment,
   closeIdleWarmNativeSessionsForRestart,
   currentNativeControllerIdentity,
@@ -22423,7 +22424,10 @@ export function heartbeatService(
       let instructionSave: Record<string, unknown> | null = null;
       const instructionPreparationKey = createHash("sha256").update(JSON.stringify({
         adapterType: agent.adapterType, adapterConfig: agent.adapterConfig, runtimeConfig: agent.runtimeConfig, sessionConfigMetadata,
-        workspaceId: persistedExecutionWorkspace?.id ?? run.id, cwd: executionWorkspace.cwd,
+        workspace: nativeSessionWorkspaceScope({
+          binding: { runId: run.id, executionWorkspaceId: persistedExecutionWorkspace?.id ?? run.id },
+          workspace: executionWorkspace,
+        }), cwd: executionWorkspace.cwd,
       })).digest("hex");
       const collectStoppedInstructions = async () => {
         if (!instructionCopy) return;
@@ -23278,14 +23282,17 @@ export function heartbeatService(
             if (nativeRuntimeResolution.kind === "native" && priorWorkingCopy.kind === "agent_files" && taskSession) {
               releaseWarmInstructionPreparation = await claimWarmNativeInstructionCopy({
                 priorExecution: parseNativeExecutionInput(priorFileInput), companyId: agent.companyId, agentId: agent.id,
-                executionWorkspaceId: persistedExecutionWorkspace?.id ?? run.id, cwd: executionWorkspace.cwd,
-                environmentId: executionTarget?.environmentId ?? null, runId: run.id, preparationKey: taskSessionForRun ? instructionPreparationKey : `reset:${run.id}`,
+                executionWorkspaceId: persistedExecutionWorkspace?.id ?? run.id, workspace: executionWorkspace,
+                environmentId: executionTarget?.environmentId ?? null, runId: run.id, preparationKey: instructionPreparationKey, forceRetirement: !taskSessionForRun,
                 adopt: async previousRunId => {
                   instructionCopy = await instructionCopies.adopt({ companyId: agent.companyId, agentId: agent.id,
-                    runId: run.id, previousRunId, target: executionTarget, cwd: executionWorkspace.cwd });
+                    runId: run.id, previousRunId, target: executionTarget, cwd: executionWorkspace.cwd, allowRetirementHandoff: true });
                   return nativeInstructionWorkingCopy() ?? null;
                 },
               });
+              // A collection-only handoff was retired. Re-enter normal
+              // preparation instead of composing a root already collected.
+              if (!releaseWarmInstructionPreparation) instructionCopy = null;
             }
             instructionCopy ??= await instructionCopies.prepare({
               companyId: agent.companyId, agentId: agent.id, runId: run.id,

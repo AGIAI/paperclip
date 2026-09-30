@@ -3,8 +3,9 @@ import fs from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import childProcess, { execFileSync } from "node:child_process";
+import { prepareAdapterExecutionTargetRuntime } from "@paperclipai/adapter-utils/execution-target";
 import { captureDirectorySnapshot } from "@paperclipai/adapter-utils/workspace-restore-merge";
-import { agentDirectoryBaselineDigest, agentDirectoryProbeProgram, observeLocalAgentDirectory, probeAgentDirectory } from "../services/agent-directory-probe.js";
+import { agentDirectoryBaselineDigest, agentDirectoryProbeProgram, observeLocalAgentDirectory, probeAgentDirectory, retireAgentDirectoryTransferScratch, agentDirectoryTransferCleanupProgram } from "../services/agent-directory-probe.js";
 
 describe("stable live agent directory observation", () => {
   let root: string;
@@ -21,6 +22,61 @@ describe("stable live agent directory observation", () => {
     expect(observed.digest).toBe(agentDirectoryBaselineDigest(baseline));
     const remote = JSON.parse(execFileSync(process.execPath, ["-e", agentDirectoryProbeProgram, root], { encoding: "utf8", env: {}, timeout: 10_000 }));
     expect(remote).toEqual(observed);
+  });
+  it.runIf(process.platform === "darwin")("accepts only the observing Darwin host's fixed system aliases", () => {
+    const alias = root.replace(/^\/private(?=\/(tmp|var|etc)\/)/, "");
+    expect(alias).not.toBe(root);
+    const observed = probeAgentDirectory(root);
+    expect(probeAgentDirectory(alias)).toEqual(observed);
+    const remote = JSON.parse(execFileSync(process.execPath, ["-e", agentDirectoryProbeProgram, alias], { encoding: "utf8", env: {}, timeout: 10_000 }));
+    expect(remote).toEqual(observed);
+    // A Linux remote cannot inherit the controller's Darwin exception.
+    expect(() => execFileSync(process.execPath, ["-e", agentDirectoryProbeProgram.replace("platform:process.platform", "platform:'linux'"), alias],
+      { encoding: "utf8", env: {}, timeout: 10_000, stdio: "pipe" })).toThrow();
+    fs.symlinkSync(root, join(root, "redirect"));
+    expect(() => probeAgentDirectory(`${alias}/redirect`)).toThrow();
+  });
+  it("observes the complete agent directory after the actual remote transfer", async () => {
+    const remote = `${root}-remote`;
+    fs.mkdirSync(remote);
+    const target = { kind: "remote" as const, transport: "sandbox" as const, remoteCwd: remote,
+      runner: { execute: async (input: Parameters<import("@paperclipai/adapter-utils/command-managed-runtime").CommandManagedRuntimeRunner["execute"]>[0]) => ({
+        stdout: execFileSync(input.command, input.args ?? [], { cwd: input.cwd, input: input.stdin, encoding: "utf8",
+          env: { PATH: process.env.PATH, ...input.env }, timeout: input.timeoutMs, maxBuffer: 32 * 1024 * 1024 }),
+        stderr: "", exitCode: 0, signal: null, timedOut: false, pid: null, startedAt: new Date().toISOString(),
+      }) } };
+    let runtime: Awaited<ReturnType<typeof prepareAdapterExecutionTargetRuntime>> | undefined;
+    try {
+      const baseline = await captureDirectorySnapshot(root);
+      runtime = await prepareAdapterExecutionTargetRuntime({ target, runId: "probe-transfer", adapterKey: "agent-files",
+        workspaceLocalDir: root, workspaceRemoteDir: remote, syncWorkspace: true, workspaceBaseline: baseline,
+        workspaceGitSnapshot: null, workspaceFileMode: "all", workspaceExclude: [".paperclip-runtime", ".paperclip-runtime/**"] });
+      expect(fs.readdirSync(`${remote}/.paperclip-runtime`)).toEqual(["agent-files"]);
+      expect(fs.readdirSync(`${remote}/.paperclip-runtime/agent-files`)).toEqual([]);
+      execFileSync(process.execPath, ["-e", agentDirectoryTransferCleanupProgram, remote], { env: {}, timeout: 10_000 });
+      expect(() => probeAgentDirectory(remote)).not.toThrow();
+      expect(probeAgentDirectory(remote).digest).toBe(agentDirectoryBaselineDigest(baseline));
+    } finally { await runtime?.cleanupWorkspaceSnapshot?.(); fs.rmSync(remote, { recursive: true, force: true }); }
+  });
+  it.each(["file", "extra-directory", "symlink", "race"])("fails closed on %s in transfer-owned scratch without deleting contents", kind => {
+    const parent = join(root, ".paperclip-runtime"), scratch = join(parent, "agent-files");
+    fs.mkdirSync(scratch, { recursive: true });
+    const retained = join(parent, "retained.txt");
+    if (kind === "file") fs.writeFileSync(join(scratch, "retained.txt"), "keep");
+    if (kind === "extra-directory") fs.mkdirSync(join(parent, "unknown"));
+    if (kind === "symlink") { fs.rmdirSync(scratch); fs.symlinkSync(join(root, "notes"), scratch); }
+    if (kind === "race") {
+      const rmdir = fs.rmdirSync;
+      vi.spyOn(fs, "rmdirSync").mockImplementation(((directory: fs.PathLike) => {
+        if (directory === scratch) fs.writeFileSync(retained, "concurrent bytes");
+        return rmdir(directory);
+      }) as typeof rmdir);
+    }
+    expect(() => retireAgentDirectoryTransferScratch(root)).toThrow();
+    expect(fs.existsSync(parent)).toBe(true);
+    if (kind === "file") expect(fs.readFileSync(join(scratch, "retained.txt"), "utf8")).toBe("keep");
+    if (kind === "race") expect(fs.readFileSync(retained, "utf8")).toBe("concurrent bytes");
+    expect(fs.existsSync(join(root, "notes", "memory.bin"))).toBe(true);
   });
   it("runs the local observation in its bounded credential-free child", async () => {
     expect(await observeLocalAgentDirectory(root)).toEqual(probeAgentDirectory(root));

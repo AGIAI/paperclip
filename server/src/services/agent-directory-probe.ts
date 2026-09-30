@@ -15,7 +15,7 @@ export function agentDirectoryBaselineDigest(snapshot: DirectorySnapshot): strin
 // Keep all dependencies explicit so remote observation never reads a local mirror.
 export function probeAgentDirectory(
   root: string,
-  modules = { fs, path, createHash },
+  modules = { fs, path, createHash, platform: process.platform },
 ): { digest: string; identity: string } {
   const { fs, path, createHash } = modules;
   const deadline = Date.now() + 5_000;
@@ -23,7 +23,14 @@ export function probeAgentDirectory(
   const stamp = (s: fs.BigIntStats) => [s.dev, s.ino, s.mode, s.nlink, s.size, s.mtimeNs, s.ctimeNs].join(":");
   const identity = (s: fs.BigIntStats) => [s.dev, s.ino, s.birthtimeNs].join(":");
   if (!path.isAbsolute(root) || path.resolve(root) !== root || root.includes("\0")) throw new Error("Invalid agent directory root");
-  // Fixed macOS system aliases are resolved by the caller, not followed here.
+  // Resolve only the observing host's fixed Darwin aliases. The exact full
+  // counterpart excludes nested/user symlinks; canonical ancestors remain strict.
+  const requestedRoot = root;
+  if (modules.platform === "darwin" && /^\/(tmp|var|etc)\//.test(root)) {
+    const resolved = fs.realpathSync(root);
+    if (resolved !== `/private${root}`) throw new Error("Unsafe agent directory alias");
+    root = resolved;
+  }
   const ancestors = new Map<string, string>();
   let ancestor = path.parse(root).root;
   for (const segment of root.slice(ancestor.length).split(path.sep)) {
@@ -94,11 +101,53 @@ export function probeAgentDirectory(
     const current = fs.lstatSync(ancestor, { bigint: true });
     if (!current.isDirectory() || current.isSymbolicLink() || identity(current) !== expected) throw new Error("Agent directory ancestor changed");
   }
+  if (requestedRoot !== root && fs.realpathSync(requestedRoot) !== root) throw new Error("Agent directory alias changed");
   entries.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
   return { digest: createHash("sha256").update(JSON.stringify(entries)).digest("hex"), identity: identity(initial) };
 }
 
-export const agentDirectoryProbeProgram = `const probe=${probeAgentDirectory.toString()}; process.stdout.write(JSON.stringify(probe(process.argv[1], {fs:require('node:fs'),path:require('node:path'),createHash:require('node:crypto').createHash})))`;
+export const agentDirectoryProbeProgram = `const probe=${probeAgentDirectory.toString()}; process.stdout.write(JSON.stringify(probe(process.argv[1], {fs:require('node:fs'),path:require('node:path'),createHash:require('node:crypto').createHash,platform:process.platform})))`;
+
+/** Retire only the two empty directories created by initial sandbox transfer.
+ * Run before provider admission; this is never an exclusion from live probing. */
+export function retireAgentDirectoryTransferScratch(root: string, modules = { fs, path, platform: process.platform }): void {
+  const { fs, path } = modules;
+  if (!path.isAbsolute(root) || path.resolve(root) !== root || root.includes("\0")) throw new Error("Invalid agent directory root");
+  const requestedRoot = root;
+  if (modules.platform === "darwin" && /^\/(tmp|var|etc)\//.test(root)) {
+    const resolved = fs.realpathSync(root);
+    if (resolved !== `/private${root}`) throw new Error("Unsafe agent directory alias");
+    root = resolved;
+  }
+  const identities = new Map<string, string>();
+  const identify = (directory: string) => {
+    const stat = fs.lstatSync(directory, { bigint: true });
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Unsafe transfer scratch directory");
+    return [stat.dev, stat.ino, stat.birthtimeNs].join(":");
+  };
+  let ancestor = path.parse(root).root;
+  for (const segment of root.slice(ancestor.length).split(path.sep)) {
+    ancestor = path.join(ancestor, segment); identities.set(ancestor, identify(ancestor));
+  }
+  const parent = path.join(root, ".paperclip-runtime"), scratch = path.join(parent, "agent-files");
+  identities.set(parent, identify(parent)); identities.set(scratch, identify(scratch));
+  const verify = () => {
+    for (const [directory, expected] of identities) if (identify(directory) !== expected) throw new Error("Transfer scratch identity changed");
+    if (requestedRoot !== root && fs.realpathSync(requestedRoot) !== root) throw new Error("Agent directory alias changed");
+  };
+  const entries = fs.readdirSync(parent);
+  if (entries.length !== 1 || entries[0] !== "agent-files" || fs.readdirSync(scratch).length) throw new Error("Unexpected transfer scratch contents");
+  verify();
+  // rmdir atomically refuses nonempty directories. Never recursively delete or
+  // follow a link; any change stops preparation before the provider can start.
+  fs.rmdirSync(scratch); identities.delete(scratch);
+  verify();
+  if (fs.readdirSync(parent).length) throw new Error("Transfer scratch changed during retirement");
+  fs.rmdirSync(parent); identities.delete(parent);
+  verify();
+}
+
+export const agentDirectoryTransferCleanupProgram = `const retire=${retireAgentDirectoryTransferScratch.toString()}; retire(process.argv[1], {fs:require('node:fs'),path:require('node:path'),platform:process.platform})`;
 
 /** Bound child: no shell, inherited credentials, or event-loop hashing. */
 export async function observeLocalAgentDirectory(root: string) {
