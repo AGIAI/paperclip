@@ -8,6 +8,39 @@ export function countCopilotToolOrigins(notices: readonly CopilotToolNotice[]): 
   return new Set(notices.filter(n => n.stage === "tool").map(n => JSON.stringify([n.runId, n.sessionId, n.turnId, n.toolCallId]))).size;
 }
 
+/** Permission requests may carry the target omitted by native tool updates. */
+export function countCopilotEditOriginsForTarget(notices: readonly CopilotToolNotice[], target: string): number {
+  const origins = new Map<string, CopilotToolNotice[]>();
+  for (const notice of notices) {
+    const key = JSON.stringify([notice.runId, notice.sessionId, notice.turnId, notice.toolCallId]);
+    const group = origins.get(key) ?? [];
+    group.push(notice); origins.set(key, group);
+  }
+  let count = 0;
+  for (const group of origins.values()) {
+    if (!group.some(n => n.target === target)) continue;
+    if (group.some(n => (n.target !== undefined && n.target !== target) || (n.operation !== undefined && n.operation !== "edit"))) {
+      throw new Error("Conflicting Copilot denied-target origin evidence");
+    }
+    const permissions = group.filter(n => n.stage !== "tool");
+    const requestIds = new Set(permissions.map(n => n.requestId));
+    if (requestIds.has(undefined) || requestIds.size > 1
+      || permissions.filter(n => n.stage === "permission_requested").length > 1
+      || permissions.filter(n => n.stage === "permission_delivered").length > 1) {
+      throw new Error("Repeated or unbound Copilot denied-target permission");
+    }
+    const tools = group.filter(n => n.stage === "tool");
+    const terminal = tools.filter(n => n.status === "completed" || n.status === "failed");
+    if (terminal.length > 1 || tools.filter(n => n.status === "pending").length > 1
+      || (terminal[0] && tools.some(n => n.seq > terminal[0]!.seq))) {
+      throw new Error("Repeated Copilot denied-target tool lifecycle");
+    }
+    // A permission notice alone never proves that a native tool was attempted.
+    if (tools.some(n => n.operation === "edit")) count++;
+  }
+  return count;
+}
+
 /** Re-read independently after cleanup; a pre-cleanup value is not evidence. */
 export async function readCopilotMarkerAfterCleanup(close: () => Promise<void>, path: string, expected: string): Promise<boolean> {
   await close();

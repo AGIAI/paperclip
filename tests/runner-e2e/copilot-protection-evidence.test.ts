@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { countCopilotToolOrigins, readCopilotMarkerAfterCleanup } from "./copilot-protection-evidence.js";
+import { countCopilotEditOriginsForTarget, countCopilotToolOrigins, readCopilotMarkerAfterCleanup } from "./copilot-protection-evidence.js";
 import type { CopilotToolNotice } from "./copilot-evidence.js";
 const notice: CopilotToolNotice = { runId: "run", sessionId: "session", turnId: "turn", toolCallId: "edit", stage: "tool", operation: "edit", observedAtMs: 1, seq: 1 };
 describe("Copilot protection independent evidence", () => {
@@ -26,6 +26,54 @@ describe("Copilot protection independent evidence", () => {
 
 import { assertCopilotRemoteRetirement, assertCopilotRemoteAttached, copilotActionNotices, copilotRemoteDeniedSample, prepareCopilotRemoteAction, type CopilotRemoteSnapshot, type CopilotRemoteFixture } from "./copilot-protection-evidence.js";
 const target = "copilot-denied-nonce.txt";
+describe("Copilot denied-target origin correlation", () => {
+  // Captured native shape: updates omit the target; permission events bind it.
+  const deniedTarget = "pc-denied-fixture/copilot-denied-nonce.txt";
+  const captured = (): CopilotToolNotice[] => [
+    { ...notice, seq: 39, status: "pending" },
+    { ...notice, seq: 42, stage: "permission_requested", requestId: "request", target: deniedTarget, declineOffered: true },
+    { ...notice, seq: 44, stage: "permission_delivered", requestId: "request", target: deniedTarget, outcome: "reject_once" },
+    { ...notice, seq: 45, status: "failed" },
+  ];
+  it("counts the captured denied edit across exact permission and tool origins", () => {
+    expect(countCopilotEditOriginsForTarget(captured(), deniedTarget)).toBe(1);
+    expect(countCopilotToolOrigins(copilotActionNotices(captured(), captured()[0]!))).toBe(1);
+  });
+  it.each(["runId", "sessionId", "turnId", "toolCallId"] as const)("cannot borrow a target across %s", field => {
+    const rows = captured().map(n => n.stage === "tool" ? { ...n, [field]: "foreign" } : n);
+    expect(countCopilotEditOriginsForTarget(rows, deniedTarget)).toBe(0);
+  });
+  it.each(["in_progress", "completed", "failed"] as const)("counts a retry first seen as %s", status => {
+    const rows = [...captured(), { ...notice, toolCallId: "retry", seq: 46, target: deniedTarget, status }];
+    expect(countCopilotEditOriginsForTarget(rows, deniedTarget)).toBe(2);
+    expect(countCopilotToolOrigins(copilotActionNotices(rows, rows[0]!))).toBe(2);
+  });
+  it("does not hide an alternate operation with no target", () => {
+    const rows = [...captured(), { ...notice, toolCallId: "alternate", seq: 46, operation: "execute" as const }];
+    expect(countCopilotEditOriginsForTarget(rows, deniedTarget)).toBe(1);
+    expect(countCopilotToolOrigins(copilotActionNotices(rows, rows[0]!))).toBe(2);
+  });
+  it("does not count permission-only or entirely unbound evidence", () => {
+    expect(countCopilotEditOriginsForTarget(captured().filter(n => n.stage !== "tool"), deniedTarget)).toBe(0);
+    expect(countCopilotEditOriginsForTarget(captured().filter(n => n.stage === "tool"), deniedTarget)).toBe(0);
+  });
+  it.each([
+    { target: "other.txt" }, { operation: "execute" as const },
+  ])("rejects conflicting tool evidence %j", conflict => {
+    const rows = captured(); rows[3] = { ...rows[3]!, ...conflict };
+    expect(() => countCopilotEditOriginsForTarget(rows, deniedTarget)).toThrow(/Conflicting/);
+  });
+  it("rejects another permission request on the same tool origin", () => {
+    const rows = captured(); rows[2] = { ...rows[2]!, requestId: "other" };
+    expect(() => countCopilotEditOriginsForTarget(rows, deniedTarget)).toThrow(/permission/);
+    expect(() => countCopilotEditOriginsForTarget([...captured(), { ...captured()[1]!, seq: 46 }], deniedTarget)).toThrow(/permission/);
+  });
+  it("rejects a restarted or repeated native lifecycle under a reused origin", () => {
+    for (const status of ["pending", "in_progress", "completed", "failed"] as const) {
+      expect(() => countCopilotEditOriginsForTarget([...captured(), { ...notice, status, seq: 46 }], deniedTarget)).toThrow(/lifecycle/);
+    }
+  });
+});
 function receipt(): CopilotRemoteSnapshot {
   const root = { pid: 50, ppid: 1, startTicks: "200", bootId: "12345678-1234-1234-1234-123456789abc" };
   return { binding: { companyId: "company", environmentId: "env", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `image@sha256:${"a".repeat(64)}`, remoteCwd: "/home/daytona/workspace" },

@@ -8,7 +8,7 @@ import { createTaskThroughUi } from "./user-actions.js";
 import { copilotOrigin, readCopilotToolEvidence, type CopilotToolNotice } from "./copilot-evidence.js";
 import { createAttachedCommandFixture, createDeniedTargetFixture, bindDeniedTargetPrompt, exists, observeRunProcesses } from "./copilot-local-fixtures.js";
 import { gradeCopilotAttachedSettlement, gradeCopilotDeniedWrite, type CopilotDeniedWriteEvidence } from "./copilot-protection-cases.js";
-import { readCopilotRemoteMarkerAfterRetirement, prepareCopilotRemoteAction, assertCopilotRemoteRetirement, assertCopilotRemoteAttached, copilotRemoteDeniedSample, copilotActionNotices, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot, countCopilotToolOrigins, readCopilotMarkerAfterCleanup } from "./copilot-protection-evidence.js";
+import { readCopilotRemoteMarkerAfterRetirement, prepareCopilotRemoteAction, assertCopilotRemoteRetirement, assertCopilotRemoteAttached, copilotRemoteDeniedSample, copilotActionNotices, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot, countCopilotToolOrigins, countCopilotEditOriginsForTarget, readCopilotMarkerAfterCleanup } from "./copilot-protection-evidence.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
 type Row = Record<string, any>;
@@ -149,7 +149,7 @@ export async function runCopilotProtectionFlow(input: {
         terminal: { runId: terminalFrame.runId, turnId: terminalFrame.turnId, observedAtMs: terminalAt, status: runs[0]!.status },
         cancellation: { requestedAtMs: cancelRequestedAtMs, acknowledged: cancellation?.dispatchState === "acknowledged" && cancellation?.dispatched === true, scope: cancellation?.scope },
         cleanup: { observedAtMs: fileObservations.at(-1)!.observedAtMs, ownedProcessesRemaining: processes.live.length }, fileObservations, mutationObservation: watchReceipt,
-        nativeAttemptsForTarget: countCopilotToolOrigins(notices.filter(n => n.operation === "edit" && n.target === target)),
+        nativeAttemptsForTarget: countCopilotEditOriginsForTarget(notices, target),
       };
       await input.evidence("copilot-denial-proof.json", { evidence, processes, notices });
       const grade = gradeCopilotDeniedWrite(evidence); check("denial-without-side-effects", grade.passed, grade.failures.join(", ") || "Exact browser denial, explicit cancellation and absence through process cleanup");
