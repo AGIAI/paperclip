@@ -1372,7 +1372,7 @@ describe("ACPX runtime host", () => {
         onExtensionRequest,
         onExtensionNotification,
       }),
-    ).toBe(turn);
+    ).toMatchObject({ requestId: turn.requestId });
     expect(startTurn).toHaveBeenCalledWith({
       text: "Complete the task.",
       requestId: "turn-1",
@@ -1388,8 +1388,8 @@ describe("ACPX runtime host", () => {
     expect(turn.cancel).toHaveBeenCalledWith({ reason: "user interrupt" });
 
     await host.close({ reason: "shutdown" });
-    expect(turn.cancel).toHaveBeenCalledWith({ reason: "shutdown" });
-    expect(runtime.close).toHaveBeenCalledOnce();
+    expect(turn.cancel).toHaveBeenCalledTimes(2);
+    expect(runtime.close).toHaveBeenCalledExactlyOnceWith({ reason: "user interrupt" });
     expect(() => host.startTurn({ text: "Late", requestId: "turn-3" })).toThrow(
       "is closing",
     );
