@@ -233,7 +233,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "Design review for the Enterpret catalog connector using production components and the real generated definition. Organization auth token is primary and store-ready; browser OAuth remains draft and not connectable until Enterpret fixes the mcp:write over-grant. No real sign-in, token, or provider call.",
+          "Design review for the Enterpret catalog connector using production components and the real generated definition. Organization auth token is primary; its account-bound QA is required before release. Browser OAuth remains draft and not connectable until Enterpret fixes the mcp:write over-grant. No real sign-in, token, or provider call.",
       },
     },
   },
