@@ -231,6 +231,9 @@ describe("actual generated observer state machine", () => {
     const missing = () => { throw Object.assign(new Error("missing"), { code: "ENOENT" }); };
     const fds = new Map<number, string>(); let nextFd = 50, runtimeInode = 4n;
     const symbolicLinks = new Set<string>();
+    const directories = new Set(["/tmp", "/workspace", "/workspace/.paperclip-runtime", "/workspace/.paperclip-runtime/paperclip-runner", "/workspace/.paperclip-runtime/paperclip-runner/sessions"]);
+    if (!deferStartup) directories.add(config.root);
+    const listeners = new Map<string, (socket: any) => void>();
     const fs = {
       constants: { O_RDONLY: 0, O_NOFOLLOW: 131072 },
       openSync(path: string, flags: number) { expect(flags).toBe(131072); if (!files.has(path)) return missing(); const fd = nextFd++; fds.set(fd, path); return fd; },
@@ -249,7 +252,7 @@ describe("actual generated observer state machine", () => {
         if (!value) return missing(); return encoding ? value.toString() : value;
       },
       lstatSync(path: string) {
-        const directory = path === config.root || path === "/workspace" || path === "/workspace/.paperclip-runtime" || path === "/workspace/.paperclip-runtime/paperclip-runner";
+        const directory = directories.has(path);
         if (!directory && !files.has(path) && !symbolicLinks.has(path)) return missing();
         return { dev: 1n, ino: path === config.root ? 2n : path === "/workspace/.paperclip-runtime/paperclip-runner" ? runtimeInode : 3n, mtimeNs: 4n, ctimeNs: 5n, isDirectory: () => directory, isFile: () => !directory, isSymbolicLink: () => symbolicLinks.has(path), size: files.get(path)?.length ?? 0 };
       },
@@ -259,13 +262,27 @@ describe("actual generated observer state machine", () => {
         const entry = { path, callback: (callback ?? options) as (_kind: string, name: string | null) => void, closed: false }; watches.push(entry);
         return Object.assign(new EventEmitter(), { close: () => { entry.closed = true; } });
       },
+      mkdirSync: vi.fn((path: string) => {
+        if (!directories.has(path.slice(0, path.lastIndexOf("/")))) return missing();
+        if (directories.has(path) || files.has(path)) throw new Error("EEXIST");
+        directories.add(path);
+      }),
+      existsSync: (path: string) => directories.has(path) || files.has(path) || listeners.has(path),
       writeFileSync(path: string, content: string, opts: { flag: string }) {
+        if (!directories.has(path.slice(0, path.lastIndexOf("/")))) return missing();
         if (opts.flag === "wx" && files.has(path)) throw new Error("EEXIST"); files.set(path, Buffer.from(content));
         for (const w of watches) if (!w.closed && path.slice(0, path.lastIndexOf("/")) === w.path) w.callback("rename", path.slice(w.path.length + 1));
       },
       rmSync: vi.fn(),
     };
-    const server = { listen: vi.fn(), close: vi.fn() };
+    const server = {
+      listen: vi.fn((path: string) => {
+        if (!directories.has(path.slice(0, path.lastIndexOf("/")))) return missing();
+        if (listeners.has(path)) throw new Error("EADDRINUSE");
+        listeners.set(path, handlers.at(-1)!);
+      }),
+      close: vi.fn(() => listeners.clear()),
+    };
     const net = { createServer(fn: (socket: any) => void) { handlers.push(fn); return server; } };
     const context = {
       require(name: string) { if (name === "node:fs") return fs; if (name === "node:net") return net; if (name === "node:child_process") return { spawn: vi.fn(() => { const child = Object.assign(new EventEmitter(), { pid: 88, exitCode: null, signalCode: null, kill: vi.fn() }); children.push(child); return child; }) }; if (name === "node:path") return { join: (...paths: string[]) => paths.join("/"), dirname: (path: string) => path.slice(0, path.lastIndexOf("/")), basename: (path: string) => path.slice(path.lastIndexOf("/") + 1) }; if (name === "node:crypto") return { createHash }; throw new Error("unexpected module"); },
@@ -280,9 +297,9 @@ describe("actual generated observer state machine", () => {
       const replies: any[] = [], socket = Object.assign(new EventEmitter(), { end: (value: string) => replies.push(JSON.parse(value)), destroy: vi.fn() });
       handlers[0]!(socket); socket.emit("data", Buffer.from(JSON.stringify({ op, nonce: config.nonce, ...args }) + "\n")); return replies;
     }
-    return { request, proc, files, watches, fs, intervals, timers, config, handlers, children, symbolicLinks, context, server, install: h.calls[0]!, replaceRuntimeRoot() { runtimeInode = 999n; } };
+    return { request, proc, files, watches, fs, intervals, timers, config, handlers, children, symbolicLinks, context, server, directories, listeners, install: h.calls[0]!, replaceRuntimeRoot() { runtimeInode = 999n; } };
   }
-  async function generatedRpc(o: Awaited<ReturnType<typeof observerHarness>>, request: Record<string, unknown>) {
+  async function generatedRpc(o: Awaited<ReturnType<typeof observerHarness>>, request: Record<string, unknown>, mutateSource = (source: string) => source) {
     const quoted = o.install.command.match(/ -e (.+) '[A-Za-z0-9+/=]+'$/su)![1]!;
     const source = quoted.slice(1, -1).replaceAll("'\\''", "'");
     const forwarded: string[] = [], connections: Array<{ client: any; observer: any }> = [];
@@ -295,26 +312,32 @@ describe("actual generated observer state machine", () => {
       new Script(o.files.get(argv[0]!)!.toString()).runInNewContext(o.context);
       return { unref: vi.fn() };
     });
-    const fs = { ...o.fs, mkdirSync: vi.fn(), existsSync: () => o.handlers.length > 0,
+    const fs = { ...o.fs,
       readFileSync(path: string, encoding?: string) { return path === "/node" ? Buffer.from("node") : o.fs.readFileSync(path, encoding); } };
     const net = { connect(path: string) {
       expect(path).toBe(`${o.config.root}/control.sock`);
       const client: any = Object.assign(new EventEmitter(), { setTimeout: vi.fn(), destroy: vi.fn() });
+      const handler = o.listeners.get(path);
+      if (!handler) { queueMicrotask(() => client.emit("error", new Error("ECONNREFUSED"))); return client; }
       const observer: any = Object.assign(new EventEmitter(), {
         end(value: string) { client.emit("data", Buffer.from(value)); client.emit("end"); observer.emit("close"); },
         destroy: vi.fn(() => { client.emit("error", new Error("observer closed socket")); observer.emit("close"); }),
       });
       client.write = (value: string) => { forwarded.push(value); observer.emit("data", Buffer.from(value)); };
-      connections.push({ client, observer }); o.handlers[0]!(observer);
+      connections.push({ client, observer }); handler(observer);
       queueMicrotask(() => client.emit("connect")); return client;
     } };
-    new Script(source).runInNewContext({ require(name: string) {
+    new Script(mutateSource(source)).runInNewContext({ require(name: string) {
       if (name === "node:fs") return fs;
       if (name === "node:net") return net;
       if (name === "node:child_process") return { spawn };
       if (name === "node:crypto") return { createHash };
       throw new Error("unexpected RPC module");
-    }, process, Buffer, setTimeout: () => ({ unref() {} }) });
+    }, process, Buffer, setTimeout: (fn: () => void, ms: number) => {
+      // Advance only the bounded readiness polls; retain watchdogs as inert VM timers.
+      if (ms === 10 || ms === 50) queueMicrotask(fn);
+      return { unref() {} };
+    } });
     await new Promise<void>(resolve => setImmediate(resolve));
     return { output, process, forwarded, spawn, connections };
   }
@@ -337,6 +360,33 @@ describe("actual generated observer state machine", () => {
     expect(o.context.clearInterval).toHaveBeenCalled(); expect(o.server.close).toHaveBeenCalled();
     o.timers.find(t => t.ms === 100)!.fn();
     expect(closed.connections[0]!.observer.destroy).toHaveBeenCalled();
+    expect(o.fs.rmSync).toHaveBeenCalledExactlyOnceWith(o.config.root, { recursive: true, force: true });
+    expect(o.context.process.exit).toHaveBeenCalledExactlyOnceWith(0);
+  });
+  it("rejects a generated install mutant that omits its parent directory creation", async () => {
+    const o = await observerHarness(true);
+    const installed = await generatedRpc(o, o.install.request, source => {
+      const mutant = source.replace("fs.mkdirSync(c.root,{mode:0o700});", "");
+      expect(mutant).not.toBe(source); return mutant;
+    });
+    expect(installed.process.exitCode).toBe(2); expect(installed.output).toBe("");
+    expect(installed.spawn).not.toHaveBeenCalled(); expect(installed.connections).toHaveLength(0);
+    expect(o.files.has(`${o.config.root}/observer.cjs`)).toBe(false);
+    expect(o.directories.has(o.config.root)).toBe(false); expect(o.watches).toHaveLength(0);
+  });
+  it("rejects a generated observer mutant that never listens, even after handler registration", async () => {
+    const o = await observerHarness(true);
+    const source = o.install.request.source as string;
+    const mutant = source.replace("server.listen(path.join(config.root,'control.sock'));", "");
+    expect(mutant).not.toBe(source);
+    const installed = await generatedRpc(o, { ...o.install.request, source: mutant });
+    expect(installed.process.exitCode).toBe(2); expect(installed.output).toBe("");
+    expect(installed.spawn).toHaveBeenCalledTimes(1); expect(o.handlers).toHaveLength(1);
+    expect(o.server.listen).not.toHaveBeenCalled(); expect(o.listeners.size).toBe(0);
+    expect(installed.connections).toHaveLength(0); expect(installed.forwarded).toHaveLength(0);
+    // A failed connection cannot close the unlistening observer. Its owned TTL still retires it.
+    o.timers.find(t => t.ms > 1000)!.fn(); o.timers.find(t => t.ms === 100)!.fn();
+    expect(o.watches.every(w => w.closed)).toBe(true);
     expect(o.fs.rmSync).toHaveBeenCalledExactlyOnceWith(o.config.root, { recursive: true, force: true });
     expect(o.context.process.exit).toHaveBeenCalledExactlyOnceWith(0);
   });
