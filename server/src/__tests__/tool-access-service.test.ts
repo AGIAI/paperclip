@@ -5123,7 +5123,7 @@ describeEmbeddedPostgres("tool access service", () => {
         "enterpret",
       ]),
     );
-    expect(res.body.apps).toHaveLength(57);
+    expect(res.body.apps).toHaveLength(58);
     expect(
       res.body.apps.find((app: { slug: string }) => app.slug === "gmail")
         .ownershipAvailability,
@@ -5166,6 +5166,61 @@ describeEmbeddedPostgres("tool access service", () => {
           methods: expect.arrayContaining([
             expect.objectContaining({ key: "local", transport: "local_stdio" }),
           ]),
+        }),
+      ]),
+    );
+  });
+
+  it("quarantines newly discovered Enterpret tools on later refreshes", async () => {
+    const company = await createCompany(db);
+    const service = createTestToolAccessService(db);
+    const fetchMock = mockToolsList([
+      { name: "get_organization_details", annotations: { readOnlyHint: true } },
+    ]);
+
+    const result = await service.connectGalleryApp(
+      company.id,
+      {
+        galleryKey: "enterpret",
+        connectionMethodKey: "mcp-api-key",
+        credentialValues: { "credentials.authorization": "qa-secret" },
+      },
+      { actorType: "user", actorId: "board" },
+    );
+
+    expect(result.connection.config).toMatchObject({
+      sourceTemplateKey: "enterpret",
+      quarantineNewEntries: true,
+    });
+    expect(JSON.stringify(result.connection.config)).not.toContain("qa-secret");
+    await service.finishGalleryAppConnection(company.id, result.connectionId, {
+      enabledCatalogEntryIds: result.catalog.map((entry) => entry.id),
+      askFirstCatalogEntryIds: [],
+      access: "all_agents",
+    });
+    fetchMock.mockResolvedValueOnce(
+      mcpHttpResponse({
+        jsonrpc: "2.0",
+        id: "paperclip-catalog-refresh",
+        result: {
+          tools: [
+            { name: "get_organization_details", annotations: { readOnlyHint: true } },
+            { name: "new_enterpret_tool", annotations: { readOnlyHint: true } },
+          ],
+        },
+      }),
+    );
+    const refreshed = await service.refreshCatalog(result.connectionId, {
+      actorType: "user",
+      actorId: "board",
+    });
+    expect(refreshed.catalog).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ toolName: "get_organization_details", status: "active" }),
+        expect.objectContaining({
+          toolName: "new_enterpret_tool",
+          status: "quarantined",
+          quarantineReason: "pending_review",
         }),
       ]),
     );
@@ -15358,6 +15413,7 @@ describeEmbeddedPostgres("tool access service", () => {
           {
             galleryKey: "github",
             name: "GitHub rollback",
+            connectionMethodKey: "mcp-key",
             credentialValues: { "credentials.authorization": "github-secret" },
           },
           { actorType: "user", actorId: "board" },
@@ -15485,6 +15541,7 @@ describeEmbeddedPostgres("tool access service", () => {
           {
             galleryKey: "github",
             name: "GitHub reconnect",
+            connectionMethodKey: "mcp-key",
             credentialValues: { "credentials.authorization": "old-secret" },
           },
           { actorType: "user", actorId: "board" },
@@ -15687,6 +15744,7 @@ describeEmbeddedPostgres("tool access service", () => {
           {
             galleryKey: "github",
             name: "Personal GitHub reconnect",
+            connectionMethodKey: "mcp-key",
             grantKind: "user",
             credentialValues: {
               "credentials.authorization": "old-personal-secret",
@@ -15774,6 +15832,7 @@ describeEmbeddedPostgres("tool access service", () => {
             applicationId: connected.application.id,
             galleryKey: "github",
             name: "Personal GitHub reconnect",
+            connectionMethodKey: "mcp-key",
             // No grantKind is sent on reconnect: the retained connection owns that
             // decision and must reactivate this same grant rather than insert a new
             // one or fall back to an organization credential.

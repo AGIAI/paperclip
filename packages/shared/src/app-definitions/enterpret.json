@@ -38,7 +38,8 @@
           "type": "password",
           "required": true,
           "placeholder": "Paste the token from Settings, Enterpret MCP",
-          "secret": true
+          "secret": true,
+          "helperMd": "An organization auth token can read that organization's customer feedback. Use a token from Settings > Enterpret MCP; it expires after six months."
         }
       ],
       "keyPlacement": {

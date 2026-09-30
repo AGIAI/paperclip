@@ -13,7 +13,8 @@ named account holder signed in through an isolated Paperclip runtime on
 2026-09-25 (PAP-18538), and agent tool calls reached the live server.
 
 **Release path:** the **organization auth token** (`mcp-api-key`) is the
-primary, store-ready connection method. Generate a Bearer token under Enterpret
+primary connection method. Complete the account-bound token validation below
+before merging the store-visible connector. Generate a Bearer token under Enterpret
 **Settings → Enterpret MCP** and paste it into Paperclip. Public MCP tools are
 read-only today; the token path does not depend on Enterpret honouring a
 narrowed OAuth grant.
@@ -443,13 +444,12 @@ name, count, decision and outcome code — never payload content.
   narrowed, and the ungranted control agent dropped to 0 of 8 only after the
   company binding was unbound.
 - Quarantine rules: `quarantineNewEntries` is connection-level runtime setup,
-  not an `AppDefinition` field, so this entry cannot declare it. Enterpret's
-  catalog demonstrably drifts — it renamed three tools and kept the old names as
-  session-scoped aliases, and `execute_cypher_query` has since disappeared
-  entirely — so an operator should enable quarantine on the connection. The live
-  run confirmed the default: the connection came up with
-  `quarantineNewEntries: false`, so a newly advertised Enterpret tool would not
-  be held for review.
+  not an `AppDefinition` field. Paperclip enables it for Enterpret connections.
+  Enterpret's catalog demonstrably drifts — it renamed three tools and kept the
+  old names as session-scoped aliases, and `execute_cypher_query` has since
+  disappeared entirely — so newly advertised tools are held for review on a
+  subsequent catalog refresh. The earlier live run found the old default was
+  `false`; the new default still needs live refresh validation.
 - Rate limits: none set.
 
 ## Validation Hook
@@ -606,12 +606,11 @@ mechanical store-visibility flip for the token path is also done on this branch
    `availability` cleared, `"enterpret"` removed from `APP_STORE_HIDDEN_SLUGS`,
    `catalogVisible: true`, tests and Storybook updated so organization auth
    token is primary. OAuth remains labelled draft in method copy.
-5. Optional: exercise `mcp-api-key` end-to-end on a self-hosted instance
-   (`get_organization_details`, allow/deny, local disable) and record results
-   here. Prefer this before claiming deep production validation of the token
-   method; it is not a merge blocker for the definition.
-6. Optional: refresh/recovery and self-hosted VPS evidence if those deployments
-   are to be claimed.
+5. Required: exercise `mcp-api-key` end-to-end on a self-hosted instance
+   (`get_organization_details`, allow/deny, refresh, local disable) and record
+   results here before merging the store-visible connector.
+6. Confirm recovery when the token expires or is replaced. A self-hosted VPS
+   deployment needs separate evidence if claimed.
 
 **OAuth method (secondary / draft) — separate gate**
 

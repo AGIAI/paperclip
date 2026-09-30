@@ -12104,7 +12104,7 @@ export function toolAccessService(
           // Grant-backed setup keeps the full discovered catalog selectable;
           // the wizard projects the app's action defaults into policies at
           // finish time instead of using catalog quarantine as access state.
-          quarantineNewEntries: galleryEntry.slug === "railway",
+          quarantineNewEntries: galleryEntry.slug === "railway" || galleryEntry.slug === "enterpret",
           ...(remoteMcpConnector ? {
             mcpSessionRequired: true,
             mcpAuthMode: input.authMode ?? "auto",
