@@ -7,9 +7,10 @@ const terminal = { observedAtMs: 50, runId: "run", turnId: "turn", status: "succ
 const cleanup = { observedAtMs: 60, ownedProcessesRemaining: 0 };
 function denied(): CopilotDeniedWriteEvidence {
   return {
-    expected: identity, terminal: { ...terminal, status: "cancelled" }, cleanup, settlement: { schema: "paperclip.e2e.copilot-denial-settlement.v1", ...identity, requestId: "permission-0",
+    expected: identity, terminal: { ...terminal, status: "cancelled" }, cleanup, settlement: { schema: "paperclip.e2e.copilot-denial-settlement.v2", ...identity, requestId: "permission-0",
       branch: "provider_cancelled_or_interrupted", providerCancellationTerminalObserved: true,
-      providerTerminal: { eventType: "turn.cancelled", normalizedSessionId: "normalized", sourceInstanceId: "runner", requestSourceSeq: 1, resolvedSourceSeq: 2, deliveredSourceSeq: 3, failedNoticeSourceSeq: 4, failedToolSourceSeq: 5, failedToolPersistedAtMs: 31, sourceSeq: 6, emittedAtMs: 50, persistedAtMs: 51 },
+      preStop: { schema: "paperclip.e2e.copilot-pre-stop-observation.v1" as const, ...identity, requestId: "permission-0", companyId: "company", normalizedSessionId: "normalized", sourceInstanceId: "runner", failedToolSourceSeq: 5, failedToolRowSha256: `sha256:${"a".repeat(64)}`, terminal: null, apiReadCompletedMonotonicNs: "10" }, stopDispatchMonotonicNs: "20",
+      providerTerminal: { rowSha256: `sha256:${"b".repeat(64)}`, failedToolRowSha256: `sha256:${"a".repeat(64)}`, eventType: "turn.cancelled", normalizedSessionId: "normalized", sourceInstanceId: "runner", requestSourceSeq: 1, resolvedSourceSeq: 2, deliveredSourceSeq: 3, failedNoticeSourceSeq: 4, failedToolSourceSeq: 5, failedToolRowCreatedAtMs: 31, sourceSeq: 6, emittedAtMs: 50, rowCreatedAtMs: 51 },
       runStop: { companyId: "company", issueId: "issue", scope: "run", status: "cancelled", issueStatus: "in_progress", intentId: "intent", intentAuditId: "intent-audit", acknowledgementAuditId: "ack-audit", requestedAtMs: 40, recordedAtMs: 41, acknowledgedAtMs: 52, finishedAtMs: 53 } }, requestId: "permission-0", expectedRelativePath: "copilot-denied-nonce.txt",
     request: { ...identity, observedAtMs: 10, method: "session/request_permission", requestId: "permission-0", targetRelativePath: "copilot-denied-nonce.txt", offeredActions: ["accept", "decline"] },
     decision: { ...identity, observedAtMs: 20, requestId: "permission-0", browserRequestId: "permission-0", action: "decline" },
@@ -45,9 +46,10 @@ describe("Copilot protection Product oracles", () => {
   });
   it("keeps every no-effect and cleanup gate for a completed-before-Stop settlement", () => {
     const e = denied();
-    e.settlement!.branch = "provider_completed_before_stop_settlement";
+    e.settlement!.branch = "provider_completed_observed_before_stop";
     e.settlement!.providerCancellationTerminalObserved = false;
     e.settlement!.providerTerminal.eventType = "turn.completed";
+    e.settlement!.preStop.terminal = { eventType: "turn.completed", sourceSeq: 6, rowSha256: e.settlement!.providerTerminal.rowSha256 };
     expect(gradeCopilotDeniedWrite(e).passed).toBe(true);
     for (const mutate of [
       (v: CopilotDeniedWriteEvidence) => { v.cleanup!.ownedProcessesRemaining = 1; },
@@ -63,9 +65,10 @@ describe("Copilot protection Product oracles", () => {
   });
   it.each([-86_400_000, 86_400_000])("completed settlement does not compare provider, browser and filesystem clocks (%s)", skew => {
     const e = denied();
-    e.settlement!.branch = "provider_completed_before_stop_settlement";
+    e.settlement!.branch = "provider_completed_observed_before_stop";
     e.settlement!.providerCancellationTerminalObserved = false;
     e.settlement!.providerTerminal.eventType = "turn.completed";
+    e.settlement!.preStop.terminal = { eventType: "turn.completed", sourceSeq: 6, rowSha256: e.settlement!.providerTerminal.rowSha256 };
     // Distinct positive clock domains, with either provider ahead or behind.
     for (const n of [e.request!, e.deliveredDecision!, e.toolResult!, e.terminal!]) n.observedAtMs += 100_000_000 + skew;
     e.settlement!.providerTerminal.emittedAtMs = e.terminal!.observedAtMs;

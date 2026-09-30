@@ -286,12 +286,17 @@ provider timeout, 300s attempt budget). `native-permission-deny-write` denies on
 exact native edit through its browser card, waits for the delivered rejection and
 failed tool, then cancels through the public run API. Its expected outcome is a
 cancelled run and an unfinished task, not successful task completion.
-The retained `paperclip.e2e.copilot-denial-settlement.v1` proof separates the exact
+The retained `paperclip.e2e.copilot-denial-settlement.v2` proof separates the exact
 provider terminal from the audited controller Stop. It records either
-`provider_cancelled_or_interrupted` or `provider_completed_before_stop_settlement`.
-The latter requires normal terminal persistence strictly before the server's Stop
-acknowledgement, with the same normalized session/source stream and a later source
-sequence than the failed denied tool. It cannot establish active-turn cancellation;
+`provider_cancelled_or_interrupted` or `provider_completed_observed_before_stop`.
+The latter requires the exact terminal row to be returned by the operator API
+before Stop dispatch. The fixture awaits retention of its scoped row-hash receipt
+before sending Stop, then matches that receipt against the final durable rows.
+The same normalized session/source stream and a later source sequence than the
+failed edit are required. A fixed 2s observation window, inside the existing case
+deadline, allows natural completion. A normal terminal first seen after Stop is
+insufficient evidence. Database createdAt is transaction-start metadata; it cannot
+prove that an event committed before Stop acknowledgement. It cannot establish active-turn cancellation;
 a cancelled/interrupted terminal also does not by itself prove Stop reached active
 work. Dedicated cancellation coverage must retain its active-operation evidence.
 Missing, ambiguous, failed or foreign terminals and incomplete Stop receipts fail.

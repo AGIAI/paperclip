@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { readCopilotToolEvidence } from "./copilot-evidence.js";
-import { copilotDenialSampleCursor, readCopilotDenialSettlement } from "./copilot-protection-evidence.js";
+import { observeCopilotPreStop, copilotDenialSampleCursor, readCopilotDenialSettlement } from "./copilot-protection-evidence.js";
 import { settleCopilotDeniedRun } from "./copilot-protection-flow.js";
 
-// Sanitized durable order from the failed Daytona attempt: completed was emitted
-// at .887, persisted at .900; server Stop was requested at .892 and acked at .909.
+// Sanitized source order from the failed Daytona attempt. Its .900 createdAt
+// is transaction time, not commit evidence. Pre-Stop receipts below are synthetic
+// test observations; the historical paid attempt did not capture one.
 const date = (ms: number) => new Date(Date.UTC(2026, 8, 30, 15, 13, 7, ms)).toISOString();
 function fixture(eventType = "turn.completed") {
   const frame = (seq: number, type: string, payload: unknown, persisted = 305, emitted = 129): any => ({
@@ -29,17 +30,21 @@ function fixture(eventType = "turn.completed") {
       dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentId: "intent",
       intentAuditId: "intent-audit", acknowledgementAuditId: "ack-audit", recordedAt: date(901), acknowledgedAt: date(909),
     } } };
-  return { events, request: readCopilotToolEvidence(events, "run")[0]!, run, issue: { id: "issue", companyId: "company", status: "in_progress" } };
+  const request = readCopilotToolEvidence(events, "run")[0]!;
+  const preStop = observeCopilotPreStop({ events, request, companyId: "company" });
+  return { events, request, run, issue: { id: "issue", companyId: "company", status: "in_progress" }, preStop, stopDispatchMonotonicNs: process.hrtime.bigint().toString() };
+
 }
 const terminal = (f: ReturnType<typeof fixture>) => f.events[4]!.payload.prpEvent;
 describe("Copilot denial provider settlement and separate audited run Stop", () => {
-  it("accepts the retained normal-terminal race without claiming provider cancellation", () => {
+  it("accepts a synthetic pre-Stop API observation without claiming provider cancellation", () => {
     const f = fixture();
-    expect(readCopilotDenialSettlement(f)).toMatchObject({ branch: "provider_completed_before_stop_settlement", providerCancellationTerminalObserved: false,
-      providerTerminal: { sourceSeq: 121, failedToolSourceSeq: 115, persistedAtMs: Date.parse(date(900)) }, runStop: { status: "cancelled" } });
-    // Native/provider clock skew is irrelevant to server persistence vs ack.
+    expect(readCopilotDenialSettlement(f)).toMatchObject({ branch: "provider_completed_observed_before_stop", providerCancellationTerminalObserved: false,
+      providerTerminal: { sourceSeq: 121, failedToolSourceSeq: 115, rowCreatedAtMs: Date.parse(date(900)) }, runStop: { status: "cancelled" } });
+    // Native/provider clock skew is irrelevant to the operator causal boundary.
     terminal(f).emittedAt = date(999);
-    expect(readCopilotDenialSettlement(f).branch).toBe("provider_completed_before_stop_settlement");
+    f.preStop = observeCopilotPreStop({ ...f, companyId: "company" }); f.stopDispatchMonotonicNs = process.hrtime.bigint().toString();
+    expect(readCopilotDenialSettlement(f).branch).toBe("provider_completed_observed_before_stop");
   });
   it.each(["turn.cancelled", "turn.interrupted"])("retains the distinct observed %s branch", type => {
     expect(readCopilotDenialSettlement(fixture(type))).toMatchObject({ branch: "provider_cancelled_or_interrupted", providerCancellationTerminalObserved: true });
@@ -48,8 +53,23 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
     const f = fixture(); f.events.splice(4, 1); f.events.push({ eventType: "turn.completed", payload: {} });
     expect(() => readCopilotDenialSettlement(f)).toThrow(/settlement/);
   });
-  it.each(["equal", "later", "invalid"])("rejects %s normal terminal persistence against the server acknowledgement", kind => {
-    const f = fixture(); f.events[4]!.createdAt = kind === "invalid" ? "not-a-date" : date(kind === "equal" ? 909 : 910);
+  it.each(["equal", "later"])("accepts observed pre-Stop completion with %s transaction time, without ordering it against ack", kind => {
+    const f = fixture(); f.events[4]!.createdAt = date(kind === "equal" ? 909 : 910);
+    f.preStop = observeCopilotPreStop({ ...f, companyId: "company" }); f.stopDispatchMonotonicNs = process.hrtime.bigint().toString();
+    expect(readCopilotDenialSettlement(f).branch).toBe("provider_completed_observed_before_stop");
+  });
+  it("rejects late normal completion even when its transaction began before Stop ack", () => {
+    const f = fixture(); f.preStop.terminal = null; f.events[4]!.createdAt = date(800);
+    expect(() => readCopilotDenialSettlement(f)).toThrow(/settlement/);
+  });
+  it.each(["missing", "foreign", "hash", "sequence", "equal-clock", "reverse-clock"])("rejects %s pre-dispatch observation", kind => {
+    const f = fixture();
+    if (kind === "missing") (f as any).preStop = null;
+    if (kind === "foreign") f.preStop.runId = "foreign";
+    if (kind === "hash") f.preStop.terminal!.rowSha256 = `sha256:${"a".repeat(64)}`;
+    if (kind === "sequence") f.preStop.terminal!.sourceSeq++;
+    if (kind === "equal-clock") f.stopDispatchMonotonicNs = f.preStop.apiReadCompletedMonotonicNs;
+    if (kind === "reverse-clock") f.stopDispatchMonotonicNs = "1";
     expect(() => readCopilotDenialSettlement(f)).toThrow(/settlement/);
   });
   it.each(["runId", "turnId", "normalizedSessionId", "sourceInstanceId", "eventType", "sourceEventId"])("rejects terminal %s mismatch", field => {
@@ -108,53 +128,83 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
     f.events[1]!.payload.prpEvent.normalizedSessionId = "foreign";
     expect(() => copilotDenialSampleCursor(f.events, f.request)).toThrow(/cursor/);
   });
-  it("waits for failed-edit persistence before Stop and terminal persistence before sampling", async () => {
-    vi.useFakeTimers();
+  it("awaits exact pre-Stop receipt retention and waits for post-Stop cancelled terminal before sampling", async () => {
+    vi.useFakeTimers(); let mono = 100n; vi.spyOn(process.hrtime, "bigint").mockImplementation(() => ++mono);
     try {
-      const f = fixture("turn.cancelled"), order: string[] = []; let loads = 0;
-      const post = vi.fn(async (url: string) => { order.push(url); });
-      const load = async () => {
-        loads++;
-        // Native failed notice arrives first. Run cancellation and retirement
-        // also become visible before the durable canonical provider terminal.
-        const events = f.events.filter((_, i) => !(loads === 1 && i === 3) && !(loads < 4 && i === 4));
-        order.push(`load-${loads}`);
-        return { ...f, events, run: loads < 3 ? { ...f.run, status: "running" } : f.run, retired: loads >= 3 };
-      };
-      const afterDeniedEdit = vi.fn(async () => { order.push("sample-after-decision"); });
-      const afterSettlement = vi.fn(async () => { order.push("sample-terminal"); });
-      const result = settleCopilotDeniedRun({ api: { post } as any, request: f.request, deadlineAt: Date.now() + 2000,
-        load, afterDeniedEdit, afterSettlement });
-      await vi.advanceTimersByTimeAsync(0);
-      expect(post).not.toHaveBeenCalled(); expect(afterDeniedEdit).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(200);
-      expect(post).toHaveBeenCalledTimes(1); expect(afterSettlement).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(200);
-      expect((await result).branch).toBe("provider_cancelled_or_interrupted");
-      expect(order).toEqual(["load-1", "load-2", "sample-after-decision", "/api/heartbeat-runs/run/cancel", "load-3", "load-4", "sample-terminal", "load-5"]);
-    } finally { vi.useRealTimers(); }
+      const f = fixture("turn.cancelled"); let loads = 0, dispatched = false, postLoads = 0;
+      let release!: () => void; const retention = new Promise<void>(resolve => { release = resolve; });
+      const post = vi.fn(async () => { dispatched = true; });
+      const retainPreStop = vi.fn(async (receipt) => { expect(receipt.terminal).toBeNull(); await retention; });
+      const afterDeniedEdit = vi.fn(async () => {}), afterSettlement = vi.fn(async () => {});
+      const result = settleCopilotDeniedRun({ api: { post } as any, request: f.request, deadlineAt: Date.now() + 5000,
+        load: async () => {
+          loads++; if (dispatched) postLoads++;
+          const events = f.events.filter((_, i) => !(loads === 1 && i === 3) && !((!dispatched || postLoads === 1) && i === 4));
+          return { ...f, events, run: dispatched ? f.run : { ...f.run, status: "running" }, retired: dispatched };
+        }, afterDeniedEdit, retainPreStop, afterSettlement });
+      await vi.advanceTimersByTimeAsync(0); expect(post).not.toHaveBeenCalled(); expect(afterDeniedEdit).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(200); expect(afterDeniedEdit).toHaveBeenCalledOnce(); expect(post).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(2000); expect(retainPreStop).toHaveBeenCalledOnce(); expect(post).not.toHaveBeenCalled();
+      release(); await vi.advanceTimersByTimeAsync(0); expect(post).toHaveBeenCalledOnce(); expect(afterSettlement).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(200); expect((await result).branch).toBe("provider_cancelled_or_interrupted"); expect(afterSettlement).toHaveBeenCalledOnce();
+    } finally { vi.restoreAllMocks(); vi.useRealTimers(); }
+  });
+  it("rejects normal completion first returned after Stop even with an earlier transaction timestamp", async () => {
+    vi.useFakeTimers(); let mono = 100n; vi.spyOn(process.hrtime, "bigint").mockImplementation(() => ++mono);
+    try {
+      const f = fixture(); f.events[4]!.createdAt = date(1); let dispatched = false;
+      const sample = vi.fn(async () => {}), post = vi.fn(async () => { dispatched = true; });
+      const retain = vi.fn(async (receipt) => { expect(receipt.terminal).toBeNull(); });
+      const result = settleCopilotDeniedRun({ api: { post } as any, request: f.request, deadlineAt: Date.now() + 3000,
+        load: async () => ({ ...f, events: dispatched ? f.events : f.events.filter((_, i) => i !== 4), retired: dispatched }),
+        afterDeniedEdit: async () => {}, retainPreStop: retain, afterSettlement: sample });
+      const rejected = expect(result).rejects.toThrow(/Timed out waiting for correlated provider settlement/);
+      await vi.advanceTimersByTimeAsync(3200); await rejected;
+      expect(retain).toHaveBeenCalledOnce(); expect(post).toHaveBeenCalledOnce(); expect(sample).not.toHaveBeenCalled();
+    } finally { vi.restoreAllMocks(); vi.useRealTimers(); }
   });
   it.each(["missing-edit", "foreign-edit", "missing-terminal", "foreign-terminal", "live-process"])("fails closed on %s without premature side effects or terminal samples", async kind => {
-    vi.useFakeTimers();
+    vi.useFakeTimers(); let mono = 100n; vi.spyOn(process.hrtime, "bigint").mockImplementation(() => ++mono);
     try {
       const f = fixture(), post = vi.fn(async () => {}), sample = vi.fn(async () => {});
       if (kind === "missing-edit") f.events.splice(3, 1);
       if (kind === "foreign-edit") f.events[3]!.payload.prpEvent.normalizedSessionId = "foreign";
       if (kind === "missing-terminal") f.events.splice(4, 1);
       if (kind === "foreign-terminal") terminal(f).sourceInstanceId = "foreign";
-      const result = settleCopilotDeniedRun({ api: { post } as any, request: f.request, deadlineAt: Date.now() + 500,
-        load: async () => ({ ...f, retired: kind !== "live-process" }), afterDeniedEdit: async () => {}, afterSettlement: sample });
-      const rejected = expect(result).rejects.toThrow(/Timed out waiting/);
-      await vi.advanceTimersByTimeAsync(600); await rejected;
-      expect(post).toHaveBeenCalledTimes(kind.endsWith("edit") ? 0 : 1);
+      const result = settleCopilotDeniedRun({ api: { post } as any, request: f.request, deadlineAt: Date.now() + 3000,
+        load: async () => ({ ...f, retired: kind !== "live-process" }), afterDeniedEdit: async () => {}, retainPreStop: async () => {}, afterSettlement: sample });
+      const rejected = expect(result).rejects.toThrow();
+      await vi.advanceTimersByTimeAsync(3200); await rejected;
+      expect(post).toHaveBeenCalledTimes(kind.endsWith("edit") || kind === "foreign-terminal" ? 0 : 1);
       expect(sample).not.toHaveBeenCalled();
-    } finally { vi.useRealTimers(); }
+    } finally { vi.restoreAllMocks(); vi.useRealTimers(); }
+  });
+  it.each(["failed", "timed_out"])("reports %s promptly even when required rows are missing", async status => {
+    const f = fixture(), post = vi.fn(async () => {}), sample = vi.fn(async () => {});
+    const load = vi.fn(async () => ({ ...f, events: [], run: { ...f.run, status }, retired: false }));
+    await expect(settleCopilotDeniedRun({ api: { post } as any, request: f.request, deadlineAt: Date.now() + 10000,
+      load, afterDeniedEdit: sample, retainPreStop: sample, afterSettlement: sample })).rejects.toThrow(`Stopped waiting for persisted correlated failed native edit: Copilot provider run failed`);
+    expect(load).toHaveBeenCalledOnce(); expect(post).not.toHaveBeenCalled(); expect(sample).not.toHaveBeenCalled();
+  });
+  it.each(["failed", "timed_out"])("reports post-Stop %s before attempting a missing terminal reader", async status => {
+    const f = fixture(), post = vi.fn(async () => {}); let loads = 0;
+    const load = vi.fn(async () => ({ ...f, events: ++loads < 3 ? f.events : [], run: { ...f.run, status: loads < 3 ? "running" : status }, retired: true }));
+    await expect(settleCopilotDeniedRun({ api: { post } as any, request: f.request, deadlineAt: Date.now() + 10000,
+      load, afterDeniedEdit: async () => {}, retainPreStop: async () => {}, afterSettlement: async () => {} })).rejects.toThrow("Stopped waiting for correlated provider settlement and retired run: Copilot provider run failed");
+    expect(load).toHaveBeenCalledTimes(3); expect(post).toHaveBeenCalledOnce();
+  });
+  it("does not dispatch Stop if the pre-dispatch receipt cannot be retained", async () => {
+    const f = fixture(), post = vi.fn(async () => {});
+    await expect(settleCopilotDeniedRun({ api: { post } as any, request: f.request, deadlineAt: Date.now() + 1000,
+      load: async () => ({ ...f, retired: true }), afterDeniedEdit: async () => {}, afterSettlement: async () => {},
+      retainPreStop: async () => { throw new Error("artifact write failed"); } })).rejects.toThrow("artifact write failed");
+    expect(post).not.toHaveBeenCalled();
   });
   it("retains completed-before-Stop settlement and propagates retirement sampling failure", async () => {
     const f = fixture(), post = vi.fn(async () => {});
     const input = { api: { post } as any, request: f.request, deadlineAt: Date.now() + 1000,
-      load: async () => ({ ...f, retired: true }), afterDeniedEdit: async () => {}, afterSettlement: async () => {} };
-    expect((await settleCopilotDeniedRun(input)).branch).toBe("provider_completed_before_stop_settlement");
+      load: async () => ({ ...f, retired: true }), afterDeniedEdit: async () => {}, retainPreStop: async () => {}, afterSettlement: async () => {} };
+    expect((await settleCopilotDeniedRun(input)).branch).toBe("provider_completed_observed_before_stop");
     await expect(settleCopilotDeniedRun({ ...input, afterSettlement: async () => { throw new Error("remote descendants live"); } })).rejects.toThrow("remote descendants live");
   });
 });

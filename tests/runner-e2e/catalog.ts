@@ -1051,7 +1051,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     description: "Exact native denial with independently correlated provider settlement and acknowledged run Stop, plus attached command settlement with independent process evidence.",
     groups: ["native"], profiles: extendedHarnessProfiles.filter(profile => profile.qualificationCandidate === "copilot"),
     environments: runnerEnvironments, tasks: copilotProtectionTasks, expectedMatrixSize: 4,
-    definitionMetadata: { version: 3, qualification: "pending", scheduling: "explicit-only", evidence: "copilot_tool_evidence_v1", profileVersion: QUALIFIED_ACPX_PROFILES.copilot.agentProfileVersion, denialTerminal: "correlated-provider-settlement-and-audited-run-stop", denialSettlementEvidence: "paperclip.e2e.copilot-denial-settlement.v1", activeTurnCancellation: "not-implied-by-completed-provider-turn", settlement: "attached-finite-command-only", remoteEvidence: "owned-lease-sealed-observer" },
+    definitionMetadata: { version: 4, qualification: "pending", naturalSettlementObservationMs: 2000, scheduling: "explicit-only", evidence: "copilot_tool_evidence_v1", profileVersion: QUALIFIED_ACPX_PROFILES.copilot.agentProfileVersion, denialTerminal: "correlated-provider-settlement-and-audited-run-stop", denialSettlementEvidence: "paperclip.e2e.copilot-denial-settlement.v2", activeTurnCancellation: "not-implied-by-completed-provider-turn", settlement: "attached-finite-command-only", remoteEvidence: "owned-lease-sealed-observer" },
   },
   {
     id: "rich-acp-warm-continuity", label: "Rich ACP warm continuity", manualOnly: true,
