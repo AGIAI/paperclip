@@ -46,18 +46,31 @@ const meta = {
 } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
+async function openTaskMenu(canvasElement: HTMLElement) {
+  const page = within(canvasElement.ownerDocument.body);
+  await page.findByRole(
+    "button",
+    { name: "More task actions" },
+    { timeout: 15000 },
+  );
+  // Navigation focus and async page queries can replace or dismiss the first
+  // trigger. Reacquire it, and only open when closed; never toggle an open menu.
+  await waitFor(
+    async () => {
+      const trigger = page.getByRole("button", { name: "More task actions" });
+      if (trigger.getAttribute("aria-expanded") !== "true") {
+        await userEvent.click(trigger);
+      }
+      await expect(page.getByRole("button", { name: "Share…" })).toBeVisible();
+    },
+    { timeout: 15000 },
+  );
+  return page;
+}
 export const OwnerTask: Story = {};
 export const OwnerTaskMenu: Story = {
   play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    (
-      await page.findByRole(
-        "button",
-        { name: "More task actions" },
-        { timeout: 15000 },
-      )
-    ).focus();
-    await userEvent.keyboard("{Enter}");
+    const page = await openTaskMenu(canvasElement);
     await expect(
       await page.findByRole("button", { name: "Share…" }),
     ).toBeEnabled();
@@ -65,15 +78,7 @@ export const OwnerTaskMenu: Story = {
 };
 export const OwnerSharingFromMenu: Story = {
   play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    (
-      await page.findByRole(
-        "button",
-        { name: "More task actions" },
-        { timeout: 15000 },
-      )
-    ).focus();
-    await userEvent.keyboard("{Enter}");
+    const page = await openTaskMenu(canvasElement);
     await userEvent.click(await page.findByRole("button", { name: "Share…" }));
     await expect(
       await page.findByRole("dialog", { name: "Who can access this task" }),
@@ -100,15 +105,7 @@ export const SharedReaderMenu: Story = {
   parameters: { privacy: { role: "reader", childOnly: true } },
   render: () => <PrivacyPage child />,
   play: async ({ canvasElement }) => {
-    const page = within(canvasElement.ownerDocument.body);
-    (
-      await page.findByRole(
-        "button",
-        { name: "More task actions" },
-        { timeout: 15000 },
-      )
-    ).focus();
-    await userEvent.keyboard("{Enter}");
+    const page = await openTaskMenu(canvasElement);
     await expect(
       await page.findByRole("button", { name: "Share…" }),
     ).toBeDisabled();
