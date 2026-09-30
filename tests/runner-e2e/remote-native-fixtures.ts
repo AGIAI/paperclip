@@ -6,6 +6,7 @@ export const REMOTE_FIXTURE_DAYTONA_SDK_VERSION = "0.203.0";
 const NODE = "/opt/paperclip-runner/provider-pack/node_modules/node/bin/node";
 const MAX_OUTPUT = 256 * 1024;
 const TEARDOWN_RESERVE_MS = 15_000;
+export const REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS = 27_000 + TEARDOWN_RESERVE_MS;
 const CLOSE_GRACE_MS = 10_000;
 // createRunnerdBackend stages its verified executable, pack symlink, mutable
 // sessions, homes and injected context beneath this exact path. Qualification
@@ -262,7 +263,7 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
   fail(options.sdkVersion === REMOTE_FIXTURE_DAYTONA_SDK_VERSION, "sdk_pin");
   fail(Object.entries(authority).every(([key, value]) => key === "image" ? typeof value === "string" && /^[^\s]+@sha256:[a-f0-9]{64}$/u.test(value) : typeof value === "string" && id(value)), "authority_shape");
   fail(sha(options.nodeSha256) && sha(options.runnerdSha256), "binary_pins");
-  fail(Number.isFinite(options.deadlineAt) && options.deadlineAt - Date.now() >= 27_000 + TEARDOWN_RESERVE_MS, "insufficient_setup_budget");
+  fail(Number.isFinite(options.deadlineAt) && options.deadlineAt - Date.now() >= REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS, "insufficient_setup_budget");
   fail(options.targets.length <= 8 && new Set(options.targets).size === options.targets.length, "target_bound");
   const targets = options.targets.map(relative), actionFile = relative(options.actionFile);
   fail(!targets.includes(actionFile), "setup_target_overlap");

@@ -4,7 +4,7 @@ import type { RemoteFixtureApi, RemoteNativeFixture } from "./remote-native-fixt
 
 afterEach(() => vi.useRealTimers());
 
-function harness(timeoutMs = 5000) {
+function harness(timeoutMs = 60_000) {
   const order: string[] = [];
   const issue = { id: "issue", companyId: "company", assigneeAgentId: "agent" };
   const run = { id: "run", companyId: "company", agentId: "agent", status: "running", executionStage: "preparing" };
@@ -101,7 +101,7 @@ it.each(["nodeSha256", "runnerdSha256", "image"])("requires immutable %s before 
 
 it("admits a cold building_snapshot lease after 20 seconds within the unchanged case deadline", async () => {
   vi.useFakeTimers(); vi.setSystemTime(0);
-  const h = harness(60_000); h.bootstrap.prompt("cold");
+  const h = harness(90_000); h.bootstrap.prompt("cold");
   const original = h.api.get.getMockImplementation()!;
   let sandboxState = "building_snapshot";
   h.api.get.mockImplementation(async path => path.endsWith("/leases") && sandboxState === "building_snapshot" ? [] : original(path));
@@ -111,7 +111,7 @@ it("admits a cold building_snapshot lease after 20 seconds within the unchanged 
   sandboxState = "started";
   await vi.advanceTimersByTimeAsync(100);
   await expect(delivery).resolves.toBe(h.fixture);
-  expect(h.bind).toHaveBeenCalledWith(expect.objectContaining({ deadlineAt: 60_000 }));
+  expect(h.bind).toHaveBeenCalledWith(expect.objectContaining({ deadlineAt: 90_000 }));
   expect(h.input.daytona.get).not.toHaveBeenCalled();
 });
 
@@ -135,9 +135,9 @@ it("rechecks run ownership while waiting for the lease", async () => {
   expect(h.bind).not.toHaveBeenCalled(); expect(h.fixture.publishAction).not.toHaveBeenCalled();
 });
 
-it.each(["foreign-run", "foreign-issue", "inactive", "missing-provider"])("never admits %s and stops at the authored deadline with bounded state", async variant => {
+it.each(["foreign-run", "foreign-issue", "inactive", "missing-provider"])("never admits %s and reserves setup time within the authored deadline with bounded state", async variant => {
   vi.useFakeTimers(); vi.setSystemTime(0);
-  const h = harness(1000); h.bootstrap.prompt("timeout");
+  const h = harness(43_000); h.bootstrap.prompt("timeout");
   if (variant === "foreign-run") h.leases[0]!.heartbeatRunId = "foreign";
   if (variant === "foreign-issue") h.leases[0]!.issueId = "foreign";
   if (variant === "inactive") h.leases[0]!.status = "released";
@@ -148,7 +148,7 @@ it.each(["foreign-run", "foreign-issue", "inactive", "missing-provider"])("never
   expect(Date.now()).toBe(1000); expect(h.bind).not.toHaveBeenCalled();
   expect(h.fixture.publishAction).not.toHaveBeenCalled();
   const state = h.input.evidence.mock.calls[0]![1];
-  expect(state).toMatchObject({ executionStage: "unknown", activeOwnedLeaseCount: 0, deadlineReached: true });
+  expect(state).toMatchObject({ executionStage: "unknown", activeOwnedLeaseCount: 0, deadlineReached: false, admissionDeadlineReached: true });
   expect(Buffer.byteLength(JSON.stringify(state))).toBeLessThan(512);
   expect(JSON.stringify(state)).not.toContain("PRIVATE");
 });
@@ -164,4 +164,66 @@ it("does not start observation after the case deadline", async () => {
   const h = harness(0); h.bootstrap.prompt("expired");
   await expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("Timed out waiting");
   expect(h.api.get).not.toHaveBeenCalled(); expect(h.bind).not.toHaveBeenCalled();
+});
+
+
+it.each(["terminal", "run-owner", "issue-owner"])("does not lose a successful %s read when the lease endpoint rejects", async variant => {
+  vi.useFakeTimers(); vi.setSystemTime(0);
+  const h = harness(); h.bootstrap.prompt("read-error");
+  if (variant === "terminal") h.run.status = "failed";
+  if (variant === "run-owner") h.run.companyId = "foreign";
+  if (variant === "issue-owner") h.issue.companyId = "foreign";
+  const original = h.api.get.getMockImplementation()!;
+  h.api.get.mockImplementation(async path => {
+    if (path.endsWith("/leases") || (variant === "issue-owner" && path.endsWith("/run"))
+      || (variant !== "issue-owner" && path.endsWith("/issue"))) throw new Error("PRIVATE API ERROR");
+    return original(path);
+  });
+  await expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow(variant === "terminal" ? "stopped before observer setup" : "ownership is unproven");
+  expect(Date.now()).toBe(0); expect(h.bind).not.toHaveBeenCalled();
+  expect(h.input.evidence.mock.calls[0]![1]).toMatchObject({ leasesRead: "rejected", admissionDeadlineReached: false });
+  expect(JSON.stringify(h.input.evidence.mock.calls)).not.toContain("PRIVATE");
+});
+
+it.each(["/api/issues/issue", "/api/heartbeat-runs/run", "/api/environments/env/leases"])("never admits while %s cannot be read", async failedPath => {
+  vi.useFakeTimers(); vi.setSystemTime(0);
+  const h = harness(43_000); h.bootstrap.prompt("missing-read");
+  const original = h.api.get.getMockImplementation()!;
+  h.api.get.mockImplementation(async path => { if (path === failedPath) throw new Error("PRIVATE API ERROR"); return original(path); });
+  const delivery = expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("Timed out waiting");
+  await vi.advanceTimersByTimeAsync(1000); await delivery;
+  expect(h.bind).not.toHaveBeenCalled(); expect(h.fixture.publishAction).not.toHaveBeenCalled();
+  expect(JSON.stringify(h.input.evidence.mock.calls)).not.toContain("PRIVATE");
+});
+
+it("allows a transient lease read failure to recover without losing the setup reserve", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0);
+  const h = harness(); h.bootstrap.prompt("recover-read");
+  const original = h.api.get.getMockImplementation()!; let failed = false;
+  h.api.get.mockImplementation(async path => { if (path.endsWith("/leases") && !failed) { failed = true; throw new Error("unavailable"); } return original(path); });
+  const delivery = h.bootstrap.bindAndRelease(h.request);
+  await vi.advanceTimersByTimeAsync(100); await expect(delivery).resolves.toBe(h.fixture);
+  expect(h.bind).toHaveBeenCalledTimes(1);
+});
+
+it("rejects a lease read completing inside the final setup reserve and saves startup evidence", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0);
+  const h = harness(43_000); h.bootstrap.prompt("late");
+  const original = h.api.get.getMockImplementation()!;
+  h.api.get.mockImplementation(async path => {
+    if (path.endsWith("/leases")) await new Promise(resolve => setTimeout(resolve, 1100));
+    return original(path);
+  });
+  const delivery = expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("Timed out waiting");
+  await vi.advanceTimersByTimeAsync(1200); await delivery;
+  expect(h.bind).not.toHaveBeenCalled(); expect(h.fixture.publishAction).not.toHaveBeenCalled();
+  expect(h.input.evidence.mock.calls[0]![1]).toMatchObject({ phase: "lease_admission", activeOwnedLeaseCount: 1, admissionDeadlineReached: true, deadlineReached: false });
+});
+
+it("captures binder failure after admission without publishing or repeating setup", async () => {
+  const h = harness(); h.bootstrap.prompt("bind-failure");
+  h.bind.mockRejectedValue(new Error("remote_native_fixture:insufficient_setup_budget"));
+  await expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("insufficient_setup_budget");
+  expect(h.input.evidence.mock.calls[0]![1]).toMatchObject({ phase: "observer_setup", activeOwnedLeaseCount: 1 });
+  expect(h.bind).toHaveBeenCalledTimes(1); expect(h.fixture.publishAction).not.toHaveBeenCalled();
 });

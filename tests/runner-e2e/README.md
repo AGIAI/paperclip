@@ -1350,10 +1350,14 @@ still fail. SDK 0.203.0, immutable image and executable digests, public run/leas
 ownership, sandbox labels and workspace sentinel are verified before execution.
 
 Bootstrap admission uses the existing authored case deadline, including cold
-snapshot provisioning; it does not impose a separate 20-second lease deadline.
+snapshot provisioning, with the fixture’s existing 42-second installation and
+teardown reserve subtracted before admission. It does not impose a separate
+20-second lease deadline or extend the case budget.
 Every poll rechecks task/run ownership and run status, and requires exactly one
-unambiguous active lease for that run and task. A stopped run fails immediately.
-Startup failures save bounded, allowlisted run-stage and lease-count evidence;
+unambiguous active lease for that run and task. A stopped run fails immediately, even if another endpoint fails. Missing reads
+cannot admit a lease; successful ownership/status reads are retained.
+Admission and observer setup failures save bounded, allowlisted read status,
+run-stage and lease-count evidence;
 this evidence does not infer a provider-side cause or change the machine grade.
 The initial provider's instruction-file read window remains 20 seconds after
 provider startup, and no action is published before the observer is armed.
