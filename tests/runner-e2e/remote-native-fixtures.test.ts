@@ -220,7 +220,7 @@ describe("independent filesystem and process observations", () => {
 });
 
 describe("actual generated observer state machine", () => {
-  async function observerHarness() {
+  async function observerHarness(deferStartup = false) {
     const h = harness(); await bindRemoteNativeFixture(h.options);
     const { source, config } = h.calls[0]!.request;
     const intervals: Array<() => void> = [], timers: Array<{ fn: () => void; ms: number }> = [];
@@ -274,13 +274,82 @@ describe("actual generated observer state machine", () => {
       setInterval(fn: () => void) { intervals.push(fn); return 1; }, clearInterval: vi.fn(),
       setTimeout(fn: () => void, ms: number) { timers.push({ fn, ms }); return { unref() {} }; },
     };
-    new Script(source).runInNewContext(context);
+    if (deferStartup) files.delete(`${config.root}/observer.cjs`);
+    else new Script(source).runInNewContext(context);
     function request(op: string, args: Record<string, unknown> = {}) {
       const replies: any[] = [], socket = Object.assign(new EventEmitter(), { end: (value: string) => replies.push(JSON.parse(value)), destroy: vi.fn() });
       handlers[0]!(socket); socket.emit("data", Buffer.from(JSON.stringify({ op, nonce: config.nonce, ...args }) + "\n")); return replies;
     }
-    return { request, proc, files, watches, fs, intervals, timers, config, handlers, children, symbolicLinks, replaceRuntimeRoot() { runtimeInode = 999n; } };
+    return { request, proc, files, watches, fs, intervals, timers, config, handlers, children, symbolicLinks, context, server, install: h.calls[0]!, replaceRuntimeRoot() { runtimeInode = 999n; } };
   }
+  async function generatedRpc(o: Awaited<ReturnType<typeof observerHarness>>, request: Record<string, unknown>) {
+    const quoted = o.install.command.match(/ -e (.+) '[A-Za-z0-9+/=]+'$/su)![1]!;
+    const source = quoted.slice(1, -1).replaceAll("'\\''", "'");
+    const forwarded: string[] = [], connections: Array<{ client: any; observer: any }> = [];
+    let output = "";
+    const process = { argv: ["node", Buffer.from(JSON.stringify(request)).toString("base64")], execPath: "/node", exitCode: 0, exit: vi.fn(), stdout: { write: (value: string) => { output += value; } } };
+    const spawn = vi.fn((_node: string, argv: string[]) => {
+      expect(argv[0]).toBe(`${o.config.root}/observer.cjs`);
+      // Execute the actual installed observer, using its actual serialized config.
+      o.context.process.argv = ["node", ...argv];
+      new Script(o.files.get(argv[0]!)!.toString()).runInNewContext(o.context);
+      return { unref: vi.fn() };
+    });
+    const fs = { ...o.fs, mkdirSync: vi.fn(), existsSync: () => o.handlers.length > 0,
+      readFileSync(path: string, encoding?: string) { return path === "/node" ? Buffer.from("node") : o.fs.readFileSync(path, encoding); } };
+    const net = { connect(path: string) {
+      expect(path).toBe(`${o.config.root}/control.sock`);
+      const client: any = Object.assign(new EventEmitter(), { setTimeout: vi.fn(), destroy: vi.fn() });
+      const observer: any = Object.assign(new EventEmitter(), {
+        end(value: string) { client.emit("data", Buffer.from(value)); client.emit("end"); observer.emit("close"); },
+        destroy: vi.fn(() => { client.emit("error", new Error("observer closed socket")); observer.emit("close"); }),
+      });
+      client.write = (value: string) => { forwarded.push(value); observer.emit("data", Buffer.from(value)); };
+      connections.push({ client, observer }); o.handlers[0]!(observer);
+      queueMicrotask(() => client.emit("connect")); return client;
+    } };
+    new Script(source).runInNewContext({ require(name: string) {
+      if (name === "node:fs") return fs;
+      if (name === "node:net") return net;
+      if (name === "node:child_process") return { spawn };
+      if (name === "node:crypto") return { createHash };
+      throw new Error("unexpected RPC module");
+    }, process, Buffer, setTimeout: () => ({ unref() {} }) });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    return { output, process, forwarded, spawn, connections };
+  }
+  it("executes generated install through the bounded observer socket, then closes the exact observer", async () => {
+    const o = await observerHarness(true);
+    expect(Buffer.byteLength(o.install.request.source)).toBeGreaterThan(8192);
+    const installed = await generatedRpc(o, o.install.request);
+    expect(installed.process.exitCode).toBe(0);
+    const baseline = JSON.parse(installed.output);
+    expect(baseline.ok).toBe(true); expect(baseline.result.complete).toBe(true);
+    expect(baseline.result.processes.root.pid).toBe(21);
+    expect(installed.spawn).toHaveBeenCalledTimes(1);
+    expect(installed.forwarded.map(value => JSON.parse(value))).toEqual([{ op: "snapshot", nonce: o.config.nonce }]);
+    expect(Buffer.byteLength(installed.forwarded[0]!)).toBeLessThan(8192);
+    const closed = await generatedRpc(o, { op: "close", root: o.config.root, nonce: o.config.nonce, nodeSha256: hash("node"), timeoutMs: 10_000 });
+    expect(closed.process.exitCode).toBe(0); expect(JSON.parse(closed.output)).toEqual({ ok: true, result: { closed: true } });
+    expect(closed.spawn).not.toHaveBeenCalled();
+    expect(closed.forwarded[0]).not.toContain('"source"'); expect(closed.forwarded[0]).not.toContain('"config"');
+    expect(o.watches.length).toBeGreaterThan(0); expect(o.watches.every(w => w.closed)).toBe(true);
+    expect(o.context.clearInterval).toHaveBeenCalled(); expect(o.server.close).toHaveBeenCalled();
+    o.timers.find(t => t.ms === 100)!.fn();
+    expect(closed.connections[0]!.observer.destroy).toHaveBeenCalled();
+    expect(o.fs.rmSync).toHaveBeenCalledExactlyOnceWith(o.config.root, { recursive: true, force: true });
+    expect(o.context.process.exit).toHaveBeenCalledExactlyOnceWith(0);
+  });
+  it("still rejects an oversized control request and can close its observer afterward", async () => {
+    const o = await observerHarness();
+    const oversized = await generatedRpc(o, { op: "snapshot", root: o.config.root, nonce: o.config.nonce, nodeSha256: hash("node"), timeoutMs: 10_000, unexpected: "x".repeat(8192) });
+    expect(oversized.process.exitCode).toBe(2); expect(oversized.output).toBe("");
+    expect(oversized.connections[0]!.observer.destroy).toHaveBeenCalled();
+    const closed = await generatedRpc(o, { op: "close", root: o.config.root, nonce: o.config.nonce, nodeSha256: hash("node"), timeoutMs: 10_000 });
+    expect(JSON.parse(closed.output)).toEqual({ ok: true, result: { closed: true } });
+    o.timers.find(t => t.ms === 100)!.fn();
+    expect(o.watches.every(w => w.closed)).toBe(true); expect(o.context.process.exit).toHaveBeenCalledExactlyOnceWith(0);
+  });
   it("acknowledges receipt-channel readiness only after the long waiter connects", async () => {
     const o = await observerHarness(); const arm = o.request("arm"); expect(arm).toHaveLength(0);
     o.request("wait"); expect(arm).toEqual([{ ok: true, result: { armed: true, sealed: false } }]);
