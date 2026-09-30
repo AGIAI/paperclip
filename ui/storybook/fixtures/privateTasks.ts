@@ -40,6 +40,7 @@ export type PrivacyScenario = {
   childOnly?: boolean;
   personal?: boolean;
   draft?: boolean;
+  classic?: boolean;
 };
 
 export const privacyUsers = [
@@ -593,6 +594,7 @@ export function installPrivacyApi(state: PrivacyState) {
       );
     if (path === "/api/instance/settings/experimental")
       return json({
+        enableClassicTaskInterface: state.options.classic === true,
         enableIsolatedWorkspaces: false,
         enableManagedSandboxOnly: false,
       });

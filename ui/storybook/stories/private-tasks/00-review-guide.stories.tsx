@@ -79,6 +79,20 @@ const surfaces = [
     "Real page and task menu; sharing survives menu dismissal; owner/reader/admin; shared child with locked ancestor; mobile/light.",
   ],
   [
+    "IssueProperties",
+    "Changed",
+    "06 Full product pages",
+    "shared-child-reader",
+    "Private parent remains a locked, non-interactive chip in task properties.",
+  ],
+  [
+    "RelationNavigationList (TaskDetailRelationsPanel)",
+    "Changed",
+    "04 References and blockers",
+    "ancestor-navigation",
+    "Mixed readable and locked ancestors; also shown in the full task's Tasks tab.",
+  ],
+  [
     "DesignGuide",
     "Changed",
     "06 Full product pages",
@@ -138,10 +152,10 @@ function Overview() {
             Every changed surface, in context
           </h1>
           <p className="text-sm text-muted-foreground">
-            This review covers all 12 rendered components and pages changed by
-            the private-task feature: four additions and eight existing
-            surfaces. Each canvas uses the production component with fictional,
-            isolated API fixtures.
+            This review covers all 14 rendered components and pages changed by
+            the private-task feature: four additions and ten existing surfaces.
+            Each canvas uses the production component with fictional, isolated
+            API fixtures.
           </p>
           <p className="rounded-lg border border-border bg-muted p-4 text-sm">
             Privacy flows down the task tree. Sharing a child grants access to

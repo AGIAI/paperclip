@@ -1,3 +1,4 @@
+import { isLockedIssueStub, LockedIssueChip } from "@/components/LockedIssueChip";
 import { canManageIssuePrivacy } from "../lib/issuePrivacy";
 import { TextAttachmentContext } from "../context/TextAttachmentContext";
 import { useTaskBrowsers, useBrowserArrivals } from "@/hooks/useTaskBrowsers";
@@ -6809,7 +6810,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
       return null;
     }
     const parent = ancestors.length > 0 ? ancestors[0] : null;
-    if (!parent) return null;
+    if (!parent || isLockedIssueStub(parent)) return null;
     const ref = parent.identifier ?? parent.id;
     return {
       identifier: parent.identifier ?? null,
@@ -6931,7 +6932,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
         {[...ancestors].reverse().map((ancestor, i) => (
           <span key={ancestor.id} className="flex items-center gap-1">
             {i > 0 && <ChevronRight className="h-3 w-3 shrink-0" />}
-            <Link
+            {isLockedIssueStub(ancestor) ? <LockedIssueChip identifier={ancestor.identifier} /> : <Link
               to={createIssueDetailPath(ancestor.identifier ?? ancestor.id)}
               state={resolvedIssueDetailState ?? location.state}
               onClickCapture={() =>
@@ -6945,7 +6946,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
               title={ancestor.title}
             >
               {ancestor.title}
-            </Link>
+            </Link>}
           </span>
         ))}
         <ChevronRight className="h-3 w-3 shrink-0" />

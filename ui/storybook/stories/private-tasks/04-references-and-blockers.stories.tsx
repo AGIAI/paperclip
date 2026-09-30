@@ -1,7 +1,8 @@
 import type { IssueRelationIssueSummary } from "@paperclipai/shared";
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within, waitFor } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
+import { RelationNavigationList } from "@/components/task-detail/TaskDetailRelationsPanel";
 import { LockedIssueChip } from "@/components/LockedIssueChip";
 import { IssueReferencePill } from "@/components/IssueReferencePill";
 import { IssueBlockedNotice } from "@/components/IssueBlockedNotice";
@@ -189,4 +190,30 @@ export const MobileBlockerConfirmation: Story = {
 export const LightReferences: Story = {
   globals: { theme: "light" },
   render: () => <References mode="pills" />,
+};
+
+export const AncestorNavigation: Story = {
+  render: () => (
+    <StoryFrame
+      title="Ancestor navigation"
+      story="As a shared reader, I see locked ancestors without a destination link, alongside any ancestors I can read."
+      checks={[
+        "Private ancestors have no title, status, or quicklook.",
+        "Readable ancestors remain navigable.",
+      ]}
+    >
+      <RelationNavigationList
+        items={[locked, readable]}
+        emptyMessage="No ancestors"
+        ariaLabel="Ancestor tasks"
+      />
+    </StoryFrame>
+  ),
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement);
+    await expect(page.getByTestId("locked-issue-chip")).toHaveTextContent(
+      "PAP-410",
+    );
+    await expect(page.getAllByRole("link")).toHaveLength(1);
+  },
 };

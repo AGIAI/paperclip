@@ -81,6 +81,18 @@ export const OwnerSharingFromMenu: Story = {
   },
 };
 export const SharedChildReader: Story = {
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement);
+    await expect(
+      await page.findByTestId("locked-issue-chip", {}, { timeout: 15000 }),
+    ).toHaveTextContent("PAP-410");
+    await expect(
+      page.queryByRole("link", { name: /Task PAP-410/ }),
+    ).not.toBeInTheDocument();
+    await expect(
+      page.queryByText("Prepare my board briefing"),
+    ).not.toBeInTheDocument();
+  },
   parameters: { privacy: { role: "reader", childOnly: true } },
   render: () => <PrivacyPage child />,
 };
@@ -119,5 +131,40 @@ export const DesignGuideLockedReferences: Story = {
     );
     section.scrollIntoView({ block: "center" });
     await expect(section).toBeVisible();
+  },
+};
+
+export const SharedChildTasksPanel: Story = {
+  parameters: { privacy: { role: "reader", childOnly: true } },
+  render: () => <PrivacyPage child />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      await page.findByRole("tab", { name: "Tasks" }, { timeout: 15000 }),
+    );
+    const ancestors = await page.findByRole("list", {
+      name: "Ancestor tasks, root to parent",
+    });
+    await expect(
+      within(ancestors).getByTestId("locked-issue-chip"),
+    ).toHaveTextContent("PAP-410");
+    await expect(within(ancestors).queryByRole("link")).not.toBeInTheDocument();
+  },
+};
+
+export const ClassicSharedChild: Story = {
+  parameters: { privacy: { role: "reader", childOnly: true, classic: true } },
+  render: () => <PrivacyPage child />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement);
+    const chips = await page.findAllByTestId(
+      "locked-issue-chip",
+      {},
+      { timeout: 15000 },
+    );
+    await expect(chips.length).toBeGreaterThanOrEqual(1);
+    await expect(
+      page.queryByRole("link", { name: /PAP-410/ }),
+    ).not.toBeInTheDocument();
   },
 };
