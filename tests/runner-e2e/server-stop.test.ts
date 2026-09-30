@@ -1,10 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { createRunnerE2EServerStopper, runnerE2EServerDetached } from "./server-stop.js";
+import { readProcessTable } from "./process-tree.js";
+import { createProcessTreeOwner, stopOwnedProcessTree } from "./process-tree-owner.js";
 import { runnerE2ETypeScriptProcessArgs } from "./web-server-command.js";
 
 const children: ChildProcess[] = [];
@@ -115,7 +117,7 @@ it("settles a failed spawn without attempting escalation", async () => {
   expect(logs).toEqual([]);
 });
 
-it.skipIf(process.platform === "win32")("keeps external wrapper-group signals out of an asynchronously closing server", async () => {
+it.skipIf(process.platform === "win32")("lets launcher cancellation join wrapper shutdown without signaling the server twice", async () => {
   const { root, entry } = await fixture();
   const supervisor = path.join(root, "supervisor.mts");
   const helper = path.join(import.meta.dirname, "server-stop.ts");
@@ -138,7 +140,10 @@ it.skipIf(process.platform === "win32")("keeps external wrapper-group signals ou
     detached: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
   });
   children.push(wrapper);
+  let wrapperErrors = "";
+  wrapper.stderr?.on("data", chunk => { wrapperErrors += chunk; });
   let workerPid: number | undefined;
+  const owner = createProcessTreeOwner(wrapper);
   try {
     workerPid = (await once(wrapper, "message"))[0].pid;
     const stopping = once(wrapper, "message");
@@ -149,14 +154,17 @@ it.skipIf(process.platform === "win32")("keeps external wrapper-group signals ou
     const messages: unknown[] = [];
     wrapper.on("message", message => messages.push(message));
     const exited = once(wrapper, "exit");
-    process.kill(-wrapper.pid!, "SIGTERM");
+    await owner.observe();
+    const cancellation = stopOwnedProcessTree(wrapper, owner, 2_000, 2_000);
     await new Promise(resolve => setTimeout(resolve, 250));
     if (wrapper.connected) wrapper.send("finish");
     await exited;
-    expect(messages).toContainEqual({ message: "close-complete", pid: workerPid });
+    await cancellation;
+    expect(messages, wrapperErrors).toContainEqual({ message: "close-complete", pid: workerPid });
     expect(messages).toContainEqual({ exitCode: 0, signalCode: null });
     expect(() => process.kill(workerPid!, 0)).toThrow();
   } finally {
+    owner.stopObserving();
     if (workerPid) { try { process.kill(-workerPid, "SIGKILL"); } catch { /* reaped */ } }
   }
 });
@@ -175,11 +183,78 @@ it.skipIf(process.platform === "win32")("escalates the owned server group so a h
   try {
     await stopper(50).stop(child);
     expect(child.signalCode).toBe("SIGKILL");
-    // Reparented children may be reaped a little after the direct child's exit.
-    await expect.poll(() => {
-      try { process.kill(pid, 0); return true; } catch { return false; }
-    }, { timeout: 2_000 }).toBe(false);
+    // A stopped orphan may remain a zombie until the host's init reaps it.
+    const table = await readProcessTable();
+    expect(table).not.toBeNull();
+    expect(table!.some(row => row.pid === pid && !row.state?.startsWith("Z"))).toBe(false);
   } finally {
     try { process.kill(pid, "SIGKILL"); } catch { /* reaped */ }
   }
+});
+
+
+it.skipIf(process.platform === "win32")("retires observed descendants after the server leader exits early", async () => {
+  const { root, entry } = await fixture();
+  const marker = path.join(root, "descendant-closed");
+  const descendant = `
+    process.once('SIGTERM', () => setTimeout(() => {
+      require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'closed'); process.exit(0);
+    }, 50));
+    process.send('ready'); setInterval(() => {}, 1000);
+  `;
+  await writeFile(entry, `
+    const child = require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(descendant)}], {
+      stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+    });
+    child.once('message', () => process.send({ pid: child.pid }));
+    process.once('message', () => process.exit(1));
+  `);
+  const child = start(entry);
+  const pid = (await once(child, "message"))[0].pid as number;
+  const { stop } = stopper();
+  try {
+    await stop.watch(child);
+    const exited = once(child, "exit");
+    child.send("crash");
+    await exited;
+    await stop(child);
+    expect(await readFile(marker, "utf8")).toBe("closed");
+    const table = await readProcessTable();
+    expect(table).not.toBeNull();
+    expect(table!.some(row => row.pid === pid && !row.state?.startsWith("Z"))).toBe(false);
+  } finally { try { process.kill(pid, "SIGKILL"); } catch { /* stopped */ } }
+});
+
+it.skipIf(process.platform === "win32")("recovers a failed cleanup without repeating the graceful signal", async () => {
+  const { entry } = await fixture();
+  const child = start(entry);
+  await once(child, "message");
+  let failInspection = false;
+  let owner: ReturnType<typeof createProcessTreeOwner> | undefined;
+  const messages: unknown[] = [];
+  child.on("message", message => {
+    messages.push(message);
+    if (message === "stopping") failInspection = true;
+  });
+  const stop = createRunnerE2EServerStopper({
+    gracefulTimeoutMs: 2_000, forcedTimeoutMs: 2_000,
+    hasSpawnError: () => false, markExpectedStop: () => {}, log: () => {},
+    createOwner: candidate => {
+      owner = createProcessTreeOwner(candidate);
+      return { ...owner, observe: async () => {
+        if (failInspection) { failInspection = false; throw new Error("transient inspection failure"); }
+        await owner!.observe();
+      } };
+    },
+  });
+  try {
+    await expect(stop(child)).rejects.toThrow("transient inspection failure");
+    const recovery = stop(child);
+    // A second graceful signal would terminate this child's once-handler.
+    await new Promise(resolve => setTimeout(resolve, 50));
+    if (child.connected) child.send("finish");
+    await recovery;
+    expect(messages).toEqual(["stopping", "close-complete"]);
+    expect([child.exitCode, child.signalCode]).toEqual([0, null]);
+  } finally { owner?.stopObserving(); }
 });
