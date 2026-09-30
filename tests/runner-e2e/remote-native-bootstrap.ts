@@ -61,29 +61,54 @@ export function createRemoteNativeBootstrap(input: {
       if (pending.length !== 1) throw new Error("Remote bootstrap requires one unconsumed instruction delivery");
       const setup = pending[0]!; setup.consumed = true;
       if (![request.issueId, request.runId].every(id => /^[A-Za-z0-9_-]{1,128}$/u.test(id))) throw new Error("Invalid bootstrap task/run identity");
-      await pollUntil({
-        label: "owned native qualification run", deadlineAt: Math.min(input.deadlineAt, Date.now() + 20_000), intervalMs: 100,
-        load: async () => {
-          const [issue, run] = await Promise.all([
-            input.api.get<Record<string, any>>(`/api/issues/${request.issueId}`),
-            input.api.get<Record<string, any>>(`/api/heartbeat-runs/${request.runId}`),
-          ]);
-          if (issue.id !== request.issueId || issue.companyId !== input.companyId || issue.assigneeAgentId !== input.agentId
-            || run.companyId !== input.companyId || run.agentId !== input.agentId || run.id !== request.runId) {
-            throw new Error("Remote bootstrap task/run ownership is unproven");
-          }
-          return run;
-        },
-        accept: run => run.status === "running",
-        reject: run => ["queued", "running"].includes(run.status) ? undefined : "Native qualification run stopped before observer setup",
-      });
-      const leases = await pollUntil({
-        label: "owned native qualification lease", deadlineAt: Math.min(input.deadlineAt, Date.now() + 20_000), intervalMs: 100,
-        load: () => input.api.get<Array<Record<string, any>>>(`/api/environments/${input.environmentId}/leases`),
-        accept: rows => rows.filter(row => row.heartbeatRunId === request.runId && row.issueId === request.issueId && row.status === "active" && row.providerLeaseId).length === 1,
-        reject: rows => rows.filter(row => row.heartbeatRunId === request.runId).length > 1 ? "Ambiguous native qualification lease" : undefined,
-      });
-      const lease = leases.find(row => row.heartbeatRunId === request.runId && row.issueId === request.issueId && row.status === "active")!;
+      // Provisioning consumes the authored case deadline. A cold snapshot need
+      // not produce a lease in 20 seconds; a terminal or foreign run never waits.
+      let lastState: Record<string, string | number | boolean> = { observed: false };
+      let lease: Record<string, any>;
+      try {
+        const ready = await pollUntil({
+          label: "owned native qualification lease", deadlineAt: input.deadlineAt, intervalMs: 100,
+          load: async () => {
+            const [issue, run, rows] = await Promise.all([
+              input.api.get<Record<string, any>>(`/api/issues/${request.issueId}`),
+              input.api.get<Record<string, any>>(`/api/heartbeat-runs/${request.runId}`),
+              input.api.get<Array<Record<string, any>>>(`/api/environments/${input.environmentId}/leases`),
+            ]);
+            const owned = issue.id === request.issueId && issue.companyId === input.companyId
+              && issue.assigneeAgentId === input.agentId && run.companyId === input.companyId
+              && run.agentId === input.agentId && run.id === request.runId;
+            const runLeases = rows.filter(row => row.heartbeatRunId === request.runId);
+            const active = runLeases.filter(row => row.issueId === request.issueId && row.status === "active" && row.providerLeaseId);
+            const rejection = !owned ? "Remote bootstrap task/run ownership is unproven"
+              : !["queued", "running"].includes(run.status) ? "Native qualification run stopped before observer setup"
+              : runLeases.length > 1 ? "Ambiguous native qualification lease" : undefined;
+            // Fixed keys and allowlisted enum values only: no provider IDs,
+            // errors, prompts or arbitrary API strings enter startup evidence.
+            lastState = {
+              observed: true, owned,
+              runStatus: ["queued", "running", "succeeded", "failed", "cancelled", "timed_out"].includes(run.status) ? run.status : "unknown",
+              executionStage: ["queued", "preparing", "executing", "finalizing"].includes(run.executionStage) ? run.executionStage : "unknown",
+              runLeaseCount: runLeases.length, activeOwnedLeaseCount: active.length,
+              deadlineReached: Date.now() >= input.deadlineAt,
+            };
+            return { run, lease: active[0], rejection };
+          },
+          accept: state => !state.rejection && state.run.status === "running" && Boolean(state.lease)
+            && Date.now() < input.deadlineAt,
+          reject: state => state.rejection,
+          timeoutDetail: () => JSON.stringify(lastState),
+        });
+        lease = ready.lease!;
+      } catch (error) {
+        try {
+          await input.evidence(`remote-native-bootstrap-startup-${request.runId}.json`, {
+            ...lastState, deadlineReached: Date.now() >= input.deadlineAt,
+          });
+        } catch (evidenceError) {
+          throw new AggregateError([error, evidenceError], "Remote bootstrap startup failed and state evidence could not be saved");
+        }
+        throw error;
+      }
       const fixture = await bind({ api: input.api, daytona: input.daytona, sdkVersion: "0.203.0", nodeSha256: input.nodeSha256, runnerdSha256: input.runnerdSha256,
         authority: { companyId: input.companyId, environmentId: input.environmentId, runId: request.runId, leaseId: lease.id, sandboxId: lease.providerLeaseId, image: input.image },
         targets: [...request.targets], crossRoot: request.crossRoot, actionFile: setup.path, deadlineAt: input.deadlineAt,

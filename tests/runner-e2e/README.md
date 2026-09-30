@@ -1349,6 +1349,15 @@ separate from the native operation under test; unknown or extra writes/commands
 still fail. SDK 0.203.0, immutable image and executable digests, public run/lease
 ownership, sandbox labels and workspace sentinel are verified before execution.
 
+Bootstrap admission uses the existing authored case deadline, including cold
+snapshot provisioning; it does not impose a separate 20-second lease deadline.
+Every poll rechecks task/run ownership and run status, and requires exactly one
+unambiguous active lease for that run and task. A stopped run fails immediately.
+Startup failures save bounded, allowlisted run-stage and lease-count evidence;
+this evidence does not infer a provider-side cause or change the machine grade.
+The initial provider's instruction-file read window remains 20 seconds after
+provider startup, and no action is published before the observer is armed.
+
 The observer watches registered targets (including transient create/delete), user
 workspace changes and the exact runner process plus descendants. The single
 controller-owned `.paperclip-runtime/paperclip-runner` subtree is excluded from
