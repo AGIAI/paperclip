@@ -490,6 +490,6 @@ provenance/reasons and generated observation identities, rejects unknown or
 oversized fields, and preserves parent/child observations through durable eval
 checkpoint reload. These unsummed, partial counters never enter the usage ledger
 or establish native USD. Deterministic transport/store tests cover this capture
-path; paid qualification remains pending. Earlier artifacts that reduced the
-canonical notice to `other` cannot establish whether native counters were emitted
-and must retain their original accounting failure.
+path; paid qualification remains pending. Earlier artifacts produced by the old
+recorder cannot establish whether these native counters were emitted and must
+retain their original accounting failure.
