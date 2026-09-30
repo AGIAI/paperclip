@@ -62,7 +62,7 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
     const f = fixture(); f.preStop.terminal = null; f.events[4]!.createdAt = date(800);
     expect(() => readCopilotDenialSettlement(f)).toThrow(/settlement/);
   });
-  it.each(["missing", "foreign", "hash", "sequence", "equal-clock", "reverse-clock"])("rejects %s pre-dispatch observation", kind => {
+  it.each(["missing", "foreign", "hash", "sequence", "equal-clock", "reverse-clock", "non-string-clock"])("rejects %s pre-dispatch observation", kind => {
     const f = fixture();
     if (kind === "missing") (f as any).preStop = null;
     if (kind === "foreign") f.preStop.runId = "foreign";
@@ -70,6 +70,7 @@ describe("Copilot denial provider settlement and separate audited run Stop", () 
     if (kind === "sequence") f.preStop.terminal!.sourceSeq++;
     if (kind === "equal-clock") f.stopDispatchMonotonicNs = f.preStop.apiReadCompletedMonotonicNs;
     if (kind === "reverse-clock") f.stopDispatchMonotonicNs = "1";
+    if (kind === "non-string-clock") (f.preStop as any).apiReadCompletedMonotonicNs = ["1"];
     expect(() => readCopilotDenialSettlement(f)).toThrow(/settlement/);
   });
   it.each(["runId", "turnId", "normalizedSessionId", "sourceInstanceId", "eventType", "sourceEventId"])("rejects terminal %s mismatch", field => {

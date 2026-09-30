@@ -238,6 +238,7 @@ export function validCopilotDenialSettlement(s: CopilotDenialSettlement): boolea
     || before.companyId !== c.companyId || before.normalizedSessionId !== t.normalizedSessionId || before.sourceInstanceId !== t.sourceInstanceId
     || before.failedToolSourceSeq !== t.failedToolSourceSeq || before.failedToolRowSha256 !== t.failedToolRowSha256
     || ![t.rowSha256, t.failedToolRowSha256].every(v => /^sha256:[a-f0-9]{64}$/u.test(v))
+    || typeof before.apiReadCompletedMonotonicNs !== "string" || typeof s.stopDispatchMonotonicNs !== "string"
     || !/^[1-9][0-9]{0,29}$/u.test(before.apiReadCompletedMonotonicNs) || !/^[1-9][0-9]{0,29}$/u.test(s.stopDispatchMonotonicNs)
     || BigInt(before.apiReadCompletedMonotonicNs) >= BigInt(s.stopDispatchMonotonicNs)) return false;
   if (before.terminal !== null && (!before.terminal || before.terminal.eventType !== t.eventType || before.terminal.sourceSeq !== t.sourceSeq || before.terminal.rowSha256 !== t.rowSha256)) return false;
