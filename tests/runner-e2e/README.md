@@ -1376,6 +1376,13 @@ Bootstrap admission uses the existing authored case deadline, including cold
 snapshot provisioning, with the fixture’s existing 42-second installation and
 teardown reserve subtracted before admission. It does not impose a separate
 20-second lease deadline or extend the case budget.
+After lease admission, a read-only probe waits for the exact pinned runner
+process and runtime directory before installing the observer once. This uses
+the remaining case budget while preserving 27 seconds for installation and
+15 seconds for teardown. Installation and the first observation recheck the
+same process and directory identities before releasing the task instructions.
+Startup evidence retains only closed RPC phase/error codes; detached observer
+stderr is not collected, and a failed installation is not retried.
 Every poll rechecks task/run ownership and run status, and requires exactly one
 unambiguous active lease for that run and task. A stopped run fails as soon as its read completes, even if another endpoint
 fails or remains pending. At most three reads are outstanding, each with a
