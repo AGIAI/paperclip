@@ -15,7 +15,28 @@ async function fixture(t, extra = {}) {
   return { root, source };
 }
 
-for (const extra of [{}, { bundleDependencies: false }, { bundleDependencies: [] }]) {
+// Capture bytes, modes, and link text without following package symlinks.
+async function inventory(root) {
+  const entries = [];
+  async function visit(relative) {
+    const path = join(root, relative);
+    const stat = await lstat(path);
+    const entry = { path: relative, mode: stat.mode & 0o7777 };
+    if (stat.isSymbolicLink()) entries.push({ ...entry, type: "link", target: await readlink(path) });
+    else if (stat.isDirectory()) {
+      entries.push({ ...entry, type: "directory" });
+      for (const name of (await readdir(path)).sort()) await visit(join(relative, name));
+    } else {
+      assert.ok(stat.isFile());
+      entries.push({ ...entry, type: "file", bytes: await readFile(path) });
+    }
+  }
+  await visit("");
+  return entries;
+}
+
+for (const extra of [{}, { bundleDependencies: false }, { bundleDependencies: [] },
+  { bundledDependencies: false }, { bundledDependencies: [] }]) {
   test(`stages unchanged non-bundled package ${JSON.stringify(extra)}`, async t => {
     const { root, source } = await fixture(t, extra);
     await mkdir(join(source, "node_modules"));
@@ -24,6 +45,7 @@ for (const extra of [{}, { bundleDependencies: false }, { bundleDependencies: []
     await chmod(join(source, "bin.js"), 0o755);
     await writeFile(join(source, ".npmignore"), "excluded.txt\n");
     await symlink("bin.js", join(source, "link"));
+    const sourceBefore = await inventory(source);
     let staged;
     const result = await withInstalledPackagePackInput(source, root, async (input, external) => {
       staged = input;
@@ -37,31 +59,35 @@ for (const extra of [{}, { bundleDependencies: false }, { bundleDependencies: []
       return "tarball";
     });
     assert.equal(result, "tarball");
+    assert.deepEqual(await inventory(source), sourceBefore);
     await assert.rejects(lstat(staged), { code: "ENOENT" });
     assert.equal(await readFile(join(source, "node_modules/foreign"), "utf8"), "must not copy");
   });
 }
 
-for (const extra of [{ bundleDependencies: true }, { bundleDependencies: ["dependency"] }, { bundledDependencies: ["dependency"] }]) {
+for (const extra of [{ bundleDependencies: true }, { bundleDependencies: ["dependency"] }, { bundledDependencies: true }, { bundledDependencies: ["dependency"] }]) {
   test(`preserves original bundled pack path ${JSON.stringify(extra)}`, async t => {
     const { root, source } = await fixture(t, extra);
     const before = await readdir(root);
+    const sourceBefore = await inventory(source);
     assert.equal(await withInstalledPackagePackInput(source, root, async (input, external) => {
       assert.equal(input, source); assert.equal(external, false); return "unchanged";
     }), "unchanged");
     assert.deepEqual(await readdir(root), before);
+    assert.deepEqual(await inventory(source), sourceBefore);
   });
 }
 
 test("removes only its staging input when packing fails", async t => {
   const { root, source } = await fixture(t);
+  const sourceBefore = await inventory(source);
   let staged;
   const error = new Error("pack failed");
   await assert.rejects(withInstalledPackagePackInput(source, root, async input => {
     staged = input; throw error;
   }), value => value === error);
   await assert.rejects(lstat(staged), { code: "ENOENT" });
-  assert.ok((await lstat(join(source, "package.json"))).isFile());
+  assert.deepEqual(await inventory(source), sourceBefore);
 });
 
 for (const useFiles of [true, false]) {
@@ -93,11 +119,13 @@ for (const useFiles of [true, false]) {
     };
     // Check actual archive bytes against the installed input; the failing npm
     // directory traversal itself is reproduced separately on Linux CI.
+    const sourceBefore = await inventory(source);
     let input;
     const staged = await withInstalledPackagePackInput(source, root, async path => {
       input = path;
       return pack(path, "first");
     });
+    assert.deepEqual(await inventory(source), sourceBefore);
     for (const file of staged.files) {
       const bytes = execFileSync("tar", ["-xzOf", "-", `package/${file.path}`],
         { input: staged.archive, timeout: 5_000, maxBuffer: 1024 * 1024 });
