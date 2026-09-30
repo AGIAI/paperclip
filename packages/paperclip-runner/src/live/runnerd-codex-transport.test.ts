@@ -7574,7 +7574,7 @@ it("preserves prepared input through runnerd and the real OpenCode proxy boundar
   // The CI toolcache Node can be group-writable. Qualify an owned copy without
   // changing shared host permissions or weakening the production launch check.
   const nodeCommand = join(root, "node");
-  await cp(process.execPath, nodeCommand);
+  await cp(process.execPath, nodeCommand, { dereference: true });
   await chmod(nodeCommand, 0o755);
   // The qualified launch boundary unlinks its executable after exec. Use a
   // native wrapper, like the real OpenCode binary; a shebang script would need
