@@ -1,4 +1,4 @@
-import { claimCancellationRequest, startupCancellationFence } from "./native-runtime/native-cancellation-request.js";
+import { nativeRetryCancellationCommitCondition, rethrowNativeCancellationLockConflict, claimCancellationRequest, startupCancellationFence } from "./native-runtime/native-cancellation-request.js";
 import { CHAT_COMPLETION_WAKE_REASON, prepareChatCompletionTurn, chatCompletionInstruction, isCompletedOnboardingHandoffWake } from "./chat-completion-delivery.js";
 import { isAgentDirectoryCopy } from "./agent-directory-working-copies.js";
 
@@ -12881,6 +12881,7 @@ export function heartbeatService(
     status: string,
     fromStatuses: string[],
     patch?: Partial<typeof heartbeatRuns.$inferInsert>,
+    cancellationCondition?: ReturnType<typeof nativeRetryCancellationCommitCondition>,
   ) {
     // fromStatuses can name a terminal status as its own source (for example,
     // an idempotent "still failed" patch), so the write below is not always a
@@ -12935,13 +12936,18 @@ export function heartbeatService(
               and(
                 eq(heartbeatRuns.id, runId),
                 inArray(heartbeatRuns.status, fromStatuses),
+                ...(cancellationCondition ? [cancellationCondition] : []),
                 ...(isHeartbeatRunTerminalStatus(status)
                   ? [nativeRunnerOwnershipNotHeldCondition()]
                   : []),
               ),
             )
             .returning()
-            .then((rows) => rows[0] ?? null);
+            .then((rows) => rows[0] ?? null)
+            .catch((error: unknown) => {
+              if (cancellationCondition) rethrowNativeCancellationLockConflict(error);
+              throw error;
+            });
 
     if (updated) {
       publishLiveEvent({
@@ -29147,8 +29153,9 @@ export function heartbeatService(
       run = await claimCancellationRequest(db, runId, run.companyId, options.cancellationRequestId, options.cancellationRequestedByUserId ?? null);
     }
     // The caller claim checked retry eligibility under both durable row locks.
-    // Its own native intent may already have disabled the retry; re-reading only
-    // retryable_failure would strand that same-ID recovery.
+    // This is only a cancellation candidate: dispatch rechecks the coordinator
+    // under lock, and the final CAS requires its own unchanged acknowledged
+    // retry fence. Re-reading only retryable_failure here would strand replay.
     const pendingNativeRetry =
       run.runtimeMode === "native" && run.status === "failed" && (
         Boolean(options.cancellationRequestId) || await db
@@ -29375,6 +29382,7 @@ export function heartbeatService(
                   }
                 : {}),
             },
+            pendingNativeRetry ? nativeRetryCancellationCommitCondition(persistedCancellationResult) : undefined,
           );
         } catch (error) {
           if (processCancellationSettlement) {

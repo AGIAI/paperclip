@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { agents, companies, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@paperclipai/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { cancellationIntentId, claimCancellationRequest, startupCancellationFence } from "../services/native-runtime/native-cancellation-request.js";
+import { rethrowNativeCancellationLockConflict, nativeRetryCancellationCommitCondition, cancellationIntentId, claimCancellationRequest, startupCancellationFence } from "../services/native-runtime/native-cancellation-request.js";
 
 describe("atomic caller cancellation request ownership", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
@@ -99,6 +99,65 @@ describe("atomic caller cancellation request ownership", () => {
     await expect(claimCancellationRequest(db, f.runId, f.companyId, id, "board-user")).rejects.toMatchObject({ status: 409 });
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     expect(run.resultJson?.startupCancellation).toBeUndefined();
+  });
+
+  it.each(["failed", "running"])("preserves a %s terminal/recovery outcome that wins after reservation", async status => {
+    const f = await retryFixture(), id = randomUUID();
+    await claimCancellationRequest(db, f.runId, f.companyId, id, "board-user");
+    await db.update(nativeRunFinalizations).set({ phase: status === "failed" ? "terminal_failure" : "observed",
+      failureCode: "board_recovery", nextAttemptAt: null }).where(eq(nativeRunFinalizations.runId, f.runId));
+    await db.update(heartbeatRuns).set({ status, errorCode: "board_recovery" }).where(eq(heartbeatRuns.id, f.runId));
+    await expect(cancelNativeSession(f.runId, "Stop", { db, scope: "run", cancellationRequestId: id })).rejects.toMatchObject({ status: 409 });
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
+    expect(run).toMatchObject({ status, errorCode: "board_recovery" });
+    expect(run.resultJson?.nativeCancellation).toBeUndefined();
+  });
+  it("does not overwrite a coordinator-only terminal change after acknowledgement", async () => {
+    const f = await retryFixture(), id = randomUUID();
+    await claimCancellationRequest(db, f.runId, f.companyId, id, "board-user");
+    await cancelNativeSession(f.runId, "Stop", { db, scope: "run", cancellationRequestId: id });
+    const [acknowledged] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
+    const commit = () => db.update(heartbeatRuns).set({ status: "cancelled" }).where(and(eq(heartbeatRuns.id, f.runId),
+      inArray(heartbeatRuns.status, ["queued", "running", "scheduled_retry", "failed"]), nativeRetryCancellationCommitCondition(acknowledged.resultJson))).returning();
+    let release!: () => void, locked!: () => void;
+    const acquired = new Promise<void>(resolve => { locked = resolve; });
+    const hold = new Promise<void>(resolve => { release = resolve; });
+    const advance = db.transaction(async tx => {
+      await tx.update(nativeRunFinalizations).set({ failureCode: "board_recovery" }).where(eq(nativeRunFinalizations.runId, f.runId));
+      locked(); await hold;
+    });
+    try { await acquired; await expect(commit().catch(rethrowNativeCancellationLockConflict)).rejects.toMatchObject({ status: 409, message: "Native retry cancellation is busy; retry the same request" }); }
+    finally { release(); await advance; }
+    expect(await commit()).toEqual([]);
+    const [preserved] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
+    expect(preserved).toMatchObject({ status: "failed", resultJson: acknowledged.resultJson });
+  });
+  it.each(["running", "queued", "scheduled_retry"])("preserves a status-only advance to %s after acknowledgement", async status => {
+    const f = await retryFixture(), id = randomUUID();
+    await claimCancellationRequest(db, f.runId, f.companyId, id, "board-user");
+    await cancelNativeSession(f.runId, "Stop", { db, scope: "run", cancellationRequestId: id });
+    const [acknowledged] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
+    await db.update(heartbeatRuns).set({ status }).where(eq(heartbeatRuns.id, f.runId));
+    // Match heartbeat's broader candidate list: the production retry predicate,
+    // not a test-only failed-status filter, must preserve the newer state.
+    const committed = await db.update(heartbeatRuns).set({ status: "cancelled" }).where(and(eq(heartbeatRuns.id, f.runId),
+      inArray(heartbeatRuns.status, ["queued", "running", "scheduled_retry", "failed"]),
+      nativeRetryCancellationCommitCondition(acknowledged.resultJson))).returning();
+    expect(committed).toEqual([]);
+    const [preserved] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
+    expect(preserved).toMatchObject({ status, resultJson: acknowledged.resultJson });
+  });
+  it("commits an unchanged acknowledged retry but preserves a newer run result", async () => {
+    const f = await retryFixture(), id = randomUUID();
+    await claimCancellationRequest(db, f.runId, f.companyId, id, "board-user");
+    await cancelNativeSession(f.runId, "Stop", { db, scope: "run", cancellationRequestId: id });
+    const [acknowledged] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
+    const commit = () => db.update(heartbeatRuns).set({ status: "cancelled" }).where(and(eq(heartbeatRuns.id, f.runId),
+      inArray(heartbeatRuns.status, ["queued", "running", "scheduled_retry", "failed"]), nativeRetryCancellationCommitCondition(acknowledged.resultJson))).returning();
+    await db.update(heartbeatRuns).set({ resultJson: { ...acknowledged.resultJson, boardRecovery: "new-outcome" } }).where(eq(heartbeatRuns.id, f.runId));
+    expect(await commit()).toEqual([]);
+    await db.update(heartbeatRuns).set({ resultJson: acknowledged.resultJson }).where(eq(heartbeatRuns.id, f.runId));
+    expect(await commit()).toMatchObject([{ status: "cancelled" }]);
   });
 
 });
