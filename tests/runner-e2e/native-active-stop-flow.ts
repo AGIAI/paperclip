@@ -156,7 +156,24 @@ export async function runNativeActiveStopFlow(input: {
     await load(); readActiveStopSettlement({ ...await load(), ...completed, bootstrap: bootstrap() });
     if (remote) { sealed = await fixture!.finish(); assertCopilotRemoteRetirement(sealed, baseline!); processes = sealed.processes; }
     await sample("after-stop");
-    await page.reload(); await expect(card.getByRole("button", { name: "Deny", exact: true })).toHaveCount(0);
+    await page.reload();
+    const finalUiTimeout = () => {
+      const remaining = input.deadlineAt - Date.now();
+      if (remaining <= 0) throw new Error("Active Stop final UI deadline elapsed");
+      return Math.min(30_000, remaining);
+    };
+    // Absence of a permission button during React loading is not proof that a
+    // stopped request is unanswerable. First observe the actual task/run UI.
+    await expect(page.getByTestId("issue-detail-header").getByRole("button", {
+      name: "Change status (current: In Progress)", exact: true,
+    })).toBeVisible({ timeout: finalUiTimeout() });
+    await expect(page.getByTestId("task-chat-thread").getByTestId("task-chat-collapsible-marker")
+      .filter({ has: page.getByText("Run cancelled", { exact: true }) }))
+      .toBeVisible({ timeout: finalUiTimeout() });
+    await expect(page.getByTestId("task-chat-history-loading"))
+      .toHaveCount(0, { timeout: finalUiTimeout() });
+    await expect(card.getByRole("button", { name: "Deny", exact: true }))
+      .toHaveCount(0, { timeout: finalUiTimeout() });
     check("one-unfinished-cancelled-run", runs.length === 1 && issue.status === "in_progress" && runs[0]!.status === "cancelled", "No automatic follow-up run or false task completion");
     await input.capture("final-state", "Stopped native permission is no longer answerable", "final-state.png");
     await input.evidence("api-state.json", { issue, run: runs[0], runs, checks, samples, runEvents: events, runEventsByRun: [{ runId: runs[0]!.id, events }], activeStop: completed });
