@@ -1,0 +1,438 @@
+{
+  "schema": "paperclip-runner-rich-acp-validation-checkpoint/v1",
+  "status": "current_candidates_not_qualified",
+  "preparedAt": "2026-09-30T05:48:04.755187+00:00",
+  "artifactPathBase": "campaign artifact root; relative references are evidence identifiers, not public download URLs",
+  "preserveHistoricalEvidence": {
+    "sourceRevision": "5605c350b2a4dae75be3779f164d7e1a0e4a5a87",
+    "originalFailuresRemainFailures": true,
+    "existingCapabilityMatrixPreserved": true
+  },
+  "identities": {
+    "controllerSourceRevision": "81c20ad22723a2d35d7bd693cc6a47002fb46125",
+    "harnessSourceRevision": "81c20ad22723a2d35d7bd693cc6a47002fb46125",
+    "runtimeSourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+    "profiles": {
+      "cursor": 6,
+      "copilot": 6,
+      "pi": 9
+    },
+    "runtimeBuildsRelabeled": false
+  },
+  "verification": {
+    "ci": {
+      "sourceRevision": "41503eb38f03c436b1569f9f0204625bb4d58782",
+      "success": 53,
+      "skipped": 2,
+      "failed": 0,
+      "pending": 0,
+      "receipt": {
+        "path": "runtime-6-6-9-eof-preparation/pr14633-415-ci-final.json",
+        "sha256": "e03ce62df53f739ad8967df07dfe78d9253783862a815dfae2d7b914f801edf4"
+      }
+    },
+    "greptile": {
+      "sourceRevision": "41503eb38f03c436b1569f9f0204625bb4d58782",
+      "score": "5/5",
+      "receipt": {
+        "path": "runtime-6-6-9-eof-preparation/pr14633-415-greptile-final.json",
+        "sha256": "fcda878d5bb7617a6ce04852757a37e315448746ac5c5b609faa454dcd000660"
+      }
+    },
+    "evalDefinitions": {
+      "pr": 33,
+      "state": "merged",
+      "mergeCommit": "7e416976800c799b5b920ec79d6027da5230644d",
+      "receipt": {
+        "path": "runtime-6-6-9-eof-preparation/evals-pr33-merge-receipt.json",
+        "sha256": "3130b74720c95a1451189fa238b1eda5b9f6ba3ab5e6364592a6fb1b83e9b729"
+      }
+    },
+    "local": {
+      "typecheck": "passed",
+      "typecheckReceipt": {
+        "path": "runtime-6-6-9-eof-preparation/full-checks-415/typecheck.meta.txt",
+        "sha256": "9687c8d07a1c6c6f5ba059a70e6b7ce7640bb747cb4a769a9db52a9928b929ba"
+      },
+      "tests": "original_full_command_failed; unchanged isolated failures passed; remaining phases running",
+      "diagnosis": "Initial broad run failures are retained; all six failed cases passed unchanged when isolated. Remaining original-suite phases are resumed separately.",
+      "fullBuild": "passed",
+      "fullLocalPass": false,
+      "tokenGates": "passed",
+      "initialGeneralServer": {
+        "filesPassed": 713,
+        "filesFailed": 3,
+        "filesSkipped": 4,
+        "testsPassed": 14200,
+        "testsFailed": 4,
+        "testsSkipped": 70
+      },
+      "initialWorkspaceA": {
+        "uiTestsPassed": 6967,
+        "cliTestsPassed": 500,
+        "cliTestsFailed": 2
+      },
+      "unchangedTargetedReruns": {
+        "serverFailuresPassed": 4,
+        "cliTimeoutsPassed": 2,
+        "codexSourceAuthTimeoutPassed": 1
+      },
+      "originalRunReceipt": {
+        "path": "runtime-6-6-9-eof-preparation/full-checks-415/test-run-supported.meta.txt",
+        "sha256": "77709ae1e56b5389143b9598463e1ecaeb90404559d1c528aa85b0eef503098b"
+      },
+      "resumedWorkspaceB": {
+        "observedPassedIncludingGeneratedDuplicates": 4490,
+        "observedSkipped": 31,
+        "observedFailed": 7,
+        "sourceFailures": 3,
+        "sourceFailureDetails": [
+          "Two legacy ACPX long-diagnostic failures from stale patch metadata; fresh corrected frozen install passes.",
+          "One Codex auth-merge timeout; unchanged isolated source-only case passes."
+        ],
+        "manualInvocationGeneratedDuplicateFailures": 4,
+        "stableWrapperAlreadyExcludesDist": true,
+        "countsAreNotDeduplicatedSourceCoverage": true
+      },
+      "serialized": "pending_at_checkpoint",
+      "dependencyClosure": "Existing source415 worktree installation differed from checked-in ACPX patches; corrected frozen-install evidence is separate."
+    },
+    "lockMetadataRepair": {
+      "commit": "9d27311635036ea54c9d78c01cc1d9c9489eb7e8",
+      "receipt": {
+        "path": "acpx-lock-metadata-81c20ad/verification-receipt.json",
+        "sha256": "cab86c2725a0b7ddde34a4f8cb18e8789d5aa1b4aa03890ba31d60719d29dcaa"
+      },
+      "frozenInstall": "passed",
+      "vendorBytesVerified": true,
+      "diagnosticCasesPassed": 4,
+      "packageContractsPassed": 25,
+      "dependencyVersionsChanged": false,
+      "nativeRuntimeBytesChanged": false
+    }
+  },
+  "platformBuilds": [
+    {
+      "platform": "darwin-arm64",
+      "sourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+      "status": "built_not_fully_qualified",
+      "receipt": {
+        "path": "combined-local-e822b614f/build-provenance.json",
+        "sha256": "48a57e0fa5961696ed29044a3ff8edba3e0dfb26c2b9a8663ded1c22de195d41"
+      }
+    },
+    {
+      "platform": "darwin-x64",
+      "sourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+      "status": "built_not_fully_qualified",
+      "receipt": {
+        "path": "runtime-6-6-9-eof-preparation/platform/macos-x64-e822b614f-v6-build/build-provenance.json",
+        "sha256": "fe435c765ffb0f74d0619ded9f2d0c125157671b01b9a6f502dab94812812354"
+      }
+    },
+    {
+      "platform": "linux-x64",
+      "sourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+      "status": "built_not_fully_qualified",
+      "receipt": {
+        "path": "runtime-6-6-9-eof-preparation/platform/linux-e822b614f-v6-build/build-provenance.json",
+        "sha256": "f8b7c252f1cb683b704982b88bb8b5459c221ad9a45cad657f6cb48ffa1c0dfc"
+      }
+    }
+  ],
+  "paidObservations": [
+    {
+      "provider": "cursor",
+      "profile": 6,
+      "cell": "extended-harnesses.runner-acpx-cursor.daytona.hello-complete",
+      "controllerSourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+      "harnessSourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+      "runtimeSourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+      "status": "root_reconciled_with_supervisor_tail_failure",
+      "productBehaviorPassed": true,
+      "matcherCount": 6,
+      "rootReceipt": {
+        "path": "runtime-6-6-9-eof-preparation/daytona-basic-v2/e822-cursor-remote-01/root-reconciliation.private.json",
+        "sha256": "6fc00b657a27090a3e5bad46016dcd1aac3347f71a88165ffe9e1a23aabd4320"
+      },
+      "originalResult": {
+        "path": "runtime-6-6-9-eof-preparation/daytona-basic-v2/e822-cursor-remote-01/result.json",
+        "sha256": "36d28b7955481dde72767a863e3e5b5f4d767c22aaecda74f35b3940b8c47cf9"
+      },
+      "originalSupervisorTailFailureRetained": true,
+      "cleanupAndEndAuditReconciled": true,
+      "newModelRetryForReconciliation": false,
+      "accountObservedChargeUsd": 0,
+      "nativePerRunUsd": null,
+      "infrastructureUpperBoundUsd": 0.086931,
+      "infrastructureAnalyticsFinal": false,
+      "providerQualified": false
+    },
+    {
+      "provider": "copilot",
+      "profile": 6,
+      "cell": "copilot-protection.runner-acpx-copilot.local.native-permission-deny-write",
+      "controllerSourceRevision": "41503eb38f03c436b1569f9f0204625bb4d58782",
+      "harnessSourceRevision": "41503eb38f03c436b1569f9f0204625bb4d58782",
+      "runtimeSourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+      "status": "root_reconciled_after_reader_correction",
+      "productBehaviorPassed": true,
+      "matcherCount": 10,
+      "caseQualified": true,
+      "providerQualified": false,
+      "rootReceipt": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/local-single-v2/controller415-copilot-deny-01/root-reconciliation.private.json",
+        "sha256": "3d273539d36269c2591fda9f117b0f48a0a4dabc70b97131ba5d2e272adaae21"
+      },
+      "originalResult": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/local-single-v2/controller415-copilot-deny-01/result.json",
+        "sha256": "8c169c418575ed12215fd758b578940bb458169ba9a169b305c60690e37692d7"
+      },
+      "additiveReaderCorrection": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/local-single-v3/retained-product-revalidation.json",
+        "sha256": "850a105a43f50444e3c144e12fb9967300c27367a0e2ed4b5992b61be39639b2"
+      },
+      "originalSupervisorPassed": false,
+      "originalReceiptsModified": false,
+      "newModelCallForReaderCorrection": false,
+      "accountIncludedCreditsBefore": 15,
+      "accountIncludedCreditsAfter": 15,
+      "postingMayLag": true,
+      "accountObservedChargeUsd": 0,
+      "additionalChargeUpperBoundUsd": 0,
+      "nativePerRunUsd": null,
+      "cleanupAndEndAuditPassed": true
+    },
+    {
+      "provider": "cursor",
+      "profile": 6,
+      "cell": "cursor-native.runner-acpx-cursor.local.native-plan-reject-revise-accept",
+      "controllerSourceRevision": "41503eb38f03c436b1569f9f0204625bb4d58782",
+      "harnessSourceRevision": "41503eb38f03c436b1569f9f0204625bb4d58782",
+      "runtimeSourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+      "status": "failed_controller_settlement_repair_pending_paid_requalification",
+      "productBehaviorPassed": false,
+      "caseQualified": false,
+      "providerQualified": false,
+      "nativeBridgeChecksPassed": 21,
+      "observedBridgeBehavior": [
+        "native_plan_display",
+        "rejection_delivery",
+        "feedback",
+        "revised_plan",
+        "acceptance_delivery"
+      ],
+      "rootReceipt": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/local-single-v4/controller415-cursor-plan-01/root-failed-reconciliation.private.json",
+        "sha256": "28cd3097459e79825850786279eb842541c89c7c67ac82c4785c53808d3cd1bd"
+      },
+      "originalResult": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/local-single-v4/controller415-cursor-plan-01/result.json",
+        "sha256": "9cbfa84182790c3d5124da9c0981ab56d009a05a96ae31dd9928c6c484cea0e0"
+      },
+      "bridgeChecks": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/local-single-v4/controller415-cursor-plan-01/product-results/cursor-native/runner-acpx-cursor/local/native-plan-reject-revise-accept/attempt-1/snapshots/cursor-native-checks.json",
+        "sha256": "461577b0459b56c42d5a68648b7f31538ec0e71787ab8391ff6703411dac1704"
+      },
+      "terminalSnapshot": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/local-single-v4/controller415-cursor-plan-01/product-results/cursor-native/runner-acpx-cursor/local/native-plan-reject-revise-accept/attempt-1/snapshots/api-state.json",
+        "sha256": "db372b34c3e9c64252d901746630b62412e9a59b4d7881b7e4e91f53b6075e54"
+      },
+      "nativeTerminal": {
+        "eventType": "turn.completed",
+        "seq": 222,
+        "status": "completed",
+        "error": null,
+        "sourceSeq": 196
+      },
+      "controllerFailureLabel": "native_session_interrupted",
+      "controllerError": "native_finalization_missing: session returned no semantic result",
+      "interpretation": "Native planning ended normally. ACP plan acceptance does not start the interactive CLI Agent-mode execution turn. A separate controller fix preserves an in-progress passive wait for explicit task continuation; deterministic checks do not change this original failed case.",
+      "cleanupAndEndAuditPassed": true,
+      "automaticRetries": 0,
+      "nativePerRunUsd": null,
+      "accountObservedChargeUsd": 0,
+      "terminalDiagnosis": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/cursor-plan-terminal-diagnosis/evidence.json",
+        "sha256": "6f9fd527aecee6e79546a264d41f1d79e171cbe5d15af31f2587d05d7fddb7c2"
+      },
+      "checkpointTerminal": {
+        "runTerminalState": "succeeded",
+        "turnTerminalState": "completed",
+        "reportedWorkDisposition": "yielded",
+        "mode": "plan",
+        "semanticResult": null
+      }
+    },
+    {
+      "provider": "copilot",
+      "profile": 6,
+      "cell": "copilot-protection.runner-acpx-copilot.local.attached-async-settlement",
+      "controllerSourceRevision": "41503eb38f03c436b1569f9f0204625bb4d58782",
+      "harnessSourceRevision": "41503eb38f03c436b1569f9f0204625bb4d58782",
+      "runtimeSourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+      "status": "failed_supervision_not_qualified",
+      "productBehaviorPassed": false,
+      "caseQualified": false,
+      "providerQualified": false,
+      "nativeTurnAccepted": true,
+      "completedAttachedCommandBehaviorProven": false,
+      "rootReceipt": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/local-single-v4/controller415-copilot-async-01/root-failed-reconciliation.private.json",
+        "sha256": "81f3eb82e51179d135bedc3b984c436a2e2f6503242858d0f7fffa8b8665a4c9"
+      },
+      "originalResult": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/local-single-v4/controller415-copilot-async-01/result.json",
+        "sha256": "a12c689794308c987fe5053e48c75ef79bb7775fe90783e982e4139c7186e246"
+      },
+      "diagnosis": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/copilot-async-failure-diagnosis/evidence.json",
+        "sha256": "5981b70003718c7dc306c0e800f31bec4a2193873abc44c58292dd4d38096dc7"
+      },
+      "postAttemptPackRestoration": {
+        "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/copilot-async-copy-cleanup/receipt.json",
+        "sha256": "b93dc16050c316113fd62dc590bebd0aa5a60fbfbb6a4a80c787e5abc235e2e0"
+      },
+      "originalIpcObservationComplete": false,
+      "originalFullEndAuthorityPassed": false,
+      "laterPackAuthorityRestored": true,
+      "originalFailuresPreserved": true,
+      "ownedProcessesRetired": true,
+      "automaticRetries": 0,
+      "nativePerRunUsd": null,
+      "accountIncludedCreditsBefore": 15,
+      "accountIncludedCreditsAfter": 15,
+      "postingMayLag": true,
+      "additionalChargeUpperBoundUsd": 0
+    },
+    {
+      "provider": "copilot",
+      "profile": 6,
+      "cell": "copilot-protection.runner-acpx-copilot.local.attached-async-settlement",
+      "sourceRevision": "81c20ad22723a2d35d7bd693cc6a47002fb46125",
+      "controllerSourceRevision": "81c20ad22723a2d35d7bd693cc6a47002fb46125",
+      "harnessSourceRevision": "81c20ad22723a2d35d7bd693cc6a47002fb46125",
+      "runtimeSourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+      "status": "failed_native_command_digest_assertion_under_diagnosis",
+      "caseQualified": false,
+      "providerQualified": false,
+      "taskDoneObserved": true,
+      "completedAttachedCommandBehaviorProven": false,
+      "rootReceipt": {
+        "path": "runtime-6-6-9-eof-preparation/controller-81c20ad/revision-01/local-single-v1/controller81-copilot-async-01/root-failed-reconciliation.private.json",
+        "sha256": "d970fca92c4184342f69136140bae2720a02f706dd76fd116d7772f215f8d18c"
+      },
+      "originalResult": {
+        "path": "runtime-6-6-9-eof-preparation/controller-81c20ad/revision-01/local-single-v1/controller81-copilot-async-01/result.json",
+        "sha256": "0a0cead164531cf56349e2b6851e86dd19b84dc290f84d6db365656f0f50c2ed"
+      },
+      "ownedProcessesRetired": true,
+      "ipcObservationComplete": true,
+      "fullEndAuthorityPassed": true,
+      "accountIncludedCreditsBefore": 15,
+      "accountIncludedCreditsAfter": 16,
+      "postingMayLag": true,
+      "additionalChargeUpperBoundUsd": 0,
+      "nativePerRunUsd": null,
+      "automaticRetries": 0
+    }
+  ],
+  "pi": {
+    "profile": 9,
+    "qualification": "pending",
+    "optionalBudgetCandidateRevision": "6396fd744c2bf2fbb70c4e40a3d40d026b662ba3",
+    "candidateStatus": "frozen_unintegrated_not_live_qualified",
+    "candidateReceipt": {
+      "path": "runtime-6-6-9-eof-preparation/pi-spend-boundary-review-02/candidate.json",
+      "sha256": "9a6d8c86b17ed35a97925475928e1353dc7122e109db7fafd4262622a2d10599"
+    },
+    "preferredSpendBoundary": "provider_capped_key",
+    "providerCappedKey": "unresolved"
+  },
+  "overallProviderQualification": {
+    "cursor": false,
+    "copilot": false,
+    "pi": false
+  },
+  "nextControllerPreparation": {
+    "controllerSourceRevision": "81c20ad22723a2d35d7bd693cc6a47002fb46125",
+    "harnessSourceRevision": "81c20ad22723a2d35d7bd693cc6a47002fb46125",
+    "runtimeSourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+    "change": "Replace a static UI demo string that matches the evidence secret detector; runtime source and profile pins unchanged.",
+    "readiness": {
+      "path": "runtime-6-6-9-eof-preparation/controller-81c20ad/revision-01/readiness-02/product-readiness.pending.json",
+      "sha256": "af88ba11f8db713faa5694d5714dd677b5bddbf822e254128f02c94eb3561e3f"
+    },
+    "rootReview": {
+      "path": "runtime-6-6-9-eof-preparation/controller-81c20ad/revision-01/root-readiness-review.json",
+      "sha256": "90a0aeebb6a0195ddd640fb2dc84e2e2d1edbba65baae443178decaf159e0dc3"
+    },
+    "providerCalls": 0,
+    "providerQualified": false
+  },
+  "budget": {
+    "combinedAuthorizationUsd": 100,
+    "providerAllocationsUsd": {
+      "cursor": 25,
+      "copilot": 25,
+      "pi": 25
+    },
+    "sharedReserveUsd": 25,
+    "knownTaskAttributedOpenRouterModelUsd": 0.040507624,
+    "conservativeCloudTotalUpperBoundUsd": 0.387846,
+    "nativeCursorCopilotPerRunUsd": null,
+    "failedAttemptsRetained": true,
+    "uncappedWholeKeyLifetimeUsageExcluded": true,
+    "attemptRecords": 45,
+    "activeReservations": 0
+  },
+  "cursorSettlement": {
+    "pr": 14669,
+    "sourceRevision": "b58de164ad86fddd01160461130254bfcbe25900",
+    "status": "draft_deterministic_checks_pass_paid_requalification_pending",
+    "autoImplementation": false,
+    "modePromotion": false,
+    "taskDisposition": "in_progress_waiting_for_explicit_user_message",
+    "catalogUpgradeDoesNotWake": true
+  },
+  "historicalReadiness415": {
+    "status": "root_reviewed_credential_free_pass",
+    "receipt": {
+      "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/readiness-01/product-readiness.pending.json",
+      "sha256": "d9946bbab9881d50c46970aaaca9458d933c101a7d2fe28f8a58c770c23909e5"
+    },
+    "rootReview": {
+      "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/root-readiness-review.json",
+      "sha256": "371702b4363fbce6ed96fa823dc48b2566f441b7801250576fa6812f0df65d7f"
+    },
+    "admission": {
+      "path": "runtime-6-6-9-eof-preparation/controller-41503eb/revision-02/readiness-01/admission-01/receipt.json",
+      "sha256": "d7188f37245290389271e6af913f52acf54248b1d15c7676ebad3cbed91423a6"
+    },
+    "freshControllerAndHarness": true,
+    "oldReadinessReused": false,
+    "recoveryReady": true,
+    "ownedProcessesRetired": 37,
+    "ownedIpcRemaining": 0,
+    "providerQualified": false
+  },
+  "readiness": {
+    "status": "root_reviewed_credential_free_pass",
+    "controllerSourceRevision": "81c20ad22723a2d35d7bd693cc6a47002fb46125",
+    "harnessSourceRevision": "81c20ad22723a2d35d7bd693cc6a47002fb46125",
+    "runtimeSourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
+    "receipt": {
+      "path": "runtime-6-6-9-eof-preparation/controller-81c20ad/revision-01/readiness-02/product-readiness.pending.json",
+      "sha256": "af88ba11f8db713faa5694d5714dd677b5bddbf822e254128f02c94eb3561e3f"
+    },
+    "rootReview": {
+      "path": "runtime-6-6-9-eof-preparation/controller-81c20ad/revision-01/root-readiness-review.json",
+      "sha256": "90a0aeebb6a0195ddd640fb2dc84e2e2d1edbba65baae443178decaf159e0dc3"
+    },
+    "freshControllerAndHarness": true,
+    "oldReadinessReused": false,
+    "ownedProcessesRetired": 36,
+    "ownedIpcRemaining": 0,
+    "providerQualified": false
+  }
+}
