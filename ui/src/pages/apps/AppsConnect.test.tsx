@@ -9,6 +9,7 @@ import { ApiError } from "@/api/client";
 import { aiConnectionsApi } from "@/api/ai-connections";
 import { queryKeys } from "@/lib/queryKeys";
 import { ConnectionSetupFlow } from "@/features/connections/ConnectionSetupFlow";
+import { rememberSkillSourceReturn, skillSourceReturnPath } from "@/lib/skill-source-connect-return";
 import { AppsConnect } from "./AppsConnect";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -476,6 +477,22 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(container.textContent).not.toContain("Step 2 of 2");
   });
 
+  it.each(["page", "dialog"] as const)("lets %s setup cancel after an invalid provider URL without trying to save it", async (host) => {
+    const onCancel = host === "dialog" ? vi.fn() : undefined;
+    connectAppMock.mockRejectedValue(new Error("That connection URL does not belong to Zapier"));
+    await render(undefined, false, <ConnectionSetupFlow host={host} serviceSlug="zapier" onCancel={onCancel} />);
+    await passAccessStep();
+    await act(async () => setInputValue(container.querySelector<HTMLInputElement>('input[type="password"]')!, "https://wrong-provider.example/mcp"));
+    await act(async () => buttonByText("Connect Zapier")!.click());
+    await vi.waitFor(() => expect(container.textContent).toContain("That connection URL does not belong to Zapier"));
+
+    await act(async () => buttonByText("Cancel")!.click());
+
+    expect(connectAppMock).toHaveBeenCalledTimes(1);
+    if (onCancel) expect(onCancel).toHaveBeenCalledOnce();
+    else expect(mockNavigate).toHaveBeenCalledWith("/apps");
+  });
+
   it("inline aggregator reuses an eligible account without changing its access", async () => {
     const onUseExisting = vi.fn().mockResolvedValue(undefined);
     await render(undefined, false, <ConnectionSetupFlow host="dialog" serviceSlug="composio" requestedAgentId="agent-1" interactionId="intent-inline" existingConnections={[{ id: "existing", applicationId: "app", name: "Existing Composio", status: "active", enabled: true }]} onUseExisting={onUseExisting} />);
@@ -848,6 +865,15 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     const radios = Array.from(document.body.querySelectorAll('[role="radio"]'));
     expect(radios.find((r) => r.textContent?.includes("Only agents I choose"))
       ?.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("returns to the pending skill import when GitHub setup is cancelled", async () => {
+    mockParams.appKey = "github";
+    rememberSkillSourceReturn("company-1", "new");
+    await render();
+    await act(async () => buttonByText("Cancel")?.click());
+    expect(mockNavigate).toHaveBeenCalledWith("/skills/sources/new");
+    expect(skillSourceReturnPath("company-1")).toBeNull();
   });
 
   it("uses Cancel to exit while the bottom Back button stays in the wizard", async () => {
@@ -1606,6 +1632,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(radioContaining("Any human in the organization")?.getAttribute("aria-checked")).toBe("true");
     await passAccessStep();
 
+    expect(container.textContent).toContain("Read & create");
     expect(radioContaining("Read & create")?.getAttribute("aria-checked")).toBe("true");
     expect(radioContaining("Read only")?.getAttribute("aria-checked")).toBe("false");
     expect(container.textContent).not.toContain("Before connecting, enroll the signed-in Workspace account");

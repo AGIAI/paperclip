@@ -22,7 +22,8 @@ alternative peer dependencies — install exactly **one**, matching
 `OTEL_EXPORTER_OTLP_PROTOCOL`.
 
 When `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, none of the `@opentelemetry/*` SDK
-packages are imported and there is zero runtime overhead.
+packages are imported and there is no SDK or exporter overhead. Local request
+timings still use the performance clock.
 
 `server/package.json` declares each optional package at the exact version the
 server tests against; install that exact version. Our Dependabot cannot bump
@@ -33,6 +34,33 @@ decision. `@opentelemetry/api` is the one OpenTelemetry package Paperclip
 maintains as a dependency; once you install the packages below, they become
 normal dependencies of **your own** project, and your own Dependabot updates
 them.
+
+## Task detail loading
+
+`GET /api/issues/:id` returns `Server-Timing` with `paperclip_issue` for the
+whole handler and `issue_<phase>` for its reads. The total includes the final
+execution-blocker read after recovery revalidation. Concurrent phases overlap;
+do not sum them to obtain request duration.
+
+With the existing operator-configured OTLP endpoint, the same reads produce
+`issue.read.<phase>` child spans through the `paperclip.issue-read` tracer.
+There are no custom attributes, identifiers, content, or exception messages.
+The closed phase names in `server/src/services/issue-read-timing.ts` are:
+`lookup`, `authorization`, `project_goal`, `ancestors`, `mentions`, `documents`,
+`relations`, `blockers`, `review`, `references`, `handoff`, `retry`, `recovery`,
+`cases`, `inbox`, `channel`, `workspace`, `work_products`, `execution_blocker`,
+`relation_recovery`, `revalidate_recovery`, and `mentioned_projects`.
+Without an OTLP endpoint, spans remain no-ops. This adds no first-party
+Telemetry events or run-log events.
+
+The browser's `issue-detail:navigate→content-paint` User Timing measure ends
+after the redesigned conversation is revealed and painted, rather than when
+the comments request completes while the conversation is still hidden. Durable
+messages can paint before run history and plan enrichment. Runtime-only threads
+wait for initial output; late history retains the existing scroll-anchor behavior.
+Use Chrome's request waterfall and this mark together to distinguish API wait,
+request dependencies, and rendering time. A hard-load trace also includes auth,
+company selection, and JavaScript startup before the task navigation mark.
 
 ## Enabling tracing
 
@@ -405,6 +433,56 @@ and adapter. These fields are passed directly to that event's capture call.
 They do not change the ambient Sentry scope, whose isolation is unavailable
 without an OpenTelemetry context manager. Later, unrelated exceptions must
 not inherit a previous run's identity or fingerprint.
+
+The `run_failure` context also includes the recorded process `exitCode` and
+`signal`, so a generic adapter error can still distinguish a nonzero exit from
+a signal termination. Exit codes must fit the database's signed 32-bit integer;
+missing or malformed values become `null`. Signals must match the reporting
+host's Node signal constants; missing values become `null` and unrecognized
+values become `unknown`. A signal such as `SIGKILL` does not establish who sent
+it or prove an out-of-memory kill. These fields do not change error grouping
+or run outcomes, and do not include process output or adapter result payloads.
+
+An unconfirmed adapter Stop timeout has an event-local `adapter_stop` context:
+the run UUID, built-in adapter type, native/legacy runtime mode, configured
+wait duration, and whether abort was requested. Invalid identities become
+`null`, and unknown adapter/runtime values become `unknown`. The report does
+not include stop reasons, prompts, process output, provider responses, or
+credentials. It preserves default error grouping and does not acknowledge
+termination, remove the live execution control, or change the timeout. The
+context is sent only through the existing opt-in Sentry gate and never leaks
+into unrelated captures.
+
+The shared reporter also attaches bounded diagnostic contexts for both legacy
+and native runs:
+
+- `run_execution`: runtime mode, execution stage/native phase, driver and version,
+  duration, failure phase, stop reason, error family, and timeout settings when available.
+- `adapter_failure`: selected adapter error fields such as phase, category,
+  protocol code, retryability, cause message, stack preview, HTTP status, and request ID.
+- `provider_failure`: the saved provider failure category, title, and details.
+- `run_exception_0` through `run_exception_3`: exception names, codes, HTTP
+  statuses, and request IDs for a caught exception and up to three causes.
+
+The execution and setup catch paths pass the original exception to the reporter.
+It snapshots and rebuilds only these selected fields and the original message and
+stack. Sentry receives the sanitized cause chain rather than a stack created at
+the reporting call. Saved adapter results use an available adapter stack preview;
+without one, the report has no synthetic reporting stack.
+
+Credential patterns, the current user's home path, registered run-secret values,
+and known host/runtime environment credentials are removed before truncation.
+Declared environment secret bindings are included even when their key has no
+credential-like name. Runtime values are used only for redaction and are never
+copied into an event. Stack fields are limited to 8,192 characters,
+exception messages to 2,048, provider titles to 4,096, and provider details to
+12,288. Other diagnostic strings are limited to 200 characters (adapter cause
+messages: 2,048). Truncation is marked in the text and in
+`run_execution.truncatedFields`; cyclic and deeper cause chains are marked too.
+Request/response objects, headers, environment/configuration, prompts, stdout,
+stderr, and arbitrary adapter result fields are not copied. The existing DSN
+opt-in gate and error-code/adapter fingerprint remain unchanged. These reports
+cannot recover diagnostic data that a provider or adapter discarded upstream.
 
 ### Browser data
 
