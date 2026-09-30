@@ -1078,6 +1078,12 @@ describe("OpenCodeServerDriver", () => {
     expect(turnEvents[settlementIndex]).toMatchObject({
       turnId,
       itemId: "question-native-1",
+      // An input request's expiry reason stays `provider_process_lost` on
+      // the turn-terminal path: `harnessRuntimeInputExpiredOutcome` types
+      // `reason` as `"durable_handoff" | "provider_process_lost"`, and
+      // neither value names "the turn finished first", so this path keeps
+      // the existing value rather than widen that type.
+      payload: { reason: "provider_process_lost" },
     });
     expect(turnEvents[terminalIndex]).toMatchObject({ turnId });
     expect(
@@ -1101,6 +1107,233 @@ describe("OpenCodeServerDriver", () => {
         ),
       ),
     ).toBe(false);
+  });
+
+  it("settles a pending input request and a pending permission request with a turn-outcome reason when the turn completes", async () => {
+    await chmod(fixture, 0o755);
+    const root = await mkdtemp(
+      join(tmpdir(), "paperclip-opencode-turn-terminal-reasons-"),
+    );
+    const workspace = await mkdtemp(
+      join(tmpdir(), "paperclip-opencode-turn-terminal-reasons-workspace-"),
+    );
+    roots.push(root, workspace);
+    const driver = new OpenCodeServerDriver({
+      model: "openrouter/deepseek/deepseek-v4-flash-0731",
+      permissionMode: "ask",
+      runtimeDirectory: root,
+      command: fixture,
+      environment: {
+        PATH: process.env.PATH,
+        OPENROUTER_API_KEY: "fixture-key",
+      },
+    });
+    const session = await driver.openSession({
+      runId: "run-turn-terminal-reasons",
+      normalizedSessionId: "turn-terminal-reasons",
+      workingDirectory: workspace,
+    });
+
+    // The fixture asks a native question and a native permission, then
+    // completes the turn without ever replying to either. Both pending
+    // requests must settle before `turn.completed`, each with the reason
+    // its own outcome type supports.
+    const { turnId } = await session.startTurn({
+      message: {
+        role: "user",
+        text: "pending-input-and-permission-then-turn-completes",
+      },
+    });
+    const turnEvents = await collectTurnEvents(session.events());
+
+    const inputSettlement = turnEvents.find(
+      (event) =>
+        event.eventType === "runtime_request.expired" &&
+        event.itemId === "question-native-1",
+    );
+    const permissionSettlement = turnEvents.find(
+      (event) =>
+        event.eventType === "runtime_request.cancelled" &&
+        event.itemId === "permission-native-1",
+    );
+    expect(inputSettlement).toMatchObject({
+      turnId,
+      payload: { reason: "provider_process_lost", requestType: "input" },
+    });
+    // The permission request carries no input, so its reason field is a
+    // free string. On the turn-terminal path it must name the turn
+    // outcome, not the unrelated `session_closed` shutdown reason.
+    expect(permissionSettlement).toMatchObject({
+      turnId,
+      payload: { reason: "turn_terminal" },
+    });
+
+    const terminalIndex = turnEvents.findIndex(
+      (event) => event.eventType === "turn.completed",
+    );
+    expect(turnEvents[terminalIndex]).toMatchObject({ turnId });
+    // Both settlements must precede the turn's terminal event, or a
+    // consumer that stops reading at that terminal event misses them.
+    expect(turnEvents.indexOf(inputSettlement!)).toBeLessThan(terminalIndex);
+    expect(turnEvents.indexOf(permissionSettlement!)).toBeLessThan(
+      terminalIndex,
+    );
+    expect(session.pendingRuntimeRequests?.()).toHaveLength(0);
+
+    await session.close({ reason: "test" });
+  });
+
+  it("keeps the session-closed reason for a pending permission request settled by close()", async () => {
+    await chmod(fixture, 0o755);
+    const root = await mkdtemp(
+      join(tmpdir(), "paperclip-opencode-permission-session-closed-"),
+    );
+    const workspace = await mkdtemp(
+      join(tmpdir(), "paperclip-opencode-permission-session-closed-workspace-"),
+    );
+    roots.push(root, workspace);
+    const driver = new OpenCodeServerDriver({
+      model: "openrouter/deepseek/deepseek-v4-flash-0731",
+      permissionMode: "ask",
+      runtimeDirectory: root,
+      command: fixture,
+      environment: {
+        PATH: process.env.PATH,
+        OPENROUTER_API_KEY: "fixture-key",
+      },
+    });
+    const session = await driver.openSession({
+      runId: "run-permission-session-closed",
+      normalizedSessionId: "permission-session-closed",
+      workingDirectory: workspace,
+    });
+
+    // The fixture asks a native permission and leaves the turn open
+    // indefinitely (no reply, no terminal event). Only `close()` settles
+    // the request, and that path's reason must stay `session_closed`.
+    await session.startTurn({
+      message: { role: "user", text: "native-permission" },
+    });
+    const iterator = session.events()[Symbol.asyncIterator]();
+    let created: PrpEvent | null = null;
+    for (let count = 0; count < 30; count += 1) {
+      const next = await iterator.next();
+      if (next.done) break;
+      if (next.value.eventType === "runtime_request.created") {
+        created = next.value;
+        break;
+      }
+    }
+    expect(created).toMatchObject({
+      payload: { request: { requestId: "permission-native-1" } },
+    });
+
+    await session.close({ reason: "session closed with a pending permission" });
+    const closeEvents = await collectTurnEvents(session.events());
+    const settlement = closeEvents.find(
+      (event) => event.eventType === "runtime_request.cancelled",
+    );
+    expect(settlement).toMatchObject({
+      itemId: "permission-native-1",
+      payload: { reason: "session_closed" },
+    });
+  });
+
+  it("settles a pending permission request exactly once when its reply is still in flight as the turn goes terminal", async () => {
+    await chmod(fixture, 0o755);
+    const root = await mkdtemp(
+      join(tmpdir(), "paperclip-opencode-permission-reply-race-"),
+    );
+    const workspace = await mkdtemp(
+      join(tmpdir(), "paperclip-opencode-permission-reply-race-workspace-"),
+    );
+    roots.push(root, workspace);
+    // Hold the permission reply request client-side until the test releases
+    // it, so the turn's own terminal event is guaranteed to arrive first
+    // while `resolveRuntimeRequest` is still awaiting that reply.
+    let releaseReply: (() => void) | null = null;
+    const held = new Promise<void>((resolve) => {
+      releaseReply = resolve;
+    });
+    const driver = new OpenCodeServerDriver({
+      model: "openrouter/deepseek/deepseek-v4-flash-0731",
+      permissionMode: "ask",
+      runtimeDirectory: root,
+      command: fixture,
+      environment: {
+        PATH: process.env.PATH,
+        OPENROUTER_API_KEY: "fixture-key",
+      },
+      fetch: async (input, init) => {
+        if (String(input).includes("/permission/") && String(input).includes("/reply?")) {
+          await held;
+        }
+        return fetch(input, init);
+      },
+    });
+    const session = await driver.openSession({
+      runId: "run-permission-reply-race",
+      normalizedSessionId: "permission-reply-race",
+      workingDirectory: workspace,
+    });
+
+    const { turnId } = await session.startTurn({
+      message: {
+        role: "user",
+        text: "native-permission-turn-completes-while-replying",
+      },
+    });
+    const iterator = session.events()[Symbol.asyncIterator]();
+    const observed: PrpEvent[] = [];
+    let created: PrpEvent | null = null;
+    for (let count = 0; count < 30; count += 1) {
+      const next = await iterator.next();
+      if (next.done) break;
+      observed.push(next.value);
+      if (next.value.eventType === "runtime_request.created") {
+        created = next.value;
+        break;
+      }
+    }
+    expect(created).toMatchObject({
+      payload: { request: { requestId: "permission-native-1" } },
+    });
+
+    // Start the reply; the injected fetch holds its HTTP call in flight
+    // until `releaseReply` runs below.
+    const resolution = session.resolveRuntimeRequest?.({
+      requestId: "permission-native-1",
+      turnId,
+      resolution: { action: "accept" },
+    });
+
+    // Read the rest of the turn while the reply is still held. The fixture
+    // completes the turn on its own clock (60ms), independent of the
+    // reply, so this settles the request through the turn-terminal path
+    // before the held reply is released.
+    for await (const event of session.events()) {
+      observed.push(event);
+      if (event.eventType === "turn.completed") break;
+    }
+    releaseReply!();
+    await resolution;
+
+    const outcomes = observed.filter((event) =>
+      [
+        "runtime_request.resolved",
+        "runtime_request.cancelled",
+        "runtime_request.expired",
+      ].includes(event.eventType),
+    );
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatchObject({
+      eventType: "runtime_request.cancelled",
+      itemId: "permission-native-1",
+      payload: { reason: "turn_terminal" },
+    });
+    expect(session.pendingRuntimeRequests?.()).toHaveLength(0);
+
+    await session.close({ reason: "test" });
   });
 
   it("keeps the session usable after a cancelled turn so the next turn on the same session still completes", async () => {

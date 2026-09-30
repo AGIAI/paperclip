@@ -438,6 +438,31 @@ const server = createServer(async (request, response) => {
           });
           return;
         }
+        if (
+          String(parsedPrompt.message ?? "").includes(
+            "native-permission-turn-completes-while-replying",
+          )
+        ) {
+          pendingPermission = nativePermission("v2");
+          emit({
+            type: "permission.v2.asked",
+            id: "event-permission-race",
+            properties: pendingPermission,
+          });
+          // Complete the turn on a fixed clock, independent of whether the
+          // permission reply in flight below ever reaches this server. This
+          // reproduces a reply that is still in flight when the turn goes
+          // terminal, so the test can prove the driver settles the request
+          // exactly once instead of racing two settlement paths.
+          setTimeout(() => {
+            emit({
+              type: "session.idle",
+              id: "event-idle-during-reply-race",
+              properties: { sessionID: session.id },
+            });
+          }, 60);
+          return;
+        }
         if (String(parsedPrompt.message ?? "").includes("native-permission")) {
           permissionStyle = String(parsedPrompt.message ?? "").includes(
             "legacy",
@@ -453,6 +478,32 @@ const server = createServer(async (request, response) => {
             id: `event-permission-${permissionStyle}`,
             properties: pendingPermission,
           });
+          return;
+        }
+        if (
+          String(parsedPrompt.message ?? "").includes(
+            "pending-input-and-permission-then-turn-completes",
+          )
+        ) {
+          pendingQuestion = nativeQuestion();
+          emit({
+            type: "question.asked",
+            id: "event-question-pending-then-complete",
+            properties: pendingQuestion,
+          });
+          pendingPermission = nativePermission("v2");
+          emit({
+            type: "permission.v2.asked",
+            id: "event-permission-pending-then-complete",
+            properties: pendingPermission,
+          });
+          setTimeout(() => {
+            emit({
+              type: "session.idle",
+              id: "event-idle-with-pending-requests",
+              properties: { sessionID: session.id },
+            });
+          }, 10);
           return;
         }
         if (String(parsedPrompt.message ?? "").includes("session-aborted")) {

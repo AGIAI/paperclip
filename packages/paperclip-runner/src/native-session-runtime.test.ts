@@ -7919,6 +7919,240 @@ describe("executeNativeSession recovery", () => {
     }
   });
 
+  it("settles a second pending request that turns terminal after the first request's durable handoff", async () => {
+    vi.useFakeTimers();
+    try {
+      const questionSet = {
+        schema: "paperclip.question_set.v1" as const,
+        questions: [
+          {
+            id: "region",
+            prompt: "Which region?",
+            required: true,
+            answerMode: "single_select" as const,
+            options: [
+              { id: "us", label: "US" },
+              { id: "eu", label: "Europe" },
+            ],
+          },
+        ],
+      };
+      const requestOne = {
+        schema: "paperclip.runtime_request.v2",
+        requestKind: "runtime",
+        requestId: "input-1",
+        type: "input",
+        status: "pending",
+        prompt: "Which region?",
+        input: questionSet,
+        origin: { adapter: "mock" },
+        turnId: "turn-two-pending",
+        itemId: "input-1",
+      };
+      const requestTwo = { ...requestOne, requestId: "input-2", itemId: "input-2" };
+      const createdOne = {
+        ...runnerEvent(1, "runtime_request.created", { request: requestOne }),
+        turnId: "turn-two-pending",
+      };
+      const createdTwo = {
+        ...runnerEvent(2, "runtime_request.created", { request: requestTwo }),
+        turnId: "turn-two-pending",
+      };
+      const expiredOne = {
+        ...runnerEvent(3, "runtime_request.expired", {
+          requestId: "input-1",
+          requestKind: "runtime",
+          turnId: "turn-two-pending",
+          itemId: "input-1",
+          reason: "durable_handoff",
+          replayAllowed: false,
+          requestType: "input",
+          request: requestOne,
+        }),
+        turnId: "turn-two-pending",
+      };
+      // The second request never got its own live handoff: its owning turn
+      // went terminal first, so the driver settles it inline (mirroring
+      // `#settlePendingRuntimeRequestsForTurn` in the OpenCode driver)
+      // before the terminal turn event itself.
+      const expiredTwo = {
+        ...runnerEvent(4, "runtime_request.expired", {
+          requestId: "input-2",
+          requestKind: "runtime",
+          turnId: "turn-two-pending",
+          itemId: "input-2",
+          reason: "provider_process_lost",
+          replayAllowed: false,
+          requestType: "input",
+          request: requestTwo,
+        }),
+        turnId: "turn-two-pending",
+      };
+      const terminal = {
+        ...runnerEvent(5, "turn.completed", { status: "completed" }),
+        turnId: "turn-two-pending",
+      };
+      let releaseHandoff!: () => void;
+      const handedOff = new Promise<void>((resolve) => {
+        releaseHandoff = resolve;
+      });
+      const handoffRuntimeRequest = vi.fn(() => {
+        releaseHandoff();
+        return { result: "handed_off" as const, cleanup: Promise.resolve() };
+      });
+      const cancel = vi.fn(() => ({ cleanup: Promise.resolve() }));
+      const events: PrpEvent[] = [];
+      const session: NativeSession = {
+        identity: () => identity,
+        async capabilities() {
+          return {
+            resume: false,
+            typedEvents: true,
+            steering: false,
+            interruption: true,
+            structuredResult: true,
+            runtimeRequestHandoff: true,
+          };
+        },
+        async *events() {
+          yield createdOne;
+          yield createdTwo;
+          await handedOff;
+          yield expiredOne;
+          // The turn goes terminal for request two immediately after
+          // request one's handoff commits, in the same pass the production
+          // driver uses: settlement before the terminal turn event.
+          yield expiredTwo;
+          yield terminal;
+        },
+        async startTurn() {
+          return { turnId: "turn-two-pending" };
+        },
+        handoffRuntimeRequest,
+        cancel,
+        async result() {
+          return null;
+        },
+        async snapshot() {
+          return {
+            backendKind: "mock",
+            sessionId: identity.sessionId,
+            identity,
+            providerSessionId: "provider-two-pending",
+            cursor: "5",
+            activeTurnId: null,
+            pendingRuntimeRequests: [],
+            lineage: [],
+          };
+        },
+        async close() {},
+      };
+      const backend: NativeSessionBackend = {
+        async descriptor() {
+          return {
+            kind: "mock",
+            name: "runtime-two-pending-backend",
+            version: "1",
+            capabilities: {
+              resume: false,
+              typedEvents: true,
+              steering: false,
+              interruption: true,
+              structuredResult: true,
+              runtimeRequestHandoff: true,
+            },
+          };
+        },
+        async openSession() {
+          return session;
+        },
+      };
+      const port: ControlPlanePort = {
+        async openRun() {},
+        async checkpointSession() {},
+        async appendEvent(event) {
+          events.push(structuredClone(event as PrpEvent));
+          const sourceEvents = events.filter(
+            (candidate) =>
+              candidate.sourceInstanceId === event.sourceInstanceId,
+          );
+          return {
+            cursor: events.length,
+            highestContiguousSourceSeq: highestContiguous(sourceEvents),
+            disposition: "committed",
+          };
+        },
+        async replayEvents(replay) {
+          const replayed = events.filter(
+            (event) =>
+              event.sourceInstanceId === replay.sourceInstanceId &&
+              event.sourceSeq > replay.afterSourceSeq,
+          );
+          return {
+            events: structuredClone(replayed),
+            highestContiguousSourceSeq: highestContiguous(replayed),
+          };
+        },
+        async completeRun() {},
+      };
+
+      const execution = executeNativeSession({
+        input,
+        backend,
+        controlPlane: port,
+        runnerInstanceId: "runner-two-pending",
+        controlPlaneInstanceId: "control-two-pending",
+        runtimeInputLiveWindowMs: 120,
+        // Deliberately naive: any `runtime_request.expired` resolves a
+        // durable wait, matching the simplified fixture above rather than
+        // the production `observe`/`consume` binding to one exact source
+        // event. This isolates the question this test asks: once the
+        // consumer parks on the first request's durable wait, does it ever
+        // read the second request's settlement that was already queued
+        // behind it?
+        resolveGovernedWait: ({ event }) =>
+          event.eventType === "runtime_request.expired" ? yieldedResult : null,
+      });
+      await vi.advanceTimersByTimeAsync(120);
+      await execution;
+
+      const firstSettlementCommitted = events.some(
+        (event) =>
+          event.eventType === "runtime_request.expired" &&
+          event.payload.requestId === "input-1",
+      );
+      const secondSettlementCommitted = events.some(
+        (event) =>
+          event.eventType === "runtime_request.expired" &&
+          event.payload.requestId === "input-2",
+      );
+      expect(handoffRuntimeRequest).toHaveBeenCalledWith({
+        requestId: "input-1",
+        turnId: "turn-two-pending",
+        reason: "durable_handoff",
+        signal: expect.any(AbortSignal),
+      });
+      expect(firstSettlementCommitted).toBe(true);
+      // KNOWN CONSUMER DEFECT (reported to the CTO, not fixed here): once
+      // the consumer parks on the first request's durable governed wait, it
+      // returns from `executeNativeSession` without reading the events
+      // already queued behind it — see the early return on
+      // `settleDurableResult` in `native-session-runtime.ts` around where
+      // `governedResult !== null && !isTurnTerminal(event)` short-circuits
+      // the read loop. The second request's settlement and the turn's own
+      // terminal event are still sitting in the mock session's generator,
+      // unread, when `executeNativeSession` resolves. Pin the current
+      // (defective) behavior here so a future fix changes this assertion
+      // instead of silently going unnoticed.
+      expect(secondSettlementCommitted).toBe(false);
+      expect(events.map((event) => event.eventType)).not.toContain(
+        "turn.completed" satisfies PrpEvent["eventType"],
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("aborts and bounds a durable handoff that never settles", async () => {
     const request = {
       schema: "paperclip.runtime_request.v2",

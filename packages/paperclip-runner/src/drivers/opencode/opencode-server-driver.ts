@@ -870,7 +870,7 @@ class OpenCodeHarnessSession implements HarnessSession {
     // gate so each settlement event still reaches the consumer instead of
     // getting dropped as a late frame.
     for (const requestId of [...this.#pendingRuntimeRequests.keys()])
-      this.#settlePendingRuntimeRequest(requestId);
+      this.#settlePendingRuntimeRequest(requestId, "session_closed");
     this.#events.close();
     await this.#runtime.close();
   }
@@ -886,10 +886,22 @@ class OpenCodeHarnessSession implements HarnessSession {
       .filter(([, pending]) => pending.request.turnId === turnId)
       .map(([requestId]) => requestId);
     for (const requestId of requestIds)
-      this.#settlePendingRuntimeRequest(requestId);
+      this.#settlePendingRuntimeRequest(requestId, "turn_terminal");
   }
 
-  #settlePendingRuntimeRequest(requestId: string): void {
+  // `origin` names why the request never got an answer: the session shut
+  // down (`close()`), or the owning turn went terminal first. A
+  // no-input request's `reason` field is a free string, so it reports
+  // `origin` directly. An input request's reason stays the fixed
+  // `"provider_process_lost"` value in both cases: `harnessRuntimeInputExpiredOutcome`
+  // types `reason` as `"durable_handoff" | "provider_process_lost"`, a
+  // contract other services read to route a durable fallback question, and
+  // that type has no third value for "the turn finished first". Widening it
+  // is a call for the CTO, not this method.
+  #settlePendingRuntimeRequest(
+    requestId: string,
+    origin: "session_closed" | "turn_terminal",
+  ): void {
     const pending = this.#pendingRuntimeRequests.get(requestId);
     if (!pending) return;
     this.#pendingRuntimeRequests.delete(requestId);
@@ -899,7 +911,7 @@ class OpenCodeHarnessSession implements HarnessSession {
         ? "runtime_request.cancelled"
         : "runtime_request.expired",
       request.input === undefined
-        ? harnessRuntimeRequestOutcome(request, { reason: "session_closed" })
+        ? harnessRuntimeRequestOutcome(request, { reason: origin })
         : harnessRuntimeInputExpiredOutcome(request, "provider_process_lost"),
       { turnId: request.turnId, itemId: request.itemId },
       { bypassTerminalTurnGate: true },
