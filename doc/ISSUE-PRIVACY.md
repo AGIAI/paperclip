@@ -138,6 +138,10 @@ runs into company-wide history. The migration is idempotent for preview installs
 existing explicit grants are preserved. Operators upgrading an unreleased preview
 should inspect root grants created under its former whole-tree sharing semantics.
 
+Migration `0292_private_task_draft_assets.sql` accompanies enforcement and binds
+historical inline images to their first owned task. Unbound drafts remain
+uploader-only under the new asset-content guard.
+
 Private output uses the same predicate on native tool searches and task context,
 linked approvals, training exports, execution workspace APIs, stored run-response
 assets, and WebSocket delivery. Workspace access requires permission for every
