@@ -1,4 +1,5 @@
 import { withoutProvenBootstrapReads, bootstrapReadExecutionId, type BootstrapReadProof } from "./native-bootstrap-read-proof.js";
+import { canonicalJson } from "../../packages/shared/src/portability-hash.js";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { readCopilotToolEvidence, type CopilotToolNotice } from "./copilot-evidence.js";
@@ -195,17 +196,19 @@ export async function readCopilotRemoteMarkerAfterRetirement(fixture: CopilotRem
 }
 
 export interface CopilotDenialSettlement {
-  schema: "paperclip.e2e.copilot-denial-settlement.v1";
-  branch: "provider_cancelled_or_interrupted" | "provider_completed_before_stop_settlement";
+  schema: "paperclip.e2e.copilot-denial-settlement.v2";
+  branch: "provider_cancelled_or_interrupted" | "provider_completed_observed_before_stop";
   /** A cancelled terminal alone does not prove Stop reached active work. */
   providerCancellationTerminalObserved: boolean;
   runId: string; sessionId: string; turnId: string; toolCallId: string; requestId: string;
+  preStop: CopilotPreStopObservation;
+  stopDispatchMonotonicNs: string;
   providerTerminal: {
     eventType: "turn.completed" | "turn.cancelled" | "turn.interrupted";
     normalizedSessionId: string; sourceInstanceId: string;
     requestSourceSeq: number; resolvedSourceSeq: number; deliveredSourceSeq: number; failedNoticeSourceSeq: number;
-    failedToolSourceSeq: number; failedToolPersistedAtMs: number; sourceSeq: number;
-    emittedAtMs: number; persistedAtMs: number;
+    failedToolSourceSeq: number; failedToolRowCreatedAtMs: number; sourceSeq: number;
+    emittedAtMs: number; rowCreatedAtMs: number; rowSha256: string; failedToolRowSha256: string;
   };
   runStop: {
     companyId: string; issueId: string; scope: "run"; status: "cancelled"; issueStatus: "in_progress";
@@ -219,19 +222,27 @@ const settlementTime = (v: unknown): v is number => Number.isSafeInteger(v) && (
 const settlementDate = (v: unknown): number => typeof v === "string" && /^\d{4}-\d{2}-\d{2}T.*Z$/u.test(v) ? Date.parse(v) : NaN;
 
 export function validCopilotDenialSettlement(s: CopilotDenialSettlement): boolean {
-  if (!s || s.schema !== "paperclip.e2e.copilot-denial-settlement.v1") return false;
+  if (!s || s.schema !== "paperclip.e2e.copilot-denial-settlement.v2") return false;
   const t = s.providerTerminal, c = s.runStop;
   if (!t || !c || ![s.runId, s.sessionId, s.turnId, s.toolCallId, s.requestId, t.normalizedSessionId, t.sourceInstanceId,
     c.companyId, c.issueId, c.intentId, c.intentAuditId, c.acknowledgementAuditId].every(settlementId)
     || c.scope !== "run" || c.status !== "cancelled" || c.issueStatus !== "in_progress" || c.intentAuditId === c.acknowledgementAuditId
-    || ![t.failedToolPersistedAtMs, t.emittedAtMs, t.persistedAtMs, c.requestedAtMs, c.recordedAtMs, c.acknowledgedAtMs, c.finishedAtMs].every(settlementTime)
+    || ![t.failedToolRowCreatedAtMs, t.emittedAtMs, t.rowCreatedAtMs, c.requestedAtMs, c.recordedAtMs, c.acknowledgedAtMs, c.finishedAtMs].every(settlementTime)
     || ![t.requestSourceSeq, t.resolvedSourceSeq, t.deliveredSourceSeq, t.failedNoticeSourceSeq].every(n => Number.isSafeInteger(n) && n > 0)
     || !(t.requestSourceSeq < t.resolvedSourceSeq && t.resolvedSourceSeq < t.deliveredSourceSeq && t.deliveredSourceSeq < t.failedNoticeSourceSeq && t.failedNoticeSourceSeq < t.failedToolSourceSeq)
     || !Number.isSafeInteger(t.failedToolSourceSeq) || t.failedToolSourceSeq <= 0 || !Number.isSafeInteger(t.sourceSeq) || t.sourceSeq <= t.failedToolSourceSeq
-    || t.failedToolPersistedAtMs > c.requestedAtMs || t.failedToolPersistedAtMs > t.persistedAtMs
     || c.requestedAtMs > c.recordedAtMs || c.recordedAtMs > c.acknowledgedAtMs || c.acknowledgedAtMs > c.finishedAtMs) return false;
-  if (s.branch === "provider_completed_before_stop_settlement") return t.eventType === "turn.completed"
-    && s.providerCancellationTerminalObserved === false && t.persistedAtMs < c.acknowledgedAtMs;
+  const before = s.preStop;
+  if (!before || before.schema !== "paperclip.e2e.copilot-pre-stop-observation.v1"
+    || !["runId", "sessionId", "turnId", "toolCallId", "requestId"].every(k => before[k as keyof CopilotPreStopObservation] === s[k as keyof CopilotDenialSettlement])
+    || before.companyId !== c.companyId || before.normalizedSessionId !== t.normalizedSessionId || before.sourceInstanceId !== t.sourceInstanceId
+    || before.failedToolSourceSeq !== t.failedToolSourceSeq || before.failedToolRowSha256 !== t.failedToolRowSha256
+    || ![t.rowSha256, t.failedToolRowSha256].every(v => /^sha256:[a-f0-9]{64}$/u.test(v))
+    || !/^[1-9][0-9]{0,29}$/u.test(before.apiReadCompletedMonotonicNs) || !/^[1-9][0-9]{0,29}$/u.test(s.stopDispatchMonotonicNs)
+    || BigInt(before.apiReadCompletedMonotonicNs) >= BigInt(s.stopDispatchMonotonicNs)) return false;
+  if (before.terminal !== null && (!before.terminal || before.terminal.eventType !== t.eventType || before.terminal.sourceSeq !== t.sourceSeq || before.terminal.rowSha256 !== t.rowSha256)) return false;
+  if (s.branch === "provider_completed_observed_before_stop") return t.eventType === "turn.completed"
+    && s.providerCancellationTerminalObserved === false && before.terminal?.eventType === "turn.completed";
   return s.branch === "provider_cancelled_or_interrupted" && s.providerCancellationTerminalObserved === true
     && ["turn.cancelled", "turn.interrupted"].includes(t.eventType);
 }
@@ -279,11 +290,48 @@ export function readCopilotDeniedEdit(input: { events: readonly unknown[]; reque
   return { rows, get, stream, origin, delivery, failure, resolution, tool, toolRows, failed };
 }
 
+export interface CopilotPreStopObservation {
+  schema: "paperclip.e2e.copilot-pre-stop-observation.v1";
+  companyId: string; runId: string; sessionId: string; turnId: string; toolCallId: string; requestId: string;
+  normalizedSessionId: string; sourceInstanceId: string;
+  failedToolSourceSeq: number; failedToolRowSha256: string;
+  terminal: { eventType: "turn.completed" | "turn.cancelled" | "turn.interrupted"; sourceSeq: number; rowSha256: string } | null;
+  /** Fixture-process monotonic clock, never provider or database wall time. */
+  apiReadCompletedMonotonicNs: string;
+}
+const denialRowSha = (row: unknown) => `sha256:${createHash("sha256").update(canonicalJson(row)).digest("hex")}`;
+function readDeniedTerminal(proof: ReturnType<typeof readCopilotDeniedEdit>) {
+  const { rows, get, stream, tool, failed } = proof;
+  const invalid = () => new Error("Copilot denial lacks exact provider settlement");
+  // Ignore legacy unwrapped log summaries, never use them as provider evidence.
+  const terminalRows = rows.filter(r => ["turn.completed", "turn.cancelled", "turn.interrupted", "turn.failed"].includes(r.eventType)
+    && settlementRecord(r.payload).prpEvent !== undefined);
+  if (terminalRows.length === 0) return null;
+  if (terminalRows.length !== 1) throw invalid();
+  const row = terminalRows[0]!, terminal = get(row), p = settlementRecord(terminal.payload);
+  if (!stream(terminal) || terminal.sourceSeq <= tool.sourceSeq || row.seq <= failed[0]!.seq
+    || !["turn.completed", "turn.cancelled", "turn.interrupted"].includes(row.eventType)
+    || p.status !== row.eventType.slice(5) || p.error != null) throw invalid();
+  return { row, terminal };
+}
+/** Call only on rows returned by the current operator API read. Retain this
+ * receipt before dispatching Stop; historical rows cannot recreate that fact. */
+export function observeCopilotPreStop(input: { events: readonly unknown[]; request: CopilotToolNotice; companyId: string }): CopilotPreStopObservation {
+  const proof = readCopilotDeniedEdit(input), observed = readDeniedTerminal(proof), r = input.request;
+  return { schema: "paperclip.e2e.copilot-pre-stop-observation.v1", companyId: input.companyId,
+    runId: r.runId, sessionId: r.sessionId, turnId: r.turnId, toolCallId: r.toolCallId, requestId: r.requestId!,
+    normalizedSessionId: proof.origin.normalizedSessionId, sourceInstanceId: proof.origin.sourceInstanceId,
+    failedToolSourceSeq: proof.tool.sourceSeq, failedToolRowSha256: denialRowSha(proof.toolRows[0]),
+    terminal: observed ? { eventType: observed.terminal.eventType, sourceSeq: observed.terminal.sourceSeq, rowSha256: denialRowSha(observed.row) } : null,
+    apiReadCompletedMonotonicNs: process.hrtime.bigint().toString() };
+}
+
 /** Denial closes one permission, not necessarily the provider prompt. Match the
  * single canonical terminal to the same source stream, then independently bind
- * the audited controller Stop. Provider emittedAt never orders server actions. */
+ * the audited controller Stop. Database createdAt is transaction-start metadata, not a commit boundary. */
 export function readCopilotDenialSettlement(input: {
   events: readonly unknown[]; request: CopilotToolNotice; run: unknown; issue: unknown;
+  preStop: CopilotPreStopObservation; stopDispatchMonotonicNs: string;
 }): CopilotDenialSettlement {
   const invalid = () => new Error("Copilot denial lacks exact provider settlement and audited run Stop");
   const { request, events } = input, run = settlementRecord(input.run), issue = settlementRecord(input.issue);
@@ -294,22 +342,18 @@ export function readCopilotDenialSettlement(input: {
     || stop.scope !== "run" || stop.dispatched !== true || stop.dispatchState !== "acknowledged" || stop.reasonCode !== "cancellation_run_only"
     || !Array.isArray(stop.effects) || stop.effects.length !== 1 || stop.effects[0] !== "release_run_resources") throw invalid();
   const { rows, get, stream, origin, delivery, failure, resolution, tool, toolRows, failed } = readCopilotDeniedEdit({ events, request, companyId: issue.companyId });
-  // Ignore legacy unwrapped log summaries, never use them as provider evidence.
-  const terminalRows = rows.filter(r => ["turn.completed", "turn.cancelled", "turn.interrupted", "turn.failed"].includes(r.eventType)
-    && settlementRecord(r.payload).prpEvent !== undefined);
-  if (terminalRows.length !== 1) throw invalid();
-  const row = terminalRows[0]!, terminal = get(row), p = settlementRecord(terminal.payload);
-  if (!stream(terminal) || terminal.sourceSeq <= tool.sourceSeq || row.seq <= failed[0]!.seq
-    || !["turn.completed", "turn.cancelled", "turn.interrupted"].includes(row.eventType)
-    || p.status !== row.eventType.slice(5) || p.error != null) throw invalid();
+  const observed = readDeniedTerminal({ rows, get, stream, origin, delivery, failure, resolution, tool, toolRows, failed });
+  if (!observed) throw invalid();
+  const { row, terminal } = observed;
   const result: CopilotDenialSettlement = {
-    schema: "paperclip.e2e.copilot-denial-settlement.v1",
-    branch: row.eventType === "turn.completed" ? "provider_completed_before_stop_settlement" : "provider_cancelled_or_interrupted",
+    schema: "paperclip.e2e.copilot-denial-settlement.v2",
+    branch: row.eventType === "turn.completed" ? "provider_completed_observed_before_stop" : "provider_cancelled_or_interrupted",
     providerCancellationTerminalObserved: row.eventType !== "turn.completed",
     runId: run.id, sessionId: request.sessionId, turnId: request.turnId, toolCallId: request.toolCallId, requestId: request.requestId!,
-    providerTerminal: { eventType: row.eventType, normalizedSessionId: terminal.normalizedSessionId, sourceInstanceId: terminal.sourceInstanceId,
+    preStop: input.preStop, stopDispatchMonotonicNs: input.stopDispatchMonotonicNs,
+    providerTerminal: { eventType: row.eventType, rowSha256: denialRowSha(row), failedToolRowSha256: denialRowSha(toolRows[0]), normalizedSessionId: terminal.normalizedSessionId, sourceInstanceId: terminal.sourceInstanceId,
       requestSourceSeq: origin.sourceSeq, resolvedSourceSeq: resolution.sourceSeq, deliveredSourceSeq: delivery.sourceSeq, failedNoticeSourceSeq: failure.sourceSeq,
-      failedToolSourceSeq: tool.sourceSeq, failedToolPersistedAtMs: settlementDate(toolRows[0]!.createdAt), sourceSeq: terminal.sourceSeq, emittedAtMs: settlementDate(terminal.emittedAt), persistedAtMs: settlementDate(row.createdAt) },
+      failedToolSourceSeq: tool.sourceSeq, failedToolRowCreatedAtMs: settlementDate(toolRows[0]!.createdAt), sourceSeq: terminal.sourceSeq, emittedAtMs: settlementDate(terminal.emittedAt), rowCreatedAtMs: settlementDate(row.createdAt) },
     runStop: { companyId: issue.companyId, issueId: issue.id, scope: stop.scope, status: run.status, issueStatus: issue.status,
       intentId: stop.intentId, intentAuditId: stop.intentAuditId, acknowledgementAuditId: stop.acknowledgementAuditId,
       requestedAtMs: settlementDate(settlementRecord(settlementRecord(run.resultJson).startupCancellation).requestedAt),

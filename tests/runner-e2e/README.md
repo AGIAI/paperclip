@@ -1307,7 +1307,7 @@ and the limits of reconnect evidence.
 The manual `copilot-protection` suite selects two Copilot candidate cases on
 each of local and Daytona (four cells). Discover them with `pnpm test:e2e:runner -- --list --suite copilot-protection`.
 The denial case keeps provider-turn settlement separate from controller run Stop.
-A normal provider completion before Stop acknowledgement is not active-turn
+A normal provider completion observed by API before Stop dispatch is not active-turn
 cancellation coverage; denial, no-effects, run cancellation and retirement remain
 required. Earlier failed attempts retain their original grade.
 See [Copilot native protection](./FIXTURES.md#copilot-native-protection) for the
@@ -1401,9 +1401,17 @@ retry, and remain pending qualification until their paid evidence passes.
 Denial ordering uses canonical request, decline-resolution, delivery, failed-edit
 and terminal source sequences. Sample checkpoints retain the exact run/turn/source
 cursor. File samples and continuous-watch coverage compare only observer-local
-times. Provider emission, browser click and server persistence clocks are never
+times. Provider emission, browser click and database transaction clocks are never
 compared to each other. Final remote samples use the sealed, independently verified
 process-retirement receipt; their timestamps are not relabeled as host time.
 This denial case does not qualify Stop during a definitely pending native request.
 That active-turn cancellation boundary needs a separate live case. The attached
 async-command oracle is unchanged by this denial-only correction.
+
+Copilot denial settlement v2 (suite definition v4) requires a retained pre-Stop API
+observation. The fixture awaits that artifact write before dispatching Stop and
+matches exact source identities and row hashes against final evidence. It waits
+at most 2s for natural settlement within the existing deadline. Normal completion
+first observed afterward cannot pass. A row's createdAt is transaction-start time,
+not proof of commit order. Older failed artifacts lack this observation and cannot
+establish a completed-before-Stop causal boundary; they remain failed.
