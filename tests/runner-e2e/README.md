@@ -1447,7 +1447,12 @@ not qualify this case. Native permission cards use runtime requests; ordinary
 issue-interaction rows are not substituted for their authority. Pending and final
 screenshots, `native-active-stop-pending.json`, `native-active-stop-settlement.json`
 and cleanup evidence retain the boundaries. Daytona also requires the exact
-owned lease and sealed remote observer proof before sandbox deletion.
+owned lease and sealed remote observer proof before sandbox deletion. Suite
+version 2 records remote filesystem coverage only through verified retirement
+of the owned runner/provider tree, with no target or workspace mutations; it
+does not call a later read of the seal a fresh observation. Local cases retain
+four filesystem phases through cleanup. Remote UI/stale-answer checks and final
+API checks are separate from this lifetime-bound filesystem proof.
 
 This suite adds an active-work cancellation oracle; it does not reinterpret
 older denial or cancellation results. Current live qualification is pending.

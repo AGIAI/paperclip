@@ -7,7 +7,7 @@ import { createTaskThroughUi } from "./user-actions.js";
 import { createDeniedTargetFixture, exists, observeRunProcesses } from "./copilot-local-fixtures.js";
 import { assertCopilotRemoteRetirement, copilotRemoteDeniedSample, prepareCopilotRemoteAction, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot } from "./copilot-protection-evidence.js";
 import { cursorDeniedCommand } from "./cursor-native-evidence.js";
-import { assertActiveStopRetirement, readActiveStopCaller, observeActiveStopPending, readActiveStopSettlement, type ActiveStopCaller, type ActiveStopPending, type ActiveStopScope } from "./native-active-stop-evidence.js";
+import { assertActiveStopRetirement, readActiveStopCaller, observeActiveStopPending, readActiveStopSettlement, type ActiveStopRemoteObservation, type ActiveStopCaller, type ActiveStopPending, type ActiveStopScope } from "./native-active-stop-evidence.js";
 import type { BootstrapReadProof } from "./native-bootstrap-read-proof.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
@@ -60,6 +60,8 @@ export async function runNativeActiveStopFlow(input: {
   const observer = remote ? undefined : observeRunProcesses();
   let processes: { captured: boolean; live: number[] } = { captured: false, live: [] };
   let processIdentity: string | undefined, processError = false;
+  const remoteObservations: ActiveStopRemoteObservation[] = [];
+  let retirement: ReturnType<typeof assertActiveStopRetirement> | undefined;
   const samples: Array<{ phase: string; absent: boolean }> = [];
   let fixture: CopilotRemoteFixture | undefined, baseline: CopilotRemoteSnapshot | undefined, sealed: CopilotRemoteSnapshot | undefined;
   let completed: Awaited<ReturnType<typeof stopAtPendingPermission>> | undefined;
@@ -80,7 +82,9 @@ export async function runNativeActiveStopFlow(input: {
     let value: boolean;
     if (remote) {
       if (!fixture || !baseline) throw new Error("Missing remote active Stop observer");
-      const snap = sealed ?? await fixture.snapshot(phase);
+      if (phase !== "pending") throw new Error("Remote filesystem phase requires a fresh live snapshot");
+      const snap = await fixture.snapshot(phase);
+      remoteObservations.push({ phase, source: "live-snapshot", snapshot: snap });
       value = !copilotRemoteDeniedSample(snap, baseline, target, "pending").exists;
       await input.evidence(`active-stop-${phase}-remote.json`, snap);
     } else value = !await exists(local!.targetPath);
@@ -98,17 +102,18 @@ export async function runNativeActiveStopFlow(input: {
       } else if (processes.captured && processes.live.length) {
         await pollUntil({ label: "active Stop provider retirement", deadlineAt: Date.now() + 5000, intervalMs: 100, load: async () => { observeProcesses(); return processes; }, accept: p => p.live.length === 0 });
       }
-      await sample("after-cleanup");
+      if (!remote) await sample("after-cleanup");
       const watch = remote ? sealed!.watcher : local!.watcher.finish();
-      assertActiveStopRetirement({ completed: Boolean(completed), identityChanged: processError, processes, watcher: watch, samples });
+      retirement = assertActiveStopRetirement({ completed: Boolean(completed), identityChanged: processError, processes, watcher: watch,
+        ...(remote ? { environment: "daytona" as const, remote: { scope: scope(), observations: remoteObservations } } : { environment: "local" as const, samples }) });
       if (!completed) throw new Error("Missing active Stop settlement");
       readActiveStopSettlement({ ...await load(), ...completed, bootstrap: bootstrap() });
-      receipt.push({ id: "active-stop-retired-no-effects", passed: true, detail: "Exact run root/descendants retired; unanswered target remained absent through continuous observation" });
+      receipt.push({ id: "active-stop-retired-no-effects", passed: true, detail: remote ? "Exact run root/descendants retired with continuous no-effects proof through retirement; later UI/API checks do not claim fresh filesystem observation" : "Exact run root/descendants retired; unanswered target remained absent through cleanup" });
       return receipt;
     } finally {
       if (timer) clearInterval(timer);
       try {
-        await input.evidence("native-active-stop-cleanup.json", { processes, processError, samples, sealed, watcher: local?.watcher.finish(), checks: receipt });
+        await input.evidence("native-active-stop-cleanup.json", { processes, processError, samples, remoteObservations, retirement, sealed, watcher: local?.watcher.finish(), checks: receipt });
       } finally {
         if (remote) await fixture?.close();
       }
@@ -133,7 +138,8 @@ export async function runNativeActiveStopFlow(input: {
       const bound = await input.remoteBootstrap!.bindAndRelease({ issueId: issue.id, runId: runs[0]!.id, targets: [target], actionPrompt: async value => {
         fixture = value; if (provider === "cursor") command = cursorDeniedCommand(join(value.remoteCwd, target));
         const prepared = await prepareCopilotRemoteAction({ fixture: value, companyId: fixtures.company.id, environmentId: fixtures.environment.id, runId: runs[0]!.id, target, prompt: prompt() });
-        baseline = prepared.baseline; samples.push({ phase: "before-request", absent: true });
+        baseline = prepared.baseline;
+        remoteObservations.push({ phase: "before-request", source: "live-snapshot", snapshot: baseline });
         await input.evidence("active-stop-before-request-remote.json", baseline); return prepared.prompt;
       } });
       if (bound !== fixture) throw new Error("Remote active Stop publication identity changed");
@@ -154,8 +160,13 @@ export async function runNativeActiveStopFlow(input: {
     const response = await api.request.post(`/api/heartbeat-runs/${runs[0]!.id}/runtime-requests/${encodeURIComponent(completed.pending.requestId)}/resolve`, { data: { turnId: completed.pending.turnId, requestKind: "permission_approval", resolution: { action: "accept" } } });
     check("stale-answer-refused", response.status() === 409, "Stopped permission rejects a later answer rather than replaying work");
     await load(); readActiveStopSettlement({ ...await load(), ...completed, bootstrap: bootstrap() });
-    if (remote) { sealed = await fixture!.finish(); assertCopilotRemoteRetirement(sealed, baseline!); processes = sealed.processes; }
-    await sample("after-stop");
+    if (remote) {
+      // finish drains the observer's automatic retirement seal. It does not
+      // extend the remote watch through subsequent host UI/cleanup assertions.
+      sealed = await fixture!.finish(); assertCopilotRemoteRetirement(sealed, baseline!); processes = sealed.processes;
+      remoteObservations.push({ phase: "owned-process-retirement", source: "retirement-seal", snapshot: sealed });
+      await input.evidence("active-stop-owned-process-retirement-remote.json", sealed);
+    } else await sample("after-stop");
     await page.reload();
     const finalUiTimeout = () => {
       const remaining = input.deadlineAt - Date.now();
@@ -174,12 +185,14 @@ export async function runNativeActiveStopFlow(input: {
       .toHaveCount(0, { timeout: finalUiTimeout() });
     await expect(card.getByRole("button", { name: "Deny", exact: true }))
       .toHaveCount(0, { timeout: finalUiTimeout() });
+    await load(); readActiveStopSettlement({ ...await load(), ...completed, bootstrap: bootstrap() });
     check("one-unfinished-cancelled-run", runs.length === 1 && issue.status === "in_progress" && runs[0]!.status === "cancelled", "No automatic follow-up run or false task completion");
     await input.capture("final-state", "Stopped native permission is no longer answerable", "final-state.png");
-    await input.evidence("api-state.json", { issue, run: runs[0], runs, checks, samples, runEvents: events, runEventsByRun: [{ runId: runs[0]!.id, events }], activeStop: completed });
+    await input.evidence("api-state.json", { issue, run: runs[0], runs, checks, samples, remoteObservations, runEvents: events, runEventsByRun: [{ runId: runs[0]!.id, events }], activeStop: completed });
     return { issue, runs, checks };
   } finally {
-    // Keep watcher/process observation live through the registered cleanup assertion.
-    await input.evidence("native-active-stop-checks.json", { issue, runs, checks, samples, completed });
+    // Local observation continues through cleanup. Remote cleanup revalidates
+    // the lifetime seal and fresh API state without claiming later file reads.
+    await input.evidence("native-active-stop-checks.json", { issue, runs, checks, samples, remoteObservations, completed });
   }
 }
