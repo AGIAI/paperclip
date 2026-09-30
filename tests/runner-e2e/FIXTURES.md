@@ -286,7 +286,7 @@ provider timeout, 300s attempt budget). `native-permission-deny-write` denies on
 exact native edit through its browser card, waits for the delivered rejection and
 failed tool, then cancels through the public run API. Its expected outcome is a
 cancelled run and an unfinished task, not successful task completion.
-The retained `paperclip.e2e.copilot-denial-settlement.v2` proof separates the exact
+The retained `paperclip.e2e.copilot-denial-settlement.v3` proof separates the exact
 provider terminal from the audited controller Stop. It records either
 `provider_cancelled_or_interrupted` or `provider_completed_observed_before_stop`.
 The latter requires the exact terminal row to be returned by the operator API
@@ -372,3 +372,22 @@ process-retirement receipt; their timestamps are not relabeled as host time.
 This denial case does not qualify Stop during a definitely pending native request.
 That active-turn cancellation boundary needs a separate live case. The attached
 async-command oracle is unchanged by this denial-only correction.
+
+### Correlated native Stop API
+
+The board-only `POST /api/heartbeat-runs/:runId/cancel` accepts an optional
+`cancellationRequestId` UUID for native runs. Company access checks still apply.
+The server reserves it under the run-row lock before dispatch, uses
+`native-cancellation:<UUID>` as the durable intent ID, and returns HTTP409 for
+an earlier or different caller intent, an earlier uncorrelated Stop, or a
+terminal run without that same reserved intent. Malformed UUIDs return HTTP400.
+Repeating the same UUID from the same board actor is idempotent. A different
+actor receives HTTP409; local trusted board uses an explicit null user ID. Default clients may omit the field; they
+preserve and join an existing reserved intent rather than overwrite it.
+
+The denial fixture generates its UUID before observation, retains it in
+`paperclip.e2e.copilot-pre-stop-observation.v2`, and requires the same intent in
+the response and final `paperclip.e2e.copilot-denial-settlement.v3` receipt.
+It refuses a non-running controller or existing Stop marker before dispatch.
+The completed-provider branch still requires a running controller that this
+request can stop; it does not accept a no-op Stop of an already terminal run.

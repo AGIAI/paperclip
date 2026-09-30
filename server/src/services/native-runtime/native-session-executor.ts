@@ -1,3 +1,4 @@
+import { assertCancellationRequest, cancellationIntentId as callerCancellationIntentId, cancellationRequestId } from "./native-cancellation-request.js";
 import { readNativeCursorPlanWait } from "./native-cursor-plan-wait.js";
 import { resolveAcpxQualification } from "./acpx-qualification.js";
 import { readLocalAiCredentialFile } from "../local-ai-credential-file.js";
@@ -6614,6 +6615,7 @@ export function cancelNativeSession(
     db: Db;
     scope?: "turn" | "run" | "issue";
     replacementAccepted?: boolean;
+    cancellationRequestId?: string;
   },
 ): Promise<{
   dispatched: boolean;
@@ -6628,6 +6630,7 @@ export async function cancelNativeSession(
     db: Db;
     scope?: "turn" | "run" | "issue";
     replacementAccepted?: boolean;
+    cancellationRequestId?: string;
   },
 ): Promise<
   | boolean
@@ -6770,6 +6773,11 @@ export async function cancelNativeSession(
         throw new Error("native_cancellation_coordinator_missing");
 
       const resultJson = record(lockedRun.resultJson);
+      // A default Stop joins an already reserved caller intent; it cannot
+      // replace that intent while the originating request is still dispatching.
+      const requestedId = options.cancellationRequestId
+        ?? cancellationRequestId(record(resultJson.startupCancellation).cancellationRequestId);
+      if (requestedId) assertCancellationRequest(resultJson, requestedId);
       const existing = record(resultJson.nativeCancellation);
       const existingIntentId =
         typeof existing.intentId === "string" && existing.intentId.length > 0
@@ -6810,7 +6818,9 @@ export async function cancelNativeSession(
         };
       }
 
-      const intentId = `native-cancellation:${randomUUID()}`;
+      const intentId = requestedId
+        ? callerCancellationIntentId(requestedId)
+        : `native-cancellation:${randomUUID()}`;
       const activity = await persistActivity(tx as unknown as Db, {
         companyId: cancellationContext.companyId,
         actorType: "system",
