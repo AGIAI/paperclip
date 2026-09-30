@@ -255,6 +255,29 @@ describe("private task production review", () => {
     expect(await canActorReadExecutionWorkspace(db, f.actor(f.outsider), workspace.id)).toBe(false);
   });
 
+  it("keeps inline draft images owner-only until publication then follows the task grant", async () => {
+    const f = await fixture();
+    const [asset] = await db.insert(assets).values({ companyId: f.company.id, provider: "local_disk", objectKey: `${f.company.id}/assets/issues/drafts/image.png`, contentType: "image/png", byteSize: 6, sha256: "test", createdByUserId: f.owner }).returning();
+    const { assetRoutes } = await import("../routes/assets.js");
+    const { issueService } = await import("../services/issues.js");
+    function appFor(userId: string) {
+      const app = express();
+      app.use((req, _res, next) => { req.actor = f.actor(userId) as any; next(); });
+      app.use("/api", assetRoutes(db, { getObject: async () => ({ stream: Readable.from("SECRET"), contentLength: 6 }) } as any));
+      return app;
+    }
+    const url = `/api/assets/${asset.id}/content`;
+    await request(appFor(f.owner)).get(url).expect(200);
+    await request(appFor(f.outsider)).get(url).expect(404);
+    const task = await issueService(db).create(f.company.id, { title: "Private draft", visibility: "private", createdByUserId: f.owner, description: `![image](${url})` });
+    const [grant] = await db.insert(issueAccessGrants).values({ issueId: task.id, subjectType: "user", subjectId: f.outsider, source: "explicit" }).returning();
+    await request(appFor(f.outsider)).get(url).expect(200);
+    await db.update(issueAccessGrants).set({ revokedAt: new Date() }).where(eq(issueAccessGrants.id, grant.id));
+    await request(appFor(f.outsider)).get(url).expect(404);
+    await db.delete(issues).where(eq(issues.id, task.id));
+    await request(appFor(f.outsider)).get(url).expect(404);
+  });
+
   it("protects attachment assets even after their attachment or task is deleted", async () => {
     const f = await fixture();
     const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Private", visibility: "private", responsibleUserId: f.owner }).returning();

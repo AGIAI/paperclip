@@ -158,6 +158,7 @@ function useVisualViewportLayout(enabled: boolean) {
 }
 
 interface IssueDraft {
+  isPrivate?: boolean;
   title: string;
   description: string;
   status: string;
@@ -599,6 +600,15 @@ export function NewIssueDialog() {
     userId: currentUserId,
   });
 
+  const { data: privacyParent } = useQuery({
+    queryKey: queryKeys.issues.detail(newIssueDefaults.parentId ?? ""),
+    queryFn: () => issuesApi.get(newIssueDefaults.parentId!),
+    enabled: newIssueOpen && Boolean(newIssueDefaults.parentId),
+  });
+  const inheritsPrivateAccess = privacyParent?.visibility === "private" || privacyParent?.project?.visibility === "private";
+  const effectivePrivate = isPrivate || inheritsPrivateAccess
+    || orderedProjects.some(project => project.id === projectId && project.visibility === "private");
+
   const selectedAssignee = useMemo(() => parseAssigneeValue(assigneeValue), [assigneeValue]);
   const selectedAssigneeAgentId = selectedAssignee.assigneeAgentId;
   const selectedAssigneeUserId = selectedAssignee.assigneeUserId;
@@ -743,10 +753,12 @@ export function NewIssueDialog() {
       executionWorkspaceMode,
       selectedExecutionWorkspaceId,
       workMode,
+      isPrivate: effectivePrivate,
     });
   }, [
     newIssueOpen,
     scheduleSave,
+    effectivePrivate,
     status,
     priority,
     assigneeValue,
@@ -876,6 +888,7 @@ export function NewIssueDialog() {
       const hasExplicitProjectWorkspaceId = newIssueDefaults.projectWorkspaceId !== undefined;
       const hasExplicitExecutionWorkspaceId = newIssueDefaults.executionWorkspaceId !== undefined;
       const hasExplicitExecutionWorkspaceMode = newIssueDefaults.executionWorkspaceMode !== undefined;
+      setIsPrivate(draft.isPrivate ?? false);
       setIssueText(draft.title, draft.description);
       setStatus(draft.status || "todo");
       setPriority(draft.priority);
@@ -1085,7 +1098,7 @@ export function NewIssueDialog() {
       status,
       priority: priority || "medium",
       workMode,
-      ...(isPrivate ? { visibility: "private" } : {}),
+      ...(effectivePrivate ? { visibility: "private" } : {}),
       ...(selectedAssigneeAgentId ? { assigneeAgentId: selectedAssigneeAgentId } : {}),
       ...(selectedAssigneeUserId ? { assigneeUserId: selectedAssigneeUserId } : {}),
       ...(newIssueDefaults.parentId ? { parentId: newIssueDefaults.parentId } : {}),
@@ -2028,11 +2041,12 @@ export function NewIssueDialog() {
             <div className="min-w-0">
               <div className="text-xs font-medium">Private task</div>
               <div className="text-(length:--text-micro) text-muted-foreground">
-                Only you and people you share with can read it. Subtasks stay private too.
+                {inheritsPrivateAccess ? "This subtask inherits private access from its parent." : "Only you and people you share with can read it. Subtasks stay private too."}
               </div>
             </div>
             <ToggleSwitch
-              checked={isPrivate}
+              checked={effectivePrivate}
+              disabled={inheritsPrivateAccess}
               onCheckedChange={(checked) => {
                 setIsPrivate(checked);
                 if (!checked) {

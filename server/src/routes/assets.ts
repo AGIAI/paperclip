@@ -7,7 +7,7 @@ import multer from "multer";
 import createDOMPurify from "dompurify";
 import { JSDOM } from "jsdom";
 import type { Db } from "@paperclipai/db";
-import { ASSET_NAMESPACE_RULE, createAssetImageMetadataSchema } from "@paperclipai/shared";
+import { ASSET_NAMESPACE_RULE, isUuidLike, createAssetImageMetadataSchema } from "@paperclipai/shared";
 import type { StorageService } from "../storage/types.js";
 import { assetService, logActivity } from "../services/index.js";
 import {
@@ -188,7 +188,7 @@ export function assetRoutes(db: Db, storage: StorageService) {
       sha256: stored.sha256,
       originalFilename: stored.originalFilename,
       createdByAgentId: actor.agentId,
-      createdByUserId: actor.actorType === "user" ? actor.actorId : null,
+      createdByUserId: actor.actorType === "user" ? actor.actorId : req.actor.onBehalfOfUserId ?? null,
     });
 
     await logActivity(db, {
@@ -202,7 +202,7 @@ export function assetRoutes(db: Db, storage: StorageService) {
       entityType: "asset",
       entityId: asset.id,
       details: {
-        originalFilename: asset.originalFilename,
+        ...(namespaceSuffix.startsWith("issues/") ? {} : { originalFilename: asset.originalFilename }),
         contentType: asset.contentType,
         byteSize: asset.byteSize,
       },
@@ -333,10 +333,13 @@ export function assetRoutes(db: Db, storage: StorageService) {
     if (!asset) return;
     const access = authorizationService(db);
     // Persisted storage namespaces retain provenance after attachment rows are deleted.
-    const [, namespace, sourceIssueId] = asset.objectKey.split("/");
-    const sourceExists = namespace !== "issues" || (sourceIssueId && await db.select({ id: issues.id }).from(issues)
+    const objectParts = asset.objectKey.split("/");
+    const isDraftImage = objectParts[1] === "assets" && objectParts[2] === "issues" && objectParts[3] === "drafts";
+    const namespace = objectParts[1] === "assets" ? objectParts[2] : objectParts[1];
+    const sourceIssueId = objectParts[1] === "assets" ? objectParts[3] : objectParts[2];
+    const sourceExists = namespace !== "issues" || isDraftImage || (sourceIssueId && isUuidLike(sourceIssueId) && await db.select({ id: issues.id }).from(issues)
       .where(and(eq(issues.id, sourceIssueId), eq(issues.companyId, asset.companyId))).limit(1).then(rows => rows.length > 0));
-    if (namespace === "issues" && (!sourceExists || !(await access.decide({ actor: req.actor, action: "issue:read",
+    if (namespace === "issues" && !isDraftImage && (!sourceExists || !(await access.decide({ actor: req.actor, action: "issue:read",
       resource: { type: "issue", companyId: asset.companyId, issueId: sourceIssueId } })).allowed)) {
       res.status(404).json({ error: "Asset not found" }); return;
     }
@@ -351,6 +354,12 @@ export function assetRoutes(db: Db, storage: StorageService) {
     }
     const attachments = await db.select({ issueId: issueAttachments.issueId }).from(issueAttachments)
       .where(and(eq(issueAttachments.assetId, asset.id), eq(issueAttachments.companyId, asset.companyId)));
+    if (isDraftImage && !attachments.length && !(req.actor.type === "board"
+      ? req.actor.source === "local_implicit" || req.actor.isInstanceAdmin || req.actor.userId === asset.createdByUserId
+      : req.actor.type === "agent" && req.actor.agentId === asset.createdByAgentId
+        && (!asset.createdByUserId || req.actor.onBehalfOfUserId === asset.createdByUserId))) {
+      res.status(404).json({ error: "Asset not found" }); return;
+    }
     for (const attachment of attachments) {
       if (!(await access.decide({ actor: req.actor, action: "issue:read", resource: {
         type: "issue", companyId: asset.companyId, issueId: attachment.issueId,

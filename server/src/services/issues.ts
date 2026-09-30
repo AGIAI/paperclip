@@ -3600,6 +3600,19 @@ function summarizeIssueRelationRow(
   };
 }
 
+/** Inline draft images become task attachments in the same transaction as publication. */
+async function attachOwnedDraftImages(tx: DbTransaction, issue: typeof issues.$inferSelect, body: string | null | undefined,
+  actor: { userId?: string | null; agentId?: string | null }) {
+  const ids = [...new Set(Array.from((body ?? "").matchAll(/\/api\/assets\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/content/gi), match => match[1]!))];
+  if (!ids.length || (!actor.userId && !actor.agentId)) return;
+  const owned = await tx.select().from(assets).where(and(eq(assets.companyId, issue.companyId), inArray(assets.id, ids),
+    actor.userId ? eq(assets.createdByUserId, actor.userId) : eq(assets.createdByAgentId, actor.agentId!)));
+  for (const asset of owned) {
+    if (!asset.objectKey.startsWith(`${issue.companyId}/assets/issues/drafts/`)) continue;
+    await tx.insert(issueAttachments).values({ companyId: issue.companyId, issueId: issue.id, assetId: asset.id }).onConflictDoNothing();
+  }
+}
+
 export async function ensureAssignmentIssueAccessGrant(
   dbOrTx: any,
   issue: typeof issues.$inferSelect,
@@ -10298,6 +10311,7 @@ export function issueService(db: Db) {
         );
 
         const [issue] = await tx.insert(issues).values(values).returning();
+        await attachOwnedDraftImages(tx, issue, issue.description, { userId: issueData.createdByUserId, agentId: issueData.createdByAgentId });
         if (issue.visibility === "private" && !inheritedPrivateSubtree && issueData.createdByAgentId) {
           await tx.insert(issueAccessGrants).values({
             issueId: issue.id,
@@ -11143,6 +11157,8 @@ export function issueService(db: Db) {
           .returning()
           .then((rows: Array<typeof issues.$inferSelect>) => rows[0] ?? null);
         if (!updated) return null;
+        if (issueData.description !== undefined) await attachOwnedDraftImages(tx, updated, updated.description,
+          { userId: actorUserId, agentId: actorAgentId });
         if (changesPrivacy && updated.visibility === "private") {
           // Creation and tree changes hold the same company lock. No child can
           // slip into the tree between discovering descendants and protecting them.
