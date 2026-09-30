@@ -66,27 +66,26 @@ interface SourceBadgeSpec {
   className: string;
 }
 
-// Source badges map 1:1 to `grant.source`. Colors mirror the approved
-// wireframe: explicit = blue, assignment = green, project = violet.
+// Source labels and icons distinguish access reasons; colors use semantic tokens.
 const SOURCE_BADGES: Record<IssueAccessGrantSource, SourceBadgeSpec> = {
   owner: { label: "task owner", icon: Lock, className: "border-border bg-muted text-muted-foreground" },
   explicit: {
     label: "shared directly",
     icon: UserPlus,
     className:
-      "border-blue-300/70 bg-blue-50 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300",
+      "border-primary/30 bg-primary/10 text-primary",
   },
   assignment: {
     label: "via assignment",
     icon: Check,
     className:
-      "border-emerald-300/70 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
+      "border-border bg-secondary text-secondary-foreground",
   },
   project: {
     label: "via project",
     icon: Folder,
     className:
-      "border-violet-300/70 bg-violet-50 text-violet-800 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300",
+      "border-border bg-accent text-accent-foreground",
   },
 };
 
@@ -356,7 +355,7 @@ export function IssueShareSheet({
                   const displayName = grant.subjectDisplayName ?? "Unknown";
                   const implicitPrincipal = implicitPrincipals.find(principal =>
                     principal.id === `${grant.subjectType}:${grant.subjectId}`);
-                  const revocable = canManage && !implicitPrincipal && !grant.inherited && grantIsRevocable(grant.source);
+                  const revocable = canManage && !grant.inherited && grantIsRevocable(grant.source);
                   const granter = grant.source === "explicit" ? "Shared" : "Granted";
                   return (
                     <RowShell
@@ -379,7 +378,7 @@ export function IssueShareSheet({
                             className="text-muted-foreground hover:text-destructive"
                             onClick={() => setRevokeTarget(grant)}
                           >
-                            Revoke
+                            {implicitPrincipal ? "Remove saved grant" : "Revoke"}
                           </Button>
                         ) : grant.source === "project" ? (
                           <span className="text-(length:--text-nano) text-muted-foreground">
@@ -426,7 +425,7 @@ export function IssueShareSheet({
                 role="note"
                 aria-label="Shared agent caution"
                 data-testid="shared-agent-caution"
-                className="flex items-start gap-2 rounded-md border border-amber-400/70 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-200"
+                className="flex items-start gap-2 rounded-md border border-border bg-muted px-3 py-2 text-xs leading-relaxed text-foreground"
               >
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>
@@ -473,7 +472,7 @@ export function IssueShareSheet({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Revoke {revokeTarget?.subjectDisplayName ?? "this subject"}'s access?
+              Remove {revokeTarget?.subjectDisplayName ?? "this subject"}'s saved grant?
             </AlertDialogTitle>
             <AlertDialogDescription>
               This removes this grant and the access it supplies to this task's descendants.
@@ -485,14 +484,14 @@ export function IssueShareSheet({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={(event) => {
                 event.preventDefault();
                 if (revokeTarget) revokeMutation.mutate(revokeTarget);
               }}
               disabled={revokeMutation.isPending}
             >
-              {revokeMutation.isPending ? "Revoking…" : "Revoke access"}
+              {revokeMutation.isPending ? "Removing…" : "Remove grant"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

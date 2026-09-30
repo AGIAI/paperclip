@@ -239,6 +239,29 @@ describe("private task production review", () => {
     expect(orphan).toMatchObject({ scopeKind: "issue", issueId: null });
   });
 
+  it("filters private and orphaned operation excerpts from a shared workspace listing", async () => {
+    const f = await fixture();
+    const [project] = await db.insert(projects).values({ companyId: f.company.id, name: "Shared" }).returning();
+    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.company.id, projectId: project.id, mode: "isolated_workspace", strategyType: "git_worktree", name: "Shared workspace" }).returning();
+    const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Private", visibility: "private", responsibleUserId: f.owner }).returning();
+    await db.insert(workspaceOperations).values({ companyId: f.company.id, executionWorkspaceId: workspace.id, issueId: task.id, phase: "prepare", stdoutExcerpt: "PRIVATE_OPERATION" });
+    const [publicOperation] = await db.insert(workspaceOperations).values({ companyId: f.company.id, executionWorkspaceId: workspace.id, phase: "prepare", stdoutExcerpt: "PUBLIC_OPERATION" }).returning();
+    const { executionWorkspaceRoutes } = await import("../routes/execution-workspaces.js");
+    const { errorHandler } = await import("../middleware/index.js");
+    let actor = f.actor(f.outsider);
+    const app = express(); app.use(express.json());
+    app.use((req, _res, next) => { req.actor = actor; next(); });
+    app.use("/api", executionWorkspaceRoutes(db)); app.use(errorHandler);
+    const path = `/api/execution-workspaces/${workspace.id}/workspace-operations`;
+    const outside = await request(app).get(path);
+    expect(outside.status).toBe(200);
+    expect(outside.body.map((row: { id: string }) => row.id)).toEqual([publicOperation.id]);
+    actor = f.actor(f.owner);
+    expect((await request(app).get(path)).body).toHaveLength(2);
+    await db.delete(issues).where(eq(issues.id, task.id));
+    expect((await request(app).get(path)).body.map((row: { id: string }) => row.id)).toEqual([publicOperation.id]);
+  });
+
   it("keeps operation history private even with a company run and after task or run deletion", async () => {
     const f = await fixture();
     const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Private", visibility: "private", responsibleUserId: f.owner }).returning();

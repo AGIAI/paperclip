@@ -160,7 +160,7 @@ export function IssuePrivacyActions({
           <AlertDialogFooter>
             <AlertDialogCancel>Keep private</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={(event) => {
                 event.preventDefault();
                 visibilityMutation.mutate("open");

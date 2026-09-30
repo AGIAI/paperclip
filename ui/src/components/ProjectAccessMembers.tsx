@@ -112,7 +112,7 @@ export function ProjectAccessMembers({ project, canManage }: { project: Project;
               </Button>
             </div>
             {sharingWithSharedAgent ? (
-              <p className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+              <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground">
                 This agent can retain private project context in its memory and workspace for later runs.
                 Removing access cannot erase what it has already learned.
               </p>

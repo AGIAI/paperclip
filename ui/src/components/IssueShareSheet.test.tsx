@@ -131,11 +131,21 @@ describe("IssueShareSheet", () => {
     expect(scope.textContent).toContain("project-managed");
   });
 
-  it("does not promise to revoke access still conferred by assignment", async () => {
+  it("removes a saved grant while explaining that assignment access remains", async () => {
     listAccessGrants.mockResolvedValue([grant({ id: "g1", source: "assignment", subjectType: "agent", subjectId: "a1" })]);
     await renderSheet(true, [{ id: "agent:a1", displayName: "Helper", roleLabel: "Current assignee" }]);
     expect([...document.body.querySelectorAll("button")].filter(button => button.textContent?.trim() === "Revoke")).toHaveLength(0);
     expect(document.body.textContent).toContain("access remains while this role applies");
+    const removeSaved = [...document.body.querySelectorAll("button")].find(button => button.textContent?.trim() === "Remove saved grant");
+    expect(removeSaved).toBeDefined();
+    act(() => removeSaved!.click());
+    await settle();
+    expect(document.body.textContent).toContain("saved grant?");
+    revokeAccessGrant.mockResolvedValue({});
+    const confirm = [...document.body.querySelectorAll("button")].find(button => button.textContent?.trim() === "Remove grant");
+    act(() => confirm!.click());
+    await settle();
+    expect(revokeAccessGrant).toHaveBeenCalledWith("i1", "g1");
   });
 
   it("hides Revoke entirely for non-setters", async () => {
