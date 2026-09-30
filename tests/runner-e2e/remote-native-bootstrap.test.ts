@@ -308,6 +308,8 @@ it.each([
   ["Playwright fetch timeout", new Error("apiRequestContext.get: Timeout 1000ms exceeded. PRIVATE"), "transient_infrastructure"],
   ["server fetch timeout", new Error("Timeout 1000ms exceeded PRIVATE"), "transient_infrastructure"],
   ["connection reset", new Error("apiRequestContext.get: read ECONNRESET PRIVATE"), "transient_infrastructure"],
+  ["socket hang up", new Error("socket hang up"), "transient_infrastructure"],
+  ["prefixed socket hang up", new Error("apiRequestContext.get: Socket Hang Up PRIVATE"), "transient_infrastructure"],
   ["undefined", undefined, "candidate_failure"],
   ["null", null, "candidate_failure"],
   ["private string", "PRIVATE 503 TimeoutError", "candidate_failure"],
@@ -335,7 +337,7 @@ it.each([[503, "transient_infrastructure"], [403, "permanent_infrastructure"], [
     vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100");
     const h = harness(43_000); h.bootstrap.prompt("actual-api");
     const original = h.api.get.getMockImplementation()!;
-    const secret = "PRIVATE body: forbidden secret plaintext 503 timeout ".repeat(10_000);
+    const secret = "PRIVATE body: forbidden secret plaintext 503 timeout socket hang up ".repeat(10_000);
     const request = { get: vi.fn(async (path: string) => ({
       ok: () => !path.endsWith("/leases"), status: () => status,
       url: () => "http://PRIVATE.invalid/private", text: async () => secret,
