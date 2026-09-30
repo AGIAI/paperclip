@@ -1695,6 +1695,28 @@ for (const execution of executions) {
             `/${encodeURIComponent(issuePrefix)}/issues/${encodeURIComponent(issue.identifier ?? issue.id)}`,
             { waitUntil: "domcontentloaded" },
           );
+          // Navigation commits before React has loaded the task. Bind the
+          // screenshot to this turn's visible reply and exact pending review,
+          // rather than capturing a spinner after DOMContentLoaded.
+          const reviewUiTimeout = () => {
+            const remaining = turnDeadlineAt - Date.now();
+            if (remaining <= 0) throw new Error(`Warm turn ${completedTurn} UI deadline elapsed`);
+            return Math.min(30_000, remaining);
+          };
+          await expect(page.getByTestId("issue-detail-header").getByRole("button", {
+            name: "Change status (current: In Review)", exact: true,
+          })).toBeVisible({ timeout: reviewUiTimeout() });
+          const turnReply = page.getByTestId("task-chat-thread")
+            .getByTestId("task-chat-agent-bubble")
+            .filter({ hasText: `PAPERCLIP_E2E_WARM_T${completedTurn}_${nonce}` }).last();
+          await expect(turnReply).toBeVisible({ timeout: reviewUiTimeout() });
+          const pendingReview = waitingState.interactions.find(isPendingWarmConfirmation)!;
+          const reviewCard = page.locator(`[id=${JSON.stringify(`interaction-${pendingReview.id}`)}]`);
+          await expect(reviewCard).toBeVisible({ timeout: reviewUiTimeout() });
+          await expect(reviewCard.getByRole("button", { name: "Continue work", exact: true }))
+            .toBeEnabled({ timeout: reviewUiTimeout() });
+          await expect(page.getByTestId("task-chat-history-loading"))
+            .toHaveCount(0, { timeout: reviewUiTimeout() });
           await captureScreenshot(
             `warm-turn-${completedTurn}`,
             `Warm ${execution.environment.id} turn ${completedTurn} awaiting review`,
