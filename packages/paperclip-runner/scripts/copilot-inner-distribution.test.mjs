@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
-import { COPILOT_MESSAGE_MAPPING_REPLACEMENT, patchPinnedCopilotMessageIdentity, readCopilotInnerTar, readPinnedCopilotInnerDistribution } from "./copilot-inner-distribution.mjs";
+import { COPILOT_MESSAGE_MAPPING_REPLACEMENT, COPILOT_REPLAY_MAPPING_REPLACEMENT, patchPinnedCopilotMessageIdentity, readCopilotInnerTar, readPinnedCopilotInnerDistribution } from "./copilot-inner-distribution.mjs";
 
 function file(name, content = "data", { type = "0", mode = 0o644, prefix = "" } = {}) {
   const bytes = Buffer.from(content); const h = Buffer.alloc(512);
@@ -59,4 +59,22 @@ test("ordered mapping retains native IDs including an empty start and never echo
   ];
   assert.deepEqual(JSON.parse(JSON.stringify(events.map(map).filter(Boolean))).map(e => [e.messageId, e.content.text]),
     [["first", ""], ["first", "same"], ["second", ""], ["second", "sa"], ["second", "me"], ["empty-final", ""]]);
+});
+
+test("the patched replay branch emits full messages once, with ordered identities and empty finals", () => {
+  const live = runInNewContext(`e=>{switch(e.type){${COPILOT_MESSAGE_MAPPING_REPLACEMENT}default:return null}}`);
+  const replay = runInNewContext(`t=>{switch(t.type){${COPILOT_REPLAY_MAPPING_REPLACEMENT}default:return null}}`);
+  const history = [
+    { type: "assistant.message", data: { messageId: "old-first", content: "same" } },
+    { type: "assistant.message", data: { messageId: "old-second", content: "same" } },
+    { type: "assistant.message", data: { messageId: "old-empty", content: "" } },
+  ];
+  assert.deepEqual(JSON.parse(JSON.stringify(history.map(replay))).map(e => [e.messageId, e.content.text]),
+    [["old-first", "same"], ["old-second", "same"], ["old-empty", ""]]);
+  assert.deepEqual(history.map(live), [null, null, null]);
+  // Completion has opposite roles: historical content is replayed once, while
+  // the active mapper must not echo text already emitted as live deltas.
+  const final = history[0];
+  assert.equal(replay(final).content.text, "same");
+  assert.equal(live(final), null);
 });

@@ -9,8 +9,8 @@ export const COPILOT_INNER_DISTRIBUTIONS = Object.freeze({
 });
 export const COPILOT_MESSAGE_MAPPING_ANCHOR = 'case"assistant.message_start":return null;case"assistant.message_delta":return{sessionUpdate:"agent_message_chunk",content:{type:"text",text:e.data.deltaContent}};case"assistant.message":return null;';
 export const COPILOT_MESSAGE_MAPPING_REPLACEMENT = 'case"assistant.message_start":return{sessionUpdate:"agent_message_chunk",messageId:e.data.messageId,content:{type:"text",text:""}};case"assistant.message_delta":return{sessionUpdate:"agent_message_chunk",messageId:e.data.messageId,content:{type:"text",text:e.data.deltaContent}};case"assistant.message":return null;';
-const REPLAY_ANCHOR = 'case"assistant.message":return t.data.content?{sessionUpdate:"agent_message_chunk",content:{type:"text",text:t.data.content}}:null;';
-const REPLAY_REPLACEMENT = 'case"assistant.message":return{sessionUpdate:"agent_message_chunk",messageId:t.data.messageId,content:{type:"text",text:t.data.content??""}};';
+export const COPILOT_REPLAY_MAPPING_ANCHOR = 'case"assistant.message":return t.data.content?{sessionUpdate:"agent_message_chunk",content:{type:"text",text:t.data.content}}:null;';
+export const COPILOT_REPLAY_MAPPING_REPLACEMENT = 'case"assistant.message":return{sessionUpdate:"agent_message_chunk",messageId:t.data.messageId,content:{type:"text",text:t.data.content??""}};';
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 const MAX_TAR_BYTES = 256 * 1024 * 1024;
 
@@ -34,7 +34,7 @@ export function readPinnedCopilotInnerDistribution(binary, target) {
 export function patchPinnedCopilotMessageIdentity(bytes) {
   if (!Buffer.isBuffer(bytes) || hash(bytes) !== COPILOT_APP_SHA256) throw new Error("Copilot message mapping source digest mismatch");
   let source = bytes.toString("utf8");
-  for (const [anchor, replacement] of [[COPILOT_MESSAGE_MAPPING_ANCHOR, COPILOT_MESSAGE_MAPPING_REPLACEMENT], [REPLAY_ANCHOR, REPLAY_REPLACEMENT]]) {
+  for (const [anchor, replacement] of [[COPILOT_MESSAGE_MAPPING_ANCHOR, COPILOT_MESSAGE_MAPPING_REPLACEMENT], [COPILOT_REPLAY_MAPPING_ANCHOR, COPILOT_REPLAY_MAPPING_REPLACEMENT]]) {
     if (source.indexOf(anchor) < 0 || source.indexOf(anchor) !== source.lastIndexOf(anchor)) throw new Error("Copilot message mapping patch anchor is not unique");
     source = source.replace(anchor, replacement);
   }
