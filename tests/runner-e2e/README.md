@@ -1354,11 +1354,16 @@ snapshot provisioning, with the fixture’s existing 42-second installation and
 teardown reserve subtracted before admission. It does not impose a separate
 20-second lease deadline or extend the case budget.
 Every poll rechecks task/run ownership and run status, and requires exactly one
-unambiguous active lease for that run and task. A stopped run fails immediately, even if another endpoint fails. Missing reads
+unambiguous active lease for that run and task. A stopped run fails as soon as its read completes, even if another endpoint
+fails or remains pending. At most three reads are outstanding, each with a
+transport timeout bounded by admission and 30 seconds. Late responses cannot
+change saved evidence or start another poll. Missing reads
 cannot admit a lease; successful ownership/status reads are retained.
 Admission and observer setup failures save bounded, allowlisted read status,
-run-stage and lease-count evidence;
-this evidence does not infer a provider-side cause or change the machine grade.
+run-stage, lease-count and classified read-failure evidence;
+this evidence does not infer a provider-side cause. Persistent API failures retain
+their real cause and infrastructure classification. A recovered API failure does
+not reclassify a later successfully observed state timeout.
 The initial provider's instruction-file read window remains 20 seconds after
 provider startup, and no action is published before the observer is armed.
 

@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { pollUntil } from "./api.js";
+import { ObservedStateTimeout, pollUntil } from "./api.js";
+import { classifyFailure } from "./failure-classifier.js";
 import { REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS, bindRemoteNativeFixture, type RemoteFixtureApi, type RemoteFixtureDaytona, type RemoteNativeFixture } from "./remote-native-fixtures.js";
 
 export interface RemoteNativeBootstrap {
@@ -66,41 +67,85 @@ export function createRemoteNativeBootstrap(input: {
       let lastState: Record<string, string | number | boolean> = { observed: false };
       const admissionDeadlineAt = input.deadlineAt - REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS;
       let fixture: RemoteNativeFixture;
+      let lastReadError: unknown;
       try {
         const ready = await pollUntil({
           label: "owned native qualification lease", deadlineAt: admissionDeadlineAt, intervalMs: 100,
           load: async () => {
-            const [issueRead, runRead, leasesRead] = await Promise.allSettled([
-              input.api.get<Record<string, any>>(`/api/issues/${request.issueId}`),
-              input.api.get<Record<string, any>>(`/api/heartbeat-runs/${request.runId}`),
-              input.api.get<Array<Record<string, any>>>(`/api/environments/${input.environmentId}/leases`),
-            ]);
-            const issue = issueRead.status === "fulfilled" ? issueRead.value : undefined;
-            const run = runRead.status === "fulfilled" ? runRead.value : undefined;
-            const rows = leasesRead.status === "fulfilled" ? leasesRead.value : undefined;
-            const issueOwned = issue?.id === request.issueId && issue.companyId === input.companyId
-              && issue.assigneeAgentId === input.agentId;
-            const runOwned = run?.companyId === input.companyId && run.agentId === input.agentId && run.id === request.runId;
-            const owned = issueOwned && runOwned;
-            const runLeases = rows?.filter(row => row.heartbeatRunId === request.runId);
-            const active = runLeases?.filter(row => row.issueId === request.issueId && row.status === "active" && row.providerLeaseId);
-            // A failed endpoint cannot discard a successful read proving that
-            // ownership changed or the run stopped. Missing reads never admit.
-            const rejection = (issueRead.status === "fulfilled" && !issueOwned) || (runRead.status === "fulfilled" && !runOwned)
-              ? "Remote bootstrap task/run ownership is unproven"
-              : runRead.status === "fulfilled" && !["queued", "running"].includes(run?.status) ? "Native qualification run stopped before observer setup"
-              : runLeases && runLeases.length > 1 ? "Ambiguous native qualification lease" : undefined;
-            // Fixed keys and allowlisted enum values only: no provider IDs,
-            // errors, prompts or arbitrary API strings enter startup evidence.
-            lastState = {
-              observed: true, owned, phase: "lease_admission",
-              issueRead: issueRead.status, runRead: runRead.status, leasesRead: leasesRead.status,
-              runStatus: ["queued", "running", "succeeded", "failed", "cancelled", "timed_out"].includes(run?.status) ? run!.status : "unknown",
-              executionStage: ["queued", "preparing", "executing", "finalizing"].includes(run?.executionStage) ? run!.executionStage : "unknown",
-              ...(runLeases ? { runLeaseCount: runLeases.length, activeOwnedLeaseCount: active!.length } : {}),
-              deadlineReached: Date.now() >= input.deadlineAt,
+            type Read<T> = PromiseSettledResult<T> | { status: "pending" };
+            let issueRead: Read<Record<string, any>> = { status: "pending" };
+            let runRead: Read<Record<string, any>> = { status: "pending" };
+            let leasesRead: Read<Array<Record<string, any>>> = { status: "pending" };
+            const snapshot = () => {
+              const issue = issueRead.status === "fulfilled" ? issueRead.value : undefined;
+              const run = runRead.status === "fulfilled" ? runRead.value : undefined;
+              const rows = leasesRead.status === "fulfilled" ? leasesRead.value : undefined;
+              const issueOwned = issue?.id === request.issueId && issue.companyId === input.companyId
+                && issue.assigneeAgentId === input.agentId;
+              const runOwned = run?.companyId === input.companyId && run.agentId === input.agentId && run.id === request.runId;
+              const owned = issueOwned && runOwned;
+              const runLeases = Array.isArray(rows) ? rows.filter(row => row?.heartbeatRunId === request.runId) : undefined;
+              const active = runLeases?.filter(row => row.issueId === request.issueId && row.status === "active" && row.providerLeaseId);
+              // A failed endpoint cannot discard a successful read proving that
+              // ownership changed or the run stopped. Missing reads never admit.
+              const rejection = (issueRead.status === "fulfilled" && !issueOwned) || (runRead.status === "fulfilled" && !runOwned)
+                ? "Remote bootstrap task/run ownership is unproven"
+                : runRead.status === "fulfilled" && !["queued", "running"].includes(run?.status) ? "Native qualification run stopped before observer setup"
+                : runLeases && runLeases.length > 1 ? "Ambiguous native qualification lease" : undefined;
+              // Fixed keys and allowlisted enum values only: no provider IDs,
+              // errors, prompts or arbitrary API strings enter startup evidence.
+              const readError = [issueRead, runRead, leasesRead].find(read => read.status === "rejected");
+              const evidence = {
+                observed: true, owned, phase: "lease_admission",
+                issueRead: issueRead.status, runRead: runRead.status, leasesRead: leasesRead.status,
+                runStatus: ["queued", "running", "succeeded", "failed", "cancelled", "timed_out"].includes(run?.status) ? run!.status : "unknown",
+                executionStage: ["queued", "preparing", "executing", "finalizing"].includes(run?.executionStage) ? run!.executionStage : "unknown",
+                ...(runLeases ? { runLeaseCount: runLeases.length, activeOwnedLeaseCount: active!.length } : {}),
+                ...(readError?.status === "rejected" ? { readFailureClass: classifyFailure(readError.reason) } : {}),
+                deadlineReached: Date.now() >= input.deadlineAt,
+              };
+              return { run, owned, lease: active?.[0], rejection, evidence,
+                readError: readError?.status === "rejected" ? readError.reason : undefined };
             };
-            return { run, owned, lease: active?.[0], rejection };
+            // At most three in-flight reads. Each has a transport deadline no
+            // later than admission; terminal/ownership proof need not await it.
+            const remainingMs = Math.max(1, admissionDeadlineAt - Date.now());
+            const timeout = Math.min(30_000, remainingMs);
+            const state = await new Promise<ReturnType<typeof snapshot>>(resolve => {
+              let finished = false;
+              const finish = (state: ReturnType<typeof snapshot>) => {
+                if (finished) return;
+                finished = true; clearTimeout(timer); resolve(state);
+              };
+              const timer = setTimeout(() => {
+                const failure = { status: "rejected" as const, reason: new Error("API connection timed out during remote admission") };
+                if (issueRead.status === "pending") issueRead = failure;
+                if (runRead.status === "pending") runRead = failure;
+                if (leasesRead.status === "pending") leasesRead = failure;
+                finish(snapshot());
+              }, remainingMs);
+              function read<T>(path: string, save: (result: Read<T>) => void) {
+                // Both handlers are installed before dispatch. Late completion
+                // is consumed but cannot mutate saved evidence or start a poll.
+                void Promise.resolve().then(() => input.api.get<T>(path, { timeout })).then(
+                  value => settled({ status: "fulfilled", value }),
+                  reason => settled({ status: "rejected", reason }),
+                );
+                function settled(result: Read<T>) {
+                  if (finished) return;
+                  save(result);
+                  const state = snapshot();
+                  if (state.rejection || [issueRead, runRead, leasesRead].every(read => read.status !== "pending")) finish(state);
+                }
+              }
+              read<Record<string, any>>(`/api/issues/${request.issueId}`, result => { issueRead = result; });
+              read<Record<string, any>>(`/api/heartbeat-runs/${request.runId}`, result => { runRead = result; });
+              read<Array<Record<string, any>>>(`/api/environments/${input.environmentId}/leases`, result => { leasesRead = result; });
+            });
+            lastState = state.evidence;
+            lastReadError = state.rejection ? undefined : state.readError;
+            if (lastReadError !== undefined) throw lastReadError;
+            return state;
           },
           accept: state => !state.rejection && state.owned && state.run?.status === "running" && Boolean(state.lease)
             && Date.now() < admissionDeadlineAt,
@@ -114,6 +159,13 @@ export function createRemoteNativeBootstrap(input: {
           targets: [...request.targets], crossRoot: request.crossRoot, actionFile: setup.path, deadlineAt: input.deadlineAt,
         });
       } catch (error) {
+        if (lastReadError !== undefined && lastState.phase === "lease_admission") {
+          if (classifyFailure(lastReadError) === "transient_infrastructure") {
+            const timeout = new ObservedStateTimeout("owned native qualification lease", "transient_infrastructure", JSON.stringify(lastState));
+            timeout.cause = lastReadError;
+            error = timeout;
+          } else error = lastReadError;
+        }
         try {
           await input.evidence(`remote-native-bootstrap-startup-${request.runId}.json`, {
             ...lastState, deadlineReached: Date.now() >= input.deadlineAt,

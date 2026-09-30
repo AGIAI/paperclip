@@ -32,3 +32,12 @@ describe("fixture instruction revision fence", () => {
     expect(fixture.request.put).toHaveBeenCalledTimes(1);
   });
 });
+
+
+it("passes a bounded GET timeout to the request transport without changing its response", async () => {
+  vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100");
+  const get = vi.fn(async () => response(200, { status: "running" }));
+  const api = new RunnerApi({ get } as unknown as APIRequestContext);
+  await expect(api.get("/api/heartbeat-runs/run", { timeout: 1234 })).resolves.toEqual({ status: "running" });
+  expect(get).toHaveBeenCalledExactlyOnceWith("/api/heartbeat-runs/run", { timeout: 1234 });
+});

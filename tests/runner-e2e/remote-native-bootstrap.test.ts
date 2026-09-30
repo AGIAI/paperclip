@@ -1,4 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { classifyFailure } from "./failure-classifier.js";
+import { ObservedStateTimeout } from "./api.js";
 import { createRemoteNativeBootstrap } from "./remote-native-bootstrap.js";
 import type { RemoteFixtureApi, RemoteNativeFixture } from "./remote-native-fixtures.js";
 
@@ -181,7 +183,7 @@ it.each(["terminal", "run-owner", "issue-owner"])("does not lose a successful %s
   });
   await expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow(variant === "terminal" ? "stopped before observer setup" : "ownership is unproven");
   expect(Date.now()).toBe(0); expect(h.bind).not.toHaveBeenCalled();
-  expect(h.input.evidence.mock.calls[0]![1]).toMatchObject({ leasesRead: "rejected", admissionDeadlineReached: false });
+  expect(h.input.evidence.mock.calls[0]![1]).toMatchObject({ admissionDeadlineReached: false });
   expect(JSON.stringify(h.input.evidence.mock.calls)).not.toContain("PRIVATE");
 });
 
@@ -190,7 +192,7 @@ it.each(["/api/issues/issue", "/api/heartbeat-runs/run", "/api/environments/env/
   const h = harness(43_000); h.bootstrap.prompt("missing-read");
   const original = h.api.get.getMockImplementation()!;
   h.api.get.mockImplementation(async path => { if (path === failedPath) throw new Error("PRIVATE API ERROR"); return original(path); });
-  const delivery = expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("Timed out waiting");
+  const delivery = expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("PRIVATE API ERROR");
   await vi.advanceTimersByTimeAsync(1000); await delivery;
   expect(h.bind).not.toHaveBeenCalled(); expect(h.fixture.publishAction).not.toHaveBeenCalled();
   expect(JSON.stringify(h.input.evidence.mock.calls)).not.toContain("PRIVATE");
@@ -217,7 +219,8 @@ it("rejects a lease read completing inside the final setup reserve and saves sta
   const delivery = expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("Timed out waiting");
   await vi.advanceTimersByTimeAsync(1200); await delivery;
   expect(h.bind).not.toHaveBeenCalled(); expect(h.fixture.publishAction).not.toHaveBeenCalled();
-  expect(h.input.evidence.mock.calls[0]![1]).toMatchObject({ phase: "lease_admission", activeOwnedLeaseCount: 1, admissionDeadlineReached: true, deadlineReached: false });
+  expect(h.input.evidence.mock.calls[0]![1]).toMatchObject({ phase: "lease_admission", leasesRead: "rejected", admissionDeadlineReached: true, deadlineReached: false });
+  expect(h.input.evidence.mock.calls[0]![1]).not.toHaveProperty("activeOwnedLeaseCount");
 });
 
 it("captures binder failure after admission without publishing or repeating setup", async () => {
@@ -226,4 +229,74 @@ it("captures binder failure after admission without publishing or repeating setu
   await expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("insufficient_setup_budget");
   expect(h.input.evidence.mock.calls[0]![1]).toMatchObject({ phase: "observer_setup", activeOwnedLeaseCount: 1 });
   expect(h.bind).toHaveBeenCalledTimes(1); expect(h.fixture.publishAction).not.toHaveBeenCalled();
+});
+
+
+it.each(["terminal", "run-owner", "issue-owner"])("rejects %s immediately with another failed read and a pending lease, and consumes its late rejection", async variant => {
+  vi.useFakeTimers(); vi.setSystemTime(0);
+  const h = harness(); h.bootstrap.prompt("slow-lease");
+  if (variant === "terminal") h.run.status = "failed";
+  if (variant === "run-owner") h.run.companyId = "foreign";
+  if (variant === "issue-owner") h.issue.companyId = "foreign";
+  let rejectLease!: (error: Error) => void;
+  const leaseRead = new Promise<never>((_resolve, reject) => { rejectLease = reject; });
+  const original = h.api.get.getMockImplementation()!;
+  h.api.get.mockImplementation(async path => {
+    if (path.endsWith("/leases")) return leaseRead;
+    if (path === (variant === "issue-owner" ? "/api/heartbeat-runs/run" : "/api/issues/issue")) throw new Error("503 PRIVATE");
+    return original(path);
+  });
+  await expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow(variant === "terminal" ? "stopped before observer setup" : "ownership is unproven");
+  expect(Date.now()).toBe(0); expect(h.api.get).toHaveBeenCalledTimes(3);
+  expect(h.api.get).toHaveBeenCalledWith("/api/environments/env/leases", { timeout: 18_000 });
+  const saved = JSON.stringify(h.input.evidence.mock.calls);
+  expect(saved).toContain('"leasesRead":"pending"'); expect(saved).not.toContain("PRIVATE");
+  rejectLease(new Error("late private rejection"));
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(JSON.stringify(h.input.evidence.mock.calls)).toBe(saved);
+  expect(h.api.get).toHaveBeenCalledTimes(3); expect(h.bind).not.toHaveBeenCalled();
+});
+
+it("retains permanent 503 reads as a typed infrastructure timeout with the real cause", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0);
+  const h = harness(43_000); h.bootstrap.prompt("503");
+  const cause = new Error("GET /api/environments/env/leases returned 503: PRIVATE BODY");
+  const original = h.api.get.getMockImplementation()!;
+  h.api.get.mockImplementation(async path => { if (path.endsWith("/leases")) throw cause; return original(path); });
+  const delivery = h.bootstrap.bindAndRelease(h.request).catch(error => error);
+  await vi.advanceTimersByTimeAsync(1000); const error = await delivery;
+  expect(error).toBeInstanceOf(ObservedStateTimeout); expect(error.cause).toBe(cause);
+  expect(classifyFailure(error)).toBe("transient_infrastructure");
+  expect(error.message).not.toContain("PRIVATE");
+  expect(h.input.evidence.mock.calls[0]![1]).toMatchObject({ readFailureClass: "transient_infrastructure" });
+  expect(JSON.stringify(h.input.evidence.mock.calls)).not.toContain("PRIVATE");
+  expect(h.bind).not.toHaveBeenCalled();
+});
+
+it.each([true, false])("clears a recovered 503 cause before %s admission or observed-state timeout", async admits => {
+  vi.useFakeTimers(); vi.setSystemTime(0);
+  const h = harness(43_000); h.bootstrap.prompt("503-recovery");
+  const original = h.api.get.getMockImplementation()!; let failed = false;
+  h.api.get.mockImplementation(async path => {
+    if (path.endsWith("/leases")) {
+      if (!failed) { failed = true; throw new Error("503 PRIVATE BODY"); }
+      if (!admits) return [];
+    }
+    return original(path);
+  });
+  const delivery = h.bootstrap.bindAndRelease(h.request).catch(error => error);
+  await vi.advanceTimersByTimeAsync(1000); const result = await delivery;
+  if (admits) expect(result).toBe(h.fixture);
+  else { expect(classifyFailure(result)).toBe("candidate_failure"); expect(result.cause).toBeUndefined(); }
+});
+
+it("bounds an unresponsive read at admission without launching replacement reads", async () => {
+  vi.useFakeTimers(); vi.setSystemTime(0);
+  const h = harness(43_000); h.bootstrap.prompt("hung");
+  const original = h.api.get.getMockImplementation()!;
+  h.api.get.mockImplementation(async path => path.endsWith("/leases") ? new Promise<never>(() => {}) : original(path));
+  const delivery = h.bootstrap.bindAndRelease(h.request).catch(error => error);
+  await vi.advanceTimersByTimeAsync(1100); const error = await delivery;
+  expect(classifyFailure(error)).toBe("transient_infrastructure");
+  expect(h.api.get).toHaveBeenCalledTimes(3); expect(h.bind).not.toHaveBeenCalled();
 });
