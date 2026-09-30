@@ -14,7 +14,6 @@ import { createIssueDetailPath } from "../lib/issueDetailBreadcrumb";
 import { formatMonitorOffset } from "../lib/issue-monitor";
 import { useRetryNowMutation } from "../hooks/useRetryNowMutation";
 import { IssueLinkQuicklook } from "./IssueLinkQuicklook";
-import { LockedIssueChip, isLockedIssueStub } from "./LockedIssueChip";
 import { RetryErrorBand } from "./IssueScheduledRetryCard";
 import {
   isAssignedBacklogBlocker,
@@ -545,18 +544,6 @@ export function IssueBlockedNotice({
   const reopenSuppressedOtherCount = Math.max(unresolvedLeafBlockers.length - 1, 0);
 
   const renderBlockerChip = (blocker: IssueRelationIssueSummary) => {
-    // A private blocker arrives as a locked stub (no title/status). Show the
-    // locked chip plus the access note instead of a link into a 404.
-    if (isLockedIssueStub(blocker)) {
-      return (
-        <span key={blocker.id} className="inline-flex max-w-full items-center gap-1.5">
-          <LockedIssueChip identifier={blocker.identifier} />
-          <span className="text-(length:--text-micro) text-amber-800 dark:text-amber-200">
-            Private — you don't have access
-          </span>
-        </span>
-      );
-    }
     const issuePathId = blocker.identifier ?? blocker.id;
     const recoveryAction = blocker.activeRecoveryAction ?? null;
     return (
