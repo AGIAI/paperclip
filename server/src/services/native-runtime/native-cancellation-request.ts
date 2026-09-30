@@ -22,6 +22,56 @@ export function assertCancellationRequest(result: unknown, requestId: string, al
   }
 }
 
+/** Evaluate only while both the run and coordinator are locked. A UUID alone
+ * is not retry authority; a resumed Stop needs its exact durable native intent. */
+export function nativeRetryCancellationEligible(input: {
+  runId: string; companyId: string; issueId: string; resultJson: unknown; requestId?: string; scope?: string;
+}, coordinator: { phase?: string; failureCode?: string | null } | null | undefined) {
+  if (coordinator?.phase === "retryable_failure") return true;
+  if (coordinator?.phase !== "terminal_failure" || coordinator.failureCode !== "native_retry_cancelled") return false;
+  const result = record(input.resultJson), native = record(result.nativeCancellation);
+  return (!input.requestId || (record(result.startupCancellation).cancellationRequestId === input.requestId
+      && native.intentId === cancellationIntentId(input.requestId)))
+    && native.schema === "paperclip.native-cancellation.v1" && typeof native.intentId === "string" && !!native.intentId
+    && native.runId === input.runId && native.companyId === input.companyId && native.issueId === input.issueId
+    && native.scope === (input.scope ?? "run") && ["pending", "acknowledged"].includes(String(native.dispatchState))
+    && typeof native.dispatched === "boolean" && typeof native.intentAuditId === "string" && !!native.intentAuditId
+    && (native.dispatchState === "pending" || (typeof native.acknowledgementAuditId === "string"
+      && !!native.acknowledgementAuditId && native.acknowledgementAuditId !== native.intentAuditId));
+}
+
+/** Final failed -> cancelled CAS: a later board/recovery outcome must win.
+ * The row-locking subquery prevents a coordinator-only writer from changing
+ * the retry disposition between this check and the status update. */
+export function nativeRetryCancellationCommitCondition(expectedResult: unknown) {
+  const native = record(record(expectedResult).nativeCancellation);
+  if (native.dispatchState !== "acknowledged" || typeof native.runId !== "string"
+    || typeof native.companyId !== "string" || typeof native.issueId !== "string"
+    || !nativeRetryCancellationEligible({ runId: native.runId, companyId: native.companyId,
+      issueId: native.issueId, resultJson: expectedResult }, { phase: "terminal_failure", failureCode: "native_retry_cancelled" })) {
+    return sql`false`;
+  }
+  return sql`${heartbeatRuns.status} = 'failed' and ${heartbeatRuns.runtimeMode} = 'native'
+    and ${heartbeatRuns.id} = ${native.runId} and ${heartbeatRuns.companyId} = ${native.companyId}
+    and ${heartbeatRuns.nativeIssueId} = ${native.issueId}
+    and ${heartbeatRuns.resultJson} = ${JSON.stringify(expectedResult)}::jsonb
+    and exists (select 1 from ${nativeRunFinalizations}
+      where ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
+        and ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
+        and ${nativeRunFinalizations.issueId} = ${heartbeatRuns.nativeIssueId}
+        and ${nativeRunFinalizations.phase} = 'terminal_failure'
+        and ${nativeRunFinalizations.failureCode} = 'native_retry_cancelled'
+      for update nowait)`;
+}
+
+export function rethrowNativeCancellationLockConflict(error: unknown): never {
+  const value = record(error);
+  if (value.code === "55P03" || record(value.cause).code === "55P03") {
+    throw conflict("Native retry cancellation is busy; retry the same request");
+  }
+  throw error;
+}
+
 /** Reserve the caller's identity before handoff or dispatch. No schema change:
  * the existing startup fence and native intent carry the correlation. */
 export async function claimCancellationRequest(db: Db, runId: string, companyId: string, requestId: string, userId: string | null) {
@@ -43,16 +93,8 @@ export async function claimCancellationRequest(db: Db, runId: string, companyId:
         .where(and(eq(nativeRunFinalizations.runId, runId), eq(nativeRunFinalizations.companyId, companyId),
           eq(nativeRunFinalizations.issueId, run.nativeIssueId)))
         .for("update", { noWait: true }).limit(1).then(rows => rows[0]);
-      const native = record(result.nativeCancellation);
-      const ownIntent = record(result.startupCancellation).cancellationRequestId === requestId
-        && native.schema === "paperclip.native-cancellation.v1" && native.intentId === cancellationIntentId(requestId)
-        && native.runId === runId && native.companyId === companyId && native.issueId === run.nativeIssueId
-        && native.scope === "run" && ["pending", "acknowledged"].includes(String(native.dispatchState))
-        && typeof native.dispatched === "boolean" && typeof native.intentAuditId === "string" && !!native.intentAuditId
-        && (native.dispatchState === "pending" || (typeof native.acknowledgementAuditId === "string"
-          && !!native.acknowledgementAuditId && native.acknowledgementAuditId !== native.intentAuditId));
-      pendingRetry = coordinator?.phase === "retryable_failure"
-        || (coordinator?.phase === "terminal_failure" && coordinator.failureCode === "native_retry_cancelled" && ownIntent);
+      pendingRetry = nativeRetryCancellationEligible({ runId, companyId, issueId: run.nativeIssueId,
+        resultJson: result, requestId }, coordinator);
     }
     if (record(result.startupCancellation).cancellationRequestId === requestId) {
       const actor = record(record(result.startupCancellation).requestedBy);
@@ -70,19 +112,11 @@ export async function claimCancellationRequest(db: Db, runId: string, companyId:
     }
     if (!pendingRetry && !["queued", "running", "scheduled_retry"].includes(run.status)) throw conflict("Correlated Stop run is already terminal");
     const [claimed] = await tx.update(heartbeatRuns).set({ resultJson: { ...result,
-      startupCancellation: { requestedAt: new Date().toISOString(), beforeNativeSelection: false, cancellationRequestId: requestId, requestedBy: { type: "board", userId } },
+      startupCancellation: { requestedAt: new Date().toISOString(), beforeNativeSelection: false, cancellationRequestId: requestId, requestedBy: { type: "board", userId }, ...(run.status === "failed" ? { retryCancellation: true } : {}) },
     } }).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId))).returning();
     if (!claimed) throw conflict("Correlated Stop run changed");
     return claimed;
-  }).catch((error: unknown) => {
-    // postgres-js can be wrapped by Drizzle; retain no raw database detail in
-    // the public conflict while allowing the exact request to retry later.
-    const value = record(error);
-    if (value.code === "55P03" || record(value.cause).code === "55P03") {
-      throw conflict("Native retry cancellation is busy; retry the same request");
-    }
-    throw error;
-  });
+  }).catch(rethrowNativeCancellationLockConflict);
 }
 
 /** Used by the default Stop path too: never erase a correlated reservation. */
