@@ -16,7 +16,10 @@ type Binding = { companyId: string; issueId: string; runId: string; agentId: str
 const record = (v: unknown): Record<string, any> => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, any> : {};
 const same = (a: unknown, b: unknown) => nativeSha256(a) === nativeSha256(b);
 const PREFIX = "cursor-plan-wait:";
-const EVENT_TYPES = ["runtime_request.created", "runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired", "turn.started", "turn.completed", "turn.failed", "turn.cancelled", "tool.execution.started", "tool.execution.progressed", "tool.execution.completed"];
+// Preserve the exact Cursor6 proof query: progress rows were never part of its
+// 1,000-row budget. Completed tools were included and must stay included.
+const LEGACY_EVENT_TYPES = ["runtime_request.created", "runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired", "turn.started", "turn.completed", "turn.failed", "turn.cancelled", "tool.execution.started", "tool.execution.completed"];
+const EVENT_TYPES = [...LEGACY_EVENT_TYPES, "tool.execution.progressed"];
 const SUMMARY = "Plan accepted. This task is waiting for your next message. This run used Plan mode; no implementation or task completion is claimed.";
 
 export interface NativeCursorPlanWaitSource extends Binding {
@@ -43,6 +46,10 @@ export interface CursorPlanWaitFacts {
   contract: Pick<typeof completionContracts.$inferSelect, "id" | "canonicalSha256" | "contractJson">;
   events: Array<Pick<typeof heartbeatRunEvents.$inferSelect, "companyId" | "agentId" | "runId" | "seq" | "eventType" | "payload" | "sourceInstanceId" | "sourceEventId" | "sourceSeq" | "sourcePayloadSha256" | "protocolSchemaVersion">>;
   interactions: Array<{ interaction: typeof issueThreadInteractions.$inferSelect; delivery: typeof issueQuestionResponseDeliveries.$inferSelect }>;
+}
+
+function isHistoricalUnboundWait(source?: NativeCursorPlanWaitSource): boolean {
+  return source !== undefined && source.toolExecutionId === undefined && source.toolLifecycleSha256 === undefined;
 }
 
 /** Only committed native request/answer/normal-terminal facts can create this passive wait. */
@@ -100,7 +107,7 @@ function cursorPlanWaitFromFacts(facts: CursorPlanWaitFacts, committedSource?: N
     const resolved = turn.find(e => e.eventType === "runtime_request.resolved" && record(e.payload).requestId === request.requestId)!;
     const resolution = record(resolved.payload);
     if (resolved.sourceSeq >= terminal.sourceSeq || resolution.action !== "submit" || resolution.turnId !== terminal.turnId) return null;
-    const historicalUnboundWait = committedSource !== undefined && committedSource.toolExecutionId === undefined && committedSource.toolLifecycleSha256 === undefined;
+    const historicalUnboundWait = isHistoricalUnboundWait(committedSource);
     let toolBinding: { toolExecutionId: string; toolLifecycleSha256: string } | undefined;
     if (historicalUnboundWait) {
       if (profile.agentProfileVersion !== 6 || profile.commandDigest !== "sha256:377dcea64a727ce799cc112458d4b40ba4bc6574cd6c6f7233b6efd5917a6c4b") return null;
@@ -174,7 +181,8 @@ async function readCursorPlanWaitProof(db: Db, binding: Binding, locked: boolean
     .where(and(eq(heartbeatRuns.id, binding.runId), eq(heartbeatRuns.companyId, binding.companyId), eq(heartbeatRuns.agentId, binding.agentId), eq(heartbeatRuns.nativeIssueId, binding.issueId))).limit(1);
   const [row] = await (locked ? q.for("share", { noWait: true }) : q);
   if (!row || record(record(row.run.runnerProfileJson).nativeExecutionInput).provider?.agent !== "cursor" || record(record(row.run.runnerProfileJson).nativeExecutionInput).provider?.cursorMode !== "plan") return null;
-  const eqs = db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.companyId, binding.companyId), eq(heartbeatRunEvents.runId, binding.runId), inArray(heartbeatRunEvents.eventType, EVENT_TYPES))).orderBy(asc(heartbeatRunEvents.seq)).limit(1001);
+  const eventTypes = isHistoricalUnboundWait(committedSource) ? LEGACY_EVENT_TYPES : EVENT_TYPES;
+  const eqs = db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.companyId, binding.companyId), eq(heartbeatRunEvents.runId, binding.runId), inArray(heartbeatRunEvents.eventType, eventTypes))).orderBy(asc(heartbeatRunEvents.seq)).limit(1001);
   const events = await (locked ? eqs.for("share", { noWait: true }) : eqs);
   const iq = db.select({ interaction: issueThreadInteractions, delivery: issueQuestionResponseDeliveries }).from(issueThreadInteractions)
     .innerJoin(issueQuestionResponseDeliveries, eq(issueQuestionResponseDeliveries.interactionId, issueThreadInteractions.id))

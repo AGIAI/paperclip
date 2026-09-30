@@ -13733,7 +13733,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
   });
   afterEach(() => { mockExecutePaperclipNativeSession.mockImplementation(nativeImplementation!); });
 
-  async function seedAcceptedCursorPlanWait(semanticFinish = false) {
+  async function seedAcceptedCursorPlanWait(semanticFinish = false, sourceSequenceOffset = 0) {
     const f = await seedStrandedIssueFixture({ status: "in_progress", runStatus: "succeeded", livenessState: "advanced" });
     const contractId = randomUUID(), instance = randomUUID(), interactionId = randomUUID();
     const contract = { revision: "1", objective: "Review the plan before further work", criteria: [{ id: "objective", requirement: "Explicit completion required" }] };
@@ -13770,7 +13770,7 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
       { eventType: "tool.execution.completed", payload: { schema: "paperclip.tool.execution.v1", executionId: "native-plan-tool", transport: "builtin", operation: "execute", status: "completed", readOnly: false, namespace: null, name: "Create Plan", target: null, inputUpdated: false, output: null, outputBytes: 0, outputTruncated: false, outputDigest: null, progress: null, exitCode: null, durationMs: null } },
       { eventType: "turn.completed", payload: { status: "completed", error: null } },
     ];
-    for (const [index, event] of events.entries()) await port.appendEvent({ schema: "paperclip.prp.event.v1", sourceEventId: `${instance}:${index + 1}`, sourceSeq: index + 1,
+    for (const [index, event] of events.entries()) await port.appendEvent({ schema: "paperclip.prp.event.v1", sourceEventId: `${instance}:${sourceSequenceOffset + index + 1}`, sourceSeq: sourceSequenceOffset + index + 1,
       sourceInstanceId: instance, sourceKind: "runner", runId: f.runId, normalizedSessionId: f.runId, turnId: "turn", schemaVersion: 1, priority: 0,
       emittedAt: new Date().toISOString(), ...event } as paperclipRunner.PrpEvent);
     const proof = await readNativeCursorPlanWait(db, f);
@@ -13820,8 +13820,9 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(mockAdapterExecute).not.toHaveBeenCalled(); expect(mockExecutePaperclipNativeSession).not.toHaveBeenCalled();
   });
 
-  it("retains an exact historical Cursor6 committed wait without allowing new unbound admission", async () => {
-    const f = await seedAcceptedCursorPlanWait();
+  it("retains an exact historical Cursor6 committed wait across more than 1000 ignored progress rows without allowing new unbound admission", async () => {
+    const progressCount = 1002;
+    const f = await seedAcceptedCursorPlanWait(false, progressCount);
     await finalizeNativeRun({ db, runId: f.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
     const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
     const profile = structuredClone(run!.runnerProfileJson!) as any;
@@ -13840,6 +13841,28 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     const [decision] = await db.select().from(statusDecisions).where(eq(statusDecisions.runId, f.runId));
     await db.update(statusDecisions).set({ decisionJson: { ...decision!.decisionJson, cursorPlanWait: legacy } }).where(eq(statusDecisions.id, decision!.id));
     expect(await readNativeCursorPlanWait(db, f)).toBeNull();
+    expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(true);
+    // Fill the reserved source prefix with genuine durable progress rows. Shift
+    // only DB ordering keys; the original PRP facts and committed receipt stay
+    // byte-identical. Cursor6 never queried these rows, even above its budget.
+    await db.update(heartbeatRunEvents).set({ seq: sql`${heartbeatRunEvents.seq} + ${progressCount}` }).where(eq(heartbeatRunEvents.runId, f.runId));
+    const progress = Array.from({ length: progressCount }, (_, index) => {
+      const seq = index + 1;
+      const prpEvent = { ...event("runtime_request.created"), sourceEventId: `${run!.runnerInstanceId}:${seq}`, sourceSeq: seq, eventType: "tool.execution.progressed",
+        payload: { schema: "paperclip.tool.execution.v1", executionId: "earlier-tool", transport: "builtin", operation: "read", status: "running" } };
+      return { companyId: f.companyId, runId: f.runId, agentId: f.agentId, seq, eventType: prpEvent.eventType, payload: { prpEvent }, sourceInstanceId: run!.runnerInstanceId,
+        sourceEventId: prpEvent.sourceEventId, sourceSeq: seq, sourcePayloadSha256: nativeSha256(prpEvent), protocolSchemaVersion: 1 };
+    });
+    await db.insert(heartbeatRunEvents).values(progress);
+    expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(true);
+    const [unchangedDecision] = await db.select().from(statusDecisions).where(eq(statusDecisions.id, decision!.id));
+    expect(unchangedDecision!.decisionJson!.cursorPlanWait).toEqual(legacy);
+    // Completed rows belonged to the old query. A later completion must still
+    // invalidate the normal-terminal boundary rather than being filtered away.
+    const completion = { ...event("turn.completed"), sourceEventId: `${run!.runnerInstanceId}:99999`, sourceSeq: 99999, eventType: "tool.execution.completed", payload: { ...progress[0]!.payload.prpEvent.payload, status: "completed" } };
+    const [extra] = await db.insert(heartbeatRunEvents).values({ ...progress[0]!, seq: 99999, eventType: completion.eventType, payload: { prpEvent: completion }, sourceEventId: completion.sourceEventId, sourceSeq: 99999, sourcePayloadSha256: nativeSha256(completion) }).returning();
+    expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(false);
+    await db.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.id, extra!.id));
     expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(true);
     profile.nativeExecutionInput.provider.profile.commandDigest = "tampered-history";
     await db.update(heartbeatRuns).set({ runnerProfileJson: profile }).where(eq(heartbeatRuns.id, f.runId));
