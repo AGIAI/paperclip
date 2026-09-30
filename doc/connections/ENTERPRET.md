@@ -31,8 +31,8 @@ DCR.
 
 Several live read and gateway checks passed on the OAuth method. The primary
 token path passed connection, catalog, safe read, refresh, and reconnect checks;
-a real agent process, server/VPS or Cloud deployment, and provider-side
-revocation remain unverified. See
+a real agent process and server/VPS or Cloud deployment remain unverified.
+The dashboard's token revocation did not immediately invalidate the token. See
 [Validation Hook](#validation-hook) for the scenario-by-scenario record.
 
 Authored against Paperclip App `fff410dfe777ae0427385e8297df992ba9aed4ce`, with
@@ -249,10 +249,12 @@ can hand you. The two methods differ, and they must not be described as one:
   expires**, treat expiry as the only assured end of access, and ask Enterpret
   support for a revocation path rather than assuming the dashboard has one.
 - **Auth token.** The dashboard can generate and revoke organization tokens.
-  The token method was live-tested on 2026-09-30, but revocation and whether
-  replacing a token invalidates the old value were **not** verified. Do not
-  treat generating a new token as revocation. Confirm the old token is denied
-  after retiring it; until then, treat it as still valid.
+  On 2026-09-30 it confirmed "Your token has been revoked," but that same
+  token immediately connected again and completed `get_organization_details`
+  through an isolated Paperclip instance. Provider-side invalidation therefore
+  **failed the immediate check**; whether it takes effect after a delay is
+  unknown. Do not treat the dashboard confirmation, generating another token,
+  or local disconnect as proof of revocation. Confirm the old token is denied.
 
 Any runbook or teardown that treats "disconnect in Paperclip" as revocation
 leaves a live credential at the provider — and per the scope finding above, a
@@ -478,7 +480,9 @@ from this record.
 | Agent policy preview | The selected test agent's access summary changed the read action to `off` and back to `allowed` when its profile was toggled. The Test panel showed “No call will be made” while Off. |
 | Refresh and reconnect | Catalog refresh retained 8 actions. Reconnecting with the same valid token preserved the connection and catalog quarantine setting. An intentionally invalid replacement failed, then reconnecting with the valid token restored `active`/`ok`. This is **not** evidence that an expired token was renewed or that rotating a token revokes its predecessor. |
 | Activity | The safe call produced an explicit-grant decision and completed-call event. Connection activity remained queryable. |
-| Local disable / actual agent execution | Not exercised on this token path. An earlier OAuth QA run proved agent-session denies through the real gateway, but it does not substitute for a token-path agent process. |
+| Local disable and removal | Disabling the QA connection exposed zero actions in the agent access summary. Archiving it cleared the local secret, grant, install, and catalog entries. |
+| Provider-side revocation | After the Enterpret dashboard said the QA token was revoked, the same token immediately connected again and completed the same bounded organization read. Immediate provider-side invalidation **failed**. Whether this is an eventual-consistency delay remains unknown. The reconnection was a QA-only check and must be removed too. |
+| Actual agent execution | Not exercised on this token path. An earlier OAuth QA run proved agent-session denies through the real gateway, but it does not substitute for a token-path agent process. |
 
 The board's `POST /tool-connections/:id/test-calls` is **not** an agent-policy
 denial probe. With the agent's action Off, that endpoint still returned
@@ -619,7 +623,7 @@ Labels as defined in the connector skills' shared matrix.
 | Agent execution through the gateway | `verified` on OAuth — allowed and denied paths through an agent-authenticated session; token path used the board Test panel only | `untested` | `untested` |
 | Execution driven by an actual agent runtime | `untested` — the sessions above were minted against hand-inserted run rows; no agent process ran | `untested` | `untested` |
 | Granted scope matches the requested scope (OAuth) | **`failed` for OAuth** — `mcp:write` and `email` granted against an `mcp:read` request; OAuth method stays draft | `failed` for OAuth — provider-side | `failed` for OAuth — provider-side |
-| Provider-side revocation | `unsupported` — the authorization server advertises no `revocation_endpoint` | `unsupported` | `unsupported` |
+| Provider-side revocation | OAuth has no advertised `revocation_endpoint`; the organization token's dashboard Revoke control failed an immediate denial check on 2026-09-30 | `untested` | `untested` |
 | Store visibility (token path) | `ready` — organization auth token is primary; OAuth over-grant no longer defers the card | `ready` — same definition | `ready` — same definition |
 
 ### What must happen before this is store-visible
@@ -648,12 +652,14 @@ mechanical store-visibility flip for the token path is also done on this branch
    token is primary. OAuth remains labelled draft in method copy.
 5. **Partly done 2026-09-30:** `mcp-api-key` connected on an isolated
    self-hosted instance; authenticated catalog, bounded allowed read, refresh,
-   failed replacement and valid reconnect, and activity passed. Token-path
-   agent-session deny and local disable remain untested. The board Test panel's
-   Off preview is not a substitute for those checks.
+   failed replacement and valid reconnect, local disable, removal, and activity
+   passed. Token-path agent-session deny remains untested. The board Test
+   panel's Off preview is not a substitute for that check.
 6. **Partly done:** reconnect with the same valid token and recovery from an
-   invalid replacement passed. Recovery from actual expiry, old-token
-   invalidation after rotation, and server/VPS deployment remain untested.
+   invalid replacement passed. Recovery from actual expiry and server/VPS
+   deployment remain untested. The dashboard's revocation confirmation failed
+   the immediate invalidation check; old-token invalidation after rotation was
+   not tested.
 
 **OAuth method (secondary / draft) — separate gate**
 

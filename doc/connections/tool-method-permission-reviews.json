@@ -419,7 +419,7 @@
       ],
       "reviewedAt": "2026-09-30",
       "liveProof": "token-connect-safe-read-refresh-reconnect-verified",
-      "evidenceLimit": "Isolated self-hosted same-machine QA on 2026-09-30; token-path agent-session deny, real agent process, expiry recovery, provider-side revocation, VPS, and Cloud remain untested.",
+      "evidenceLimit": "Isolated self-hosted same-machine QA on 2026-09-30. Dashboard revocation did not immediately invalidate the token: it reconnected and completed a safe read. Token-path agent-session deny, real agent process, expiry recovery, VPS, and Cloud remain untested.",
       "keyPermissions": "An organization auth token can read that organization's customer feedback. Use a token from Settings > Enterpret MCP and check its displayed expiry there."
     },
     {
