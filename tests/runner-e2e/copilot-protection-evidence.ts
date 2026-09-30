@@ -236,6 +236,49 @@ export function validCopilotDenialSettlement(s: CopilotDenialSettlement): boolea
     && ["turn.cancelled", "turn.interrupted"].includes(t.eventType);
 }
 
+/** Same failed-edit proof used before Stop and during final settlement. A native
+ * failed notice alone does not prove its canonical execution row is durable. */
+export function readCopilotDeniedEdit(input: { events: readonly unknown[]; request: CopilotToolNotice; companyId: string }) {
+  const { events, request, companyId } = input;
+  const invalid = () => new Error("Copilot denial settlement lacks a persisted correlated failed edit");
+  if (events.length > 20_000 || !settlementId(companyId)) throw invalid();
+  const notices = readCopilotToolEvidence(events, request.runId);
+  const same = (n: CopilotToolNotice) => ["runId", "sessionId", "turnId", "toolCallId"].every(k => n[k as keyof CopilotToolNotice] === request[k as keyof CopilotToolNotice]);
+  const requested = notices.filter(n => n.stage === "permission_requested" && same(n));
+  const delivered = notices.filter(n => n.stage === "permission_delivered" && same(n));
+  const failed = notices.filter(n => n.stage === "tool" && same(n) && ["failed", "completed"].includes(n.status ?? ""));
+  if (requested.length !== 1 || requested[0]!.seq !== request.seq || requested[0]!.requestId !== request.requestId || request.operation !== "edit"
+    || delivered.length !== 1 || delivered[0]!.requestId !== request.requestId || delivered[0]!.outcome !== "reject_once"
+    || failed.length !== 1 || failed[0]!.status !== "failed" || requested[0]!.seq >= delivered[0]!.seq || delivered[0]!.seq >= failed[0]!.seq) throw invalid();
+  const rows = events.map(settlementRecord);
+  const get = (row: Record<string, any>) => {
+    const f = settlementRecord(settlementRecord(row.payload).prpEvent);
+    if (row.runId !== request.runId || row.companyId !== companyId || !Number.isSafeInteger(row.seq) || row.seq <= 0
+      || f.schema !== "paperclip.prp.event.v1" || f.sourceKind !== "runner" || f.eventType !== row.eventType || f.runId !== request.runId || f.turnId !== request.turnId
+      || !settlementId(f.normalizedSessionId) || !settlementId(f.sourceInstanceId) || !Number.isSafeInteger(f.sourceSeq) || f.sourceSeq <= 0
+      || f.sourceEventId !== `${f.sourceInstanceId}:${request.runId}:${f.sourceSeq}` || !settlementTime(settlementDate(row.createdAt)) || !settlementTime(settlementDate(f.emittedAt))) throw invalid();
+    return f;
+  };
+  const at = (seq: number) => { const found = rows.filter(r => r.seq === seq); if (found.length !== 1) throw invalid(); return get(found[0]!); };
+  const origin = at(request.seq), delivery = at(delivered[0]!.seq), failure = at(failed[0]!.seq);
+  const stream = (f: Record<string, any>) => f.normalizedSessionId === origin.normalizedSessionId && f.sourceInstanceId === origin.sourceInstanceId;
+  if (![delivery, failure].every(stream) || origin.sourceSeq >= delivery.sourceSeq || delivery.sourceSeq >= failure.sourceSeq) throw invalid();
+  const resolutions = rows.filter(r => ["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"].includes(r.eventType)
+    && settlementRecord(settlementRecord(settlementRecord(r.payload).prpEvent).payload).requestId === request.requestId);
+  if (resolutions.length !== 1) throw invalid();
+  const resolution = get(resolutions[0]!), resolved = settlementRecord(resolution.payload);
+  if (!stream(resolution) || resolution.eventType !== "runtime_request.resolved" || resolved.requestKind !== "permission_approval"
+    || resolved.turnId !== request.turnId || resolved.action !== "decline" || resolution.sourceSeq <= origin.sourceSeq
+    || resolution.sourceSeq >= delivery.sourceSeq || resolutions[0]!.seq <= request.seq || resolutions[0]!.seq >= delivered[0]!.seq) throw invalid();
+  const toolRows = rows.filter(r => r.eventType === "tool.execution.completed"
+    && settlementRecord(settlementRecord(settlementRecord(r.payload).prpEvent).payload).executionId === bootstrapReadExecutionId(request.toolCallId));
+  if (toolRows.length !== 1) throw invalid();
+  const tool = get(toolRows[0]!), toolPayload = settlementRecord(tool.payload);
+  if (!stream(tool) || tool.sourceSeq <= failure.sourceSeq || toolRows[0]!.seq <= failed[0]!.seq
+    || toolPayload.schema !== "paperclip.tool.execution.v1" || toolPayload.status !== "failed" || toolPayload.operation !== "edit") throw invalid();
+  return { rows, get, stream, origin, delivery, failure, resolution, tool, toolRows, failed };
+}
+
 /** Denial closes one permission, not necessarily the provider prompt. Match the
  * single canonical terminal to the same source stream, then independently bind
  * the audited controller Stop. Provider emittedAt never orders server actions. */
@@ -250,43 +293,11 @@ export function readCopilotDenialSettlement(input: {
     || stop.schema !== "paperclip.native-cancellation.v1" || stop.runId !== run.id || stop.companyId !== issue.companyId || stop.issueId !== issue.id
     || stop.scope !== "run" || stop.dispatched !== true || stop.dispatchState !== "acknowledged" || stop.reasonCode !== "cancellation_run_only"
     || !Array.isArray(stop.effects) || stop.effects.length !== 1 || stop.effects[0] !== "release_run_resources") throw invalid();
-  const notices = readCopilotToolEvidence(events, request.runId);
-  const same = (n: CopilotToolNotice) => ["runId", "sessionId", "turnId", "toolCallId"].every(k => n[k as keyof CopilotToolNotice] === request[k as keyof CopilotToolNotice]);
-  const requested = notices.filter(n => n.stage === "permission_requested" && same(n));
-  const delivered = notices.filter(n => n.stage === "permission_delivered" && same(n));
-  const failed = notices.filter(n => n.stage === "tool" && same(n) && ["failed", "completed"].includes(n.status ?? ""));
-  if (requested.length !== 1 || requested[0]!.seq !== request.seq || requested[0]!.requestId !== request.requestId || request.operation !== "edit"
-    || delivered.length !== 1 || delivered[0]!.requestId !== request.requestId || delivered[0]!.outcome !== "reject_once"
-    || failed.length !== 1 || failed[0]!.status !== "failed" || requested[0]!.seq >= delivered[0]!.seq || delivered[0]!.seq >= failed[0]!.seq) throw invalid();
-  const rows = events.map(settlementRecord);
-  const get = (row: Record<string, any>) => {
-    const f = settlementRecord(settlementRecord(row.payload).prpEvent);
-    if (row.runId !== run.id || row.companyId !== issue.companyId || !Number.isSafeInteger(row.seq) || row.seq <= 0
-      || f.schema !== "paperclip.prp.event.v1" || f.sourceKind !== "runner" || f.eventType !== row.eventType || f.runId !== run.id || f.turnId !== request.turnId
-      || !settlementId(f.normalizedSessionId) || !settlementId(f.sourceInstanceId) || !Number.isSafeInteger(f.sourceSeq) || f.sourceSeq <= 0
-      || f.sourceEventId !== `${f.sourceInstanceId}:${run.id}:${f.sourceSeq}` || !settlementTime(settlementDate(row.createdAt)) || !settlementTime(settlementDate(f.emittedAt))) throw invalid();
-    return f;
-  };
-  const at = (seq: number) => { const found = rows.filter(r => r.seq === seq); if (found.length !== 1) throw invalid(); return get(found[0]!); };
-  const origin = at(request.seq), delivery = at(delivered[0]!.seq), failure = at(failed[0]!.seq);
-  const stream = (f: Record<string, any>) => f.normalizedSessionId === origin.normalizedSessionId && f.sourceInstanceId === origin.sourceInstanceId;
-  if (![delivery, failure].every(stream) || origin.sourceSeq >= delivery.sourceSeq || delivery.sourceSeq >= failure.sourceSeq) throw invalid();
-  const resolutions = rows.filter(r => ["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"].includes(r.eventType)
-    && settlementRecord(settlementRecord(settlementRecord(r.payload).prpEvent).payload).requestId === request.requestId);
-  if (resolutions.length !== 1) throw invalid();
-  const resolution = get(resolutions[0]!), resolved = settlementRecord(resolution.payload);
-  if (!stream(resolution) || resolution.eventType !== "runtime_request.resolved" || resolved.requestKind !== "permission_approval"
-    || resolved.turnId !== request.turnId || resolved.action !== "decline" || resolution.sourceSeq <= origin.sourceSeq
-    || resolution.sourceSeq >= delivery.sourceSeq || resolutions[0]!.seq <= request.seq || resolutions[0]!.seq >= delivered[0]!.seq) throw invalid();
+  const { rows, get, stream, origin, delivery, failure, resolution, tool, toolRows, failed } = readCopilotDeniedEdit({ events, request, companyId: issue.companyId });
   // Ignore legacy unwrapped log summaries, never use them as provider evidence.
   const terminalRows = rows.filter(r => ["turn.completed", "turn.cancelled", "turn.interrupted", "turn.failed"].includes(r.eventType)
     && settlementRecord(r.payload).prpEvent !== undefined);
-  const toolRows = rows.filter(r => r.eventType === "tool.execution.completed"
-    && settlementRecord(settlementRecord(settlementRecord(r.payload).prpEvent).payload).executionId === bootstrapReadExecutionId(request.toolCallId));
-  if (terminalRows.length !== 1 || toolRows.length !== 1) throw invalid();
-  const tool = get(toolRows[0]!), toolPayload = settlementRecord(tool.payload);
-  if (!stream(tool) || tool.sourceSeq <= failure.sourceSeq || toolRows[0]!.seq <= failed[0]!.seq
-    || toolPayload.schema !== "paperclip.tool.execution.v1" || toolPayload.status !== "failed" || toolPayload.operation !== "edit") throw invalid();
+  if (terminalRows.length !== 1) throw invalid();
   const row = terminalRows[0]!, terminal = get(row), p = settlementRecord(terminal.payload);
   if (!stream(terminal) || terminal.sourceSeq <= tool.sourceSeq || row.seq <= failed[0]!.seq
     || !["turn.completed", "turn.cancelled", "turn.interrupted"].includes(row.eventType)

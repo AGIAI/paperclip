@@ -7,19 +7,34 @@ import { createTaskThroughUi } from "./user-actions.js";
 import { copilotOrigin, readCopilotToolEvidence, type CopilotToolNotice } from "./copilot-evidence.js";
 import { createAttachedCommandFixture, createDeniedTargetFixture, bindDeniedTargetPrompt, exists, observeRunProcesses } from "./copilot-local-fixtures.js";
 import { gradeCopilotAttachedSettlement, gradeCopilotDeniedWrite, type CopilotDeniedWriteEvidence } from "./copilot-protection-cases.js";
-import { copilotDenialSampleCursor, readCopilotDenialSettlement, observeCopilotFixtureCommand, readCopilotRemoteMarkerAfterRetirement, prepareCopilotRemoteAction, assertCopilotRemoteRetirement, assertCopilotRemoteAttached, copilotRemoteDeniedSample, copilotActionNotices, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot, countCopilotToolOrigins, countCopilotEditOriginsForTarget } from "./copilot-protection-evidence.js";
+import { readCopilotDeniedEdit, copilotDenialSampleCursor, readCopilotDenialSettlement, observeCopilotFixtureCommand, readCopilotRemoteMarkerAfterRetirement, prepareCopilotRemoteAction, assertCopilotRemoteRetirement, assertCopilotRemoteAttached, copilotRemoteDeniedSample, copilotActionNotices, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot, countCopilotToolOrigins, countCopilotEditOriginsForTarget } from "./copilot-protection-evidence.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
 type Row = Record<string, any>;
 type Check = { id: string; passed: boolean; detail: string };
-/** Public run Stop and provider settlement are independent facts. The callback
- * drains run events only after independent process retirement has been proved. */
+/** Each persistence barrier reloads durable rows. Stop cannot overtake the
+ * failed edit, and a terminal sample cannot use a pre-terminal event cursor. */
 export async function settleCopilotDeniedRun(input: {
-  api: Pick<RunnerApi, "post">; request: CopilotToolNotice;
-  awaitRetirement(): Promise<{ events: readonly unknown[]; run: unknown; issue: unknown }>;
+  api: Pick<RunnerApi, "post">; request: CopilotToolNotice; deadlineAt: number;
+  load(): Promise<{ events: readonly unknown[]; run: Row; issue: Row; retired: boolean }>;
+  afterDeniedEdit(): Promise<void>;
+  afterSettlement(): Promise<void>;
 }) {
+  const poll = (label: string, accept: (state: Awaited<ReturnType<typeof input.load>>) => boolean) => pollUntil({
+    label, deadlineAt: input.deadlineAt, load: input.load, accept, intervalMs: 200,
+    reject: state => ["failed", "timed_out"].includes(state.run.status) ? "Copilot provider run failed" : undefined,
+  });
+  await poll("persisted correlated failed native edit", state => {
+    readCopilotDeniedEdit({ events: state.events, request: input.request, companyId: state.issue.companyId }); return true;
+  });
+  await input.afterDeniedEdit();
   await input.api.post(`/api/heartbeat-runs/${input.request.runId}/cancel`);
-  return readCopilotDenialSettlement({ ...await input.awaitRetirement(), request: input.request });
+  await poll("correlated provider settlement and retired run", state => {
+    if (!state.retired) return false;
+    readCopilotDenialSettlement({ ...state, request: input.request }); return true;
+  });
+  await input.afterSettlement();
+  return readCopilotDenialSettlement({ ...await input.load(), request: input.request });
 }
 
 export async function runCopilotProtectionFlow(input: {
@@ -140,14 +155,18 @@ export async function runCopilotProtectionFlow(input: {
       const clickedAtMs = Date.now(); await card.getByRole("button", { name: "Deny", exact: true }).click();
       const posted = (await sent).postDataJSON();
       check("browser-exact-denial", posted.turnId === request.turnId && posted.requestKind === "permission_approval" && posted.resolution?.action === "decline", "Browser submitted denial for the exact run/request/turn");
-      await wait("delivered rejection and failed native edit", s => s.notices.some(n => n.stage === "permission_delivered" && n.requestId === request.requestId && n.outcome === "reject_once") && s.notices.some(n => n.stage === "tool" && n.toolCallId === request.toolCallId && n.status === "failed"));
-      await sample("after-decision");
-      const settlement = await settleCopilotDeniedRun({ api, request, awaitRetirement: async () => {
-        await wait("explicitly cancelled native run and retired processes", s => s.runs[0]?.status === "cancelled" && (remote || (s.processes.captured && s.processes.live.length === 0)));
-        if (remote) await sealRemote();
-        await sample("terminal"); await new Promise(resolve => setTimeout(resolve, 100)); await load(); await sample("after-cleanup");
-        return { events: runEvents, run: runs[0], issue };
-      } });
+      const settlement = await settleCopilotDeniedRun({ api, request, deadlineAt: input.deadlineAt,
+        load: async () => {
+          const state = await load();
+          return { events: state.runEvents, run: state.runs[0]!, issue: state.issue,
+            retired: remote || (state.processes.captured && state.processes.live.length === 0) };
+        },
+        afterDeniedEdit: () => sample("after-decision"),
+        afterSettlement: async () => {
+          if (remote) await sealRemote();
+          await sample("terminal"); await new Promise(resolve => setTimeout(resolve, 100)); await load(); await sample("after-cleanup");
+        },
+      });
       watchReceipt = remote ? { startedAtMs: baseline!.observedAtMs, endedAtMs: sealed!.observedAtMs, complete: sealed!.watcher.complete, targetMutationCount: sealed!.watcher.targetMutationCount } : watcher!.finish();
       const toolResult = notices.find(n => n.stage === "tool" && n.toolCallId === request.toolCallId && n.status === "failed")!;
       await input.evidence("copilot-denial-settlement.json", settlement);
