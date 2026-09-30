@@ -19,6 +19,10 @@ on:
         description: "Run the complete offline Runner verify command on GitHub-hosted Ubuntu without building an image"
         type: boolean
         default: false
+      diagnose_ajv_pack:
+        description: "Diagnose only pinned AJV npm directory packing on Linux (no Runner build/tests)"
+        type: boolean
+        default: false
       expected_source_sha:
         description: "Require this immutable target commit (required for verify_runner)"
         type: string
@@ -49,7 +53,7 @@ permissions: {}
 
 concurrency:
   # Publishing a newer image must not discard an earlier verification's evidence.
-  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.verify_runner && 'runner-verification' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
+  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
   cancel-in-progress: true
 
 jobs:
@@ -99,6 +103,7 @@ jobs:
           EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
           EXPECTED_LOCK_SHA256: ${{ inputs.expected_resolved_lock_sha256 }}
           VERIFY_RUNNER: ${{ inputs.verify_runner }}
+          DIAGNOSE_AJV: ${{ inputs.diagnose_ajv_pack }}
           OTHER_MODE: ${{ inputs.publish_eval_image || inputs.verify_source || inputs.verify_public_install || inputs.build_eval_viewer }}
         run: |
           set -euo pipefail
@@ -115,6 +120,12 @@ jobs:
             [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
             [[ "$EXPECTED_LOCK_SHA256" =~ ^[0-9a-f]{64}$ ]]
             test "$OTHER_MODE" != true
+          fi
+          if [ "$DIAGNOSE_AJV" = true ]; then
+            test "$VERIFY_RUNNER" != true
+            test "$OTHER_MODE" != true
+            test "$EXPECTED_SOURCE_SHA" = 34f49a201a804564cfae81e425266b3f9f987e30
+            test "$EXPECTED_LOCK_SHA256" = 5ae57d1ddd475691dac1f1cfbd4836e54f7da1956b47e6e705b218ae3070ae2e
           fi
           if [ -n "$EXPECTED_SOURCE_SHA" ]; then
             test "$target_sha" = "$EXPECTED_SOURCE_SHA"
@@ -196,9 +207,70 @@ jobs:
             packages/paperclip-runner/**/test-results/
           retention-days: 14
 
+  manual_ajv_pack_diagnostic:
+    name: Pinned AJV directory-pack diagnostic on Linux
+    if: github.event_name == 'workflow_dispatch' && inputs.diagnose_ajv_pack
+    needs: authorize_manual
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.authorize_manual.outputs.target_sha }}
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .ajv-diagnostic-driver
+          sparse-checkout: .github/scripts/diagnose-ajv-pack.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.21.0
+          package-manager-cache: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 9.15.4
+      - name: Install only exact reviewed dependency graph without scripts
+        timeout-minutes: 6
+        env:
+          EXPECTED_LOCK_SHA256: ${{ inputs.expected_resolved_lock_sha256 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ajv-pack-diagnostic "$RUNNER_TEMP/ajv-install-home"
+          export HOME="$RUNNER_TEMP/ajv-install-home"
+          export NPM_CONFIG_USERCONFIG="$HOME/user.npmrc"
+          export NPM_CONFIG_GLOBALCONFIG="$HOME/global.npmrc"
+          touch "$NPM_CONFIG_USERCONFIG" "$NPM_CONFIG_GLOBALCONFIG"
+          test "$(git rev-parse HEAD)" = 34f49a201a804564cfae81e425266b3f9f987e30
+          test "$(node --version)" = v24.21.0
+          test "$(npm --version)" = 11.19.0
+          test "$(pnpm --version)" = 9.15.4
+          git rev-parse HEAD > ajv-pack-diagnostic/source.txt
+          git -C .ajv-diagnostic-driver rev-parse HEAD > ajv-pack-diagnostic/driver-source.txt
+          cp pnpm-lock.yaml ajv-pack-diagnostic/original-pnpm-lock.yaml
+          pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile > ajv-pack-diagnostic/resolution.log 2>&1
+          cp pnpm-lock.yaml ajv-pack-diagnostic/resolved-pnpm-lock.yaml
+          printf '%s  pnpm-lock.yaml\n' "$EXPECTED_LOCK_SHA256" | sha256sum --check --strict
+          pnpm install --frozen-lockfile --ignore-scripts > ajv-pack-diagnostic/install.log 2>&1
+      - name: Compare installed-layout and identical plain-package packing
+        timeout-minutes: 3
+        run: python3 .ajv-diagnostic-driver/.github/scripts/diagnose-ajv-pack.py
+      - name: Retain diagnostic evidence even on npm failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ajv-pack-diagnostic-${{ github.run_id }}
+          path: ajv-pack-diagnostic/
+          retention-days: 14
+
   manual_image:
     name: Build and verify on EC2
-    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner
+    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner && !inputs.diagnose_ajv_pack
     needs: authorize_manual
     runs-on: runs-on/fleet=paperclip-public-pr-x64/env=public-ci
     timeout-minutes: 90
