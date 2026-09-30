@@ -6,7 +6,13 @@ export const REMOTE_FIXTURE_DAYTONA_SDK_VERSION = "0.203.0";
 const NODE = "/opt/paperclip-runner/provider-pack/node_modules/node/bin/node";
 const MAX_OUTPUT = 256 * 1024;
 const TEARDOWN_RESERVE_MS = 15_000;
-export const REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS = 27_000 + TEARDOWN_RESERVE_MS;
+const LEASE_READMISSION_BUDGET_MS = 10_000;
+const RUNTIME_READY_BUDGET_MS = 12_000;
+const INSTALL_BUDGET_MS = 27_000;
+// Lease activation can arrive late. Reserve each pre-install operation as well
+// as installation and teardown; the caller subtracts this from the same deadline.
+export const REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS = LEASE_READMISSION_BUDGET_MS
+  + RUNTIME_READY_BUDGET_MS + INSTALL_BUDGET_MS + TEARDOWN_RESERVE_MS;
 const CLOSE_GRACE_MS = 10_000;
 // createRunnerdBackend stages its verified executable, pack symlink, mutable
 // sessions, homes and injected context beneath this exact path. Qualification
@@ -331,7 +337,7 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
   }
   async function rpc(request: Record<string, unknown>, admitted?: Awaited<ReturnType<typeof admittedSandbox>>, deadlineAt = receiptDeadlineAt) {
     const available = request.op === "close" ? CLOSE_GRACE_MS : deadlineAt - Date.now();
-    const cap = request.op === "install" ? 27_000 : request.op === "wait" ? 300_000 : 12_000;
+    const cap = request.op === "install" ? INSTALL_BUDGET_MS : request.op === "wait" ? 300_000 : RUNTIME_READY_BUDGET_MS;
     const budgetMs = Math.floor(Math.min(available, cap) / 1000) * 1000;
     fail(budgetMs >= 1000, "receipt_deadline");
     if (request.op === "install") fail(budgetMs >= 25_000, "insufficient_setup_budget");
@@ -365,13 +371,13 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
       return parsed.result;
     }, budgetMs);
   }
-  const sandbox = await bounded(admittedSandbox, Math.min(10_000, receiptDeadlineAt - Date.now()));
+  const sandbox = await bounded(admittedSandbox, Math.min(LEASE_READMISSION_BUDGET_MS, receiptDeadlineAt - Date.now()));
   const names = [...targets, ...(options.crossRoot ? ["@cross-root"] : [])];
   const config = { root, nonce, binding, sentinel, targets, actionFile, crossRoot: options.crossRoot, runtimeRelative: RUNTIME_RELATIVE, runnerdSha256: options.runnerdSha256 };
   // Lease activation precedes runner artifact staging. Observe the exact pinned
   // run root before spending the single installation budget. No observer or
   // action exists during this polling phase, and failures are never retried.
-  const readyDeadline = receiptDeadlineAt - 27_000;
+  const readyDeadline = receiptDeadlineAt - INSTALL_BUDGET_MS;
   let expectedRuntime: Record<string, unknown>;
   while (true) {
     if (readyDeadline - Date.now() < 1000) throw new RemoteFixtureError("remote_native_fixture:readiness_deadline", { phase: "runtime-ready", code: "readiness_deadline" });

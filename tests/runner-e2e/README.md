@@ -1373,8 +1373,10 @@ still fail. SDK 0.203.0, immutable image and executable digests, public run/leas
 ownership, sandbox labels and workspace sentinel are verified before execution.
 
 Bootstrap admission uses the existing authored case deadline, including cold
-snapshot provisioning, with the fixture’s existing 42-second installation and
-teardown reserve subtracted before admission. It does not impose a separate
+snapshot provisioning, with a 64-second minimum setup reserve subtracted before
+admission: 10 seconds for lease revalidation, 12 for the runtime-ready RPC,
+27 for installation, and 15 for teardown. A lease discovered later is not admitted
+with only installation/teardown time left. This does not impose a separate
 20-second lease deadline or extend the case budget.
 After lease admission, a read-only probe waits for the exact pinned runner
 process and runtime directory before installing the observer once. This uses
