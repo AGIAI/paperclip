@@ -5,8 +5,9 @@ Updated: 2026-09-29. Foundation PR #14430 is merged at
 are merged in `paperclip-evals` PR #29. Provider PRs remain separate review units
 and all three providers remain **pending qualification**.
 
-Current candidates are **Cursor v5, Copilot v5 and Pi v8**. None has paid
-qualification on the rebuilt combined runtime yet. Cursor v5 binds Agent, Plan
+Current candidates are **Cursor v5, Copilot v5 and Pi v8**. Cursor and Copilot
+have passed paid local question continuation on the rebuilt combined runtime;
+none has completed its full qualification matrix. Cursor v5 binds Agent, Plan
 or Ask mode to native acknowledgements, every reconnect, and TypeScript/Rust
 recovery identities. Copilot v5 binds the final shared ACPX patch and preserves
 native permission/attached-command evidence in both transport paths. Pi v8
@@ -38,6 +39,68 @@ The [harness priorities report](https://pages.paperclip.ing/2026-09-25-harness-p
 recommends Cursor and Copilot, followed by Pi, using the existing qualified ACPX
 path. Codex app-server is the richness benchmark. The legacy Cursor and Pi
 adapters are outside this change.
+
+## Current profile evidence (2026-09-29, collected through September 30 UTC)
+
+The latest paid runtime source is `794e90a258763aac16923cd0247de43cea3bc312`.
+Its passive native-read evidence fix correlates a fixture-owned read by a path
+digest and the runner's actual opaque tool identity; it does not weaken native
+permission checks. The later `a1ccf6473` change only clarifies that correlation
+in a comment. The 155 focused projector/Product tests passed before rebuilding.
+
+| Current paid local case | Result | Cost coverage |
+| --- | --- | --- |
+| Cursor v5, `question-resume-complete` | Two authenticated runs on the same session, all six matchers passed, final UI shows the answered question and Done; 62.006 seconds, zero automatic retries | Both time/model-correlated account rows are Included (24.7K and 58.4K displayed tokens); on-demand remains $0 with the approved fixed $25 cap. Native per-run priced USD is unavailable |
+| Copilot v5, `question-resume-complete` | Two authenticated runs on the same session, all six matchers passed, final UI shows the answered question and Done; 51.328 seconds, zero automatic retries | Included credits increased from 12 to 14; additional usage remains disabled with a $0 budget. Native per-run priced USD is unavailable |
+| Pi v8 | No paid run on this current runtime yet | The available OpenRouter key has no enforced limit or management access. A capped qualification key is pending account sign-in |
+
+Both completed cases retired every observed owned process, left no owned
+semaphores, passed post-run source/runtime/dependency verification, and retained
+screenshots, durable events and original receipts. They exercise authenticated
+Paperclip semantic questions; native provider callbacks and the remaining local
+and remote cases still require separate evidence.
+
+The subsequent Cursor v5 hello completed all six Product matchers, but the
+stricter qualification reader correctly failed: the shared app-server facade
+reconstructed the native provider identity without `cursorMode`. Native
+admission retained the acknowledged mode; the server checkpoint lost it. The
+campaign stopped after this one cell, all owned processes and semaphores were
+retired, and the full end audit passed. Its 39.5K-token account row is Included.
+The parser now validates and preserves Agent/Plan/Ask mode. Nine regressions
+exercise actual driver checkpoint/recovery, changed or missing mode, and invalid
+mode values; all 56 recovery/lifecycle tests and the Runner TypeScript build
+pass. Paid qualification must use the corrected build; the failed receipt is not
+reclassified as a pass and the strict validator is unchanged.
+
+The current macOS ARM64 pack is
+`sha256:2397d345d7d3fe9b65ec456299c09281f1810e9ed543f6e6013f16548a0549e6`.
+The rebuilt Linux x64 pack is
+`sha256:bed2cf907024f6114220f4d7e58dcf1e9f7b6ae21bde007ffafff8415834ac0d`,
+published and independently verified in
+`ghcr.io/paperclipai/paperclip-daytona-runner@sha256:653dd3bf3f085c3b43d37ff6109979d2a37cf3cabef13a297177cb168c89c966`.
+No current-source Daytona case is claimed by those build receipts. macOS x64
+native closures were verified on source `159732518`, including Rosetta-hosted
+initialize probes; this does not establish paid native Intel qualification.
+Cursor's initialize probes needed forced cleanup after EOF, retained as a
+settlement limitation rather than reported as graceful exit.
+
+Current profile pins and prelaunch rejection checks are merged in
+[paperclip-evals #32](https://github.com/paperclipai/paperclip-evals/pull/32),
+with 142 deterministic tests and 21 selected cells across all three explicit
+lanes. These definitions remain separate from authenticated qualification.
+
+On prerequisite source `11b2842d`, recursive typecheck, token gates and build
+pass. The broad server stage retained two database setup failures with 14,180
+passing tests; both affected suites passed a focused retry after host recovery.
+The subsequent workspace stages retained two legacy ACPX 0.12 diagnostic
+failures and a Codex process-monitor timeout. The installed legacy ACPX package
+still contained the old truncation despite the corrected source patch; this is
+an installation/lock-metadata mismatch, not a failure in the packaged ACPX 0.13
+candidate transport. A serialized activity-route timeout and unreached suites
+are also retained. The remaining suites are being collected separately; this
+is not a passing aggregate `pnpm test:run`. Current-head CI still needs the
+repeat Telegram recovery timeout resolved, and also recorded a legacy Cursor
+execution timeout. No provider is exposed as qualified on this evidence.
 
 ## Current production checkpoint (2026-09-29)
 
