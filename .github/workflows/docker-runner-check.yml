@@ -16,7 +16,7 @@ on:
         type: boolean
         default: false
       verify_runner:
-        description: "Run the complete offline Runner verify command on EC2 without building an image"
+        description: "Run the complete offline Runner verify command on GitHub-hosted Ubuntu without building an image"
         type: boolean
         default: false
       expected_source_sha:
@@ -122,10 +122,10 @@ jobs:
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
 
   manual_runner_verify:
-    name: Full offline Runner verification on EC2
+    name: Full offline Runner verification on GitHub-hosted Ubuntu
     if: github.event_name == 'workflow_dispatch' && inputs.verify_runner
     needs: authorize_manual
-    runs-on: runs-on/fleet=paperclip-public-pr-x64/env=public-ci
+    runs-on: ubuntu-latest
     timeout-minutes: 55
     permissions:
       contents: read
