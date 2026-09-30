@@ -13786,13 +13786,26 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(await db.select().from(statusDecisions).where(eq(statusDecisions.runId, f.runId))).toEqual([expect.objectContaining({ reasonCode: "native_plan_accepted_waiting_for_continuation", toStatus: "in_progress" })]);
     expect(await db.select().from(statusDecisionEffects).where(eq(statusDecisionEffects.issueId, f.issueId))).toEqual([expect.objectContaining({ effectKind: "issue_status_projection", targetType: "issue", deliveryState: "delivered" })]);
     expect(await db.select().from(issueComments).where(eq(issueComments.createdByRunId, f.runId))).toEqual([expect.objectContaining({ body: expect.stringContaining("next message") })]);
-    for (const status of ["idle", "paused"] as const) {
-      await db.update(agents).set({ status, adapterConfig: { provider: "acpx", acpxAgent: "cursor",
-        model: "future-model", acpxSessionMode: "agent", acpxPermissionMode: "approve-reads" } }).where(eq(agents.id, f.agentId));
+    const current = paperclipRunner.resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]");
+    const resolver = vi.spyOn(paperclipRunner, "resolveQualifiedAcpxProfile").mockReturnValue({ ...current,
+      agentProfileVersion: 7, commandDigest: `sha256:${"b".repeat(64)}` });
+    try {
+      expect(await readNativeCursorPlanWait(db, f)).toBeNull(); // Old profile cannot create a new wait.
+      for (const status of ["idle", "paused"] as const) {
+        await db.update(agents).set({ status, adapterConfig: { provider: "acpx", acpxAgent: "cursor",
+          model: "future-model", acpxSessionMode: "agent", acpxPermissionMode: "approve-reads" } }).where(eq(agents.id, f.agentId));
+        expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(true);
+        const recovered = await heartbeatService(db).reconcileStrandedAssignedIssues();
+        expect(recovered.continuationRequeued).toBe(0); expect(recovered.escalated).toBe(0);
+      }
+      const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
+      const changed = structuredClone(run!.runnerProfileJson!);
+      (changed.nativeExecutionInput as { provider: { profile: { commandDigest: string } } }).provider.profile.commandDigest = "tampered-original-profile";
+      await db.update(heartbeatRuns).set({ runnerProfileJson: changed }).where(eq(heartbeatRuns.id, f.runId));
+      expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(false);
+      await db.update(heartbeatRuns).set({ runnerProfileJson: run!.runnerProfileJson }).where(eq(heartbeatRuns.id, f.runId));
       expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(true);
-      const recovered = await heartbeatService(db).reconcileStrandedAssignedIssues();
-      expect(recovered.continuationRequeued).toBe(0); expect(recovered.escalated).toBe(0);
-    }
+    } finally { resolver.mockRestore(); }
     expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(1);
     expect(mockAdapterExecute).not.toHaveBeenCalled(); expect(mockExecutePaperclipNativeSession).not.toHaveBeenCalled();
   });

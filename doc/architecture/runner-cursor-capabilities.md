@@ -356,3 +356,38 @@ Profile v5 retains the native distribution closures and instruction patch. Its
 canonical declaration adds the admitted mode policy and binds ACPX patch
 `79aad2d688b03362e8cfcbf7a08f78a8383869f6882a9c9ed66f1d18efb94f2b`, which preserves
 identified empty rich-input chunks at the native parser boundary.
+
+## Accepted native plans wait for explicit continuation (2026-09-30)
+
+With Cursor CLI `2026.09.26-dd393fe`, accepting native CreatePlan can finish the
+planning turn normally without a Paperclip semantic completion result. The
+controller recognizes this boundary only from the admitted Plan-mode run,
+company/task scope, exact native plan request and accepted revision, acknowledged
+human response delivery, and normal terminal event. An explicit semantic result
+still takes precedence.
+
+The planning run succeeds while the task stays `in_progress`. Its durable comment
+says: “Plan accepted. This task is waiting for your next message. This run used
+Plan mode; no implementation or task completion is claimed.” Acceptance neither
+changes the mode nor schedules implementation or an automatic follow-up. A user
+can send a new task message to continue; that message follows ordinary admission
+with the settings selected for the new run.
+
+The committed wait survives controller restart, agent pause, changes to settings
+for future runs, and later profile-catalog revisions. Those changes are not
+permission to start task work. New waits must match the current qualified
+profile; recovery retains an older committed wait only while its original
+admission, contract, native request/answer/terminal proof, accepted-result
+identity, assignment, and applied task decision remain unchanged. A new user
+message or superseding task decision/run ends that wait's authority. Altering the
+original proof does not receive the historical-profile exception.
+
+Deterministic tests cover real result persistence and transactional finalization,
+stale delivery rejection, restart/recovery without automatic wakes, catalog and
+future-setting changes, ordinary user continuation, and semantic-finish priority.
+The Product fixture preserves its native decision and workspace no-effect checks
+and now expects a successful planning run with an unfinished task and visible
+next-message guidance. Paid requalification of this controller behavior is still
+pending; the retained earlier Product failure is not reclassified as a pass.
+Runner, sidecar, provider distribution, profile, and image bytes are unchanged by
+this controller settlement change.

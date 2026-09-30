@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as runner from "../../vendor/paperclip-runner/index.js";
 import { resolveQualifiedAcpxProfile, validatePrpStructuredRunResult } from "../../vendor/paperclip-runner/index.js";
 import { buildQuestionResponseDeliveryEnvelope } from "../question-response-delivery.js";
 import { nativeSha256 } from "./canonical.js";
@@ -45,6 +46,14 @@ describe("accepted Cursor plan passive-wait authority", () => {
     const validated = validatePrpStructuredRunResult(value!.result);
     expect(validated.ok).toBe(true);
     if (validated.ok) expect(validated.result).toEqual(value!.result);
+  });
+  it("does not create a new wait from an earlier profile after the catalog advances", () => {
+    const facts = fixture();
+    expect(nativeCursorPlanWaitFromFacts(facts)).not.toBeNull();
+    const current = resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]");
+    const resolver = vi.spyOn(runner, "resolveQualifiedAcpxProfile").mockReturnValue({ ...current, agentProfileVersion: 7, commandDigest: `sha256:${"b".repeat(64)}` });
+    try { expect(nativeCursorPlanWaitFromFacts(facts)).toBeNull(); }
+    finally { resolver.mockRestore(); }
   });
   it("projects only declared scope keys from a wider typed caller binding", () => {
     const f = fixture(); Object.assign(f.binding, { wakeupRequestId: "unrelated-caller-metadata" });

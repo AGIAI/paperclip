@@ -44,16 +44,24 @@ export interface CursorPlanWaitFacts {
 }
 
 /** Only committed native request/answer/normal-terminal facts can create this passive wait. */
-export function nativeCursorPlanWaitFromFacts(facts: CursorPlanWaitFacts): { source: NativeCursorPlanWaitSource; result: PrpStructuredRunResult } | null {
+export function nativeCursorPlanWaitFromFacts(facts: CursorPlanWaitFacts) {
+  return cursorPlanWaitFromFacts(facts);
+}
+
+function cursorPlanWaitFromFacts(facts: CursorPlanWaitFacts, committedSource?: NativeCursorPlanWaitSource): { source: NativeCursorPlanWaitSource; result: PrpStructuredRunResult } | null {
   try {
     const { run, contract } = facts;
     const b: Binding = { companyId: facts.binding.companyId, issueId: facts.binding.issueId, runId: facts.binding.runId, agentId: facts.binding.agentId };
     const admission = record(record(run.runnerProfileJson).nativeExecutionInput);
     const provider = record(admission.provider), profile = record(provider.profile);
-    const expected = resolveQualifiedAcpxProfile("cursor", typeof provider.model === "string" ? provider.model : "");
+    // First admission must match today's qualified runtime. Recovery may retain
+    // a previously committed wait only if the entire original proof is unchanged.
+    if (!committedSource) {
+      const expected = resolveQualifiedAcpxProfile("cursor", typeof provider.model === "string" ? provider.model : "");
+      if (!["agent", "driverKind", "protocolVersion", "acpxVersion", "commandDigest", "agentProfileVersion", "agentServerPackage", "agentServerVersion", "agentRuntimePackage", "agentRuntimeVersion"].every(key => profile[key] === record(expected)[key])) return null;
+    }
     if (run.id !== b.runId || run.companyId !== b.companyId || run.agentId !== b.agentId || run.nativeIssueId !== b.issueId || run.runtimeMode !== "native" || !["running", "succeeded"].includes(run.status) ||
       !Object.entries(b).every(([key, value]) => record(admission.binding)[key] === value) || provider.kind !== "acpx" || provider.agent !== "cursor" || provider.cursorMode !== "plan" || typeof provider.model !== "string" || !provider.model.trim() ||
-      !["agent", "driverKind", "protocolVersion", "acpxVersion", "commandDigest", "agentProfileVersion", "agentServerPackage", "agentServerVersion", "agentRuntimePackage", "agentRuntimeVersion"].every(key => profile[key] === record(expected)[key]) ||
       record(admission.completionContract).id !== contract.id || record(admission.completionContract).sha256 !== contract.canonicalSha256 || nativeSha256(contract.contractJson) !== contract.canonicalSha256 || run.completionContractId !== contract.id || run.completionContractSha256 !== contract.canonicalSha256 || !same(contract.contractJson, record(admission.completionContract).contract)) return null;
     const sessionId = record(admission.session).normalizedSessionId;
     if (typeof sessionId !== "string" || !sessionId || facts.events.length === 0 || facts.events.length > 1000) return null;
@@ -110,6 +118,7 @@ export function nativeCursorPlanWaitFromFacts(facts: CursorPlanWaitFacts): { sou
       requestEventId: created.sourceEventId, resolvedEventId: resolved.sourceEventId, terminalEventId: terminal.sourceEventId, deliveryId: d.id,
       authoritySha256: nativeSha256({ admission, contract, created, resolved, terminal, interaction: i, delivery: d, resolvedAt: i.resolvedAt?.toISOString(), acknowledgedAt: d.acknowledgedAt.toISOString() }),
     };
+    if (committedSource && !same(source, committedSource)) return null;
     const ref = `interaction:${i.id}`;
     const result: PrpStructuredRunResult = {
       schema: "paperclip.run_result.v1", reportedWorkDisposition: "yielded", summary: SUMMARY,
@@ -131,6 +140,12 @@ export function isNativeCursorPlanWaitResult(value: unknown): boolean {
 
 /** The committer calls this again under its issue lock; rows are share-locked then. */
 export async function readNativeCursorPlanWait(db: Db, binding: Binding, locked = false) {
+  return readCursorPlanWaitProof(db, binding, locked);
+}
+
+// Historical profile validation is available only after the committed-receipt
+// query below establishes its scoped authority. New wait callers cannot select it.
+async function readCursorPlanWaitProof(db: Db, binding: Binding, locked: boolean, committedSource?: NativeCursorPlanWaitSource) {
   const q = db.select({ run: heartbeatRuns, contract: completionContracts }).from(heartbeatRuns)
     .innerJoin(completionContracts, and(eq(completionContracts.id, heartbeatRuns.completionContractId), eq(completionContracts.companyId, binding.companyId), eq(completionContracts.issueId, binding.issueId)))
     .innerJoin(issues, and(eq(issues.id, binding.issueId), eq(issues.companyId, binding.companyId), eq(issues.assigneeAgentId, binding.agentId)))
@@ -144,7 +159,7 @@ export async function readNativeCursorPlanWait(db: Db, binding: Binding, locked 
     .where(and(eq(issueThreadInteractions.companyId, binding.companyId), eq(issueThreadInteractions.issueId, binding.issueId), eq(issueThreadInteractions.sourceRunId, binding.runId))).limit(101);
   const interactions = await (locked ? iq.for("share", { noWait: true }) : iq);
   if (interactions.length > 100) return null;
-  return nativeCursorPlanWaitFromFacts({ binding, ...row, events, interactions });
+  return cursorPlanWaitFromFacts({ binding, ...row, events, interactions }, committedSource);
 }
 
 /** An exact applied wait suppresses recovery, not a later independently admitted user wake. */
@@ -170,7 +185,9 @@ export async function hasCommittedNativeCursorPlanWait(db: Db, binding: Binding)
     .where(and(eq(nativeRunFinalizations.companyId, binding.companyId), eq(nativeRunFinalizations.issueId, binding.issueId),
       eq(nativeRunFinalizations.runId, binding.runId), eq(nativeRunFinalizations.phase, "committed"))).limit(1);
   if (!receipt) return false;
-  const proof = await readNativeCursorPlanWait(db, binding);
+  const committedSource = record(receipt.decision.decisionJson).cursorPlanWait as NativeCursorPlanWaitSource | undefined;
+  if (!committedSource) return false;
+  const proof = await readCursorPlanWaitProof(db, binding, false, committedSource);
   const envelope = record(receipt.result.resultJson), terminal = record(envelope.terminal);
   const acceptedIdentity = record(record(receipt.decision.decisionJson).cursorPlanWaitResult);
   if (!proof || receipt.result.completionContractId !== proof.source.contractId || receipt.result.turnId !== proof.source.turnId || acceptedIdentity.resultId !== receipt.result.id || acceptedIdentity.resultSha256 !== receipt.result.canonicalSha256 || !same(record(receipt.decision.decisionJson).cursorPlanWait, proof.source) || !same(envelope.result, proof.result) ||
