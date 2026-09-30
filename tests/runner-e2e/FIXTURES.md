@@ -382,8 +382,9 @@ The server reserves it under the run-row lock before dispatch, uses
 an earlier or different caller intent, an earlier uncorrelated Stop, or a
 terminal run without that same reserved intent. Malformed UUIDs return HTTP400.
 Repeating the same UUID from the same board actor is idempotent. A different
-actor receives HTTP409; local trusted board uses an explicit null user ID. Default clients may omit the field; they
-preserve and join an existing reserved intent rather than overwrite it.
+actor receives HTTP409; local trusted board uses the `local-board` user ID.
+Default clients may omit the field; they preserve and join an existing reserved
+intent rather than overwrite it.
 
 The denial fixture generates its UUID before observation, retains it in
 `paperclip.e2e.copilot-pre-stop-observation.v2`, and requires the same intent in
