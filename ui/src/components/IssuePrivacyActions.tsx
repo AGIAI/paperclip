@@ -27,8 +27,8 @@ const NON_SETTER_TOOLTIP =
 
 /**
  * Privacy actions for the task `⋯` menu. Renders the menu buttons plus the
- * two portalled dialogs (share sheet + make-public confirm) so they survive
- * the menu closing. `closeMenu` collapses the parent popover when an item that
+ * two dialogs. The render prop keeps this component outside the menu's
+ * unmounting content, so dialogs survive the menu closing. `closeMenu` collapses the parent popover when an item that
  * opens a dialog is clicked.
  *
  * Setter rules (locked decision, server-gated via
@@ -43,12 +43,14 @@ export function IssuePrivacyActions({
   canManage,
   closeMenu,
   implicitPrincipals = [],
+  children,
 }: {
   issue: Pick<Issue, "id" | "identifier" | "visibility">;
   companyId: string;
   canManage: boolean;
   closeMenu: () => void;
   implicitPrincipals?: ShareSheetImplicitPrincipal[];
+  children: (menuItems: React.ReactNode) => React.ReactNode;
 }) {
   const queryClient = useQueryClient();
   const { pushToast } = useToastActions();
@@ -89,7 +91,7 @@ export function IssuePrivacyActions({
 
   return (
     <TooltipProvider>
-      {isPrivate ? (
+      {children(isPrivate ? (
         <>
           {withTooltip(
             <button
@@ -132,7 +134,7 @@ export function IssuePrivacyActions({
             <Lock className="h-4 w-4" aria-hidden="true" /> Make private
           </button>,
         )
-      )}
+      ))}
 
       <IssueShareSheet
         issueId={issue.id}
@@ -149,8 +151,8 @@ export function IssuePrivacyActions({
             <AlertDialogTitle>Make this task public?</AlertDialogTitle>
             <AlertDialogDescription>
               Everyone in the company will be able to read this task, its comments, documents, and
-              run history — including every subtask.{" "}
-              <span className="font-semibold text-foreground">This can't be undone.</span>
+              run history. Existing private subtasks keep their privacy.{" "}
+              <span className="font-semibold text-foreground">Content already seen by others cannot be taken back.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

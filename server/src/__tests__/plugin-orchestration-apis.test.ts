@@ -217,14 +217,6 @@ describeEmbeddedPostgres("plugin orchestration APIs", () => {
     const { companyId, agentId } = await seedCompanyAndAgent();
     const blockerIssueId = randomUUID();
     const originRunId = randomUUID();
-    await db.insert(heartbeatRuns).values({
-      id: originRunId,
-      companyId,
-      agentId,
-      status: "running",
-      invocationSource: "assignment",
-      contextSnapshot: { issueId: blockerIssueId },
-    });
     await db.insert(issues).values({
       id: blockerIssueId,
       companyId,
@@ -233,6 +225,15 @@ describeEmbeddedPostgres("plugin orchestration APIs", () => {
       priority: "medium",
       identifier: `${issuePrefix(companyId)}-blocker`,
     });
+    await db.insert(heartbeatRuns).values({
+      id: originRunId,
+      companyId,
+      agentId,
+      status: "running",
+      invocationSource: "assignment",
+      contextSnapshot: { issueId: blockerIssueId },
+    });
+
 
     const services = buildHostServices(db, "plugin-record-id", "paperclip.missions", createEventBusStub());
     const issue = await services.issues.create({
@@ -905,6 +906,57 @@ describeEmbeddedPostgres("plugin orchestration APIs", () => {
     expect(run).toMatchObject({ agentId, companyId, status: "queued" });
   });
 
+  it("skips the assignee wakeup when the issue is cancelled concurrently with the comment being written", async () => {
+    const { companyId, agentId } = await seedCompanyAndAgent();
+    const humanUserId = randomUUID();
+    const issueId = randomUUID();
+    await db.insert(companyMemberships).values({
+      companyId,
+      principalType: "user",
+      principalId: humanUserId,
+      status: "active",
+      membershipRole: "owner",
+    });
+    await db.insert(issues).values({
+      id: issueId,
+      companyId,
+      title: "Needs human input",
+      status: "in_review",
+      priority: "medium",
+      assigneeAgentId: agentId,
+    });
+
+    const services = buildHostServices(db, "plugin-record-id", "paperclip.gateway", createEventBusStub());
+
+    // Hold a row lock on the issue so createComment's own `UPDATE issues SET
+    // updated_at` (inside addComment) blocks until this transaction commits a
+    // concurrent cancellation. That deterministically reproduces "another
+    // request closes the issue while the comment is being written" — the
+    // race Greptile flagged on the pre-insert `issue` snapshot — without
+    // relying on timing luck for the outcome, only for scheduling.
+    const lockAndCancelPromise = db.transaction(async (tx) => {
+      await tx.select().from(issues).where(eq(issues.id, issueId)).for("update");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await tx.update(issues).set({ status: "cancelled" }).where(eq(issues.id, issueId));
+    });
+
+    const commentPromise = services.issues.createComment({
+      issueId,
+      companyId,
+      body: "Here's my answer",
+      actorUserId: humanUserId,
+    });
+
+    const [comment] = await Promise.all([commentPromise, lockAndCancelPromise]);
+
+    expect(comment).toMatchObject({
+      authorType: "user",
+      authorUserId: humanUserId,
+      body: "Here's my answer",
+    });
+    await expect(db.select().from(agentWakeupRequests)).resolves.toHaveLength(0);
+  });
+
   // ---------------------------------------------------------------------------
   // LOOA-641 — interactions.respond / approvals.decide impersonation surface.
   // The host must independently re-verify the paired user's active membership
@@ -1245,7 +1297,7 @@ describeEmbeddedPostgres("plugin orchestration APIs", () => {
     beforeEach(() => {
       previousMode = process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
       process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = "enforce";
-    });
+});
     afterEach(() => {
       if (previousMode === undefined) delete process.env.PAPERCLIP_ISSUE_PRIVACY_MODE;
       else process.env.PAPERCLIP_ISSUE_PRIVACY_MODE = previousMode;

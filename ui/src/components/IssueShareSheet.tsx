@@ -69,6 +69,7 @@ interface SourceBadgeSpec {
 // Source badges map 1:1 to `grant.source`. Colors mirror the approved
 // wireframe: explicit = blue, assignment = green, project = violet.
 const SOURCE_BADGES: Record<IssueAccessGrantSource, SourceBadgeSpec> = {
+  owner: { label: "task owner", icon: Lock, className: "border-border bg-muted text-muted-foreground" },
   explicit: {
     label: "shared directly",
     icon: UserPlus,
@@ -158,7 +159,7 @@ export function IssueShareSheet({
   canManage,
   open,
   onOpenChange,
-  aclDescription = "Controls who can read this task, its comments, documents, and run history.",
+  aclDescription = "Sharing grants access to this task and its descendants, including comments, documents, and run history. Parents and siblings need separate access.",
   implicitPrincipals = [],
   initialView = "list",
   initialAddSelection = "",
@@ -332,7 +333,7 @@ export function IssueShareSheet({
               </p>
             ) : (
               <div className="divide-y divide-border/60">
-                {implicitPrincipals.map((principal) => (
+                {implicitPrincipals.filter(principal => !activeGrants.some(grant => grant.subjectId === principal.id || `${grant.subjectType}:${grant.subjectId}` === principal.id)).map((principal) => (
                   <RowShell
                     key={`implicit:${principal.id}`}
                     avatar={
@@ -353,7 +354,7 @@ export function IssueShareSheet({
                 ))}
                 {activeGrants.map((grant) => {
                   const displayName = grant.subjectDisplayName ?? "Unknown";
-                  const revocable = canManage && grantIsRevocable(grant.source);
+                  const revocable = canManage && !grant.inherited && grantIsRevocable(grant.source);
                   const granter = grant.source === "explicit" ? "Shared" : "Granted";
                   return (
                     <RowShell
@@ -366,7 +367,7 @@ export function IssueShareSheet({
                         />
                       }
                       title={displayName}
-                      subtitle={`${granter} ${timeAgo(grant.createdAt)}`}
+                      subtitle={grant.inherited ? "Inherited access — managed at its source" : `${granter} ${timeAgo(grant.createdAt)}`}
                       badge={<SourceBadge source={grant.source} />}
                       action={
                         revocable ? (
@@ -473,10 +474,10 @@ export function IssueShareSheet({
               Revoke {revokeTarget?.subjectDisplayName ?? "this subject"}'s access?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This removes {revokeTarget?.subjectDisplayName ?? "them"}'s assignment and direct
-              grants on this task and all its subtasks. They'll get a not-found error the next time
-              they try to read it. This does <span className="font-semibold">not</span> erase context
-              already in their memory.
+              This removes this grant and the access it supplies to this task's descendants.
+              Ownership, current assignment, project membership, inherited access, or another grant
+              can still provide access. Revoking access does <span className="font-semibold">not</span> erase
+              content already seen or retained in an agent's memory.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -102,7 +102,7 @@ function runDurationMs(row: Record<string, unknown>) {
  * Locked list-row disclosure for an issue-bound run the actor cannot read.
  * Keep only identity, timing, status, and budget-oversight fields.
  */
-export function redactHeartbeatRunListRow<T extends Record<string, unknown>>(row: T) {
+export function redactHeartbeatRunListRow<T extends Record<string, unknown> & { id: string }>(row: T) {
   const usage = asRecord(row.usageJson);
   const result = asRecord(row.resultJson);
   const costUsd = firstFinite(

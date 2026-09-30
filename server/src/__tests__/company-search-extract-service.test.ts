@@ -279,7 +279,7 @@ describeEmbeddedPostgres("companySearchExtractService", () => {
       principalId: viewerId,
       membershipRole: "operator",
       status: "active",
-    });
+});
     const visibleIssueId = await createIssue(companyId, {
       identifier: "EXT-PUBLIC",
       description: "privacy-leak-needle",

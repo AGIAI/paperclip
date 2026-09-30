@@ -70,11 +70,11 @@ describe("company extract-search route", () => {
     expect(extract).toHaveBeenCalledWith(
       "company-1",
       expect.objectContaining({
-        contains: "github.com/example/repo/pull",
-        kind: "url",
-        scope: "comments",
-        limit: 200,
-        matchesPerIssue: 200,
+      contains: "github.com/example/repo/pull",
+      kind: "url",
+      scope: "comments",
+      limit: 200,
+      matchesPerIssue: 200,
       }),
       expect.objectContaining({ issueReadCondition: expect.anything() }),
     );

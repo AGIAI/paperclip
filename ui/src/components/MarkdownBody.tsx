@@ -1,9 +1,10 @@
 import { isValidElement, memo, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Copy, ExternalLink, Github, WrapText } from "lucide-react";
+import { Check, Copy, ExternalLink, WrapText } from "lucide-react";
 import Markdown, { defaultUrlTransform, type Components, type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../lib/utils";
+import { GithubIcon } from "@/components/icons/github-icon";
 import { Link, useCaseHref } from "@/lib/router";
 import { useTheme } from "../context/ThemeContext";
 import { useOptionalCompany } from "../context/CompanyContext";
@@ -91,6 +92,8 @@ interface MarkdownBodyProps {
   resolveImageSrc?: (src: string) => string | null;
   /** Called when a user clicks an inline image */
   onImageClick?: (src: string) => void;
+  /** Keep untrusted decision media inert: image references and diagram source only. */
+  mediaMode?: "render" | "reference";
   /**
    * Resolver that decides which inline-code workspace file paths may be linked
    * to the issue file viewer. Omitting it (or returning null) leaves every
@@ -258,7 +261,7 @@ const codeBlockActionsStyle: React.CSSProperties = {
   gap: "0.25rem",
 };
 
-const codeBlockActionStyle: React.CSSProperties = {
+export const codeBlockActionStyle: React.CSSProperties = {
   position: "static",
   opacity: 1,
   display: "inline-flex",
@@ -269,7 +272,7 @@ const codeBlockActionStyle: React.CSSProperties = {
   padding: "0.2rem 0.4rem",
   borderRadius: "calc(var(--radius) - 4px)",
   border: "1px solid color-mix(in oklab, var(--foreground) 14%, transparent)",
-  backgroundColor: "color-mix(in oklab, var(--muted) 92%, var(--background) 8%)",
+  backgroundColor: "var(--background)",
   color: "var(--muted-foreground)",
   fontSize: "var(--text-micro)",
   lineHeight: 1,
@@ -745,6 +748,7 @@ function MarkdownBodyImpl({
   externalReferences,
   resolveImageSrc,
   onImageClick,
+  mediaMode = "render",
   resolveWorkspaceFileRef,
 }: MarkdownBodyProps) {
   const { theme } = useTheme();
@@ -829,7 +833,7 @@ function MarkdownBodyImpl({
     ),
     pre: ({ node: _node, children: preChildren, ...preProps }) => {
       const mermaidSource = extractMermaidSource(preChildren);
-      if (mermaidSource) {
+      if (mermaidSource && mediaMode === "render") {
         return <MermaidDiagramBlock source={mermaidSource} darkMode={theme === "dark"} />;
       }
       return <CodeBlock preProps={preProps}>{preChildren}</CodeBlock>;
@@ -922,7 +926,7 @@ function MarkdownBodyImpl({
       const isGitHubLink = isGitHubUrl(href);
       const isExternal = isExternalHttpUrl(href);
       const leadingIcon = isGitHubLink ? (
-        <Github aria-hidden="true" className="mr-1 inline h-3.5 w-3.5 align-(--va-0_125em)" />
+        <GithubIcon aria-hidden="true" className="mr-1 inline h-3.5 w-3.5 align-(--va-0_125em)" />
       ) : null;
       const trailingIcon = isExternal && !isGitHubLink ? (
         <ExternalLink aria-hidden="true" className="ml-1 inline h-3 w-3 align-(--va-0_125em)" />
@@ -940,7 +944,13 @@ function MarkdownBodyImpl({
       );
     },
     };
-    if (resolveImageSrc || onImageClick) {
+    if (mediaMode === "reference") {
+      map.img = ({ src, alt, title }) => (
+        <span data-markdown-image-reference title={title}>
+          Image: {alt || "Untitled image"}{src ? ` (${src})` : ""}
+        </span>
+      );
+    } else if (resolveImageSrc || onImageClick) {
       map.img = ({ node: _node, src, alt, ...imgProps }) => {
         const resolved = resolveImageSrc && src ? resolveImageSrc(src) : null;
         const finalSrc = resolved ?? src;
@@ -956,7 +966,7 @@ function MarkdownBodyImpl({
       };
     }
     return map;
-  }, [theme, linkIssueReferences, linkCaseReferences, externalReferenceLookup, resolveImageSrc, onImageClick]);
+  }, [theme, linkIssueReferences, linkCaseReferences, externalReferenceLookup, resolveImageSrc, onImageClick, mediaMode]);
 
   return (
     <div

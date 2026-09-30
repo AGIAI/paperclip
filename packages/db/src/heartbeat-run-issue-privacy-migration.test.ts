@@ -8,7 +8,7 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./test-embedded-postgres.js";
 
-const MIGRATION_FILE = "0220_heartbeat_run_issue_privacy.sql";
+const MIGRATION_FILE = "0291_private_task_access.sql";
 const cleanups: Array<() => Promise<void>> = [];
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
@@ -31,6 +31,7 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
 
     await sql`DELETE FROM "drizzle"."__drizzle_migrations" WHERE "hash" = ${await migrationHash()}`;
 
+    await sql`DROP TRIGGER IF EXISTS heartbeat_runs_set_scope_kind ON heartbeat_runs`;
     const companyId = randomUUID();
     const agentId = randomUUID();
     const firstIssueId = randomUUID();
@@ -105,6 +106,7 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
 
     await sql`DELETE FROM "drizzle"."__drizzle_migrations" WHERE "hash" = ${await migrationHash()}`;
 
+    await sql`DROP TRIGGER IF EXISTS heartbeat_runs_set_scope_kind ON heartbeat_runs`;
     const companyId = randomUUID();
     const otherCompanyId = randomUUID();
     const agentId = randomUUID();
@@ -131,8 +133,13 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
         (${companyId}, ${agentId}, 'succeeded', ${sql.json({ issueId: foreignIssueId })})
     `;
 
-    await expect(applyPendingMigrations(database.connectionString)).rejects.toThrow(
-      /unresolved issue-scoped run/i,
-    );
+    await applyPendingMigrations(database.connectionString);
+    const rows = await sql<{ issue_id: string | null; scope_kind: string }[]>`
+      SELECT issue_id, scope_kind FROM heartbeat_runs WHERE company_id = ${companyId}`;
+    expect(rows).toHaveLength(3);
+    expect(rows.every(row => row.scope_kind === "issue" && row.issue_id === null)).toBe(true);
+    // Re-running the migration preserves fail-closed tombstones and constraints.
+    await sql`DELETE FROM "drizzle"."__drizzle_migrations" WHERE "hash" = ${await migrationHash()}`;
+    await applyPendingMigrations(database.connectionString);
   }, 30_000);
 });

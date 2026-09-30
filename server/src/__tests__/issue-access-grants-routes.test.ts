@@ -247,7 +247,7 @@ describeEmbeddedPostgres.sequential("issue access grant and locked edge routes",
     ]);
   }, 20_000);
 
-  it("auto-grants private-root access on assignment and keeps it sticky until revoke", async () => {
+  it("auto-grants child-subtree access on assignment and keeps it sticky until revoke", async () => {
     const fixture = await seedFixture();
     const ownerApp = await createApp(db, boardActor(fixture.companyId, fixture.ownerId));
 
@@ -270,7 +270,7 @@ describeEmbeddedPostgres.sequential("issue access grant and locked edge routes",
     const grants = await db.select().from(issueAccessGrants);
     expect(grants).toHaveLength(1);
     expect(grants[0]).toMatchObject({
-      issueId: fixture.privateIssueId,
+      issueId: fixture.privateChild.id,
       subjectType: "agent",
       subjectId: fixture.assignedAgent.id,
       source: "assignment",
@@ -281,7 +281,7 @@ describeEmbeddedPostgres.sequential("issue access grant and locked edge routes",
     const readableBeforeRevoke = await request(await createApp(
       db,
       agentActor(fixture.companyId, fixture.assignedAgent.id),
-    )).get(`/api/issues/${fixture.privateIssueId}`);
+    )).get(`/api/issues/${fixture.privateChild.id}`);
     expect(readableBeforeRevoke.status).toBe(200);
 
     await request(ownerApp)
@@ -291,7 +291,7 @@ describeEmbeddedPostgres.sequential("issue access grant and locked edge routes",
     const deniedAfterRevoke = await request(await createApp(
       db,
       agentActor(fixture.companyId, fixture.assignedAgent.id),
-    )).get(`/api/issues/${fixture.privateIssueId}`);
+    )).get(`/api/issues/${fixture.privateChild.id}`);
     expect(deniedAfterRevoke.status).toBe(404);
     expect(deniedAfterRevoke.body.error).toBe("Issue not found");
   }, 20_000);
@@ -338,7 +338,7 @@ describeEmbeddedPostgres.sequential("issue access grant and locked edge routes",
       .send({ subjectType: "user", subjectId: fixture.sharedUserId })
       .expect(201);
     const listed = await request(ownerApp).get(`/api/issues/${fixture.privateIssueId}/access-grants`);
-    expect(listed.status).toBe(200);
+    expect(listed.status, JSON.stringify(listed.body)).toBe(200);
     expect(listed.body).toEqual(expect.arrayContaining([
       expect.objectContaining({
         subjectId: fixture.sharedUserId,

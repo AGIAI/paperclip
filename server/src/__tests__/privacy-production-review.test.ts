@@ -1,16 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
+import { Readable } from "node:stream";
 import { once } from "node:events";
 import express from "express";
 import request from "supertest";
 import WebSocket from "ws";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, authUsers, companies, companyMemberships, createDb, issues, projectAccessMembers, projects, startEmbeddedPostgresTestDatabase } from "@paperclipai/db";
-import { authorizationService, canActorReadIssuePrivacy, issueReadSqlCondition, type AuthorizationActor } from "../services/authorization.js";
+import { agents, approvals, assets, chatEndpoints, chatExternalPrincipals, chatConversations, chatIdentityLinks, chatDeliveries, toolApplications, toolConnections, executionWorkspaces, authUsers, companies, companyMemberships, createDb, heartbeatRuns, issueAccessGrants, issues, projectAccessMembers, projects, startEmbeddedPostgresTestDatabase } from "@paperclipai/db";
+import { authorizationService, canPublishIssueToChatAudience, canActorReadIssuePrivacy, issueReadSqlCondition, canActorReadProjectPrivacy, projectReadSqlCondition, canActorReadApproval, approvalReadSqlCondition, canActorReadExecutionWorkspace, type AuthorizationActor } from "../services/authorization.js";
 
-// Review probes against unmodified PR 10633 head 605b5af. Assertions encode the
-// approved privacy contract; failures are evidence, not implementation changes.
+// Production regressions and the approved downward-only sharing contract.
 describe("private task production review", () => {
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
@@ -30,6 +30,32 @@ describe("private task production review", () => {
     const actor = (userId: string): AuthorizationActor => ({ type: "board", userId, source: "session", companyIds: [company.id] });
     return { company, owner, outsider, agent, actor };
   }
+
+  it("publishes private chat content only to a currently authorized linked DM recipient", async () => {
+    const f = await fixture();
+    const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Private chat", visibility: "private", responsibleUserId: f.owner }).returning();
+    const [application] = await db.insert(toolApplications).values({ companyId: f.company.id, name: "Test chat", type: "native" }).returning();
+    const [connection] = await db.insert(toolConnections).values({ companyId: f.company.id, applicationId: application.id, name: "Test chat", uid: "test-chat", connectionPurpose: "channel", transport: "chat_sdk" }).returning();
+    const [endpoint] = await db.insert(chatEndpoints).values({ companyId: f.company.id, connectionId: connection.id, provider: "slack", publicId: randomUUID(), assignedAgentId: f.agent.id }).returning();
+    const [principal] = await db.insert(chatExternalPrincipals).values({ companyId: f.company.id, provider: "slack", providerAccountId: "test", externalId: "person", kind: "user" }).returning();
+    const [conversation] = await db.insert(chatConversations).values({ companyId: f.company.id, endpointId: endpoint.id, issueId: task.id, externalConversationId: "dm", externalLabel: "Test DM", isDirectMessage: true }).returning();
+    const publication = { companyId: f.company.id, issueId: task.id, endpointId: endpoint.id, conversationId: conversation.id };
+    expect(await canPublishIssueToChatAudience(db, publication)).toBe(false);
+    await db.insert(chatDeliveries).values({ companyId: f.company.id, endpointId: endpoint.id, conversationId: conversation.id, principalId: principal.id, providerEventId: randomUUID(), deduplicationKey: randomUUID(), eventKind: "message", normalizedEvent: {} as any });
+    const [link] = await db.insert(chatIdentityLinks).values({ companyId: f.company.id, endpointId: endpoint.id, principalId: principal.id, paperclipUserId: f.outsider, status: "linked" }).returning();
+    expect(await canPublishIssueToChatAudience(db, publication)).toBe(false);
+    const [grant] = await db.insert(issueAccessGrants).values({ issueId: task.id, subjectType: "user", subjectId: f.outsider, source: "explicit" }).returning();
+    expect(await canPublishIssueToChatAudience(db, publication)).toBe(true);
+    await db.update(chatConversations).set({ isDirectMessage: false }).where(eq(chatConversations.id, conversation.id));
+    expect(await canPublishIssueToChatAudience(db, publication)).toBe(false);
+    await db.update(chatConversations).set({ isDirectMessage: true }).where(eq(chatConversations.id, conversation.id));
+    await db.update(issueAccessGrants).set({ revokedAt: new Date() }).where(eq(issueAccessGrants.id, grant.id));
+    expect(await canPublishIssueToChatAudience(db, publication)).toBe(false);
+    await db.update(chatIdentityLinks).set({ paperclipUserId: f.owner }).where(eq(chatIdentityLinks.id, link.id));
+    expect(await canPublishIssueToChatAudience(db, publication)).toBe(true);
+    await db.update(chatIdentityLinks).set({ revokedAt: new Date() }).where(eq(chatIdentityLinks.id, link.id));
+    expect(await canPublishIssueToChatAudience(db, publication)).toBe(false);
+  });
 
   it("a shared agent cannot read an owner's private task on behalf of an unauthorized coworker", async () => {
     const f = await fixture();
@@ -63,6 +89,34 @@ describe("private task production review", () => {
     expect(updated?.visibility).toBe("private");
   });
 
+  it("restricting a project protects descendants outside it and preserves privacy when reopened", async () => {
+    const f = await fixture();
+    const { issueService } = await import("../services/issues.js");
+    const { projectService } = await import("../services/projects.js");
+    const svc = issueService(db);
+    const [project] = await db.insert(projects).values({ companyId: f.company.id, name: "Project", visibility: "open" }).returning();
+    const root = await svc.create(f.company.id, { title: "Root", projectId: project.id, createdByUserId: f.owner });
+    const child = await svc.create(f.company.id, { title: "Child", parentId: root.id, createdByUserId: f.owner });
+    const grandchild = await svc.create(f.company.id, { title: "Grandchild", parentId: child.id, createdByUserId: f.owner });
+    await projectService(db).update(project.id, { visibility: "private" });
+    expect(await canActorReadIssuePrivacy(db, f.actor(f.outsider), grandchild)).toBe(false);
+    await projectService(db).update(project.id, { visibility: "open" });
+    expect(await canActorReadIssuePrivacy(db, f.actor(f.outsider), grandchild)).toBe(false);
+    expect((await svc.getById(child.id))?.visibility).toBe("private");
+  });
+
+  it("publishing a personal task leaves its private project while keeping its children private", async () => {
+    const f = await fixture();
+    const { issueService } = await import("../services/issues.js");
+    const svc = issueService(db);
+    const root = await svc.create(f.company.id, { title: "Personal", visibility: "private", createdByUserId: f.owner });
+    const child = await svc.create(f.company.id, { title: "Child", parentId: root.id, createdByUserId: f.owner });
+    const published = await svc.update(root.id, { visibility: "open" });
+    expect(published?.projectId).toBeNull();
+    expect(await canActorReadIssuePrivacy(db, f.actor(f.outsider), published!)).toBe(true);
+    expect(await canActorReadIssuePrivacy(db, f.actor(f.outsider), child)).toBe(false);
+  });
+
   it("reparenting an open issue under a private task inherits privacy", async () => {
     const f = await fixture();
     const { issueService } = await import("../services/issues.js");
@@ -86,6 +140,136 @@ describe("private task production review", () => {
     await request(app).get(`/api/issues/${id}`).expect(404);
     const response = await request(app).patch(`/api/issues/${id}`).send({ priority: "low" });
     expect({ status: response.status, title: response.body.title }).toEqual({ status: 404, title: undefined });
+  });
+
+  it("sharing a child grants its descendants, never its parent or sibling, and revokes immediately", async () => {
+    const f = await fixture();
+    const { issueService } = await import("../services/issues.js");
+    const svc = issueService(db);
+    const root = await svc.create(f.company.id, { title: "Root", visibility: "private", createdByUserId: f.owner });
+    const child = await svc.create(f.company.id, { title: "Shared child", parentId: root.id, createdByUserId: f.owner });
+    const grandchild = await svc.create(f.company.id, { title: "Grandchild", parentId: child.id, createdByUserId: f.owner });
+    const sibling = await svc.create(f.company.id, { title: "Sibling", parentId: root.id, createdByUserId: f.owner });
+    const [grant] = await db.insert(issueAccessGrants).values({ issueId: child.id, subjectType: "user", subjectId: f.outsider, source: "explicit" }).returning();
+    for (const [task, expected] of [[root, false], [child, true], [grandchild, true], [sibling, false]] as const) {
+      expect(await canActorReadIssuePrivacy(db, f.actor(f.outsider), task)).toBe(expected);
+      const rows = await db.select({ id: issues.id }).from(issues).where(and(eq(issues.id, task.id), await issueReadSqlCondition(db, f.actor(f.outsider))));
+      expect(rows.length > 0).toBe(expected);
+    }
+    await db.update(issueAccessGrants).set({ revokedAt: new Date() }).where(eq(issueAccessGrants.id, grant.id));
+    expect(await canActorReadIssuePrivacy(db, f.actor(f.outsider), child)).toBe(false);
+    expect(await canActorReadIssuePrivacy(db, f.actor(f.outsider), grandchild)).toBe(false);
+  });
+
+  it("retains a child assignment grant after unassignment without granting the root", async () => {
+    const f = await fixture();
+    const { issueService } = await import("../services/issues.js");
+    const svc = issueService(db);
+    const root = await svc.create(f.company.id, { title: "Root", visibility: "private", createdByUserId: f.owner });
+    const child = await svc.create(f.company.id, { title: "Assigned child", parentId: root.id, createdByUserId: f.owner, assigneeAgentId: f.agent.id });
+    await svc.update(child.id, { assigneeAgentId: null });
+    const actor: AuthorizationActor = { type: "agent", agentId: f.agent.id, companyId: f.company.id };
+    expect(await canActorReadIssuePrivacy(db, actor, child)).toBe(true);
+    expect(await canActorReadIssuePrivacy(db, actor, root)).toBe(false);
+    await db.update(issueAccessGrants).set({ revokedAt: new Date() }).where(eq(issueAccessGrants.issueId, child.id));
+    expect(await canActorReadIssuePrivacy(db, actor, child)).toBe(false);
+  });
+
+  it("protects standalone tasks created from a private run", async () => {
+    const f = await fixture();
+    const { issueService } = await import("../services/issues.js");
+    const svc = issueService(db);
+    const source = await svc.create(f.company.id, { title: "Private conversation", visibility: "private", createdByUserId: f.owner });
+    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, invocationSource: "on_demand", status: "succeeded", nativeIssueId: source.id }).returning();
+    const handoff = await svc.create(f.company.id, { title: "Standalone handoff", createdByUserId: f.owner, originRunId: run.id });
+    expect(handoff).toMatchObject({ parentId: null, privacyParentIssueId: source.id, visibility: "private" });
+    expect(await canActorReadIssuePrivacy(db, f.actor(f.outsider), handoff)).toBe(false);
+  });
+
+  it("intersects agent and responsible-user access to private projects in direct and list reads", async () => {
+    const f = await fixture();
+    const [project] = await db.insert(projects).values({ companyId: f.company.id, name: "Private project", visibility: "private" }).returning();
+    await db.insert(projectAccessMembers).values({ companyId: f.company.id, projectId: project.id, subjectType: "agent", subjectId: f.agent.id });
+    const actor: AuthorizationActor = { type: "agent", agentId: f.agent.id, companyId: f.company.id, onBehalfOfUserId: f.outsider };
+    expect(await canActorReadProjectPrivacy(db, actor, project)).toBe(false);
+    expect(await db.select().from(projects).where(and(eq(projects.id, project.id), await projectReadSqlCondition(db, actor)))).toEqual([]);
+    await db.insert(projectAccessMembers).values({ companyId: f.company.id, projectId: project.id, subjectType: "user", subjectId: f.outsider });
+    expect(await canActorReadProjectPrivacy(db, actor, project)).toBe(true);
+  });
+
+  it("binds native runs and keeps missing-task history fail closed", async () => {
+    const f = await fixture();
+    const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Private", visibility: "private", responsibleUserId: f.owner }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, invocationSource: "on_demand", status: "succeeded", nativeIssueId: task.id }).returning();
+    expect(run).toMatchObject({ scopeKind: "issue", issueId: task.id });
+    await db.update(heartbeatRuns).set({ contextSnapshot: {}, scopeKind: "company" }).where(eq(heartbeatRuns.id, run.id));
+    expect(await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, run.id))).toMatchObject([{ scopeKind: "issue", issueId: task.id }]);
+    const [orphan] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, invocationSource: "on_demand", status: "succeeded", contextSnapshot: { issueId: randomUUID() } }).returning();
+    expect(orphan).toMatchObject({ scopeKind: "issue", issueId: null });
+  });
+
+  it("delivers authorized live output, then stops delivery after revocation on the same socket", async () => {
+    const f = await fixture();
+    const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Private", visibility: "private", responsibleUserId: f.owner }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, invocationSource: "on_demand", status: "succeeded", nativeIssueId: task.id }).returning();
+    const [grant] = await db.insert(issueAccessGrants).values({ issueId: task.id, subjectType: "user", subjectId: f.outsider, source: "explicit" }).returning();
+    const { setupLiveEventsWebSocketServer } = await import("../realtime/live-events-ws.js");
+    const { publishLiveEvent } = await import("../services/live-events.js");
+    const server = createServer();
+    const wss = setupLiveEventsWebSocketServer(server, db, { deploymentMode: "authenticated", resolveCloudActor: async () => ({ userId: f.outsider, companyIds: [f.company.id] }) });
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const socket = new WebSocket(`ws://127.0.0.1:${(server.address() as { port: number }).port}/api/companies/${f.company.id}/events/ws`);
+    const messages: string[] = [];
+    socket.on("message", data => messages.push(data.toString()));
+    try {
+      await once(socket, "open");
+      const publish = (chunk: string) => publishLiveEvent({ companyId: f.company.id, type: "heartbeat.run.log", payload: { issueId: task.id, runId: run.id, agentId: f.agent.id, chunk } });
+      publish("AUTHORIZED_CANARY");
+      await expect.poll(() => messages.some(message => message.includes("AUTHORIZED_CANARY"))).toBe(true);
+      await db.update(issueAccessGrants).set({ revokedAt: new Date() }).where(eq(issueAccessGrants.id, grant.id));
+      publish("REVOKED_CANARY");
+      publishLiveEvent({ companyId: f.company.id, type: "activity.logged", payload: { action: "queue_drained", entityType: "company", entityId: f.company.id } });
+      await expect.poll(() => messages.some(message => message.includes("queue_drained"))).toBe(true);
+      expect(messages.join(" ")).not.toContain("REVOKED_CANARY");
+    } finally {
+      socket.terminate();
+      await new Promise<void>(resolve => (wss as any).close(resolve));
+      await new Promise<void>(resolve => server.close(() => resolve()));
+    }
+  });
+
+  it("protects linked approval payloads and execution workspace details", async () => {
+    const f = await fixture();
+    const [project] = await db.insert(projects).values({ companyId: f.company.id, name: "Public project" }).returning();
+    const [task] = await db.insert(issues).values({ companyId: f.company.id, projectId: project.id, title: "Private", visibility: "private", responsibleUserId: f.owner }).returning();
+    const [approval] = await db.insert(approvals).values({ companyId: f.company.id, type: "hire_agent", payload: { sourceIssueId: task.id, instructions: "PRIVATE_PAYLOAD" } }).returning();
+    const [workspace] = await db.insert(executionWorkspaces).values({ companyId: f.company.id, projectId: project.id, sourceIssueId: task.id, mode: "isolated_workspace", strategyType: "git_worktree", name: "Private workspace" }).returning();
+    expect(await canActorReadApproval(db, f.actor(f.owner), approval.id)).toBe(true);
+    expect(await canActorReadApproval(db, f.actor(f.outsider), approval.id)).toBe(false);
+    expect(await db.select().from(approvals).where(and(eq(approvals.id, approval.id), await approvalReadSqlCondition(db, f.actor(f.outsider))))).toEqual([]);
+    expect(await canActorReadExecutionWorkspace(db, f.actor(f.owner), workspace.id)).toBe(true);
+    expect(await canActorReadExecutionWorkspace(db, f.actor(f.outsider), workspace.id)).toBe(false);
+    await db.update(executionWorkspaces).set({ sourceIssueId: null, metadata: {} }).where(eq(executionWorkspaces.id, workspace.id));
+    expect(await canActorReadExecutionWorkspace(db, f.actor(f.outsider), workspace.id)).toBe(false);
+    await db.delete(issues).where(eq(issues.id, task.id));
+    expect(await canActorReadExecutionWorkspace(db, f.actor(f.outsider), workspace.id)).toBe(false);
+  });
+
+  it("protects attachment assets even after their attachment or task is deleted", async () => {
+    const f = await fixture();
+    const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Private", visibility: "private", responsibleUserId: f.owner }).returning();
+    const [asset] = await db.insert(assets).values({ companyId: f.company.id, provider: "local_disk", objectKey: `${f.company.id}/issues/${task.id}/file.txt`, contentType: "text/plain", byteSize: 6, sha256: "test" }).returning();
+    const { assetRoutes } = await import("../routes/assets.js");
+    const appFor = (userId: string) => {
+      const app = express();
+      app.use((req, _res, next) => { req.actor = f.actor(userId) as Express.Request["actor"]; next(); });
+      app.use("/api", assetRoutes(db, { getObject: async () => ({ stream: Readable.from("SECRET"), contentLength: 6 }) } as any));
+      return app;
+    };
+    await request(appFor(f.owner)).get(`/api/assets/${asset.id}/content`).expect(200, "SECRET");
+    await request(appFor(f.outsider)).get(`/api/assets/${asset.id}/content`).expect(404);
+    await db.delete(issues).where(eq(issues.id, task.id));
+    await request(appFor(f.owner)).get(`/api/assets/${asset.id}/content`).expect(404);
   });
 
   it("live WebSocket delivery does not disclose a private run to an unauthorized member", async () => {

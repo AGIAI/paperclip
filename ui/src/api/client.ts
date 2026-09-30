@@ -1,4 +1,6 @@
 import { getPageVisibility, getVisibilityHeaderValue } from "@/lib/page-visibility";
+import { tenantSessionRecovery } from "@/lib/tenant-session-recovery";
+import { readApiJson } from "./response";
 
 const BASE = "/api";
 
@@ -19,6 +21,9 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Extra request headers (e.g. the async-import opt-in). Mutations only. */
   headers?: Record<string, string>;
+  /** The `fetch` cache mode. Use `"no-store"` for a response that must never
+   *  come from the browser's HTTP cache. */
+  cache?: RequestCache;
 }
 
 function abortError(): DOMException {
@@ -52,7 +57,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
-    const errorBody = await res.json().catch(() => null);
+    const errorBody = await readApiJson(res);
+    const recovery = tenantSessionRecovery.recoverIfNeeded(res.status, errorBody);
+    if (recovery) return recovery;
     throw new ApiError(
       (errorBody as { error?: string } | null)?.error ?? `Request failed: ${res.status}`,
       res.status,
@@ -60,7 +67,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
   if (res.status === 204) return undefined as T;
-  return res.json();
+  return readApiJson<T>(res);
 }
 
 // --- In-tab request coalescing for identical safe GETs -----------------------
@@ -85,7 +92,11 @@ function coalescedGet<T>(path: string, options?: RequestOptions): Promise<T> {
   let entry = inflightGets.get(path);
   if (!entry) {
     const controller = new AbortController();
-    const promise = request<T>(path, { method: "GET", signal: controller.signal });
+    const promise = request<T>(path, {
+      method: "GET",
+      signal: controller.signal,
+      ...(options?.cache ? { cache: options.cache } : {}),
+    });
     const created: InflightGet = { promise, controller, refs: new Set() };
     // Clear the shared entry once settled so later calls issue a fresh request.
     promise.then(

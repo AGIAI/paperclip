@@ -8,9 +8,16 @@ products, or agent run traces should be limited to named participants.
 
 A private task is readable by its responsible user, creating user, current
 user or agent assignee, active task grantees, and members of its private
-project. Private children inherit the root task's privacy boundary. Assigning a
-private task grants the assignee access to that private subtree; the grant stays
-active until it is explicitly revoked.
+project. Restrictions flow down through children and run-created handoffs. Sharing or
+assigning a task grants access to that task and its descendants; ancestors and
+siblings require a separate grant. An assignment grant stays
+active until it is explicitly revoked. Current assignment, ownership, private-project
+membership, and inherited access remain independent reasons for access. The
+sharing panel shows the source; revoking one grant does not remove other reasons.
+Making a parent private protects existing descendants in the same transaction.
+Moving a task under a private parent inherits privacy. A child cannot be made
+public while it inherits a private boundary; making a parent public leaves its
+existing private children private.
 
 Private projects have a separate access-member list. A task-level grant can
 expose one task without exposing its containing private project. Direct reads
@@ -43,7 +50,9 @@ future reads implicit. Non-admin members and agents cannot use it.
 ## Agent runs and shared-agent residual risk
 
 Issue-bound run detail, events, transcripts, logs, and workspace operations use
-the task ACL. Company run lists retain only timing/status/token/cost metadata for
+the task ACL. Run authority is the intersection of the agent and the run's responsible user.
+Reusing an agent does not transfer a different user's private-task permission.
+Company run lists retain only timing/status/token/cost metadata for
 non-members so budget oversight continues without exposing task identity or run
 content.
 
@@ -85,10 +94,9 @@ them. The complete inventory of issue-derived reads and their disposition:
 A synthetic `{ type: "none" }` actor resolves to the same public-only scope as
 any other non-member. This is why a digest broadcast to a shared channel —
 whose audience is non-members by definition — cannot carry private issue
-content. Write/coordination paths (`create`, `update`, `requestWakeup`,
-`assertCheckoutOwner`, comment/interaction/approval mutations) are governed by
-their own write capabilities and are out of scope for this read predicate; any
-relation summary they *return* is still redacted.
+content. Writes that operate on a task must also satisfy its read predicate; plugin
+capabilities do not substitute for task access. Returned relationship summaries
+remain redacted.
 
 There is intentionally **no plugin oversight exception**: unlike the
 company-wide audit log, no plugin read path bypasses the predicate. A plugin
@@ -110,12 +118,28 @@ structured would-deny decisions without enforcing them and exists only for
 rollout diagnosis. `off` disables the task predicate. Operators should not use
 `shadow` or `off` when private-task confidentiality is required.
 
-Before the enforce-default flip, the P5 review ran the privacy authorization
-and route fixtures under shadow mode, matched every would-deny record to an
-expected non-member probe, and found zero unexpected denials. The regression
-suite keeps explicit non-member assertions for task lists/counts, search and
-extract, attention, status cards, activity, runs, tree control, blocker and
-mention stubs, documents/attachments, and private-project lists.
+The production gate includes positive and negative checks: an authorized reader
+can read a shared child and its descendants, an unrelated reader cannot, and a
+warm HTTP or live subscription loses that grant after revocation. Privacy grants
+are read from the database without a cross-request positive cache.
+
+## Migration and current runtime integration
+
+Migration `0291_private_task_access.sql` adds the task/project ACL tables and
+backfills privacy parent edges with indexed keyset batches. Run binding is derived
+from native task identity, explicit issue identity, or legacy context. Missing
+source tasks remain issue-scoped tombstones. Context changes cannot turn those
+runs into company-wide history. The migration is idempotent for preview installs;
+existing explicit grants are preserved. Operators upgrading an unreleased preview
+should inspect root grants created under its former whole-tree sharing semantics.
+
+Private output uses the same predicate on native tool searches and task context,
+linked approvals, training exports, execution workspace APIs, stored run-response
+assets, and WebSocket delivery. Workspace access requires permission for every
+linked task. Chat publications recheck recipient identity and task access at the
+provider boundary: private output is withheld from shared channels and from DMs
+whose known recipients no longer qualify. This does not revoke Gmail or other
+connection credentials; connection permissions continue to apply independently.
 
 ## CI leak-test inventory
 
@@ -125,6 +149,7 @@ it protects:
 
 | Surface | Non-member regression coverage |
 | --- | --- |
+| Downward sharing, responsible-user intersection, mutation denial, provenance, live revocation | `privacy-production-review.test.ts` |
 | Task detail, list, count, grants, documents, work products | `issue-access-grants-routes.test.ts`, `company-search-service.test.ts` |
 | Search and machine extract | `company-search-service.test.ts`, `company-search-extract-service.test.ts` |
 | Attention feed | `attention-service.test.ts` |
