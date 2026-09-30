@@ -1,7 +1,7 @@
 {
   "schema": "paperclip-runner-rich-acp-validation-checkpoint/v1",
   "status": "current_candidates_not_qualified",
-  "preparedAt": "2026-09-30T05:48:04.755187+00:00",
+  "preparedAt": "2026-09-30T06:02:19.119299+00:00",
   "artifactPathBase": "campaign artifact root; relative references are evidence identifiers, not public download URLs",
   "preserveHistoricalEvidence": {
     "sourceRevision": "5605c350b2a4dae75be3779f164d7e1a0e4a5a87",
@@ -75,7 +75,8 @@
       "unchangedTargetedReruns": {
         "serverFailuresPassed": 4,
         "cliTimeoutsPassed": 2,
-        "codexSourceAuthTimeoutPassed": 1
+        "codexSourceAuthTimeoutPassed": 1,
+        "serializedImportFailuresPassed": 2
       },
       "originalRunReceipt": {
         "path": "runtime-6-6-9-eof-preparation/full-checks-415/test-run-supported.meta.txt",
@@ -94,11 +95,10 @@
         "stableWrapperAlreadyExcludesDist": true,
         "countsAreNotDeduplicatedSourceCoverage": true
       },
-      "serialized": "pending_at_checkpoint",
+      "serialized": "original_command_failed_two_cases; both passed unchanged isolated; remaining 110 suites running separately",
       "dependencyClosure": "Existing source415 worktree installation differed from checked-in ACPX patches; corrected frozen-install evidence is separate."
     },
     "lockMetadataRepair": {
-      "commit": "9d27311635036ea54c9d78c01cc1d9c9489eb7e8",
       "receipt": {
         "path": "acpx-lock-metadata-81c20ad/verification-receipt.json",
         "sha256": "cab86c2725a0b7ddde34a4f8cb18e8789d5aa1b4aa03890ba31d60719d29dcaa"
@@ -108,7 +108,12 @@
       "diagnosticCasesPassed": 4,
       "packageContractsPassed": 25,
       "dependencyVersionsChanged": false,
-      "nativeRuntimeBytesChanged": false
+      "nativeRuntimeBytesChanged": false,
+      "revertedSourceCommit": "9d27311635036ea54c9d78c01cc1d9c9489eb7e8",
+      "sourceRestoreCommit": "788e3b88ffe0e66e632fc2811087036dbb756f49",
+      "status": "verified_private_overlay_only_source_lock_restored",
+      "policy": "The repository refresh bot owns pnpm-lock.yaml. The pull request restores the exact prior bytes; the verified hash-only overlay is private qualification-install evidence.",
+      "privateOverlaySha256": "a54b018124b93fabf8e0aac36d8d3d4996b36e23fea8b74c6d0fb093ae596e85"
     }
   },
   "platformBuilds": [
@@ -313,7 +318,7 @@
       "controllerSourceRevision": "81c20ad22723a2d35d7bd693cc6a47002fb46125",
       "harnessSourceRevision": "81c20ad22723a2d35d7bd693cc6a47002fb46125",
       "runtimeSourceRevision": "e822b614fc368043f4b3d5e34a8d9bbda644e055",
-      "status": "failed_native_command_digest_assertion_under_diagnosis",
+      "status": "failed_command_match_and_final_marker_native_message_boundary_under_investigation",
       "caseQualified": false,
       "providerQualified": false,
       "taskDoneObserved": true,
@@ -334,7 +339,28 @@
       "postingMayLag": true,
       "additionalChargeUpperBoundUsd": 0,
       "nativePerRunUsd": null,
-      "automaticRetries": 0
+      "automaticRetries": 0,
+      "commandDiagnosis": "One leading ASCII space changes the raw digest. A later fixture-only commit admits at most eight leading SPACE/TAB bytes with a verified raw-to-canonical relation. The historical case is not regraded.",
+      "settlementEvidenceLimit": "The first assertion preceded independent marker/child/client observations and the post-cleanup marker reread. Native shell exit before terminal and successful process cleanup do not reconstruct the missing proof.",
+      "finalMarkerDiagnosis": "Two provider text-delta bursts bracket shell completion; one persisted final comment concatenates both. Original native message boundaries are absent from retained metadata. No equal-text deduplication is inferred.",
+      "offlineDiagnosis": {
+        "path": "runtime-6-6-9-eof-preparation/controller-81c20ad/revision-01/copilot-async-command-diagnosis/offline-revalidation-and-proposal.json",
+        "sha256": "fcdb5a3d3601159bca484b3ec26a69a9e914482ef8ddeb4a2012691455ca1fb6"
+      },
+      "assistantBurstOrigin": {
+        "path": "runtime-6-6-9-eof-preparation/controller-81c20ad/revision-01/copilot-async-command-diagnosis/assistant-burst-origin.json",
+        "sha256": "2c9689f36834de163c87d996486aec488f22d419f049ea557fd6f7c6ac691308"
+      },
+      "fixtureFollowup": {
+        "commit": "c9a0aaffa19510ab4c29924c7097d09121f34b81",
+        "targetedTestsPassed": 97,
+        "productTypecheck": "passed",
+        "rawNativeDigestPreserved": true,
+        "prefixCandidates": 511,
+        "historicalCaseRegraded": false,
+        "capturesIndependentEvidenceBeforeCommandAssertion": true,
+        "finalMarkerAssertionUnchanged": true
+      }
     }
   ],
   "pi": {
