@@ -29172,20 +29172,23 @@ export function heartbeatService(
     if (options.cancellationRequestId) {
       run = await claimCancellationRequest(db, runId, run.companyId, options.cancellationRequestId, options.cancellationRequestedByUserId ?? null);
     }
+    // The caller claim checked retry eligibility under both durable row locks.
+    // Its own native intent may already have disabled the retry; re-reading only
+    // retryable_failure would strand that same-ID recovery.
     const pendingNativeRetry =
-      run.runtimeMode === "native" && run.status === "failed"
-        ? await db
-            .select({ runId: nativeRunFinalizations.runId })
-            .from(nativeRunFinalizations)
-            .where(
-              and(
-                eq(nativeRunFinalizations.runId, run.id),
-                eq(nativeRunFinalizations.companyId, run.companyId),
-                eq(nativeRunFinalizations.phase, "retryable_failure"),
-              ),
-            )
-            .then((rows) => rows.length > 0)
-        : false;
+      run.runtimeMode === "native" && run.status === "failed" && (
+        Boolean(options.cancellationRequestId) || await db
+          .select({ runId: nativeRunFinalizations.runId })
+          .from(nativeRunFinalizations)
+          .where(
+            and(
+              eq(nativeRunFinalizations.runId, run.id),
+              eq(nativeRunFinalizations.companyId, run.companyId),
+              eq(nativeRunFinalizations.phase, "retryable_failure"),
+            ),
+          )
+          .then((rows) => rows.length > 0)
+      );
     if (
       !pendingNativeRetry &&
       !CANCELLABLE_HEARTBEAT_RUN_STATUSES.includes(

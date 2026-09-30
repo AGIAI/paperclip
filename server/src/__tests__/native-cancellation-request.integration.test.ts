@@ -1,21 +1,26 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { eq, sql } from "drizzle-orm";
-import { agents, companies, createDb, heartbeatRuns } from "@paperclipai/db";
+import { agents, companies, createDb, heartbeatRuns, issues, nativeRunFinalizations } from "@paperclipai/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 import { cancellationIntentId, claimCancellationRequest, startupCancellationFence } from "../services/native-runtime/native-cancellation-request.js";
 
 describe("atomic caller cancellation request ownership", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
-  beforeAll(async () => { database = await startEmbeddedPostgresTestDatabase("caller-stop-"); db = createDb(database.connectionString); }, 90_000);
+  let cancelNativeSession: typeof import("../services/native-runtime/native-session-executor.js").cancelNativeSession;
+  beforeAll(async () => {
+    ({ cancelNativeSession } = await import("../services/native-runtime/native-session-executor.js"));
+    database = await startEmbeddedPostgresTestDatabase("caller-stop-");
+    db = createDb(database.connectionString);
+  }, 90_000);
   afterAll(async () => { await database?.cleanup(); });
   async function fixture() {
     const companyId = randomUUID(), agentId = randomUUID(), runId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: "Stop claims", issuePrefix: randomUUID().slice(0, 8) });
     await db.insert(agents).values({ id: agentId, companyId, name: "Stop target" });
     await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", status: "running", runtimeMode: "native" });
-    return { companyId, runId };
+    return { companyId, runId, agentId };
   }
   const defaultFence = (runId: string) => db.update(heartbeatRuns).set({ resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) || jsonb_build_object('startupCancellation', ${startupCancellationFence(new Date().toISOString())})` }).where(eq(heartbeatRuns.id, runId));
   it("allows exactly one of two concurrent identities and idempotent same-ID retries", async () => {
@@ -51,4 +56,49 @@ describe("atomic caller cancellation request ownership", () => {
     await db.update(heartbeatRuns).set({ resultJson: { ...run.resultJson, nativeCancellation: { intentId: cancellationIntentId(id) } } }).where(eq(heartbeatRuns.id, runId));
     await expect(claimCancellationRequest(db, runId, companyId, id, "board-user")).rejects.toMatchObject({ status: 409 });
   });
+  async function retryFixture(phase = "retryable_failure") {
+    const f = await fixture(), issueId = randomUUID();
+    await db.insert(issues).values({ id: issueId, companyId: f.companyId, title: "Native retry", status: "in_progress", assigneeAgentId: f.agentId });
+    await db.update(heartbeatRuns).set({ nativeIssueId: issueId, status: "failed" }).where(eq(heartbeatRuns.id, f.runId));
+    await db.insert(nativeRunFinalizations).values({ runId: f.runId, companyId: f.companyId, issueId, phase, nextAttemptAt: new Date(Date.now() + 30_000) });
+    return { ...f, issueId };
+  }
+  it("admits a failed retry and recovers the same caller after audited native cancellation disables it", async () => {
+    const f = await retryFixture(), id = randomUUID();
+    await claimCancellationRequest(db, f.runId, f.companyId, id, "board-user");
+    // No provider is attached: exercise the actual durable cancellation path.
+    const outcome = await cancelNativeSession(f.runId, "Stop", { db, scope: "run", cancellationRequestId: id });
+    expect(outcome.auditId).toBeTruthy();
+    const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
+    expect(coordinator).toMatchObject({ phase: "terminal_failure", failureCode: "native_retry_cancelled", nextAttemptAt: null });
+    const retried = await claimCancellationRequest(db, f.runId, f.companyId, id, "board-user");
+    expect(retried.resultJson?.nativeCancellation).toMatchObject({ intentId: cancellationIntentId(id), dispatchState: "acknowledged" });
+    await expect(claimCancellationRequest(db, f.runId, f.companyId, randomUUID(), "board-user")).rejects.toMatchObject({ status: 409 });
+    await expect(claimCancellationRequest(db, f.runId, f.companyId, id, "other-actor")).rejects.toMatchObject({ status: 409 });
+    await expect(cancelNativeSession(f.runId, "Stop", { db, scope: "run", cancellationRequestId: id })).resolves.toMatchObject({ auditId: outcome.auditId });
+  });
+  it.each(["observed", "terminal_failure", "committed"])("does not claim a failed run whose coordinator advanced to %s", async phase => {
+    const f = await retryFixture(phase);
+    await expect(claimCancellationRequest(db, f.runId, f.companyId, randomUUID(), "board-user")).rejects.toMatchObject({ status: 409 });
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
+    expect(run.resultJson?.startupCancellation).toBeUndefined();
+  });
+  it("rejects a coordinator-only concurrent claim, then observes its committed phase without installing a Stop fence", async () => {
+    const f = await retryFixture(), id = randomUUID();
+    let release!: () => void, locked!: () => void;
+    const acquired = new Promise<void>(resolve => { locked = resolve; });
+    const hold = new Promise<void>(resolve => { release = resolve; });
+    const advance = db.transaction(async tx => {
+      await tx.update(nativeRunFinalizations).set({ phase: "observed", nextAttemptAt: null }).where(eq(nativeRunFinalizations.runId, f.runId));
+      locked(); await hold;
+    });
+    try {
+      await acquired;
+      await expect(claimCancellationRequest(db, f.runId, f.companyId, id, "board-user")).rejects.toMatchObject({ status: 409, message: "Native retry cancellation is busy; retry the same request" });
+    } finally { release(); await advance; }
+    await expect(claimCancellationRequest(db, f.runId, f.companyId, id, "board-user")).rejects.toMatchObject({ status: 409 });
+    const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
+    expect(run.resultJson?.startupCancellation).toBeUndefined();
+  });
+
 });
