@@ -540,6 +540,35 @@ describe("persistent agent directories", () => {
     expect(execute).toHaveBeenCalledTimes(2);
   });
 
+  it.each([false, true])("recovers a retained remote unchanged turn only with exact stop proof: %s", async stopped => {
+    const copy = await run();
+    const environmentId = randomUUID(), leaseId = randomUUID(), remoteCwd = "/fixture/task";
+    const lease = { id: leaseId, companyId, environmentId, heartbeatRunId: copy.runId, provider: "daytona", providerLeaseId: "retained-sandbox" };
+    await db.insert(environments).values({ id: environmentId, name: environmentId, driver: "sandbox" });
+    await db.insert(environmentLeases).values({ ...lease, status: "released", releasedAt: new Date(), cleanupStatus: "success",
+      metadata: stopped ? { remoteExecutionTermination: remoteTerminationReceipt(lease, { providerLeaseId: lease.providerLeaseId, state: "destroyed" }) } : {} });
+    await db.update(heartbeatRuns).set({ status: "succeeded", runtimeMode: "native" }).where(eq(heartbeatRuns.id, copy.runId));
+    await db.update(agentInstructionWorkingCopies).set({ state: "unchanged_turn", location: `remote:${environmentId}`,
+      executionRoot: path.posix.join(remoteCwd, ".paperclip-runtime", "agent-files", agentId, copy.runId),
+      receipt: { ...copy.receipt, cleanup: { leaseId, remoteCwd } } }).where(eq(agentInstructionWorkingCopies.runId, copy.runId));
+    const execute = vi.fn();
+    copies = agentInstructionWorkingCopyService(db, { environmentRuntime: { execute } as unknown as EnvironmentRuntimeService });
+    expect((await copies.reportUnavailable(companyId, copy.runId))?.state).toBe("unchanged_turn");
+    await copies.recoverStopped();
+    const recovered = (await copies.get(companyId, copy.runId))!;
+    if (stopped) {
+      expect(recovered).toMatchObject({ state: "unavailable", errorCode: "INSTRUCTION_COLLECTION_UNAVAILABLE", receipt: { cleanupPending: false } });
+      expect(recovered.processStoppedAt).toBeInstanceOf(Date);
+      await expect(fs.stat(copy.localRoot)).rejects.toMatchObject({ code: "ENOENT" });
+      await copies.recoverStopped();
+      expect((await copies.get(companyId, copy.runId))?.updatedAt).toEqual(recovered.updatedAt);
+    } else {
+      expect(recovered).toMatchObject({ state: "unchanged_turn", processStoppedAt: null });
+      expect(await fs.readFile(path.join(copy.localRoot, entryFile), "utf8")).toBe(initial);
+    }
+    expect(execute).not.toHaveBeenCalled(); // Never restart a remote provider to recover bytes.
+  });
+
   it("finishes remote cleanup from a destruction receipt after the environment is deleted", async () => {
     const copy = await run();
     const environmentId = randomUUID(), leaseId = randomUUID(), remoteCwd = "/fixture/task";
