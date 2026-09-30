@@ -8,7 +8,7 @@ import { normalizeProjectRepositoryUrl, resolveProjectRepositorySelection } from
 import { toolAccessService } from "../services/tool-access.js";
 import { Router, type Request, type Response } from "express";
 import type { Db } from "@paperclipai/db";
-import { agents, authUsers, companyMemberships, projectAccessMembers } from "@paperclipai/db";
+import { agents, authUsers, companyMemberships, instanceUserRoles, projectAccessMembers } from "@paperclipai/db";
 import { inArray } from "drizzle-orm";
 import {
   addProjectAccessMemberSchema,
@@ -165,7 +165,30 @@ export function projectRoutes(db: Db) {
     return false;
   }
 
-  async function addActorAsPrivateProjectPrincipal(req: Request, project: { id: string; companyId: string }, dbOrTx: Db = db) {
+  async function assertCanManageProjectPrivacy(req: Request, res: Response, project: {
+    companyId: string; privacyOwnerUserId?: string | null; personalOwnerUserId?: string | null;
+  }) {
+    const actor = req.actor;
+    if (actor.type === "board" && actor.userId) {
+      if (actor.source === "local_implicit" || actor.isInstanceAdmin) return true;
+      if (actor.userId === project.privacyOwnerUserId || actor.userId === project.personalOwnerUserId) return true;
+      const instanceAdmin = actor.source !== "cloud_tenant" && await db.select({ id: instanceUserRoles.id }).from(instanceUserRoles)
+        .where(and(eq(instanceUserRoles.userId, actor.userId), eq(instanceUserRoles.role, "instance_admin"))).limit(1).then(rows => rows.length > 0);
+      if (instanceAdmin) return true;
+      const membership = await db.select({ role: companyMemberships.membershipRole }).from(companyMemberships)
+        .where(and(eq(companyMemberships.companyId, project.companyId), eq(companyMemberships.principalType, "user"),
+          eq(companyMemberships.principalId, actor.userId), eq(companyMemberships.status, "active"))).limit(1);
+      if (["owner", "admin"].includes(membership[0]?.role ?? "")) return true;
+    }
+    res.status(403).json({ error: "Only the project privacy owner or an administrator can change project access" });
+    return false;
+  }
+
+  async function addActorAsPrivateProjectPrincipal(req: Request, project: { id: string; companyId: string; privacyOwnerUserId?: string | null; personalOwnerUserId?: string | null }, dbOrTx: Db = db) {
+    const ownerUserId = project.privacyOwnerUserId ?? project.personalOwnerUserId;
+    if (ownerUserId) await ensureProjectAccessMember(dbOrTx, {
+      companyId: project.companyId, projectId: project.id, subjectType: "user", subjectId: ownerUserId,
+    });
     if (req.actor.type === "board" && req.actor.userId) {
       await ensureProjectAccessMember(dbOrTx, {
         companyId: project.companyId,
@@ -306,6 +329,7 @@ export function projectRoutes(db: Db) {
     };
 
     const { workspace, repositoryIds, repositoryUrls, idempotencyKey, ...projectData } = req.body as CreateProjectPayload & { idempotencyKey?: string; repositoryUrls?: string[] };
+    projectData.privacyOwnerUserId = req.actor.type === "board" ? req.actor.userId ?? null : req.actor.type === "agent" ? req.actor.onBehalfOfUserId ?? null : null;
     const runContext = req.actor.type === "agent" && req.actor.source === "agent_jwt" && req.actor.runId
       ? await projectToolContext(db, req.actor, true) : null;
     await assertProjectEnvironmentSelection(
@@ -395,6 +419,9 @@ export function projectRoutes(db: Db) {
     if (!existing) return;
     if (!(await assertProjectReadAllowed(req, res, existing))) return;
     const body = { ...req.body };
+    if (body.visibility !== undefined) {
+      if (!(await assertCanManageProjectPrivacy(req, res, existing))) return;
+    }
     if (body.visibility === "private") await addActorAsPrivateProjectPrincipal(req, existing);
     assertNoAgentHostWorkspaceCommandMutation(
       req,
@@ -463,6 +490,7 @@ export function projectRoutes(db: Db) {
     const id = req.params.id as string;
     const project = await getAccessibleResource(req, res, svc.getById(id), "Project not found");
     if (!project || !(await assertProjectReadAllowed(req, res, project))) return;
+    if (!(await assertCanManageProjectPrivacy(req, res, project))) return;
     const subjectType = req.body.subjectType as "user" | "agent";
     const subjectId = req.body.subjectId as string;
     const subjectExists = subjectType === "agent"
@@ -507,6 +535,7 @@ export function projectRoutes(db: Db) {
     const id = req.params.id as string;
     const project = await getAccessibleResource(req, res, svc.getById(id), "Project not found");
     if (!project || !(await assertProjectReadAllowed(req, res, project))) return;
+    if (!(await assertCanManageProjectPrivacy(req, res, project))) return;
     const member = await db.select().from(projectAccessMembers).where(and(
       eq(projectAccessMembers.id, req.params.memberId as string),
       eq(projectAccessMembers.companyId, project.companyId),
@@ -516,8 +545,8 @@ export function projectRoutes(db: Db) {
       res.status(404).json({ error: "Project access member not found" });
       return;
     }
-    if (project.personalOwnerUserId === member.subjectId && member.subjectType === "user") {
-      res.status(422).json({ error: "The owner of My private tasks cannot be removed" });
+    if (member.subjectType === "user" && [project.personalOwnerUserId, project.privacyOwnerUserId].includes(member.subjectId)) {
+      res.status(422).json({ error: "The project privacy owner cannot be removed" });
       return;
     }
     await db.delete(projectAccessMembers).where(eq(projectAccessMembers.id, member.id));

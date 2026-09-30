@@ -56,6 +56,11 @@ Company run lists retain only timing/status/token/cost metadata for
 non-members so budget oversight continues without exposing task identity or run
 content.
 
+Workspace operation records retain their original task and run sources even if
+those entities are deleted or the operation is relinked. Deletion preserves the
+audit record; unresolved sources make its details and log inaccessible. A
+company-scoped run does not override a private task linked to the operation.
+
 > **Residual risk — trusted agents (`trust-agent`).** Paperclip enforces privacy
 > on reads from the control plane, but an agent that legitimately processes a
 > private task may write learned content into shared persistent memory, its home
@@ -164,3 +169,9 @@ it protects:
 
 Adding a new task-derived read surface requires a non-member fixture in this
 gate before the surface can ship.
+
+Project privacy management belongs to its recorded creator (the responsible user
+for agent-created projects), the personal-project owner, and administrators.
+Project read membership alone never allows publishing the project or changing
+its audience. Legacy projects recover ownership from their creation audit event;
+when that evidence is missing, an administrator manages their privacy.

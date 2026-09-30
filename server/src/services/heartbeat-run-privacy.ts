@@ -1,7 +1,7 @@
 import type { Db } from "@paperclipai/db";
-import { issues } from "@paperclipai/db";
+import { issues, heartbeatRuns } from "@paperclipai/db";
 import { and, eq } from "drizzle-orm";
-import type { AuthorizationActor, AuthorizationDecision } from "./authorization.js";
+import { canActorReadExecutionWorkspace, type AuthorizationActor, type AuthorizationDecision } from "./authorization.js";
 
 type RunIssueBinding = {
   companyId: string;
@@ -137,4 +137,33 @@ export function redactHeartbeatRunListRow<T extends Record<string, unknown> & { 
     }),
     redacted: true,
   };
+}
+
+/** Check all durable sources, including tombstones left after a task/run is deleted. */
+export async function canActorReadWorkspaceOperation(
+  db: Db,
+  access: Parameters<typeof canActorReadHeartbeatRun>[1],
+  actor: AuthorizationActor,
+  operation: { companyId: string; issueId?: string | null; heartbeatRunId?: string | null; executionWorkspaceId?: string | null; metadata?: Record<string, unknown> | null },
+): Promise<boolean> {
+  const sourceIds = (key: string, current?: string | null) => {
+    const history = asRecord(operation.metadata?.[key]);
+    return new Set([...Object.keys(history ?? {}), ...(current ? [current] : [])]);
+  };
+  const issueIds = sourceIds("_issuePrivacySources", operation.issueId);
+  const runIds = sourceIds("_runPrivacySources", operation.heartbeatRunId);
+  for (const issueId of issueIds) {
+    if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(issueId)) return false;
+    if (!(await canActorReadHeartbeatRun(db, access, actor, { companyId: operation.companyId, scopeKind: "issue", issueId }))) return false;
+  }
+  for (const runId of runIds) {
+    if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(runId)) return false;
+    const [run] = await db.select().from(heartbeatRuns)
+      .where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, operation.companyId))).limit(1);
+    if (!run || !(await canActorReadHeartbeatRun(db, access, actor, run))) return false;
+  }
+  if (operation.executionWorkspaceId) {
+    if (!(await canActorReadExecutionWorkspace(db, actor, operation.executionWorkspaceId))) return false;
+  }
+  return issueIds.size > 0 || runIds.size > 0 || Boolean(operation.executionWorkspaceId);
 }

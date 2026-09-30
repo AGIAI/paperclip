@@ -7,8 +7,10 @@ import request from "supertest";
 import WebSocket from "ws";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agents, approvals, assets, chatEndpoints, chatExternalPrincipals, chatConversations, chatIdentityLinks, chatDeliveries, toolApplications, toolConnections, executionWorkspaces, authUsers, companies, companyMemberships, createDb, heartbeatRuns, issueAccessGrants, issues, projectAccessMembers, projects, startEmbeddedPostgresTestDatabase } from "@paperclipai/db";
+import { workspaceOperations, agents, approvals, assets, chatEndpoints, chatExternalPrincipals, chatConversations, chatIdentityLinks, chatDeliveries, toolApplications, toolConnections, executionWorkspaces, authUsers, companies, companyMemberships, createDb, heartbeatRuns, issueAccessGrants, issues, projectAccessMembers, projects, startEmbeddedPostgresTestDatabase } from "@paperclipai/db";
 import { authorizationService, canPublishIssueToChatAudience, canActorReadIssuePrivacy, issueReadSqlCondition, canActorReadProjectPrivacy, projectReadSqlCondition, canActorReadApproval, approvalReadSqlCondition, canActorReadExecutionWorkspace, type AuthorizationActor } from "../services/authorization.js";
+
+import { canActorReadWorkspaceOperation } from "../services/heartbeat-run-privacy.js";
 
 // Production regressions and the approved downward-only sharing contract.
 describe("private task production review", () => {
@@ -30,6 +32,35 @@ describe("private task production review", () => {
     const actor = (userId: string): AuthorizationActor => ({ type: "board", userId, source: "session", companyIds: [company.id] });
     return { company, owner, outsider, agent, actor };
   }
+
+  it("lets only the project privacy owner or an admin change its audience", async () => {
+    const f = await fixture();
+    const { projectRoutes } = await import("../routes/projects.js");
+    const { errorHandler } = await import("../middleware/index.js");
+    let actor = f.actor(f.owner);
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => { req.actor = actor; next(); });
+    app.use("/api", projectRoutes(db));
+    app.use(errorHandler);
+    const created = await request(app).post(`/api/companies/${f.company.id}/projects`).send({ name: "Private project", visibility: "private", privacyOwnerUserId: f.outsider });
+    expect(created.status).toBe(201);
+    expect(created.body.privacyOwnerUserId).toBe(f.owner);
+    const projectId = created.body.id;
+    const member = await request(app).post(`/api/projects/${projectId}/access-members`).send({ subjectType: "user", subjectId: f.outsider });
+    expect(member.status).toBe(201);
+    actor = f.actor(f.outsider);
+    expect((await request(app).get(`/api/projects/${projectId}`)).status).toBe(200);
+    expect((await request(app).patch(`/api/projects/${projectId}`).send({ visibility: "open" })).status).toBe(403);
+    expect((await request(app).post(`/api/projects/${projectId}/access-members`).send({ subjectType: "agent", subjectId: f.agent.id })).status).toBe(403);
+    expect((await request(app).delete(`/api/projects/${projectId}/access-members/${member.body.id}`)).status).toBe(403);
+    actor = f.actor(f.owner);
+    expect((await request(app).delete(`/api/projects/${projectId}/access-members/${member.body.id}`)).status).toBe(200);
+    expect((await request(app).patch(`/api/projects/${projectId}`).send({ visibility: "open" })).status).toBe(200);
+    await db.update(companyMemberships).set({ membershipRole: "admin" }).where(and(eq(companyMemberships.companyId, f.company.id), eq(companyMemberships.principalId, f.outsider)));
+    actor = f.actor(f.outsider);
+    expect((await request(app).patch(`/api/projects/${projectId}`).send({ visibility: "private" })).status).toBe(200);
+  });
 
   it("publishes private chat content only to a currently authorized linked DM recipient", async () => {
     const f = await fixture();
@@ -208,6 +239,25 @@ describe("private task production review", () => {
     expect(orphan).toMatchObject({ scopeKind: "issue", issueId: null });
   });
 
+  it("keeps operation history private even with a company run and after task or run deletion", async () => {
+    const f = await fixture();
+    const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Private", visibility: "private", responsibleUserId: f.owner }).returning();
+    const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, invocationSource: "on_demand", status: "succeeded" }).returning();
+    expect(run.scopeKind).toBe("company");
+    const [operation] = await db.insert(workspaceOperations).values({ companyId: f.company.id, issueId: task.id, heartbeatRunId: run.id, phase: "prepare", stdoutExcerpt: "PRIVATE_LOG" }).returning();
+    const access = authorizationService(db);
+    expect(await canActorReadWorkspaceOperation(db, access, f.actor(f.owner), operation)).toBe(true);
+    expect(await canActorReadWorkspaceOperation(db, access, f.actor(f.outsider), operation)).toBe(false);
+    await db.delete(issues).where(eq(issues.id, task.id));
+    const [orphan] = await db.select().from(workspaceOperations).where(eq(workspaceOperations.id, operation.id));
+    expect(orphan).toMatchObject({ issueId: null, stdoutExcerpt: "PRIVATE_LOG", metadata: { _issuePrivacySources: { [task.id]: true } } });
+    expect(await canActorReadWorkspaceOperation(db, access, f.actor(f.owner), orphan)).toBe(false);
+    await db.delete(heartbeatRuns).where(eq(heartbeatRuns.id, run.id));
+    const [history] = await db.update(workspaceOperations).set({ metadata: {} }).where(eq(workspaceOperations.id, operation.id)).returning();
+    expect(history).toMatchObject({ heartbeatRunId: null, metadata: { _runPrivacySources: { [run.id]: true }, _issuePrivacySources: { [task.id]: true } } });
+    expect(await canActorReadWorkspaceOperation(db, access, f.actor(f.owner), history)).toBe(false);
+  });
+
   it("delivers authorized live output, then stops delivery after revocation on the same socket", async () => {
     const f = await fixture();
     const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Private", visibility: "private", responsibleUserId: f.owner }).returning();
@@ -226,11 +276,15 @@ describe("private task production review", () => {
       const publish = (chunk: string) => publishLiveEvent({ companyId: f.company.id, type: "heartbeat.run.log", payload: { issueId: task.id, runId: run.id, agentId: f.agent.id, chunk } });
       publish("AUTHORIZED_CANARY");
       await expect.poll(() => messages.some(message => message.includes("AUTHORIZED_CANARY"))).toBe(true);
+      publishLiveEvent({ companyId: f.company.id, type: "activity.logged", payload: { action: "authorized_activity", entityType: "issue", entityId: task.id } });
+      await expect.poll(() => messages.some(message => message.includes("authorized_activity"))).toBe(true);
       await db.update(issueAccessGrants).set({ revokedAt: new Date() }).where(eq(issueAccessGrants.id, grant.id));
       publish("REVOKED_CANARY");
+      publishLiveEvent({ companyId: f.company.id, type: "activity.logged", payload: { action: "revoked_activity", entityType: "issue", entityId: task.id } });
       publishLiveEvent({ companyId: f.company.id, type: "activity.logged", payload: { action: "queue_drained", entityType: "company", entityId: f.company.id } });
       await expect.poll(() => messages.some(message => message.includes("queue_drained"))).toBe(true);
       expect(messages.join(" ")).not.toContain("REVOKED_CANARY");
+      expect(messages.join(" ")).not.toContain("revoked_activity");
     } finally {
       socket.terminate();
       await new Promise<void>(resolve => (wss as any).close(resolve));
