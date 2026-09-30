@@ -248,7 +248,10 @@ it.skipIf(process.platform === "win32")("recovers a failed cleanup without repea
     },
   });
   try {
-    await expect(stop(child)).rejects.toThrow("transient inspection failure");
+    const failed = expect(stop(child)).rejects.toThrow("transient inspection failure");
+    await new Promise(resolve => setTimeout(resolve, 100));
+    if (child.connected) child.send("finish");
+    await failed;
     const recovery = stop(child);
     // A second graceful signal would terminate this child's once-handler.
     await new Promise(resolve => setTimeout(resolve, 50));
@@ -257,4 +260,53 @@ it.skipIf(process.platform === "win32")("recovers a failed cleanup without repea
     expect(messages).toEqual(["stopping", "close-complete"]);
     expect([child.exitCode, child.signalCode]).toEqual([0, null]);
   } finally { owner?.stopObserving(); }
+});
+
+it.skipIf(process.platform === 'win32').each([['launcher', 'null'], ['server', 'null'], ['launcher', 'throw'], ['server', 'throw']] as const)(
+  'bounds the known %s child when inspection fails with %s', async (kind, failure) => {
+    const { entry } = await fixture(`process.on('SIGTERM', () => {}); process.send('ready'); setInterval(() => {}, 1000);`);
+    const child = start(entry);
+    await once(child, 'message');
+    const groupSignals: number[] = [];
+    const owner = createProcessTreeOwner(child, {
+      readTable: async () => { if (failure === "throw") throw new Error("inspection failed"); return null; },
+      signalGroup: pid => { groupSignals.push(pid); },
+    });
+    try {
+      const stopping = kind === 'launcher'
+        ? stopOwnedProcessTree(child, owner, 50, 500)
+        : createRunnerE2EServerStopper({ gracefulTimeoutMs: 50, forcedTimeoutMs: 500,
+          hasSpawnError: () => false, markExpectedStop: () => {}, log: () => {}, createOwner: () => owner })(child);
+      await expect(stopping).rejects.toThrow(/inspect|incomplete/i);
+      expect(child.signalCode).toBe('SIGKILL');
+      expect(groupSignals).toEqual([]);
+    } finally { owner.stopObserving(); }
+  },
+);
+
+it.skipIf(process.platform === 'win32')('does not re-signal a server after its graceful wrapper forwards and exits', async () => {
+  const { root, entry } = await fixture();
+  const marker = path.join(root, 'async-close-finished');
+  await writeFile(entry, `
+    const child = require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(`
+      process.once('SIGTERM', () => setTimeout(() => {
+        require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'closed'); process.exit(0);
+      }, 300));
+      process.send('ready'); setInterval(() => {}, 1000);
+    `)}], { detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+    child.once('message', () => process.send({ pid: child.pid }));
+    process.once('SIGTERM', () => { child.kill('SIGTERM'); process.exit(0); });
+  `);
+  const wrapper = start(entry);
+  const pid = (await once(wrapper, 'message'))[0].pid as number;
+  const owner = createProcessTreeOwner(wrapper);
+  try {
+    await owner.observe();
+    await stopOwnedProcessTree(wrapper, owner, 2_000, 500);
+    expect(await readFile(marker, 'utf8')).toBe('closed');
+    expect(wrapper.exitCode).toBe(0);
+  } finally {
+    owner.stopObserving();
+    try { process.kill(-pid, 'SIGKILL'); } catch { /* already stopped */ }
+  }
 });

@@ -13,6 +13,7 @@ export function createProcessTreeOwner(root: ChildProcess, options: {
   let table: ProcessObservation[] = [];
   let rootStarted: string | undefined;
   let observing: Promise<void> | undefined;
+  const covered = new Set<number>();
   const readTable = options.readTable ?? readProcessTable;
   const signalGroup = options.signalGroup ?? ((pid, signal) => process.kill(-pid, signal));
   const exited = () => root.exitCode !== null || root.signalCode !== null || !root.pid;
@@ -39,7 +40,10 @@ export function createProcessTreeOwner(root: ChildProcess, options: {
       const byGroup = new Map(refreshed.map(group => [group.processGroupId, group]));
       for (const pid of anchors) {
         for (const group of observeDescendantProcessTree(next, pid).groups) {
-          if (group.processGroupId !== callerGroup) byGroup.set(group.processGroupId, group);
+          if (group.processGroupId !== callerGroup) {
+            byGroup.set(group.processGroupId, group);
+            if (covered.has(next.find(row => row.pid === pid)!.processGroupId)) covered.add(group.processGroupId);
+          }
         }
       }
       groups = [...byGroup.values()];
@@ -56,8 +60,7 @@ export function createProcessTreeOwner(root: ChildProcess, options: {
   function liveGroups() {
     return groups.filter(group => table.some(row => row.processGroupId === group.processGroupId && running(row)));
   }
-  async function signal(signal: NodeJS.Signals, selected?: ReadonlySet<number>) {
-    await observe();
+  function signalSnapshot(signal: NodeJS.Signals, selected?: ReadonlySet<number>) {
     const currentProcessGroupId = table.find(row => row.pid === process.pid)?.processGroupId ?? null;
     if (currentProcessGroupId === null) throw new Error("Cleanup caller group identity is unavailable");
     const live = liveGroups();
@@ -66,10 +69,14 @@ export function createProcessTreeOwner(root: ChildProcess, options: {
     for (const pid of ordered) {
       if (selected && !selected.has(pid)) continue;
       try { signalGroup(pid, signal); }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error; else continue; }
       signaled.push(pid);
     }
     return signaled;
+  }
+  async function signal(signal: NodeJS.Signals, selected?: ReadonlySet<number>) {
+    await observe();
+    return signalSnapshot(signal, selected);
   }
   function gracefulRoots() {
     const live = liveGroups();
@@ -90,9 +97,56 @@ export function createProcessTreeOwner(root: ChildProcess, options: {
       return false;
     })).map(group => group.processGroupId));
   }
-  return { observe, signal, liveGroups, gracefulRoots, stopObserving: () => { if (timer) clearInterval(timer); } };
+  let graceComplete = false;
+  let directGraceDelivered = false;
+  async function signalGracefully() {
+    if (graceComplete) return;
+    await observe();
+    // Choose and deliver from one validated table. ESRCH grants no ownership
+    // coverage: the next grace poll can select that branch's surviving owner.
+    const selected = new Set([...gracefulRoots()].filter(pid => !covered.has(pid)));
+    const delivered = signalSnapshot("SIGTERM", selected);
+    for (const pid of delivered) {
+      if (pid === root.pid) directGraceDelivered = true;
+      covered.add(pid);
+      for (const member of table.filter(row => row.processGroupId === pid)) {
+        for (const group of observeDescendantProcessTree(table, member.pid).groups) covered.add(group.processGroupId);
+      }
+    }
+    // Never reselect descendants after their owner received grace, even if it
+    // exits before their asynchronous close completes.
+    graceComplete = selected.size > 0 && delivered.length === selected.size;
+  }
+  return { observe, signal, liveGroups, gracefulRoots, signalGracefully,
+    directGraceDelivered: () => directGraceDelivered, stopObserving: () => { if (timer) clearInterval(timer); } };
 }
 
+
+/** Inspection failure grants no group authority. The unreaped ChildProcess
+ * handle still owns its direct child, so retire only that child within the
+ * original grace deadline, then report the incomplete tree audit. */
+export async function stopKnownDirectChild(child: ChildProcess, phase: { gracefulSent: boolean; forcedDeadline?: number },
+  deadline: number, forcedMs: number, signal: NodeJS.Signals = "SIGTERM") {
+  const exited = () => child.exitCode !== null || child.signalCode !== null || !child.pid;
+  const wait = () => new Promise(resolve => setTimeout(resolve, 25));
+  if (!exited() && !phase.gracefulSent) {
+    phase.gracefulSent = child.kill(signal);
+  }
+  while (!exited() && Date.now() < deadline) await wait();
+  if (exited()) return;
+  child.kill("SIGKILL");
+  phase.forcedDeadline ??= Date.now() + forcedMs;
+  while (!exited() && Date.now() < phase.forcedDeadline) await wait();
+  if (!exited()) throw new Error("Known direct child remained after bounded fallback");
+}
+
+export async function incompleteTreeFallback(error: unknown, child: ChildProcess,
+  phase: { gracefulSent: boolean; forcedDeadline?: number }, deadline: number, forcedMs: number) {
+  let fallbackError: unknown;
+  try { await stopKnownDirectChild(child, phase, deadline, forcedMs); }
+  catch (failure) { fallbackError = failure; }
+  throw new Error(`Owned tree cleanup incomplete: ${String(error)}${fallbackError ? `; ${String(fallbackError)}` : ""}`);
+}
 
 /** Give the launcher/wrapper chain sole graceful-signal ownership, then retire
  * only still-observed descendants. Used on normal exit as well as cancellation. */
@@ -103,28 +157,32 @@ export async function stopOwnedProcessTree(
   forcedMs = 5_000,
 ): Promise<void> {
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-  if (process.platform === "win32") {
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
-  } else {
-    await owner.observe();
-    await owner.signal("SIGTERM", owner.gracefulRoots());
-  }
-  const stopped = async () => {
-    await owner.observe();
-    return (child.exitCode !== null || child.signalCode !== null) && owner.liveGroups().length === 0;
-  };
   const deadline = Date.now() + gracefulMs;
-  while (Date.now() < deadline) {
-    if (await stopped()) return;
-    await wait(50);
+  const phase: { gracefulSent: boolean; forcedDeadline?: number } = { gracefulSent: false };
+  try {
+    if (process.platform === "win32") {
+      await stopKnownDirectChild(child, phase, deadline, forcedMs);
+      return;
+    }
+    const stopped = async () => {
+      await owner.observe();
+      return (child.exitCode !== null || child.signalCode !== null) && owner.liveGroups().length === 0;
+    };
+    do {
+      await owner.signalGracefully();
+      phase.gracefulSent ||= owner.directGraceDelivered();
+      if (await stopped()) return;
+      await wait(50);
+    } while (Date.now() < deadline);
+    await owner.signal("SIGKILL");
+    phase.forcedDeadline = Date.now() + forcedMs;
+    do {
+      if (await stopped()) return;
+      await wait(50);
+    } while (Date.now() < phase.forcedDeadline);
+    throw new Error("Observed launcher descendants remained after bounded cleanup");
+  } catch (error) {
+    phase.gracefulSent ||= owner.directGraceDelivered();
+    await incompleteTreeFallback(error, child, phase, deadline, forcedMs);
   }
-  if (process.platform === "win32") {
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-  } else await owner.signal("SIGKILL");
-  const forcedDeadline = Date.now() + forcedMs;
-  do {
-    if (await stopped()) return;
-    await wait(50);
-  } while (Date.now() < forcedDeadline);
-  throw new Error("Observed launcher descendants remained after bounded cleanup");
 }

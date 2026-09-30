@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 
 export interface ProcessObservation {
@@ -159,12 +159,12 @@ const diagnosticProcessKinds = new Set([
   "tsx",
 ]);
 
-export async function readProcessTable(): Promise<ProcessObservation[] | null> {
+export async function readProcessTable(startInspector?: () => ChildProcess): Promise<ProcessObservation[] | null> {
   if (process.platform === "win32") {
     return null;
   }
   return await new Promise<ProcessObservation[] | null>((resolve) => {
-    const inspector = spawn(
+    const inspector = startInspector ? startInspector() : spawn(
       "ps",
       ["-e", "-o", "pid=,ppid=,pgid=,lstart=,stat=,comm="],
       {

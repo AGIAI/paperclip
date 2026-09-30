@@ -290,10 +290,13 @@ async function runProcess(
   let childSettled = false;
   let postResultStallError: string | null = null;
   let boundedCleanup: Promise<string | null> | undefined;
+  let cleanupSettled!: () => void;
+  const cleanupFinished = new Promise<number>(resolve => { cleanupSettled = () => resolve(1); });
   const stopChildTree = (_diagnostic?: ProcessTreeDiagnostic) => {
     if (boundedCleanup) return;
     boundedCleanup = stopOwnedProcessTree(child, processOwner)
-      .then(() => null, error => error instanceof Error ? error.message : String(error));
+      .then(() => null, error => error instanceof Error ? error.message : String(error))
+      .finally(cleanupSettled);
     activeProcessCleanup.set(child.pid!, boundedCleanup);
   };
   activeProcessTerminators.set(child.pid, stopChildTree);
@@ -345,7 +348,7 @@ async function runProcess(
         }, timeoutMs);
   timer?.unref();
   let spawnError: string | null = null;
-  const exitCode = await new Promise<number>((resolve, reject) => {
+  const childExit = new Promise<number>((resolve, reject) => {
     child.once("error", reject);
     child.once("exit", (code) => {
       childSettled = true;
@@ -356,6 +359,7 @@ async function runProcess(
     spawnError = error instanceof Error ? error.message : String(error);
     return 1;
   });
+  const exitCode = await Promise.race([childExit, cleanupFinished]);
   if (timer) clearTimeout(timer);
   if (completionPoll) clearInterval(completionPoll);
   // Even a successful launcher exit can leave an already-observed detached
@@ -363,6 +367,13 @@ async function runProcess(
   stopChildTree();
   const processCleanupError = await boundedCleanup!;
   processOwner.stopObserving();
+  // Even a failed direct-child kill must not hold cancellation forever or let
+  // inherited pipes write into an ended log. The cleanup error remains fatal.
+  if (processCleanupError) {
+    child.stdout?.destroy();
+    child.stderr?.destroy();
+    if (child.exitCode === null && child.signalCode === null) child.unref();
+  }
   if (child.pid) {
     activeProcessGroups.delete(child.pid);
     activeProcessCleanup.delete(child.pid);
@@ -468,6 +479,7 @@ async function runAttempt(input: {
   const publishedResults: RunnerE2EResult[] = [];
   const publishedResultPaths = new Map<string, string>();
   let attemptSecrets: string[] = [];
+  let processCleanupFailed = false;
   try {
     const paperclipHome = path.join(temporaryRoot, "paperclip-home");
     const workspace = path.join(temporaryRoot, "workspace");
@@ -579,6 +591,7 @@ async function runAttempt(input: {
       ),
       options.ui || options.debug,
     );
+    processCleanupFailed = processResult.processCleanupError !== null;
     const processFailure = processResult.spawnError
       ? `Playwright failed to start: ${processResult.spawnError}`
       : processResult.timedOut
@@ -780,9 +793,11 @@ async function runAttempt(input: {
     }
     return [...publishedResults];
   } finally {
-    reapNewDetachedDarwinSharedMemory(sharedMemoryBaseline);
+    if (!processCleanupFailed) reapNewDetachedDarwinSharedMemory(sharedMemoryBaseline);
     let cleanupError: unknown;
-    if (
+    if (processCleanupFailed) {
+      cleanupError = new Error(`Preserving temporary state after incomplete process cleanup: ${temporaryRoot}`);
+    } else if (
       temporaryRoot.startsWith(`${os.tmpdir()}${path.sep}paperclip-runner-e2e-`)
     ) {
       for (let cleanupAttempt = 1; cleanupAttempt <= 3; cleanupAttempt += 1) {

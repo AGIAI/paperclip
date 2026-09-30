@@ -1,5 +1,5 @@
 import type { ChildProcess } from "node:child_process";
-import { createProcessTreeOwner } from "./process-tree-owner.js";
+import { createProcessTreeOwner, incompleteTreeFallback } from "./process-tree-owner.js";
 
 // The wrapper receives Playwright's group signal; only it signals Paperclip.
 export const runnerE2EServerDetached = process.platform !== "win32";
@@ -17,6 +17,7 @@ export function createRunnerE2EServerStopper(options: {
     owner: ReturnType<typeof createProcessTreeOwner>;
     promise?: Promise<void>;
     gracefulDeadline?: number;
+    forcedDeadline?: number;
     gracefulSent: boolean;
     groupSignals: Set<number>;
     escalationLogged: boolean;
@@ -32,11 +33,10 @@ export function createRunnerE2EServerStopper(options: {
     return state;
   }
   async function stopOnce(child: ChildProcess, state: State, signal: NodeJS.Signals) {
-    await state.owner.observe();
     state.gracefulDeadline ??= Date.now() + options.gracefulTimeoutMs;
+    await state.owner.observe();
     if (!exited(child) && !state.gracefulSent) {
-      child.kill(signal);
-      state.gracefulSent = true;
+      state.gracefulSent = child.kill(signal);
     }
     while (Date.now() < state.gracefulDeadline) {
       await state.owner.observe();
@@ -55,23 +55,26 @@ export function createRunnerE2EServerStopper(options: {
     }
     if (runnerE2EServerDetached) await state.owner.signal("SIGKILL");
     else if (!exited(child)) child.kill("SIGKILL");
-    const deadline = Date.now() + options.forcedTimeoutMs;
+    state.forcedDeadline ??= Date.now() + options.forcedTimeoutMs;
     do {
       await state.owner.observe();
       if (exited(child) && !state.owner.liveGroups().length) { state.owner.stopObserving(); return; }
       await wait(25);
-    } while (Date.now() < deadline);
+    } while (Date.now() < state.forcedDeadline);
     throw new Error("Paperclip server or observed descendants did not exit after SIGKILL");
   }
   const stop = (child: ChildProcess, signal: NodeJS.Signals = "SIGTERM"): Promise<void> => {
     options.markExpectedStop(child);
     const state = watch(child);
-    state.promise ??= Promise.resolve().then(() => stopOnce(child, state, signal)).catch(error => {
-      // Retain the signal/deadline phase, but let final cleanup recover from an
-      // inspection/signaling failure without delivering another graceful signal.
-      state.promise = undefined;
-      throw error;
+    state.promise ??= Promise.resolve().then(() => stopOnce(child, state, signal)).catch(async error => {
+      try {
+        await incompleteTreeFallback(error, child, state, state.gracefulDeadline!, options.forcedTimeoutMs);
+      } finally {
+        state.promise = undefined;
+      }
     });
+    /* Retain the signal/deadline phase so a later audit can recover without
+       repeating the graceful signal. */
     return state.promise;
   };
   return Object.assign(stop, { watch: (child: ChildProcess) => watch(child).owner.observe() });
