@@ -551,7 +551,7 @@ export function IssueBlockedNotice({
       return (
         <span key={blocker.id} className="inline-flex max-w-full items-center gap-1.5">
           <LockedIssueChip identifier={blocker.identifier} />
-          <span className="text-(length:--text-micro) text-amber-800 dark:text-amber-200">
+          <span className="text-(length:--text-micro) text-muted-foreground">
             Private — you don't have access
           </span>
         </span>

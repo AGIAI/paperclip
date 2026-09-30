@@ -124,6 +124,8 @@ function PrincipalAvatar({
   );
 }
 
+// The named type ladder in index.css explicitly prefers Tailwind text-xs and
+// text-sm for its 12px and 14px tiers; these are the shared scale tokens.
 function RowShell({
   avatar,
   title,
