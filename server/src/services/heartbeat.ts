@@ -1,3 +1,4 @@
+import { claimCancellationRequest, startupCancellationFence } from "./native-runtime/native-cancellation-request.js";
 import { CHAT_COMPLETION_WAKE_REASON, prepareChatCompletionTurn, chatCompletionInstruction, isCompletedOnboardingHandoffWake } from "./chat-completion-delivery.js";
 import { isAgentDirectoryCopy } from "./agent-directory-working-copies.js";
 
@@ -9358,10 +9359,11 @@ export async function cancelHeartbeatNativeRun(input: {
   runId: string;
   reason: string;
   runtimeMode: string | null;
+  cancellationRequestId?: string;
   cancel?: (
     runId: string,
     reason: string,
-    options: { db: Db; scope: "run" },
+    options: { db: Db; scope: "run"; cancellationRequestId?: string },
   ) => Promise<{ decision: unknown | null; auditId: string | null }>;
 }) {
   if (input.runtimeMode !== "native") {
@@ -9371,10 +9373,12 @@ export async function cancelHeartbeatNativeRun(input: {
     ? await input.cancel(input.runId, input.reason, {
         db: input.db,
         scope: "run",
+        ...(input.cancellationRequestId ? { cancellationRequestId: input.cancellationRequestId } : {}),
       })
     : await cancelNativeSession(input.runId, input.reason, {
         db: input.db,
         scope: "run",
+        ...(input.cancellationRequestId ? { cancellationRequestId: input.cancellationRequestId } : {}),
       });
   if (!cancellation.decision || !cancellation.auditId) {
     throw new Error("native_cancellation_outcome_not_audited");
@@ -29108,6 +29112,9 @@ export function heartbeatService(
   }
 
   type CancelRunOptions = {
+    /** Optional board request identity, atomically reserved for native Stop. */
+    cancellationRequestId?: string;
+    cancellationRequestedByUserId?: string | null;
     errorCode?: string;
     resultJson?: Record<string, unknown>;
     eventMessage?: string;
@@ -29136,6 +29143,9 @@ export function heartbeatService(
   ) {
     let run = await getRun(runId);
     if (!run) throw notFound("Heartbeat run not found");
+    if (options.cancellationRequestId) {
+      run = await claimCancellationRequest(db, runId, run.companyId, options.cancellationRequestId, options.cancellationRequestedByUserId ?? null);
+    }
     const pendingNativeRetry =
       run.runtimeMode === "native" && run.status === "failed"
         ? await db
@@ -29181,20 +29191,14 @@ export function heartbeatService(
     // Established legacy processes must still be stopped if the database is
     // unavailable. Only native or not-yet-dispatched preparation needs this
     // additional durable fence before its existing cancellation path.
-    if (run.runtimeMode === "native" || (!run.runtimeModeResolvedAt && !running && !control)) {
+    if (!options.cancellationRequestId && (run.runtimeMode === "native" || (!run.runtimeModeResolvedAt && !running && !control))) {
       const [fenced] = await db.update(heartbeatRuns).set({
         // Record handoff intent before native cancellation can finalize and release
         // the run. Only its audited stop acknowledgement suppresses recovery.
         resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) ||
           ${JSON.stringify(options.errorCode === "issue_reassigned" && options.resultJson?.reassignmentStopConfirmed === true
             ? { reassignmentStopRequested: true } : {})}::jsonb ||
-          jsonb_build_object('startupCancellation', jsonb_build_object(
-            'requestedAt', ${new Date().toISOString()}::text,
-            'beforeNativeSelection', ${heartbeatRuns.runtimeMode} = 'legacy'
-              and ${heartbeatRuns.runtimeModeResolvedAt} is null
-              and ${heartbeatRuns.executionStage} = 'preparing'
-              and coalesce(${heartbeatRuns.runnerProfileJson}->'adapterDispatch'->>'adapterType' = 'paperclip_runner', false)
-          ))`,
+          jsonb_build_object('startupCancellation', ${startupCancellationFence(new Date().toISOString())})`,
       }).where(and(eq(heartbeatRuns.id, runId), inArray(heartbeatRuns.status,
         pendingNativeRetry ? [...CANCELLABLE_HEARTBEAT_RUN_STATUSES, "failed"] : [...CANCELLABLE_HEARTBEAT_RUN_STATUSES],
       ))).returning();
@@ -29270,6 +29274,7 @@ export function heartbeatService(
               runId: run.id,
               reason,
               runtimeMode: run.runtimeMode,
+              ...(options.cancellationRequestId ? { cancellationRequestId: options.cancellationRequestId } : {}),
             });
             if (running) {
               await terminateHeartbeatRunProcess({

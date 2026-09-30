@@ -1408,10 +1408,23 @@ This denial case does not qualify Stop during a definitely pending native reques
 That active-turn cancellation boundary needs a separate live case. The attached
 async-command oracle is unchanged by this denial-only correction.
 
-Copilot denial settlement v2 (suite definition v4) requires a retained pre-Stop API
+Copilot denial settlement v3 (suite definition v5) requires a retained pre-Stop API
 observation. The fixture awaits that artifact write before dispatching Stop and
 matches exact source identities and row hashes against final evidence. It waits
 at most 2s for natural settlement within the existing deadline. Normal completion
 first observed afterward cannot pass. A row's createdAt is transaction-start time,
 not proof of commit order. Older failed artifacts lack this observation and cannot
 establish a completed-before-Stop causal boundary; they remain failed.
+
+The Copilot denial Stop cell requires the controller run to remain `running`
+until its Stop request. A provider `turn.completed` can satisfy its completed
+branch while that controller run remains active. An already `succeeded` or
+`cancelled` controller run cannot satisfy this Stop-specific cell. Such a result
+is not evidence that the provider bypassed denial; natural completion without
+an active controller Stop needs separate coverage.
+
+Suite version 5 binds a fresh `cancellationRequestId` UUID in the retained
+pre-Stop observation to the public cancel request and its exact durable native
+intent. It rejects prior startup/Stop markers before dispatch and a competing
+request that wins after the last read. The server atomically reserves the caller
+identity; the fixture does not infer ownership from timestamps or HTTP success.
