@@ -5224,6 +5224,58 @@ describeEmbeddedPostgres("tool access service", () => {
         }),
       ]),
     );
+
+    const reconnectFetchMock = mockToolsList([
+      { name: "get_organization_details", annotations: { readOnlyHint: true } },
+      { name: "new_enterpret_tool", annotations: { readOnlyHint: true } },
+    ]);
+    const reconnected = await service.connectGalleryApp(
+      company.id,
+      {
+        galleryKey: "enterpret",
+        connectionMethodKey: "mcp-api-key",
+        reconnectConnectionId: result.connectionId,
+        credentialValues: { "credentials.authorization": "replacement-secret" },
+      },
+      { actorType: "user", actorId: "board" },
+    );
+    expect(reconnected.connectionId).toBe(result.connectionId);
+    expect(reconnected.connection.config).toMatchObject({ quarantineNewEntries: true });
+    expect(JSON.stringify(reconnected.connection.config)).not.toContain("replacement-secret");
+    await service.finishGalleryAppConnection(company.id, reconnected.connectionId, {
+      enabledCatalogEntryIds: reconnected.catalog
+        .filter((entry) => entry.toolName === "get_organization_details")
+        .map((entry) => entry.id),
+      askFirstCatalogEntryIds: [],
+      access: "all_agents",
+    });
+
+    reconnectFetchMock.mockResolvedValueOnce(
+      mcpHttpResponse({
+        jsonrpc: "2.0",
+        id: "paperclip-catalog-refresh",
+        result: {
+          tools: [
+            { name: "get_organization_details", annotations: { readOnlyHint: true } },
+            { name: "new_enterpret_tool", annotations: { readOnlyHint: true } },
+            { name: "another_enterpret_tool", annotations: { readOnlyHint: true } },
+          ],
+        },
+      }),
+    );
+    const afterReplacement = await service.refreshCatalog(result.connectionId, {
+      actorType: "user",
+      actorId: "board",
+    });
+    expect(afterReplacement.catalog).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          toolName: "another_enterpret_tool",
+          status: "quarantined",
+          quarantineReason: "pending_review",
+        }),
+      ]),
+    );
   });
 
   it("exposes managed Google methods only for profiles signed for this enrolled instance", async () => {

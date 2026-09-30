@@ -397,10 +397,13 @@ Denial was verified on the live connection: a granted agent calling
 `run_graph_query` through the gateway got **HTTP 403 `deny_default`**, and the
 tool was absent from that agent's own `tools/list`.
 
-Redaction plan: `find_user_quote` returns verbatim customer text with speaker
-attribution, and `run_graph_query` can return feedback records. Neither result
-should appear in an evidence artifact, a screenshot, a log, or a PR. Record tool
-name, count, decision and outcome code — never payload content.
+Evidence plan: `find_user_quote` returns verbatim customer text with speaker
+attribution, and `run_graph_query` can return feedback records. Do not put
+those results in screenshots, exported evidence, or PR text. Paperclip currently
+retains provider responses close to verbatim in its invocation log, so a quote
+tool call can persist feedback there. Limit access and retention accordingly;
+the token-path QA uses only `get_organization_details` and records tool name,
+decision, and outcome without copying the payload.
 
 ## Wizard Path
 
@@ -448,7 +451,8 @@ name, count, decision and outcome code — never payload content.
   Enterpret's catalog demonstrably drifts — it renamed three tools and kept the
   old names as session-scoped aliases, and `execute_cypher_query` has since
   disappeared entirely — so newly advertised tools are held for review on a
-  subsequent catalog refresh. The earlier live run found the old default was
+  subsequent catalog refresh, including after token replacement. The earlier
+  live run found the old default was
   `false`; the new default still needs live refresh validation.
 - Rate limits: none set.
 
