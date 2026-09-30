@@ -15,6 +15,18 @@ on:
         description: "Run broad source checks on EC2"
         type: boolean
         default: false
+      verify_runner:
+        description: "Run the complete offline Runner verify command on EC2 without building an image"
+        type: boolean
+        default: false
+      expected_source_sha:
+        description: "Require this immutable target commit (required for verify_runner)"
+        type: string
+        required: false
+      expected_resolved_lock_sha256:
+        description: "Require this reviewed resolved dependency lock (required for verify_runner)"
+        type: string
+        required: false
       verify_public_install:
         description: "Build and verify clean public npm installation on EC2 (no provider credentials)"
         type: boolean
@@ -37,7 +49,7 @@ permissions: {}
 
 concurrency:
   # Publishing a newer image must not discard an earlier verification's evidence.
-  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
+  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.verify_runner && 'runner-verification' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
   cancel-in-progress: true
 
 jobs:
@@ -84,6 +96,10 @@ jobs:
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
           ALLOWED_IDS: ${{ vars.AWS_CI_TRUSTED_USER_IDS }}
           TARGET_BRANCH: ${{ inputs.target_branch || github.ref_name }}
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          EXPECTED_LOCK_SHA256: ${{ inputs.expected_resolved_lock_sha256 }}
+          VERIFY_RUNNER: ${{ inputs.verify_runner }}
+          OTHER_MODE: ${{ inputs.publish_eval_image || inputs.verify_source || inputs.verify_public_install || inputs.build_eval_viewer }}
         run: |
           set -euo pipefail
           test "$REPOSITORY" = paperclipai/paperclip
@@ -95,10 +111,94 @@ jobs:
           done
           target_sha="$(gh api "repos/$REPOSITORY/git/ref/heads/$TARGET_BRANCH" --jq '.object.sha')"
           [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          if [ "$VERIFY_RUNNER" = true ]; then
+            [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$EXPECTED_LOCK_SHA256" =~ ^[0-9a-f]{64}$ ]]
+            test "$OTHER_MODE" != true
+          fi
+          if [ -n "$EXPECTED_SOURCE_SHA" ]; then
+            test "$target_sha" = "$EXPECTED_SOURCE_SHA"
+          fi
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+
+  manual_runner_verify:
+    name: Full offline Runner verification on EC2
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_runner
+    needs: authorize_manual
+    runs-on: runs-on/fleet=paperclip-public-pr-x64/env=public-ci
+    timeout-minutes: 55
+    permissions:
+      contents: read
+    env:
+      CI: "true"
+      PAPERCLIP_TELEMETRY_ENABLED: "false"
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.authorize_manual.outputs.target_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.21.0
+          package-manager-cache: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 9.15.4
+      - name: Record exact source and install dependencies
+        timeout-minutes: 8
+        env:
+          SOURCE_SHA: ${{ needs.authorize_manual.outputs.target_sha }}
+          EXPECTED_LOCK_SHA256: ${{ inputs.expected_resolved_lock_sha256 }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          mkdir -p remote-runner-verification
+          git rev-parse HEAD > remote-runner-verification/source.txt
+          cp pnpm-lock.yaml remote-runner-verification/original-pnpm-lock.yaml
+          sha256sum pnpm-lock.yaml > remote-runner-verification/original-lock.sha256
+          # A stale stacked-branch lock may be resolved only to the reviewed overlay.
+          pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile
+          cp pnpm-lock.yaml remote-runner-verification/resolved-pnpm-lock.yaml
+          sha256sum pnpm-lock.yaml > remote-runner-verification/resolved-lock.sha256
+          git diff -- pnpm-lock.yaml > remote-runner-verification/lock.diff
+          printf '%s  pnpm-lock.yaml\n' "$EXPECTED_LOCK_SHA256" | sha256sum --check --strict
+          pnpm install --frozen-lockfile --ignore-scripts
+      - name: Select pinned Rust and install browser dependencies
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          cd packages/paperclip-runner
+          rustup show
+          rustc --version --verbose > ../../remote-runner-verification/rust.txt
+          pnpm exec playwright install --with-deps chromium
+      - name: Run the complete offline Runner verification
+        timeout-minutes: 35
+        run: |
+          set -uo pipefail
+          status=0
+          timeout --signal=TERM --kill-after=20s 34m \
+            pnpm --filter @paperclipai/paperclip-runner verify \
+            > remote-runner-verification/verify.log 2>&1 || status=$?
+          printf '%s\n' "$status" > remote-runner-verification/exit-code.txt
+          tail -n 100 remote-runner-verification/verify.log
+          exit "$status"
+      - name: Retain Runner verification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: runner-full-verification-${{ github.run_id }}
+          path: |
+            remote-runner-verification/
+            packages/paperclip-runner/**/playwright-report/
+            packages/paperclip-runner/**/test-results/
+          retention-days: 14
 
   manual_image:
     name: Build and verify on EC2
+    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner
     needs: authorize_manual
     runs-on: runs-on/fleet=paperclip-public-pr-x64/env=public-ci
     timeout-minutes: 90
