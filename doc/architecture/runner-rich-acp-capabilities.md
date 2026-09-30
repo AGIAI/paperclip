@@ -5,9 +5,16 @@ Updated: 2026-09-29. Foundation PR #14430 is merged at
 are merged in `paperclip-evals` PR #29. Provider PRs remain separate review units
 and all three providers remain **pending qualification**.
 
-Current candidates are **Cursor v5, Copilot v5 and Pi v8**. Cursor and Copilot
-have passed paid local question continuation on the rebuilt combined runtime;
-none has completed its full qualification matrix. Cursor v5 binds Agent, Plan
+The [September 30 UTC evidence checkpoint](runner-rich-acp-validation-2026-09-30.json)
+separates current paid behavior, retained failures, runtime identities, billing
+coverage and incomplete qualification from historical results below.
+
+Current candidates are **Cursor v5, Copilot v5 and Pi v8**. On corrected source
+`5605c350b`, Cursor has passed all five basic paid local journeys: completion,
+semantic questions, semantic plan approval, controller restart and file
+editing/validation. Copilot has passed the paid Daytona completion journey;
+its cleanup and cost reconciliation are recorded separately. None has completed
+its full qualification matrix. Cursor v5 binds Agent, Plan
 or Ask mode to native acknowledgements, every reconnect, and TypeScript/Rust
 recovery identities. Copilot v5 binds the final shared ACPX patch and preserves
 native permission/attached-command evidence in both transport paths. Pi v8
@@ -42,23 +49,108 @@ adapters are outside this change.
 
 ## Current profile evidence (2026-09-29, collected through September 30 UTC)
 
-The latest paid runtime source is `794e90a258763aac16923cd0247de43cea3bc312`.
-Its passive native-read evidence fix correlates a fixture-owned read by a path
-digest and the runner's actual opaque tool identity; it does not weaken native
-permission checks. The later `a1ccf6473` change only clarifies that correlation
-in a comment. The 155 focused projector/Product tests passed before rebuilding.
+The latest paid runtime source is `5605c350b2a4dae75be3779f164d7e1a0e4a5a87`.
+It includes the passive native-read evidence fix from `794e90a258`: correlation
+uses a fixture-owned path digest and the runner's actual opaque tool identity,
+without weakening native permission checks. The 155 focused projector/Product
+tests passed. The later Cursor identity fix and its regression coverage are
+described below. Source, executable, dependency and profile identities are bound
+to each retained run; documentation and unrelated test-only follow-ups do not
+relabel the executable source.
 
-| Current paid local case | Result | Cost coverage |
+| Paid case and runtime source | Result | Cost coverage |
 | --- | --- | --- |
-| Cursor v5, `question-resume-complete` | Two authenticated runs on the same session, all six matchers passed, final UI shows the answered question and Done; 62.006 seconds, zero automatic retries | Both time/model-correlated account rows are Included (24.7K and 58.4K displayed tokens); on-demand remains $0 with the approved fixed $25 cap. Native per-run priced USD is unavailable |
-| Copilot v5, `question-resume-complete` | Two authenticated runs on the same session, all six matchers passed, final UI shows the answered question and Done; 51.328 seconds, zero automatic retries | Included credits increased from 12 to 14; additional usage remains disabled with a $0 budget. Native per-run priced USD is unavailable |
+| Cursor v5 local `hello-complete`, `5605c350b` | One authenticated run; all six matchers and the saved-mode qualification check passed; 76.202 seconds including supervision | Matching 39K-token account row is Included; on-demand remains $0 with the approved fixed $25 cap |
+| Cursor v5 local `question-resume-complete`, `5605c350b` | Two authenticated runs on the same session; six matchers passed; answered question and Done visible; 99.186 seconds including supervision | Matching 58.4K and 24.6K-token account rows are Included; on-demand remains $0 |
+| Cursor v5 local `plan-approve-complete`, `5605c350b` | Two authenticated runs; six matchers passed; displayed plan revision 1, approval and completion visible; 98.064 seconds including supervision | Matching 61.8K and 51.4K-token account rows are Included; on-demand remains $0 |
+| Cursor v5 local `structured-question-restart-resume`, `5605c350b` | Two authenticated runs; six matchers passed; pending question survives controller restart and resumes the same session after the answer; 72.360 seconds including supervision | Matching 60.9K and 25.9K-token account rows are Included; on-demand remains $0 |
+| Cursor v5 local `file-edit-validate`, `5605c350b` | One authenticated run; seven matchers passed, validated file and downloadable artifact visible; 66.805 seconds including supervision | Matching 166.2K-token account row is Included; on-demand remains $0 |
+| Copilot v5 Daytona `hello-complete`, `5605c350b` | Browser/public-API journey passed six matchers in 82.859 seconds; authenticated semantic finish produced the exact completion marker and Done; exact sandbox destruction and the 360-second late-create observation passed | Additional usage is disabled with a $0 budget. Compute/storage upper bound is $0.086931 for this cell; individual sandbox analytics remain provisional, not zero cost |
+| Cursor v5 local `question-resume-complete`, earlier `794e90a258` | Two authenticated runs on the same session; six matchers passed; 62.006 seconds | Both matching account rows are Included; retained as earlier-source evidence |
+| Copilot v5 local `question-resume-complete`, earlier `794e90a258` | Two authenticated runs on the same session; six matchers passed; 51.328 seconds | Included credits increased from 12 to 14; additional usage disabled with a $0 budget |
 | Pi v8 | No paid run on this current runtime yet | The available OpenRouter key has no enforced limit or management access. A capped qualification key is pending account sign-in |
 
-Both completed cases retired every observed owned process, left no owned
-semaphores, passed post-run source/runtime/dependency verification, and retained
-screenshots, durable events and original receipts. They exercise authenticated
-Paperclip semantic questions; native provider callbacks and the remaining local
-and remote cases still require separate evidence.
+The five corrected-build Cursor cases retired every observed owned process,
+left no owned semaphores and passed post-run authority checks. Screenshots,
+durable events and original receipts are retained. All cases used zero automatic
+retries. Native priced USD remains unavailable for Cursor and Copilot; included
+usage is account billing coverage, not a fabricated native token price.
+Paperclip semantic questions and plans do not qualify native provider callbacks.
+The campaign remains provisional until its full end audit and required cases
+pass.
+
+The next Cursor native-question case failed: no `cursor/ask_question` callback
+was observed before the turn ended. The model reported that `AskQuestion` was
+unavailable, but the retained events contain no actual tool-catalog discovery;
+this is unverified availability for the exact model/mode, not confirmed harness
+absence. The pinned native extension handler passes an offline single-/multi-
+select exercise and requires no extra question capability in ACP initialization.
+No semantic question is substituted for this missing native evidence. Two
+subsequent native-only probes admitted the exact Luna and Composer
+`composer-2.5[fast=true]` models in Plan mode, verified trusted-instruction
+acknowledgements, and exposed no MCP servers. Each submitted one prompt and
+ended without a native question callback. Their matching account rows are
+Included (14.4K and 14.6K tokens), with complete process/lease cleanup and no
+on-demand charge. These diagnostics leave native-question availability
+unverified; they do not qualify the Product interaction or prove harness-wide
+absence. An earlier diagnostic failed before inference because its test launch
+omitted the required instruction binding; that failed attempt is retained.
+An offline reversal of all 14 vendor-patch replacements recovered the exact
+pinned upstream chunk and reproduced the installed bytes. Native question
+handlers, presentation and dispatch are unchanged. The local request-context
+tool list contains MCP descriptors; native model tool selection crosses the
+remote AgentService boundary. The effective remote tool catalog remains
+unobserved, so no local patch removal or additional model sweep is justified.
+
+The campaign's full end audit also failed. Earlier Daytona setup had installed
+14,335 additional entries under the local plugin's `node_modules` using its
+checked-in frozen lock. All 111,348 original dependency entries still match;
+one SDK CLI file changed mode from 0600 to 0755 with unchanged contents when pnpm
+linked its executable. The plugin also generated 60 build files outside the
+original workspace inventory. These changes occurred after the original
+inventory. The failed audit remains retained, and its behavioral passes do not
+establish complete runtime qualification.
+
+A separate source-identical preparation now materializes the complete frozen
+plugin dependency/build closure and compiled static UI before inventory. It
+disables automatic plugin builds and development middleware through supported
+server settings. A credential-free admission reached healthy server/plugin
+readiness, verified served UI bytes, and left all 131,613 dependency/workspace
+entries unchanged. All 30 owned processes retired without owned semaphores.
+The new full start audit passed; new paid cases use a separate binding and do
+not retroactively qualify the failed campaign. Every case remains provisional
+until its own required behavior and the new full end audit pass.
+
+The first native plan case on this new preparation received and displayed the
+complete `cursor/create_plan` request, including its revision and decision
+options. The test did not answer it: its matcher required `acpx-runtime`, while
+the legitimate sidecar emits `acpx-runtime-sidecar`. A second fixture assertion
+compares JSON key order instead of structural equality. The unanswered session
+timed out; the 149.418-second failed attempt, complete cleanup and passing full
+end audit remain retained. Its 26.7K-token account row is Included. Fixture
+commit `375cdf6e` accepts the two exact production ACPX origins and uses
+structural equality; 880 fixture tests, fixture typecheck and replay against
+the failed snapshot pass. Another explicitly bound attempt is required to
+prove actual reject/revise/accept delivery.
+
+Copilot's first supplemented native-denial case delivered the browser's decline
+as `reject_once`, recorded failure of the same native tool, and retained absent
+target samples. It still failed qualification: cancellation was acknowledged
+without a terminal turn event or provider retirement, then the 120-second
+timeout changed the run to failed. Its watcher also reported incomplete
+coverage while monitoring a workspace parent that startup can modify. The
+144.581-second attempt retired every owned process, left no owned semaphores,
+and passed the full end audit; additional billing remained disabled at $0.
+Shared cancellation settlement and explicit permission-provider provenance need
+runtime repairs. The denial fixture needs an isolated target parent and coverage
+diagnostics while retaining its strict completeness check. Paid runs are held
+until the corrected runtime is identified and verified.
+
+The Copilot cloud cell also retired all 46 observed local processes, restored
+the host semaphore count from 321 to its baseline 310, removed its owned
+temporary directory, and passed post-run authority checks. Its separate root
+reconciliation records unknown native priced USD and a conservative cloud
+ceiling; aggregate account analytics are not attributed to the test.
 
 The subsequent Cursor v5 hello completed all six Product matchers, but the
 stricter qualification reader correctly failed: the shared app-server facade
@@ -69,18 +161,22 @@ retired, and the full end audit passed. Its 39.5K-token account row is Included.
 The parser now validates and preserves Agent/Plan/Ask mode. Nine regressions
 exercise actual driver checkpoint/recovery, changed or missing mode, and invalid
 mode values; all 56 recovery/lifecycle tests and the Runner TypeScript build
-pass. Paid qualification must use the corrected build; the failed receipt is not
-reclassified as a pass and the strict validator is unchanged.
+pass. The corrected-build Cursor cases above now pass the same strict validator.
+The original failed receipt remains a failure.
 
 The current macOS ARM64 pack is
-`sha256:2397d345d7d3fe9b65ec456299c09281f1810e9ed543f6e6013f16548a0549e6`.
+`sha256:3940fbe1c7b197b964b8f8182c1f1ae548cff822a95ecb4539e0ca851b4f2032`.
 The rebuilt Linux x64 pack is
-`sha256:bed2cf907024f6114220f4d7e58dcf1e9f7b6ae21bde007ffafff8415834ac0d`,
+`sha256:83702fae11105f5b9ee8f9731b86dc06becb12075f68bdc98dcdfe9f9c842473`,
 published and independently verified in
-`ghcr.io/paperclipai/paperclip-daytona-runner@sha256:653dd3bf3f085c3b43d37ff6109979d2a37cf3cabef13a297177cb168c89c966`.
-No current-source Daytona case is claimed by those build receipts. macOS x64
-native closures were verified on source `159732518`, including Rosetta-hosted
-initialize probes; this does not establish paid native Intel qualification.
+`ghcr.io/paperclipai/paperclip-daytona-runner@sha256:16c8be9c512c28cd9b16fe9ad5331f3fd7b58c42c382d3ebbe5897f658de0bea`.
+The first Daytona setup attempt failed before browser fixture initialization,
+provider inference or sandbox creation because the isolated HOME lacked a
+Playwright browser-cache binding. Its failure remains retained. The explicit
+verified cache binding passed a real private-HOME browser smoke before the
+Copilot retry above. macOS x64 also has a corrected-source pack built under
+Rosetta, reusing the previously verified daemon with identical Rust source;
+this does not establish paid native Intel qualification.
 Cursor's initialize probes needed forced cleanup after EOF, retained as a
 settlement limitation rather than reported as graceful exit.
 
@@ -90,17 +186,26 @@ with 142 deterministic tests and 21 selected cells across all three explicit
 lanes. These definitions remain separate from authenticated qualification.
 
 On prerequisite source `11b2842d`, recursive typecheck, token gates and build
-pass. The broad server stage retained two database setup failures with 14,180
+pass. The initial server stage retained two database setup failures with 14,180
 passing tests; both affected suites passed a focused retry after host recovery.
-The subsequent workspace stages retained two legacy ACPX 0.12 diagnostic
-failures and a Codex process-monitor timeout. The installed legacy ACPX package
-still contained the old truncation despite the corrected source patch; this is
-an installation/lock-metadata mismatch, not a failure in the packaged ACPX 0.13
-candidate transport. A serialized activity-route timeout and unreached suites
-are also retained. The remaining suites are being collected separately; this
-is not a passing aggregate `pnpm test:run`. Current-head CI still needs the
-repeat Telegram recovery timeout resolved, and also recorded a legacy Cursor
-execution timeout. No provider is exposed as qualified on this evidence.
+Segmented follow-up exercised the workspace projects and all 149 serialized
+server suites. Initial stale-socket CLI failures, route-file failures, two legacy
+ACPX 0.12 diagnostics and a Codex process-monitor timeout passed focused
+rechecks with retries disabled and unchanged timeouts. The legacy installed
+package needed corrected patch-hash metadata; the frozen offline install passed
+and the checked-in lockfile was restored byte-for-byte. This is passing segmented
+coverage, not a clean aggregate `pnpm test:run`. Local browser suites were not
+rerun in this verification cycle; earlier Runner browser and CI evidence are
+separate.
+
+The Telegram recovery test's synthetic credential-lease fault affected another
+company's Slack fixture. Its scope guard now has a failing negative control and
+a passing Linux chat shard (356 passed, 710 skipped). At the September 30 UTC
+checkpoint, prerequisite PR #14631 at `1cf7125b` has 52 successful and two
+skipped checks; integration PR #14633 at `e154e853` has 51 successful checks.
+Neither has failing or pending checks. A prior external-object mock assertion
+and a runner-shutdown cancellation remain recorded; their exact-job reruns
+passed. No provider is exposed as qualified on this evidence.
 
 ## Current production checkpoint (2026-09-29)
 
@@ -466,7 +571,7 @@ qualification gates, not claims that a JavaScript path check confines a shell.
 | P0 | Pi fresh-profile Product verification | Historical v4 plan startup failed with unavailable Postgres semaphores. Historical v6 attempts exposed profile admission and verified-runtime startup faults, repaired without raising deadlines. Preserve every failed attempt and run unchanged canonical cases against the final build; do not remove unrelated IPC objects. |
 | P0 | Copilot native ask-user and plan-decision callbacks | Pinned ACP does not install native responders. Prove no blocking request is exposed, or add a qualified responder/wrapper; never swallow the request. |
 | P0 | Broader Copilot denial and background settlement qualification | Pinned 1.0.88 and isolated 1.0.89 settle attached async commands, but deliberately detached work can finish after end_turn. The earlier paid detached success depended on that model waiting and is not general settlement evidence. Profiles v3/v4 reject explicit detached admission before effects; governed long-lived background work remains unsupported. Denial and process-death recovery pass offline; paid local/Daytona proof remains required. |
-| P0 | Cursor native question availability | A real default-mode prompt with no semantic MCP tools reported that native AskQuestion was unavailable. No native request arrived. The pinned client implements the RPC and mode controls, but inspected local guards do not explain the negotiated tool availability. Inspect the actual catalog/flags before another live probe; do not infer permanent harness absence or native success from semantic question tests. |
+| P0 | Cursor native question availability | Explicit Luna and Composer native-only Plan-mode probes admitted the selected model and trusted instructions but emitted no question callback. The vendor-patch reversal and actual MCP-context constructor proof identify no local native-tool removal. Effective native tool selection is beyond the remote AgentService boundary; seek upstream catalog/availability evidence. No further blind model grid or semantic-question substitution qualifies this feature. |
 | P0 | Typed Cursor entitlement failure | The v4 native patch preserves typed entitlement/authentication errors. Offline transformed-vendor tests and clean native authentication failure probes pass. The historical first-account failure remains retained; authenticated Product proof on the revised runtime is still required. |
 | P0 | Cursor project and remote hooks; native shell boundaries | The verified v4 patch disables native ambient MCP/hooks at their actual initialization points on all three platforms. Retain real paid/remote isolation and command cleanup qualification before promotion. |
 | P1 | Native Pi queue selection in the product UI | The runner API exposes negotiated `follow_up` separately from active steering. The current composer has no native queue selector; add one without confusing it with controller-scheduled later turns. |
