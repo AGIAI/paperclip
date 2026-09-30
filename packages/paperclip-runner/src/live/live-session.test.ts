@@ -1181,7 +1181,9 @@ describe("Capability live runnerd and Codex session", () => {
           },
         },
       }, "request-1", "cursor", `${turnId}:cursor-native-usage`)!;
-      return { method: "paperclip/canonicalProviderEvent", params: { threadId, turnId, ...canonical } };
+      // Rust keeps payload.noticeId but replaces the display wrapper itemId
+      // with its durable authority item (durable/state.rs, runnerd transport).
+      return { method: "paperclip/canonicalProviderEvent", params: { threadId, turnId, ...canonical, itemId: "item_lab_fixture" } };
     }
     const retained = (snapshot: CapabilityLiveSessionSnapshot) => snapshot.evidence.filter(entry =>
       entry.kind === "provider_event" && entry.data.canonical === true && entry.data.event === "provider.notice.recorded");
@@ -1203,6 +1205,8 @@ describe("Capability live runnerd and Codex session", () => {
         const rows = retained(result.snapshot);
         expect(rows).toHaveLength(1);
         expect(rows[0]?.turnId).toBe(result.turnId);
+        expect(rows[0]?.data.itemId).toBe("item_lab_fixture");
+        expect((rows[0]?.data.payload as Record<string, unknown>).noticeId).toBe(`${result.turnId}:cursor-native-usage`);
         expect(rows[0]?.data.payload).toEqual(notice(state.threadId, result.turnId).params.payload);
         expect(result.snapshot.usageLedger).toEqual([]);
         expect(result.snapshot.usageUnavailable).toEqual([expect.objectContaining({ tokenUsage: null, costNanodollars: null, reason: "provider_did_not_report_usage" })]);
@@ -1216,12 +1220,49 @@ describe("Capability live runnerd and Codex session", () => {
       }
     });
 
+    it("keeps terminal settlement durable after an optional diagnostic save fails", async () => {
+      const state = providerState(); state.omitReadUsage = true;
+      state.onUsage = (queue, turnId) => {
+        queue.push(notice(state.threadId, turnId));
+        queue.push({ method: "turn/completed", params: { threadId: state.threadId, turn: { id: turnId, status: "completed" } } });
+      };
+      const delegate = new InMemoryCapabilityLiveSessionStore();
+      let rejectedDiagnosticSaves = 0;
+      const store: CapabilityLiveSessionStore = {
+        load: id => delegate.load(id),
+        delete: id => delegate.delete(id),
+        save: async snapshot => {
+          if (retained(snapshot).length > 0 && rejectedDiagnosticSaves === 0) {
+            rejectedDiagnosticSaves++;
+            throw new Error("transient optional diagnostic save failure");
+          }
+          await delegate.save(snapshot);
+        },
+      };
+      const service = new CapabilityLiveSessionService({ store, transportFactory: fakeTransportFactory(state), transportOptions: { acpxCandidateProfile: "cursor" } });
+      const session = await service.create({ provider: "acpx", acpxAgent: "cursor", requestedModel: "exact-model" });
+      try {
+        const result = await session.sendMessage("Orient to this task.");
+        expect(rejectedDiagnosticSaves).toBe(1);
+        expect(result.status).toBe("completed");
+        const saved = (await store.load(session.id))!;
+        expect(saved.terminalTurns).toContainEqual(expect.objectContaining({ turnId: result.turnId, status: "completed" }));
+        expect(retained(saved)).toEqual(retained(result.snapshot));
+        expect(retained(saved)).toHaveLength(1);
+        expect(saved.usageLedger).toEqual([]);
+        expect(saved.usageUnavailable).toHaveLength(1);
+      } finally { await service.shutdown(session.id); }
+    });
+
     const malformedNotices: Array<(params: Record<string, any>, payload: Record<string, any>) => void> = [
       params => { params.threadId = "foreign-thread"; },
       params => { params.turnId = "previous-turn"; },
       params => { delete params.turnId; },
       params => { params.itemId = "raw private identity with spaces"; },
       params => { params.unexpected = "SECRET_CANARY"; },
+      (_params, payload) => { payload.noticeId = "raw private identity with spaces"; },
+      (_params, payload) => { payload.noticeId = "x".repeat(161); },
+      (_params, payload) => { delete payload.noticeId; },
       (_params, payload) => { payload.unexpected = "SECRET_CANARY"; },
       (_params, payload) => { payload.summary = "SECRET_CANARY"; },
       (_params, payload) => { payload.details.push({ name: "rawProviderText", value: "SECRET_CANARY" }); },

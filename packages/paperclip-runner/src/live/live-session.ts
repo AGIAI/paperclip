@@ -2771,7 +2771,13 @@ export class CapabilityLiveSession {
         this.#appendEvidence("provider_event", this.#activeTurnId, {
           canonicalEventType: notice.eventType, itemId: notice.itemId, payload: notice.payload,
         });
-        await this.#persist();
+        try {
+          await this.#persist();
+        } catch {
+          // These counters are optional diagnostics. Keep the evidence in the
+          // snapshot so #persist's recovered queue can retry on the next state
+          // transition. Authoritative terminal saves must still succeed.
+        }
       }
       return;
     }

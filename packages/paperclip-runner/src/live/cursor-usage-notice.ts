@@ -31,9 +31,12 @@ export function cursorUsageNotice(
       || raw.threadId !== owner.threadId || raw.turnId !== owner.turnId
       || raw.eventType !== "provider.notice.recorded" || typeof raw.itemId !== "string"
       || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(raw.itemId)) return null;
+    // Runnerd's envelope item is the durable authority item. The native notice
+    // keeps its own display identity inside the payload; these are independent.
     const p = raw.payload;
     if (!object(p) || !exact(p, ["schema", "noticeId", "severity", "category", "scope", "recoverable", "userActionable", "summary", "details"])
-      || p.schema !== "paperclip.provider.notice.v1" || p.noticeId !== raw.itemId
+      || p.schema !== "paperclip.provider.notice.v1" || typeof p.noticeId !== "string"
+      || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(p.noticeId)
       || p.severity !== "info" || p.category !== "cursor_native_usage_observed" || p.scope !== "turn"
       || p.recoverable !== true || p.userActionable !== false || p.summary !== SUMMARY
       || !Array.isArray(p.details) || p.details.length < 3 || p.details.length > 11) return null;
@@ -84,7 +87,7 @@ export function cursorUsageNotice(
     }
     return {
       eventType: "provider.notice.recorded", itemId: raw.itemId,
-      payload: { schema: "paperclip.provider.notice.v1", noticeId: raw.itemId, severity: "info",
+      payload: { schema: "paperclip.provider.notice.v1", noticeId: p.noticeId, severity: "info",
         category: "cursor_native_usage_observed", scope: "turn", recoverable: true, userActionable: false,
         summary: SUMMARY, details: retained },
     };
