@@ -76,7 +76,13 @@ export function withAcpxTurnCancellation(
             await cancellation;
             return { kind: "retired" as const };
           });
-          if (next.kind === "retired" || next.value.done) return;
+          if (next.kind === "retired") return;
+          if (next.value.done) {
+            // Clean EOF is no stronger than a transport error: when Stop owns
+            // settlement, keep the stream open until terminal/cleanup proof.
+            if (cancellation) await cancellation;
+            return;
+          }
           yield next.value.value;
         }
       } finally {

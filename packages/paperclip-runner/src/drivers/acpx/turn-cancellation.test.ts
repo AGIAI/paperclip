@@ -50,6 +50,29 @@ it("never publishes cancellation when owned provider cleanup fails", async () =>
   await Promise.all([result, next, stopped]);
 });
 
+it.each(["completed", "failed"] as const)("waits after clean EOF for %s owned cleanup", async outcome => {
+  vi.useFakeTimers(); const f = fixture();
+  const next = f.turn.events[Symbol.asyncIterator]().next();
+  const stopped = f.turn.cancel();
+  const nextOutcome = next.then(() => "ended", () => "failed");
+  let streamSettled = false;
+  void nextOutcome.then(() => { streamSettled = true; });
+  const result = outcome === "failed"
+    ? expect(f.turn.result).rejects.toThrow("cleanup failed")
+    : expect(f.turn.result).resolves.toMatchObject({ status: "cancelled" });
+  const cancellation = outcome === "failed"
+    ? expect(stopped).rejects.toThrow("cleanup failed")
+    : expect(stopped).resolves.toBeUndefined();
+  f.stream.resolve({ done: true, value: undefined });
+  await vi.advanceTimersByTimeAsync(20);
+  expect(f.close).toHaveBeenCalledOnce();
+  expect(streamSettled).toBe(false);
+  if (outcome === "failed") f.cleanup.reject(new Error("cleanup failed"));
+  else f.cleanup.resolve();
+  await Promise.all([result, cancellation]);
+  await expect(nextOutcome).resolves.toBe(outcome === "failed" ? "failed" : "ended");
+});
+
 it.each(["completed", "cancelled", "failed"] as const)("settles a racing provider %s terminal without waiting for the run timeout", async status => {
   const f = fixture();
   const stopped = f.turn.cancel();
