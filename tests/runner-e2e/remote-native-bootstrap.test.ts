@@ -1,10 +1,11 @@
+import type { APIRequestContext, APIResponse } from "@playwright/test";
 import { afterEach, expect, it, vi } from "vitest";
 import { classifyFailure } from "./failure-classifier.js";
-import { ObservedStateTimeout } from "./api.js";
+import { ObservedStateTimeout, RemoteAdmissionReadError, RunnerApi, RunnerApiHttpError } from "./api.js";
 import { createRemoteNativeBootstrap } from "./remote-native-bootstrap.js";
 import type { RemoteFixtureApi, RemoteNativeFixture } from "./remote-native-fixtures.js";
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
 function harness(timeoutMs = 60_000) {
   const order: string[] = [];
@@ -192,7 +193,7 @@ it.each(["/api/issues/issue", "/api/heartbeat-runs/run", "/api/environments/env/
   const h = harness(43_000); h.bootstrap.prompt("missing-read");
   const original = h.api.get.getMockImplementation()!;
   h.api.get.mockImplementation(async path => { if (path === failedPath) throw new Error("PRIVATE API ERROR"); return original(path); });
-  const delivery = expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("PRIVATE API ERROR");
+  const delivery = expect(h.bootstrap.bindAndRelease(h.request)).rejects.toThrow("diagnostics withheld");
   await vi.advanceTimersByTimeAsync(1000); await delivery;
   expect(h.bind).not.toHaveBeenCalled(); expect(h.fixture.publishAction).not.toHaveBeenCalled();
   expect(JSON.stringify(h.input.evidence.mock.calls)).not.toContain("PRIVATE");
@@ -257,15 +258,15 @@ it.each(["terminal", "run-owner", "issue-owner"])("rejects %s immediately with a
   expect(h.api.get).toHaveBeenCalledTimes(3); expect(h.bind).not.toHaveBeenCalled();
 });
 
-it("retains permanent 503 reads as a typed infrastructure timeout with the real cause", async () => {
+it("retains persistent 503 classification without its raw cause", async () => {
   vi.useFakeTimers(); vi.setSystemTime(0);
   const h = harness(43_000); h.bootstrap.prompt("503");
-  const cause = new Error("GET /api/environments/env/leases returned 503: PRIVATE BODY");
+  const cause = new RunnerApiHttpError(503, "GET /api/environments/env/leases returned 503: PRIVATE BODY");
   const original = h.api.get.getMockImplementation()!;
   h.api.get.mockImplementation(async path => { if (path.endsWith("/leases")) throw cause; return original(path); });
   const delivery = h.bootstrap.bindAndRelease(h.request).catch(error => error);
   await vi.advanceTimersByTimeAsync(1000); const error = await delivery;
-  expect(error).toBeInstanceOf(ObservedStateTimeout); expect(error.cause).toBe(cause);
+  expect(error).toBeInstanceOf(ObservedStateTimeout); expect(error.cause).toBeUndefined();
   expect(classifyFailure(error)).toBe("transient_infrastructure");
   expect(error.message).not.toContain("PRIVATE");
   expect(h.input.evidence.mock.calls[0]![1]).toMatchObject({ readFailureClass: "transient_infrastructure" });
@@ -279,7 +280,7 @@ it.each([true, false])("clears a recovered 503 cause before %s admission or obse
   const original = h.api.get.getMockImplementation()!; let failed = false;
   h.api.get.mockImplementation(async path => {
     if (path.endsWith("/leases")) {
-      if (!failed) { failed = true; throw new Error("503 PRIVATE BODY"); }
+      if (!failed) { failed = true; throw new RunnerApiHttpError(503, "PRIVATE BODY"); }
       if (!admits) return [];
     }
     return original(path);
@@ -299,4 +300,76 @@ it("bounds an unresponsive read at admission without launching replacement reads
   await vi.advanceTimersByTimeAsync(1100); const error = await delivery;
   expect(classifyFailure(error)).toBe("transient_infrastructure");
   expect(h.api.get).toHaveBeenCalledTimes(3); expect(h.bind).not.toHaveBeenCalled();
+});
+
+
+it.each([
+  ["Playwright TimeoutError", Object.assign(new Error("Timeout 1000ms exceeded. PRIVATE"), { name: "TimeoutError" }), "transient_infrastructure"],
+  ["Playwright fetch timeout", new Error("apiRequestContext.get: Timeout 1000ms exceeded. PRIVATE"), "transient_infrastructure"],
+  ["server fetch timeout", new Error("Timeout 1000ms exceeded PRIVATE"), "transient_infrastructure"],
+  ["connection reset", new Error("apiRequestContext.get: read ECONNRESET PRIVATE"), "transient_infrastructure"],
+  ["undefined", undefined, "candidate_failure"],
+  ["null", null, "candidate_failure"],
+  ["private string", "PRIVATE 503 TimeoutError", "candidate_failure"],
+  ["unknown object", { message: "PRIVATE", status: 503 }, "candidate_failure"],
+])("normalizes %s rejection without exposing transport diagnostics", async (_label, rejected, failureClass) => {
+  vi.useFakeTimers(); vi.setSystemTime(0);
+  const h = harness(43_000); h.bootstrap.prompt("safe-errors");
+  const original = h.api.get.getMockImplementation()!;
+  h.api.get.mockImplementation(async path => { if (path.endsWith("/leases")) throw rejected; return original(path); });
+  const delivery = h.bootstrap.bindAndRelease(h.request).catch(error => error);
+  await vi.advanceTimersByTimeAsync(1000); const error = await delivery;
+  expect(classifyFailure(error)).toBe(failureClass);
+  expect(error.cause).toBeUndefined();
+  expect(error.message.length).toBeLessThan(1024);
+  expect(error.stack).not.toContain("PRIVATE");
+  expect(JSON.stringify(error)).not.toContain("PRIVATE");
+  expect(JSON.stringify(h.input.evidence.mock.calls)).not.toContain("PRIVATE");
+  expect(h.input.evidence.mock.calls[0]![1]).toMatchObject({ leasesRead: "rejected", readFailureClass: failureClass });
+  expect(h.bind).not.toHaveBeenCalled();
+});
+
+it.each([[503, "transient_infrastructure"], [403, "permanent_infrastructure"], [400, "candidate_failure"]])(
+  "normalizes actual RunnerApi HTTP %s status independently of its private body", async (status, failureClass) => {
+    vi.useFakeTimers(); vi.setSystemTime(0);
+    vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "3100");
+    const h = harness(43_000); h.bootstrap.prompt("actual-api");
+    const original = h.api.get.getMockImplementation()!;
+    const secret = "PRIVATE body: forbidden secret plaintext 503 timeout ".repeat(10_000);
+    const request = { get: vi.fn(async (path: string) => ({
+      ok: () => !path.endsWith("/leases"), status: () => status,
+      url: () => "http://PRIVATE.invalid/private", text: async () => secret,
+      json: async () => original(path),
+    } as APIResponse)) };
+    const actual = new RunnerApi(request as unknown as APIRequestContext);
+    h.api.get.mockImplementation(path => actual.get(path, { timeout: 1000 }));
+    const delivery = h.bootstrap.bindAndRelease(h.request).catch(error => error);
+    await vi.advanceTimersByTimeAsync(1000); const error = await delivery;
+    expect(classifyFailure(error)).toBe(failureClass);
+    expect(error.cause).toBeUndefined();
+    expect(error.message.length).toBeLessThan(1024);
+    expect(error.stack).not.toContain("PRIVATE");
+    expect(JSON.stringify(error)).not.toContain("PRIVATE");
+    expect(JSON.stringify(h.input.evidence.mock.calls)).not.toContain("PRIVATE");
+    if (status === 403) expect(error).toBeInstanceOf(RemoteAdmissionReadError);
+    expect(h.bind).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  },
+);
+
+it.each([
+  ["issue", null], ["run", []], ["leases", {}], ["leases", [null]],
+  ["leases", ["PRIVATE"]], ["leases", [[{}]]], ["leases", undefined],
+])("rejects malformed successful %s JSON without an unhandled continuation", async (endpoint, value) => {
+  vi.useFakeTimers(); vi.setSystemTime(0);
+  const h = harness(43_000); h.bootstrap.prompt("malformed");
+  const original = h.api.get.getMockImplementation()!;
+  const path = endpoint === "issue" ? "/api/issues/issue" : endpoint === "run" ? "/api/heartbeat-runs/run" : "/api/environments/env/leases";
+  h.api.get.mockImplementation(async requested => requested === path ? value as never : original(requested));
+  const delivery = h.bootstrap.bindAndRelease(h.request).catch(error => error);
+  await vi.advanceTimersByTimeAsync(1000); const error = await delivery;
+  expect(error).toBeInstanceOf(RemoteAdmissionReadError);
+  expect(classifyFailure(error)).toBe("candidate_failure");
+  expect(error.cause).toBeUndefined(); expect(error.stack).not.toContain("PRIVATE");
+  expect(h.bind).not.toHaveBeenCalled();
 });
