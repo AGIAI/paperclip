@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { canonicalJson } from "../../packages/shared/src/portability-hash.js";
 import { hasAcpxNativeOrigin } from "./acpx-native-origin.js";
+import { assertCopilotRemoteRetirement, copilotRemoteDeniedSample, type CopilotRemoteSnapshot } from "./copilot-protection-evidence.js";
 import { readCopilotToolEvidence } from "./copilot-evidence.js";
 import { readCursorToolEvidence } from "./cursor-native-evidence.js";
 import { bootstrapReadExecutionId, withoutProvenBootstrapReads, type BootstrapReadProof } from "./native-bootstrap-read-proof.js";
@@ -158,18 +159,59 @@ export function readActiveStopSettlement(input: { events: readonly unknown[]; ru
     taskStillInProgress: true, normalCompletionAccepted: false, replayAllowed: false };
 }
 
-/** Read-only watcher/process receipts are mandatory through teardown, even if
- * canonical cancellation already passed. A missing phase is not no-effect proof. */
+export interface ActiveStopRemoteObservation {
+  phase: "before-request" | "pending" | "owned-process-retirement";
+  source: "live-snapshot" | "retirement-seal";
+  snapshot: CopilotRemoteSnapshot;
+}
+
+/** A per-turn Daytona observer seals itself when the owned tree retires. The
+ * host may retrieve that receipt later; retrieval is not a fresh observation. */
+export function readActiveStopRemoteRetirement(input: {
+  scope: Pick<ActiveStopScope, "companyId" | "runId" | "target">; observations: readonly ActiveStopRemoteObservation[];
+}) {
+  const observations = input.observations;
+  fail(observations.length === 3
+    && observations.map(o => `${o.phase}:${o.source}`).join(",") === "before-request:live-snapshot,pending:live-snapshot,owned-process-retirement:retirement-seal",
+  "remote seal cannot stand in for a fresh causal sample");
+  const [baseline, pending, terminal] = observations.map(o => o.snapshot) as [CopilotRemoteSnapshot, CopilotRemoteSnapshot, CopilotRemoteSnapshot];
+  fail(baseline.binding.companyId === input.scope.companyId && baseline.binding.runId === input.scope.runId, "remote observation belongs to another run");
+  for (const snapshot of [baseline, pending, terminal]) {
+    fail(!copilotRemoteDeniedSample(snapshot, baseline, input.scope.target, "pending").exists, "remote target changed");
+  }
+  fail(BigInt(baseline.observedMonotonicNs) < BigInt(pending.observedMonotonicNs)
+    && BigInt(pending.observedMonotonicNs) < BigInt(terminal.observedMonotonicNs), "remote observation reused or out of order");
+  fail(!baseline.setup.published && pending.setup.published && pending.setup.sha256 === terminal.setup.sha256
+    && baseline.processes.captured && pending.processes.captured
+    && baseline.processes.live.includes(baseline.processes.root?.pid ?? -1)
+    && pending.processes.live.includes(pending.processes.root?.pid ?? -1), "remote pending lifetime unproven");
+  assertCopilotRemoteRetirement(terminal, baseline);
+  assertCopilotRemoteRetirement(terminal, pending);
+  for (const snapshot of [baseline, pending]) {
+    fail(snapshot.processes.journal.every(p => terminal.processes.journal.some(q =>
+      p.pid === q.pid && p.startTicks === q.startTicks && p.bootId === q.bootId)), "remote descendant journal lost");
+  }
+  return { schema: "paperclip.e2e.native-active-stop-remote-retirement.v1" as const,
+    coverage: "continuous-through-owned-process-retirement" as const, filesystemAfterRetirementObserved: false as const,
+    binding: terminal.binding, target: input.scope.target,
+    observations: observations.map(o => ({ phase: o.phase, source: o.source,
+      observedMonotonicNs: o.snapshot.observedMonotonicNs, snapshotSha256: hash(o.snapshot) })) };
+}
+
+/** Local files remain accessible through teardown. Remote per-turn files do
+ * not: require the complete lifetime seal, never relabel it as a later sample. */
 export function assertActiveStopRetirement(input: {
   completed: boolean; identityChanged: boolean;
   processes: { captured: boolean; live: readonly number[] };
   watcher: { complete: boolean; targetMutationCount: number };
-  samples: ReadonlyArray<{ phase: string; absent: boolean }>;
-}) {
+} & ({ environment: "local"; samples: ReadonlyArray<{ phase: string; absent: boolean }> }
+  | { environment: "daytona"; remote: Parameters<typeof readActiveStopRemoteRetirement>[0] })) {
   fail(input.completed && !input.identityChanged && input.processes.captured
     && input.processes.live.length === 0 && input.watcher.complete && input.watcher.targetMutationCount === 0,
   "retirement or continuous no-effect proof is incomplete");
-  fail(input.samples.length === 4 && input.samples.every(s => s.absent === true)
+  if (input.environment === "daytona") return readActiveStopRemoteRetirement(input.remote);
+  fail(input.environment === "local" && input.samples.length === 4 && input.samples.every(s => s.absent === true)
     && input.samples.map(s => s.phase).join(",") === "before-request,pending,after-stop,after-cleanup",
   "causal target observation missing or changed");
+  return { coverage: "local-through-cleanup" as const };
 }

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { assertActiveStopRetirement, readActiveStopCaller, observeActiveStopPending, readActiveStopSettlement, type ActiveStopProvider } from "./native-active-stop-evidence.js";
+import { assertActiveStopRetirement, readActiveStopRemoteRetirement, type ActiveStopRemoteObservation, readActiveStopCaller, observeActiveStopPending, readActiveStopSettlement, type ActiveStopProvider } from "./native-active-stop-evidence.js";
 import { stopAtPendingPermission } from "./native-active-stop-flow.js";
 import { runnerMatrix, runnerSuites, suiteDefinitionHash } from "./catalog.js";
 import { selectRunnerExecutions, parseRunnerSelectors } from "./selectors.js";
@@ -166,7 +166,7 @@ describe("explicit active Stop discovery", () => {
     expect(cells).toHaveLength(4); expect(suite.manualOnly).toBe(true);
     expect(cells.map(e => `${e.profile.qualificationCandidate}/${e.environment.id}`).sort()).toEqual(["copilot/daytona", "copilot/local", "cursor/daytona", "cursor/local"]);
     expect(cells.every(e => e.task.expectedRunCount === 1 && e.task.flow === "native_active_stop" && e.task.expectedTerminalState?.run === "cancelled")).toBe(true);
-    expect(suite.definitionMetadata).toMatchObject({ version: 1, normalCompletionAccepted: false, providerDeath: "not-covered" });
+    expect(suite.definitionMetadata).toMatchObject({ version: 2, normalCompletionAccepted: false, providerDeath: "not-covered" });
     expect(suiteDefinitionHash(suite)).not.toBe(suiteDefinitionHash({ ...suite, definitionMetadata: { ...suite.definitionMetadata, normalCompletionAccepted: true } }));
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"])).some(e => e.suite.id === suite.id)).toBe(false);
   });
@@ -174,7 +174,7 @@ describe("explicit active Stop discovery", () => {
 
 
 describe("active Stop cleanup remains mandatory", () => {
-  const proof = () => ({ completed: true, identityChanged: false, processes: { captured: true, live: [] as number[] },
+  const proof = () => ({ environment: "local" as const, completed: true, identityChanged: false, processes: { captured: true, live: [] as number[] },
     watcher: { complete: true, targetMutationCount: 0 }, samples: ["before-request", "pending", "after-stop", "after-cleanup"].map(phase => ({ phase, absent: true })) });
   it("requires all causal samples plus the continuous watcher and retired owned identities", () => expect(() => assertActiveStopRetirement(proof())).not.toThrow());
   it.each([
@@ -187,4 +187,57 @@ describe("active Stop cleanup remains mandatory", () => {
     ["missing final sample", (p: ReturnType<typeof proof>) => { p.samples.pop(); }],
     ["missing settlement", (p: ReturnType<typeof proof>) => { p.completed = false; }],
   ] as const)("rejects %s even after an apparent cancelled run", (_label, mutate) => { const p = proof(); mutate(p); expect(() => assertActiveStopRetirement(p)).toThrow(); });
+});
+
+function remoteRetirementProof() {
+  const root = { pid: 50, ppid: 1, startTicks: "200", bootId: "12345678-1234-1234-1234-123456789abc" };
+  const child = { ...root, pid: 51, ppid: 50, startTicks: "201" };
+  const snapshot = (sequence: number, live: number[]) => ({
+    binding: { companyId: "company", environmentId: "env", runId: "run", leaseId: "lease", sandboxId: "sandbox", image: `image@sha256:${"a".repeat(64)}`, remoteCwd: "/home/daytona/workspace" },
+    observedAtMs: sequence, receivedAtMs: sequence + 1, observedMonotonicNs: String(sequence), complete: true, workspace: {},
+    targets: { "target.txt": { absent: true, sha256: null, complete: true, mutationCount: 0, parent: { dev: "1", ino: "2" } } },
+    watcher: { complete: true, targetMutationCount: 0, workspaceMutationCount: 0 },
+    processes: { captured: true, root, journal: [root, child], live },
+    setup: { path: ".action.txt", sha256: sequence === 1 ? null : `sha256:${"b".repeat(64)}`, published: sequence !== 1 }, attached: null,
+  });
+  const observations: ActiveStopRemoteObservation[] = [
+    { phase: "before-request", source: "live-snapshot", snapshot: snapshot(1, [50, 51]) },
+    { phase: "pending", source: "live-snapshot", snapshot: snapshot(2, [50, 51]) },
+    { phase: "owned-process-retirement", source: "retirement-seal", snapshot: snapshot(3, []) },
+  ];
+  return { scope: { companyId: "company", runId: "run", target: "target.txt" }, observations };
+}
+describe("Daytona active Stop observation lifetime", () => {
+  it("binds one continuous owned-tree retirement seal without claiming a later filesystem observation", () => {
+    const remote = remoteRetirementProof(), terminal = remote.observations[2]!.snapshot;
+    expect(assertActiveStopRetirement({ environment: "daytona", completed: true, identityChanged: false,
+      processes: terminal.processes, watcher: terminal.watcher, remote })).toMatchObject({
+      schema: "paperclip.e2e.native-active-stop-remote-retirement.v1", coverage: "continuous-through-owned-process-retirement",
+      filesystemAfterRetirementObserved: false, observations: [
+        { phase: "before-request", source: "live-snapshot" }, { phase: "pending", source: "live-snapshot" },
+        { phase: "owned-process-retirement", source: "retirement-seal" },
+      ],
+    });
+  });
+  it.each([
+    ["seal relabeled fresh", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.source = "live-snapshot"; }],
+    ["seal replayed as pending", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[1]!.snapshot = p.observations[2]!.snapshot; }],
+    ["after-UI seal replay", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations.push({ ...p.observations[2]!, phase: "after-cleanup" as any }); }],
+    ["missing pending", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations.splice(1, 1); }],
+    ["all foreign run snapshots", (p: ReturnType<typeof remoteRetirementProof>) => { for (const o of p.observations) o.snapshot.binding.runId = "other"; }],
+    ["all foreign company snapshots", (p: ReturnType<typeof remoteRetirementProof>) => { for (const o of p.observations) o.snapshot.binding.companyId = "other"; }],
+    ["foreign lease", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.snapshot.binding.leaseId = "other"; }],
+    ["foreign run", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[1]!.snapshot.binding.runId = "other"; }],
+    ["replacement root", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.snapshot.processes.root = { ...p.observations[2]!.snapshot.processes.root!, startTicks: "300" }; }],
+    ["live child", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.snapshot.processes.live = [51]; }],
+    ["lost child journal", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.snapshot.processes.journal.pop(); }],
+    ["unobserved pending root", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[1]!.snapshot.processes.live = []; }],
+    ["transient target mutation", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.snapshot.watcher.targetMutationCount = 1; }],
+    ["workspace mutation", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.snapshot.watcher.workspaceMutationCount = 1; }],
+    ["late target present", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.snapshot.targets["target.txt"]!.absent = false; }],
+    ["incomplete watcher", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.snapshot.watcher.complete = false; }],
+    ["changed action", (p: ReturnType<typeof remoteRetirementProof>) => { p.observations[2]!.snapshot.setup.sha256 = `sha256:${"c".repeat(64)}`; }],
+  ] as const)("rejects %s", (_label, mutate) => {
+    const proof = remoteRetirementProof(); mutate(proof); expect(() => readActiveStopRemoteRetirement(proof)).toThrow();
+  });
 });

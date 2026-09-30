@@ -414,9 +414,18 @@ interrupted or normal terminal evidence fails. Only after this proof does the
 fixture attempt a stale public answer, requiring HTTP409 and an unanswerable
 browser card. It retains one cancelled run, issue `in_progress`, exact target
 absence through continuous observation, and all observed owned descendants
-retired. Remote proof is sealed before environment teardown; unproven cleanup
-fails independently. Only fully attested bootstrap reads may precede the one
-tested operation; alternate operations or attempts are rejected.
+retired. Local files require four fresh observations through cleanup. Daytona
+instead retains two live snapshots (baseline and pending) plus one automatic
+owned-process-retirement seal, with a continuous zero-mutation watcher and the
+same complete root/descendant journal. Suite version 2 retains this as
+`paperclip.e2e.native-active-stop-remote-retirement.v1`; it explicitly records
+`filesystemAfterRetirementObserved:false`. The per-turn observer seals itself
+when the owned tree retires, before the sandbox is released. Reading that receipt
+later is not a fresh post-UI or post-cleanup filesystem observation. Relabeled,
+reused, missing or out-of-order samples fail. The stale-answer and rendered UI
+checks remain separate, followed by fresh API cancellation/no-extra-run checks
+both after UI and in cleanup. Unproven cleanup fails independently. Only fully
+attested bootstrap reads may precede the one tested operation; alternate operations or attempts are rejected.
 
 The existing `copilot-protection` denial remains distinct: rejecting a permission
 before Stop does not exercise this pending-callback boundary. This new suite has
