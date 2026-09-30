@@ -370,22 +370,37 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     const onComplete = vi.fn();
     const popup = vi.spyOn(window, "open").mockReturnValue(null);
     const connection = { id: "conn-inline", status: "draft", credentialPolicy: "per_user", authKind: "api_key" };
-    connectAppMock.mockResolvedValue({ connectionId: connection.id, connection, catalog: [{ id: "tool-1", status: "active" }] });
+    connectAppMock.mockResolvedValue({
+      connectionId: connection.id, connection,
+      catalog: [{ id: "tool-1", status: "active" }, { id: "tool-2", status: "active" }],
+      actions: {
+        readOnly: [{ catalogEntryId: "tool-1", riskLevel: "read" }],
+        canMakeChanges: [{ catalogEntryId: "tool-2", riskLevel: "write" }],
+      },
+      suggestedDefaults: { askFirstRiskLevels: ["write", "destructive", "high", "critical"] },
+    });
     await render(undefined, false, <ConnectionSetupFlow host="dialog" serviceSlug={provider} requestedAgentId="agent-1" interactionId="intent-inline" onComplete={onComplete} />);
-    expect(container.textContent).toContain("This task grants access only to Ada");
+    // PAP-659 C0: the gateway connectors reach the endpoint field immediately.
+    // The task-scoped reach is stated rather than confirmed on its own step.
+    const connectLabel = `Connect ${provider[0].toUpperCase()}${provider.slice(1)}`;
+    expect(container.textContent).toContain("available to the agent that asked for it");
     expect(radioContaining("Any agent")).toBeUndefined();
-    await passAccessStep();
     expect(container.textContent).toContain("MCP server URL");
     expect(container.textContent).not.toContain("Add your key");
+    expect(container.textContent).not.toContain("Step 1 of 2");
     const url = container.querySelector<HTMLInputElement>('input[type="password"]')!;
     expect(url.value).toBe(provider === "composio" ? "https://connect.composio.dev/mcp" : "");
-    expect(buttonByText("Connect")?.disabled).toBe(provider !== "composio");
+    expect(buttonByText(connectLabel)?.disabled).toBe(provider !== "composio");
     await act(async () => setInputValue(url, "not a url"));
-    await act(async () => buttonByText("Connect")!.click());
+    await act(async () => buttonByText(connectLabel)!.click());
     expect(container.textContent).toContain("Enter a valid MCP URL");
     expect(connectAppMock).not.toHaveBeenCalled();
+    await act(async () => setInputValue(url, "https://provider.example/mcp"));
+    // The sign-in method shares the one Advanced disclosure with the access
+    // controls, and Radix unmounts collapsed content — so it has to be opened.
+    expect(container.querySelector("select")).toBeNull();
+    await act(async () => buttonByText("Change")!.click());
     await act(async () => {
-      setInputValue(url, "https://provider.example/mcp");
       const auth = container.querySelector<HTMLSelectElement>("select")!;
       auth.value = "bearer";
       auth.dispatchEvent(new Event("change", { bubbles: true }));
@@ -395,7 +410,9 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     await act(async () => buttonByText("Try again")!.click());
     await vi.waitFor(() => expect(onComplete).toHaveBeenCalledWith({ connectionId: connection.id }));
     expect(connectAppMock).toHaveBeenCalledWith("company-1", expect.objectContaining({ galleryKey: provider, link: "https://provider.example/mcp", grantKind: "user", authMode: "bearer", credentialValues: { "credentials.authorization": "fixture-token" } }));
-    expect(finishAppMock).toHaveBeenCalledWith("company-1", connection.id, { enabledCatalogEntryIds: ["tool-1"], askFirstCatalogEntryIds: [], access: { agentIds: ["agent-1"] }, preserveExistingAccess: true });
+    // PAP-659 C6a/C7: this path used to send an empty ask-first list, so the
+    // gateway connectors were the one place the armed write gate did not apply.
+    expect(finishAppMock).toHaveBeenCalledWith("company-1", connection.id, { enabledCatalogEntryIds: ["tool-1", "tool-2"], askFirstCatalogEntryIds: ["tool-2"], access: { agentIds: ["agent-1"] }, preserveExistingAccess: true });
     expect(putConnectionInstallsMock).not.toHaveBeenCalled();
     expect(mockNavigate).not.toHaveBeenCalled();
     expect(popup).not.toHaveBeenCalled();
@@ -409,9 +426,9 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     const connection = { id: "conn-inline-oauth", status: "draft", credentialPolicy: "per_user", authKind: "oauth" };
     connectAppMock.mockResolvedValue({ connectionId: connection.id, connection, catalog: [], auth: { kind: "oauth" } });
     const root = await render(undefined, false, <ConnectionSetupFlow host="dialog" serviceSlug={provider} requestedAgentId="agent-1" interactionId="intent-inline" onComplete={onComplete} onPhaseChange={onPhaseChange} />);
-    await passAccessStep();
+    const connectLabel = `Connect ${provider[0].toUpperCase()}${provider.slice(1)}`;
     await act(async () => setInputValue(container.querySelector<HTMLInputElement>('input[type="password"]')!, "https://provider.example/mcp"));
-    await act(async () => buttonByText("Connect")!.click());
+    await act(async () => buttonByText(connectLabel)!.click());
     await vi.waitFor(() => expect(startOAuthMock).toHaveBeenCalledWith(connection.id, { asCurrentUser: true, interactionId: "intent-inline" }));
     expect(popup.location.assign).toHaveBeenCalled();
     popup.closed = true;
@@ -442,7 +459,6 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     getConnectionMock.mockResolvedValue(connection);
     const content = <ConnectionSetupFlow host="dialog" serviceSlug="zapier" requestedAgentId="agent-1" interactionId="intent-inline" onCancel={onCancel} />;
     const root = await render(undefined, false, content);
-    await passAccessStep();
     await act(async () => setInputValue(container.querySelector<HTMLInputElement>('input[type="password"]')!, "https://provider.example/mcp?token=fixture-secret"));
     await act(async () => buttonByText("Save & exit")!.click());
     await vi.waitFor(() => expect(onCancel).toHaveBeenCalled());
@@ -456,7 +472,8 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     await render(undefined, false, content);
     await vi.waitFor(() => expect(container.textContent).toContain("MCP server URL"));
     expect(getConnectionMock).toHaveBeenCalledWith(connection.id);
-    expect(container.textContent).toContain("Step 2 of 2");
+    // Resuming lands on the same single screen it was saved from, not "step 2".
+    expect(container.textContent).not.toContain("Step 2 of 2");
   });
 
   it("inline aggregator reuses an eligible account without changing its access", async () => {
@@ -520,19 +537,22 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
   });
 
   it.each([
-    ["shared", "Any human in the organization", false],
-    ["per_user", "Just me", true],
-  ])("retains the %s identity when returning to Access after an OAuth return", async (credentialPolicy, identityLabel, asCurrentUser) => {
+    ["shared", "Connects for everyone in your organization", "Any human in the organization", false],
+    ["per_user", "Connects as you", "Just me", true],
+  ])("retains the %s identity across an OAuth return without a step to walk back through", async (credentialPolicy, statedDefault, identityLabel, asCurrentUser) => {
     const draft = { id: "conn-oauth-draft", status: "draft", authKind: "oauth", credentialPolicy, config: { sourceTemplateKey: "composio", connectionMethodKey: "mcp", url: "https://connect.composio.dev/mcp" } };
     mockSearch.value = `source=composio&resume=${draft.id}&oauth=denied`;
     getConnectionMock.mockResolvedValue(draft);
     connectAppMock.mockResolvedValue({ connectionId: draft.id, connection: draft, catalog: [], auth: { kind: "oauth" } });
     await render();
-    await vi.waitFor(() => expect(buttonByText("Back")).toBeTruthy());
-    await act(async () => buttonByText("Back")!.click());
+    // PAP-659 C0: the retained identity is stated on the one screen instead of
+    // being re-confirmed on an Access step the operator has to navigate back to.
+    await vi.waitFor(() => expect(container.textContent).toContain(statedDefault));
+    // It is also still editable, one disclosure away. Radix unmounts collapsed
+    // content, so the controls have to be opened to be asserted at all.
+    await act(async () => buttonByText("Change")!.click());
     expect(container.textContent).toContain(identityLabel);
     expect(container.querySelector('[role="radiogroup"][aria-label="Which humans can use this credential?"]')).toBeNull();
-    await act(async () => buttonByText("Continue")!.click());
     await act(async () => buttonByText("Try again")!.click());
     await vi.waitFor(() => expect(startOAuthMock).toHaveBeenCalledWith(draft.id, { asCurrentUser }));
     expect(connectAppMock).toHaveBeenCalledWith("company-1", expect.objectContaining({ resumeConnectionId: draft.id, grantKind: asCurrentUser ? "user" : "organization" }));
@@ -595,18 +615,20 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(container.querySelector<HTMLInputElement>('input[aria-label="MCP server URL"]')?.value).toBe("https://edited.example.test/mcp");
   });
 
-  it("an unrecognized URL routes to a minimal frame with the URL and key choice", async () => {
+  it("an unrecognized URL routes to a minimal frame that asks nothing but the address", async () => {
     await render();
     await gotoLinkFrame(container, "https://www.example.com/actions");
 
     expect(container.textContent).toContain("Connect your own MCP server");
     expect(container.textContent).toContain("https://www.example.com/actions");
-    expect(container.textContent).toContain("Does it need a key?");
-    expect(Array.from(container.querySelectorAll("label")).find(
-      (label) => label.textContent === "Does it need a key?",
-    )?.classList.contains("mr-2")).toBe(true);
-    expect(buttonByText("No")).toBeTruthy();
-    expect(buttonByText("Yes")).toBeTruthy();
+    // PAP-659 bucket H: the server's probe answers "does it need a key?", so the
+    // operator is no longer asked to guess at it before anything has been tried.
+    expect(container.textContent).not.toContain("Does it need a key?");
+    expect(buttonByText("No")).toBeUndefined();
+    expect(buttonByText("Yes")).toBeUndefined();
+    expect(
+      Array.from(container.querySelectorAll<HTMLInputElement>("input")).some((i) => i.type === "password"),
+    ).toBe(false);
 
     expect(container.querySelector('input[placeholder="My app"]')).toBeNull();
   });
@@ -2801,11 +2823,19 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     expect(input.credentialValues).toBeUndefined();
   });
 
-  it("choosing Yes reveals one masked key field without extra reassurance copy", async () => {
+  it("reveals one masked key field only after the probe says a credential is needed", async () => {
+    // PAP-659 bucket H. The first press asks the server; the server is what
+    // knows. Only its credential challenge puts a key field on screen, and the
+    // second press carries the key.
+    connectAppMock.mockRejectedValueOnce(
+      new ApiError("This app needs you to sign in.", 502, {
+        error: "This app needs you to sign in.",
+        details: { code: "oauth_challenge" },
+      }),
+    );
     await render();
     await gotoLinkFrame(container, "https://www.example.com/actions");
 
-    // No key field while No is selected.
     expect(
       Array.from(container.querySelectorAll<HTMLInputElement>("input")).some(
         (i) => i.type === "password",
@@ -2813,10 +2843,12 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     ).toBe(false);
 
     await act(async () => {
-      buttonByText("Yes")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      buttonByText("Check link")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
+    await flushReact();
 
+    expect(container.textContent).toContain("This server wants a credential");
     const passwordInputs = Array.from(
       container.querySelectorAll<HTMLInputElement>("input"),
     ).filter((i) => i.type === "password");
@@ -2831,8 +2863,8 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     });
     await flushReact();
 
-    expect(connectAppMock).toHaveBeenCalledTimes(1);
-    const [, input] = connectAppMock.mock.calls[0];
+    expect(connectAppMock).toHaveBeenCalledTimes(2);
+    const [, input] = connectAppMock.mock.calls[1];
     expect(input.credentialValues).toEqual({ "credentials.authorization": "secret-key" });
   });
 
@@ -2916,22 +2948,27 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     });
     await render();
 
-    expect(container.textContent).toContain("Step 1 of 2");
+    // PAP-659 C0: no step counter and no Access step — the endpoint field is
+    // the first and only thing on the way in, with the default stated above it.
+    expect(container.textContent).not.toContain("Step 1 of 2");
+    expect(container.textContent).not.toContain("Step 2 of 2");
     expect(container.textContent).toContain("Connect Zapier");
-    expect(container.textContent).toContain("Which humans can use this credential?");
-    expect(container.textContent).toContain("Which agents can use this connection?");
+    expect(container.textContent).toContain("Connects for everyone in your organization, available to all agents.");
     expect(container.querySelector('[data-remote-mcp-provider="zapier"]')).toBeTruthy();
     expect(container.textContent).not.toContain("Pick the app you want your agents to use.");
-    expect(container.querySelector('input[placeholder="Paste the full URL from Zapier"]')).toBeNull();
+    expect(container.textContent).toContain("MCP server URL");
 
+    // The two questions the deleted step asked are still answerable, together,
+    // one disclosure away.
+    expect(container.textContent).not.toContain("Which humans can use this credential?");
+    await act(async () => buttonByText("Change")!.click());
+    expect(container.textContent).toContain("Which humans can use this credential?");
+    expect(container.textContent).toContain("Which agents can use this connection?");
     await act(async () => {
       radioContaining("Just me")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
-    await passAccessStep();
-
-    expect(container.textContent).toContain("Step 2 of 2");
-    expect(container.textContent).toContain("MCP server URL");
+    expect(container.textContent).toContain("Connects as you, available to all agents.");
 
     const linkInput = container.querySelector<HTMLInputElement>(
       'input[placeholder="Paste the full URL from Zapier"]',
@@ -2943,7 +2980,7 @@ describe("AppsConnect — Connect with a link (M4 frame)", () => {
     await flushReact();
 
     await act(async () => {
-      buttonByText("Connect")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      buttonByText("Connect Zapier")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     await flushReact();
 
