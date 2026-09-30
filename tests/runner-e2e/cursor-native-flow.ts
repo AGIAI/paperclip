@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from "node:util";
+import { hasAcpxNativeOrigin } from "./acpx-native-origin.js";
 import { createHash, randomBytes } from "node:crypto";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -13,6 +15,19 @@ import type { MatrixExecution } from "./types.js";
 
 type Row = Record<string, any>;
 type Check = { id: string; passed: boolean; detail: string };
+
+/** Select only the exact native callback, including either production ACPX bridge. */
+export function findCursorNativeRequest(rows: Row[], method: CursorNativeMethod, requestId?: string): Row | undefined {
+  return rows.map(row => row.payload?.prpEvent).find(event => event?.eventType === "runtime_request.created"
+    && hasAcpxNativeOrigin(event.payload?.request?.origin, "cursor", method)
+    && (!requestId || event.payload.request.requestId === requestId));
+}
+
+/** JSON object key order may change during persistence; array order and values may not. */
+export function hasCursorNativeCardBinding(card: Row, event: Row, runId: string): boolean {
+  return card.sourceRunId === runId && card.continuationPolicy === "none"
+    && isDeepStrictEqual(card.payload.questionSet, event.payload.request.input);
+}
 
 export interface CursorRemoteNativeFixture {
   binding: CursorRemoteBinding; remoteCwd: string; actionFile: string;
@@ -201,14 +216,13 @@ export async function runCursorNativeFlow(input: {
     return { issue, runs, interactions, runEvents };
   };
   const reject = (state: Awaited<ReturnType<typeof load>>) => state.runs.length > 1 ? "Unexpected extra Cursor provider run" : state.runs.some(run => ["failed", "cancelled", "timed_out"].includes(run.status)) ? "Cursor provider run failed" : undefined;
-  const createdRequest = (rows: Row[], method: CursorNativeMethod, requestId?: string) => rows.map(row => row.payload?.prpEvent).find(event => event?.eventType === "runtime_request.created" && event.payload?.request?.origin?.adapter === "acpx-runtime" && event.payload.request.origin.provider === "cursor" && event.payload.request.origin.method === method && (!requestId || event.payload.request.requestId === requestId));
   async function pending(seen: Set<string>) {
     const state = await pollUntil({ label: "exact native Cursor callback", deadlineAt: input.deadlineAt, load,
       reject: state => reject(state) ?? (state.runs.some(run => run.status === "succeeded") ? "Native Cursor callback was not observed before completion; qualification remains pending" : undefined),
-      accept: state => state.interactions.some(card => card.status === "pending" && !seen.has(card.id) && card.payload?.runtimeRequestId && createdRequest(state.runEvents, design!.method, card.payload.runtimeRequestId)) });
+      accept: state => state.interactions.some(card => card.status === "pending" && !seen.has(card.id) && card.payload?.runtimeRequestId && findCursorNativeRequest(state.runEvents, design!.method, card.payload.runtimeRequestId)) });
     const cards = state.interactions.filter(card => card.status === "pending"); check("single-native-request", cards.length === 1 && state.runs.length === 1, "Exactly one native request belongs to one original provider run");
-    const card = cards[0]!; const event = createdRequest(state.runEvents, design!.method, card.payload.runtimeRequestId)!;
-    check("native-card-binding", card.sourceRunId === state.runs[0]!.id && card.continuationPolicy === "none" && JSON.stringify(card.payload.questionSet) === JSON.stringify(event.payload.request.input), "Durable card retains complete native input and exact source run");
+    const card = cards[0]!; const event = findCursorNativeRequest(state.runEvents, design!.method, card.payload.runtimeRequestId)!;
+    check("native-card-binding", hasCursorNativeCardBinding(card, event, state.runs[0]!.id), "Durable card retains complete native input and exact source run");
     await input.evidence(`cursor-native-${seen.size}-pending.json`, { card, event });
     await page.reload(); const reloaded = (await load()).interactions.find(row => row.id === card.id);
     check("browser-reconnect-identity", reloaded?.status === "pending" && reloaded?.payload.runtimeRequestId === card.payload.runtimeRequestId, "Browser reconnect preserves exact outstanding native request");
@@ -290,12 +304,12 @@ export async function runCursorNativeFlow(input: {
     } else {
       const state = await pollUntil({ label: "native Cursor permission with exact command provenance", deadlineAt: input.deadlineAt, load, reject,
         accept: state => denialNotices.some(notice => notice.stage === "permission_requested" && notice.commandSha256 === deniedCommand!.commandSha256
-          && Boolean(createdRequest(state.runEvents, "session/request_permission", notice.requestId))) });
+          && Boolean(findCursorNativeRequest(state.runEvents, "session/request_permission", notice.requestId))) });
       const native = denialNotices.find(notice => notice.stage === "permission_requested" && notice.commandSha256 === deniedCommand!.commandSha256)!;
-      const event = createdRequest(state.runEvents, "session/request_permission", native.requestId)!; const request = event.payload.request; deniedRequest = request; denialTurnId = event.turnId;
+      const event = findCursorNativeRequest(state.runEvents, "session/request_permission", native.requestId)!; const request = event.payload.request; deniedRequest = request; denialTurnId = event.turnId;
       check("native-permission-identity", state.runs.length === 1 && request.details?.toolCallId === native.toolCallId && native.turnId === event.turnId && native.declineOffered && request.choices.some((choice: Row) => choice.key === "decline"), "Presented native permission is bound to the exact absolute-target command and supported denial choice");
       await sampleDenied("pending"); await page.reload();
-      const reloaded = await load(); check("permission-reconnect", Boolean(createdRequest(reloaded.runEvents, "session/request_permission", request.requestId)) && !reloaded.runEvents.some(row => row.payload?.prpEvent?.eventType === "runtime_request.resolved" && row.payload.prpEvent.payload?.requestId === request.requestId), "Reconnect preserves the unresolved native permission");
+      const reloaded = await load(); check("permission-reconnect", Boolean(findCursorNativeRequest(reloaded.runEvents, "session/request_permission", request.requestId)) && !reloaded.runEvents.some(row => row.payload?.prpEvent?.eventType === "runtime_request.resolved" && row.payload.prpEvent.payload?.requestId === request.requestId), "Reconnect preserves the unresolved native permission");
       await sampleDenied("browser-reconnected"); await input.capture("cursor-permission", "Native write permission awaiting denial", "cursor-permission.png");
       const card = page.getByTestId("task-chat-runtime-request").filter({ visible: true }); await expect(card).toHaveCount(1);
       const label = request.choices.find((choice: Row) => choice.key === "decline").label;

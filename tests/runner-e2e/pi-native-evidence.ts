@@ -1,3 +1,5 @@
+import { hasAcpxNativeOrigin } from "./acpx-native-origin.js";
+
 /** Public durable permission/tool evidence. Independent filesystem and process
  * proofs remain required; assistant text can never satisfy this oracle. */
 type Row = Record<string, any>;
@@ -9,7 +11,7 @@ export function piPermissionRequests(rows: readonly unknown[], runId: string): A
     if (row.eventType !== "runtime_request.created" || event.eventType !== row.eventType || row.runId !== runId || event.runId !== runId
       || row.protocolSchemaVersion !== 1 || event.schemaVersion !== 1 || event.schema !== "paperclip.prp.event.v1" || event.sourceKind !== "runner"
       || (!Number.isSafeInteger(row.seq) || row.seq < 1) || typeof event.turnId !== "string" || !event.turnId || request.turnId !== event.turnId
-      || request.type !== "permission" || request.status !== "pending" || origin.adapter !== "acpx-runtime" || origin.provider !== "pi" || origin.method !== "session/request_permission"
+      || request.type !== "permission" || request.status !== "pending" || !hasAcpxNativeOrigin(origin, "pi", "session/request_permission")
       || typeof request.requestId !== "string" || !request.requestId || typeof request.details?.toolCallId !== "string" || !request.details.toolCallId
       || !Array.isArray(request.choices) || !request.choices.some((choice: unknown) => record(choice).key === "decline")) return [];
     return [{ row, event, request }];

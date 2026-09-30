@@ -1,12 +1,12 @@
 import { expect, it } from "vitest";
 import { hasDeliveredPiDenial, piPermissionRequests } from "./pi-native-evidence.js";
 const identity = { runId: "run", turnId: "turn", requestId: "permission", toolCallId: "pi-tool-1", target: "pi-human-denied.txt" };
-function evidence() {
+function evidence(adapter = "acpx-runtime") {
   const wrap = (eventType: string, seq: number, payload: unknown) => ({ runId: "run", protocolSchemaVersion: 1, eventType, seq, payload: { prpEvent: {
     schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType, payload,
   } } });
   return [wrap("runtime_request.created", 1, { request: { requestId: "permission", turnId: "turn", type: "permission", status: "pending", details: { toolCallId: "pi-tool-1" },
-    origin: { adapter: "acpx-runtime", provider: "pi", method: "session/request_permission" }, choices: [{ key: "decline" }] } }),
+    origin: { adapter, provider: "pi", method: "session/request_permission" }, choices: [{ key: "decline" }] } }),
   wrap("runtime_request.resolved", 2, { requestId: "permission", turnId: "turn", action: "decline" }),
   wrap("tool.execution.completed", 3, { schema: "paperclip.tool.execution.v1", executionId: "pi-tool-1", transport: "builtin", operation: "edit", name: "write", status: "failed", target: identity.target, output: "Pi operation was denied or cancelled" })];
 }
@@ -50,4 +50,21 @@ it("remote denial requires complete watching, stable parent and real process ret
   expect(hasPiRemoteRetirement({ ...after, watcher: { complete: false } })).toBe(false);
   const existing = structuredClone(before); existing.targets.denied.absent = false; (existing.targets.denied as any).sha256 = `sha256:${"a".repeat(64)}`;
   expect(hasUnchangedPiRemoteTarget(existing, { ...after, targets: existing.targets }, "denied")).toBe(true);
+});
+
+it.each(["acpx-runtime", "acpx-runtime-sidecar"])("requires exact Pi permission origin and identity via %s", adapter => {
+  expect(piPermissionRequests(evidence(adapter), "run")).toHaveLength(1);
+  expect(hasDeliveredPiDenial(evidence(adapter), identity)).toBe(true);
+  for (const patch of [{ adapter: "unknown" }, { adapter: "acpx-runtime-sidecar-unknown" }, { adapter: "semantic" }, { provider: "cursor" }, { method: "request_human_input" }]) {
+    const rows = evidence(adapter);
+    Object.assign((rows[0]!.payload.prpEvent.payload as any).request.origin, patch);
+    expect(piPermissionRequests(rows, "run")).toHaveLength(0);
+    expect(hasDeliveredPiDenial(rows, identity)).toBe(false);
+  }
+  for (const key of ["runId", "turnId", "requestId", "toolCallId", "target"]) {
+    expect(hasDeliveredPiDenial(evidence(adapter), { ...identity, [key]: "foreign" })).toBe(false);
+  }
+  const rows = evidence(adapter);
+  expect(hasDeliveredPiDenial([...rows, rows[0]!], identity)).toBe(false);
+  expect(hasDeliveredPiDenial([...rows, rows[1]!], identity)).toBe(false);
 });

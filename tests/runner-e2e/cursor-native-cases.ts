@@ -1,3 +1,4 @@
+import { hasAcpxNativeOrigin } from "./acpx-native-origin.js";
 import type { BootstrapReadProof } from "./native-bootstrap-read-proof.js";
 import { cursorDeniedCommand, hasCursorDeniedCommand, type CursorToolNotice } from "./cursor-native-evidence.js";
 import type { RunnerTaskFixture } from "./types.js";
@@ -53,7 +54,7 @@ export function hasDeliveredCursorNativeRequest(input: {
   if (created.length !== 1) return false;
   const request = record(record(created[0]!.event.payload).request);
   const origin = record(request.origin);
-  if (origin.adapter !== "acpx-runtime" || origin.provider !== "cursor" || origin.method !== input.method
+  if (!hasAcpxNativeOrigin(origin, "cursor", input.method)
     || request.turnId !== input.turnId || request.status !== "pending") return false;
   if (input.method === "session/request_permission" ? request.type !== "permission" : request.type !== "input") return false;
   const outcomes = rows.filter(({ event }) => ["runtime_request.resolved", "runtime_request.expired", "runtime_request.cancelled"].includes(String(event.eventType))
@@ -88,7 +89,7 @@ export function hasCursorDenialBoundary(input: {
   if (!input.expectedRequestId.trim() || !input.expectedToolCallId.trim() || !input.path.trim()
     || request.requestId !== input.expectedRequestId || details.toolCallId !== input.expectedToolCallId
     || request.type !== "permission" || request.status !== "pending"
-    || origin.provider !== "cursor" || origin.adapter !== "acpx-runtime" || origin.method !== "session/request_permission") return false;
+    || !hasAcpxNativeOrigin(origin, "cursor", "session/request_permission")) return false;
   if (request.turnId !== input.turnId || !hasCursorDeniedCommand({ notices: input.notices, runId: input.runId, turnId: input.turnId, requestId: input.expectedRequestId, toolCallId: input.expectedToolCallId, commandSha256: cursorDeniedCommand(input.path).commandSha256, bootstrapReadProof: input.bootstrapReadProof })) return false;
   const choices = request.choices;
   if (!Array.isArray(choices)) return false;

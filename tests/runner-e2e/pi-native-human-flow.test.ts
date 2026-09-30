@@ -14,14 +14,14 @@ vi.mock("@playwright/test", () => ({ expect: (actual: any, message?: string) => 
   toBe: (value: unknown) => expect(actual, message).toBe(value), toBeVisible: async () => {}, toHaveCount: async (value: number) => expect(actual.count).toBe(value),
 }) }));
 const wrap = (eventType: string, seq: number, payload: unknown) => ({ runId: "run", protocolSchemaVersion: 1, eventType, seq, payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1, sourceKind: "runner", runId: "run", turnId: "turn", eventType, payload } } });
-async function exercise(mutation: boolean, remote = false) {
+async function exercise(mutation: boolean, remote = false, adapter = "acpx-runtime") {
   proof.mutation = mutation; proof.live = false;
   const workspacePath = await mkdtemp(join(tmpdir(), "pi-human-fixture-"));
   let declined = false, browserPosts = 0; const saved = new Map<string, any>(); const cleanup: Array<() => Promise<any>> = [];
   const task = piNativeTasks.find(row => row.id === "human-permission-denial")!;
   const issue = () => ({ id: "issue", identifier: "PI-1", title: task.buildTitle("fixture"), status: declined ? "done" : "in_progress" });
   const run = () => ({ id: "run", status: declined ? "succeeded" : "running", runtimeMode: "native", processPid: 123, processGroupId: 123, processStartedAt: "2026-09-29T00:00:00Z" });
-  const request = { requestId: "request", turnId: "turn", type: "permission", status: "pending", details: { toolCallId: "pi-tool-1" }, origin: { adapter: "acpx-runtime", provider: "pi", method: "session/request_permission" }, choices: [{ key: "decline", label: "Decline" }] };
+  const request = { requestId: "request", turnId: "turn", type: "permission", status: "pending", details: { toolCallId: "pi-tool-1" }, origin: { adapter, provider: "pi", method: "session/request_permission" }, choices: [{ key: "decline", label: "Decline" }] };
   const events = () => [wrap("runtime_request.created", 1, { request }), ...(declined ? [wrap("runtime_request.resolved", 2, { requestId: "request", turnId: "turn", action: "decline" }), wrap("tool.execution.completed", 3, { schema: "paperclip.tool.execution.v1", transport: "builtin", operation: "edit", executionId: "pi-tool-1", name: "write", target: "pi-human-denied.txt", status: "failed", output: "Pi operation was denied or cancelled" })] : [])];
   const api = {
     post: async () => ({ name: "Pi fixture project" }), patch: async (_path: string, value: any) => value,
@@ -58,3 +58,5 @@ it("drives actual browser-denial flow and independent retirement proof", async (
 it("rejects an observed create/delete even when final target is absent", async () => exercise(true));
 
 it("proves browser denial against remote watcher and retirement without trusting a host file", async () => exercise(false, true));
+
+it.each([false, true])("drives sidecar permission denial with remote=%s", async remote => exercise(false, remote, "acpx-runtime-sidecar"));
