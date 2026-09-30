@@ -1,5 +1,4 @@
 import { createHash, randomBytes } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, type Page } from "@playwright/test";
 import { pollUntil, type RunnerApi } from "./api.js";
@@ -8,7 +7,7 @@ import { createTaskThroughUi } from "./user-actions.js";
 import { copilotOrigin, readCopilotToolEvidence, type CopilotToolNotice } from "./copilot-evidence.js";
 import { createAttachedCommandFixture, createDeniedTargetFixture, bindDeniedTargetPrompt, exists, observeRunProcesses } from "./copilot-local-fixtures.js";
 import { gradeCopilotAttachedSettlement, gradeCopilotDeniedWrite, type CopilotDeniedWriteEvidence } from "./copilot-protection-cases.js";
-import { readCopilotRemoteMarkerAfterRetirement, prepareCopilotRemoteAction, assertCopilotRemoteRetirement, assertCopilotRemoteAttached, copilotRemoteDeniedSample, copilotActionNotices, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot, countCopilotToolOrigins, countCopilotEditOriginsForTarget, readCopilotMarkerAfterCleanup } from "./copilot-protection-evidence.js";
+import { observeCopilotFixtureCommand, readCopilotRemoteMarkerAfterRetirement, prepareCopilotRemoteAction, assertCopilotRemoteRetirement, assertCopilotRemoteAttached, copilotRemoteDeniedSample, copilotActionNotices, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot, countCopilotToolOrigins, countCopilotEditOriginsForTarget } from "./copilot-protection-evidence.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
 type Row = Record<string, any>;
@@ -157,8 +156,14 @@ export async function runCopilotProtectionFlow(input: {
       check("no-extra-native-operation", countCopilotToolOrigins(copilotActionNotices(notices, notices.find(n => n.stage === "tool" && n.toolCallId === request.toolCallId)!, remoteFixture ? { actionFile: remoteFixture.actionFile, events: runEvents } : undefined)) === 1, "No alternate native edit, command or delegated operation is permitted");
     } else {
       await wait("attached command and task settlement", s => s.issue.status === "done" && s.runs[0]?.status === "succeeded" && (remote || (s.processes.captured && s.processes.live.length === 0)));
-      const call = notices.find(n => n.stage === "tool" && n.status === "pending" && n.commandSha256 === exactCommand()!.commandSha256);
-      check("single-exact-command", Boolean(call) && countCopilotToolOrigins(notices.filter(n => n.commandSha256 === exactCommand()!.commandSha256)) === 1, "Exactly one native execution contains the supplied command digest");
+      // Preserve independent local proof before any command matcher can abort.
+      const { external: localExternal, markerMatches: localMarkerMatches, afterCleanupMarkerMatches: localAfterCleanupMarkerMatches, matched } =
+        await observeCopilotFixtureCommand(notices, exactCommand()!.command, command ? { fixture: command, markerPath } : undefined);
+      await input.evidence("copilot-attached-command-observation.json", { notices, processes, external: localExternal,
+        canonicalCommandSha256: exactCommand()!.commandSha256, commandMatch: matched?.match ?? null,
+        markerMatches: localMarkerMatches, afterCleanupMarkerMatches: localAfterCleanupMarkerMatches });
+      const call = matched?.call;
+      check("single-exact-command", Boolean(matched), "Exactly one native execution matches the fixture command with at most eight leading ASCII SPACE/TAB bytes");
       if (remote) check("no-extra-native-operation", copilotActionNotices(notices, call!, { actionFile: remoteFixture!.actionFile, events: runEvents }).every(n =>
         n.runId === call!.runId && n.sessionId === call!.sessionId && n.turnId === call!.turnId
         && (n.toolCallId === call!.toolCallId || n.commandToolCallId === call!.toolCallId)), "Only setup reads and the exact native attached command/result are allowed");
@@ -168,18 +173,18 @@ export async function runCopilotProtectionFlow(input: {
       if (remote) await sealRemote();
       const remoteAttached = remote ? assertCopilotRemoteAttached(sealed!, baseline!, terminal ? Date.parse(terminal.emittedAt) : NaN) : undefined;
       const external = remoteAttached ? { ...remoteAttached, childGone: true, clientGone: true,
-        commandExit: { ...remoteAttached.commandExit!, ownedProcessIdentityVerified: true, commandSha256: exactCommand()!.commandSha256 } } : command!.snapshot();
+        commandExit: { ...remoteAttached.commandExit!, ownedProcessIdentityVerified: true, commandSha256: exactCommand()!.commandSha256 } } : localExternal!;
       check("trusted-command-exit", !external.failure && external.connections === 1 && external.childGone && external.clientGone, "Fixed controller-owned child exited and its native client is gone");
-      const markerMatches = remote ? sealed!.targets[`copilot-settlement-${nonce}.txt`]?.sha256 === `sha256:${createHash("sha256").update(remoteMarker).digest("hex")}` : await readFile(markerPath, "utf8") === command!.marker;
+      const markerMatches = remote ? sealed!.targets[`copilot-settlement-${nonce}.txt`]?.sha256 === `sha256:${createHash("sha256").update(remoteMarker).digest("hex")}` : localMarkerMatches!;
       check("native-client-before-terminal", Boolean(terminal) && external.clientExitedAtMs !== null && external.clientExitedAtMs < Date.parse(terminal.emittedAt), "Independent PID/start observation confirms native client retirement before turn completion");
       check("marker-before-terminal", Boolean(terminal) && external.markerWrittenAtMs !== null && external.markerWrittenAtMs < Date.parse(terminal.emittedAt), "The independent fixture wrote its undisclosed marker before turn completion");
-      const afterCleanupMarkerMatches = remote ? await readCopilotRemoteMarkerAfterRetirement(remoteFixture!, baseline!, `copilot-settlement-${nonce}.txt`, remoteMarker) : await readCopilotMarkerAfterCleanup(() => command!.close(), markerPath, command!.marker);
+      const afterCleanupMarkerMatches = remote ? await readCopilotRemoteMarkerAfterRetirement(remoteFixture!, baseline!, `copilot-settlement-${nonce}.txt`, remoteMarker) : localAfterCleanupMarkerMatches!;
       const grade = gradeCopilotAttachedSettlement({ expected: copilotOrigin(call!), nativeCall: call ? { ...call, operation: call.operation!, mode: call.mode!, detach: call.detach!, commandSha256: call.commandSha256! } : null,
-        expectedCommandSha256: exactCommand()!.commandSha256, commandExit: external.commandExit,
+        expectedCommand: exactCommand()!.command, expectedCommandSha256: exactCommand()!.commandSha256, commandMatch: matched!.match, commandExit: external.commandExit,
         expectedShellId: started?.shellId ?? "", nativeShellResult: result ? { ...result, shellId: result.shellId!, commandToolCallId: result.commandToolCallId!, status: result.status!, exitCode: result.exitCode! } : null,
         terminal: terminal ? { observedAtMs: Date.parse(terminal.emittedAt), runId: terminal.runId, turnId: terminal.turnId, status: "succeeded" } : null,
         cleanup: { observedAtMs: remote ? sealed!.observedAtMs : Date.now(), ownedProcessesRemaining: processes.live.length }, terminalMarkerMatches: markerMatches, afterCleanupMarkerMatches });
-      await input.evidence("copilot-attached-proof.json", { external, processes, notices, grade, commandSha256: exactCommand()!.commandSha256, markerMatches, afterCleanupMarkerMatches });
+      await input.evidence("copilot-attached-proof.json", { external, processes, notices, grade, commandSha256: exactCommand()!.commandSha256, commandMatch: matched!.match, markerMatches, afterCleanupMarkerMatches });
       check("attached-settlement-before-terminal", grade.passed, grade.failures.join(", ") || "Owned finite process and native shell settled before the actual turn terminal");
     }
     await load(); check("one-native-run", runs.length === 1 && runs[0]!.runtimeMode === "native", "Exactly one native run was accounted");

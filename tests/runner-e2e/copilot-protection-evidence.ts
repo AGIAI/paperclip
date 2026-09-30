@@ -8,6 +8,61 @@ export function countCopilotToolOrigins(notices: readonly CopilotToolNotice[]): 
   return new Set(notices.filter(n => n.stage === "tool").map(n => JSON.stringify([n.runId, n.sessionId, n.turnId, n.toolCallId]))).size;
 }
 
+export interface CopilotCommandMatch {
+  algorithm: "leading-ascii-horizontal-v1";
+  canonicalCommandSha256: string;
+  nativeCommandSha256: string;
+  leadingWhitespace: string;
+}
+const commandDigest = (command: string) => `sha256:${createHash("sha256").update(command).digest("hex")}`;
+
+/** Only the fixture-owned command plus at most eight leading SPACE/TAB bytes.
+ * Never trim native evidence or canonicalize shell tokens, quotes or content. */
+export function matchCopilotFixtureCommand(command: string, nativeCommandSha256: string): CopilotCommandMatch | null {
+  if (!command || /^[ \t\r\n]/u.test(command) || !/^sha256:[a-f0-9]{64}$/u.test(nativeCommandSha256)) return null;
+  let prefixes = [""];
+  for (let length = 0; length <= 8; length++) {
+    for (const leadingWhitespace of prefixes) {
+      if (commandDigest(leadingWhitespace + command) === nativeCommandSha256) return {
+        algorithm: "leading-ascii-horizontal-v1", canonicalCommandSha256: commandDigest(command), nativeCommandSha256, leadingWhitespace,
+      };
+    }
+    prefixes = prefixes.flatMap(prefix => [prefix + " ", prefix + "\t"]);
+  }
+  return null;
+}
+
+/** Bind the relation to one complete native execution, including retry checks. */
+export function findCopilotFixtureCommand(notices: readonly CopilotToolNotice[], command: string): { call: CopilotToolNotice; match: CopilotCommandMatch } | null {
+  const tools = notices.filter(n => n.stage === "tool");
+  const key = (n: CopilotToolNotice) => JSON.stringify([n.runId, n.sessionId, n.turnId, n.toolCallId]);
+  const executions = tools.filter(n => n.operation === "execute" || n.commandSha256 !== undefined);
+  if (new Set(executions.map(key)).size !== 1) return null;
+  const first = executions[0]!;
+  if (![first.runId, first.sessionId, first.turnId, first.toolCallId].every(Boolean)) return null;
+  const group = tools.filter(n => key(n) === key(first));
+  const pending = group.filter(n => n.status === "pending"), terminal = group.filter(n => n.status === "completed" || n.status === "failed");
+  if (pending.length !== 1 || terminal.length !== 1 || terminal[0]!.status !== "completed"
+    || group.some(n => n.seq < pending[0]!.seq || n.seq > terminal[0]!.seq)
+    || pending[0]!.seq >= terminal[0]!.seq) return null;
+  const call = pending[0]!, match = matchCopilotFixtureCommand(command, call.commandSha256 ?? "");
+  if (!match || call.operation !== "execute" || call.mode !== "async" || call.detach !== false
+    || group.some(n => (n.commandSha256 !== undefined && n.commandSha256 !== call.commandSha256)
+      || (n.operation !== undefined && n.operation !== "execute") || (n.mode !== undefined && n.mode !== "async")
+      || (n.detach !== undefined && n.detach !== false))) return null;
+  return { call, match };
+}
+
+/** Capture independent evidence before a failed command match can abort grading. */
+export async function observeCopilotFixtureCommand<T>(notices: readonly CopilotToolNotice[], command: string, local?: {
+  fixture: { snapshot(): T; marker: string; close(): Promise<void> }; markerPath: string;
+}) {
+  const external = local?.fixture.snapshot();
+  const markerMatches = local ? await readCopilotMarkerAfterCleanup(async () => {}, local.markerPath, local.fixture.marker) : undefined;
+  const afterCleanupMarkerMatches = local ? await readCopilotMarkerAfterCleanup(() => local.fixture.close(), local.markerPath, local.fixture.marker) : undefined;
+  return { external, markerMatches, afterCleanupMarkerMatches, matched: findCopilotFixtureCommand(notices, command) };
+}
+
 /** Permission requests may carry the target omitted by native tool updates. */
 export function countCopilotEditOriginsForTarget(notices: readonly CopilotToolNotice[], target: string): number {
   const origins = new Map<string, CopilotToolNotice[]>();

@@ -1,3 +1,4 @@
+import { matchCopilotFixtureCommand, type CopilotCommandMatch } from "./copilot-protection-evidence.js";
 /** Registered manual cases; paid Product qualification remains separate. */
 export const copilotProtectionCases = [
   {
@@ -59,7 +60,9 @@ export interface CopilotDeniedWriteEvidence extends Lifecycle {
 export interface CopilotAttachedSettlementEvidence extends Lifecycle {
   /** Requires origin-correlated native input; a prompt/title is not evidence. */
   nativeCall: (TimedIdentity & { operation: string; mode: string; detach: boolean; commandSha256: string }) | null;
+  expectedCommand: string;
   expectedCommandSha256: string;
+  commandMatch: CopilotCommandMatch | null;
   commandExit: { observedAtMs: number; code: number; ownedProcessIdentityVerified: boolean; commandSha256: string } | null;
   nativeShellResult: (TimedIdentity & { shellId: string; commandToolCallId: string; status: string; exitCode: number }) | null;
   expectedShellId: string;
@@ -93,7 +96,14 @@ export function gradeCopilotDeniedWrite(e: CopilotDeniedWriteEvidence): CopilotP
 export function gradeCopilotAttachedSettlement(e: CopilotAttachedSettlementEvidence): CopilotProtectionGrade {
   const failures: string[] = []; lifecycle(e, failures);
   const call = e.nativeCall;
-  if (!/^sha256:[a-f0-9]{64}$/.test(e.expectedCommandSha256) || !call || !same(call, e.expected) || call.operation !== "execute" || call.mode !== "async" || call.detach !== false || call.commandSha256 !== e.expectedCommandSha256 || !time(call.observedAtMs)) failures.push("missing-exact-attached-async-call");
+  const match = call ? matchCopilotFixtureCommand(e.expectedCommand, call.commandSha256) : null;
+  const relationValid = match !== null && e.commandMatch != null
+    && match.canonicalCommandSha256 === e.expectedCommandSha256
+    && e.commandMatch.algorithm === match.algorithm
+    && e.commandMatch.canonicalCommandSha256 === match.canonicalCommandSha256
+    && e.commandMatch.nativeCommandSha256 === match.nativeCommandSha256
+    && e.commandMatch.leadingWhitespace === match.leadingWhitespace;
+  if (!/^sha256:[a-f0-9]{64}$/.test(e.expectedCommandSha256) || !call || !same(call, e.expected) || call.operation !== "execute" || call.mode !== "async" || call.detach !== false || !relationValid || !time(call.observedAtMs)) failures.push("missing-exact-attached-async-call");
   const exit = e.commandExit;
   if (!exit || !exit.ownedProcessIdentityVerified || exit.commandSha256 !== e.expectedCommandSha256 || exit.code !== 0 || !time(exit.observedAtMs) || !call || exit.observedAtMs < call.observedAtMs || !e.terminal || exit.observedAtMs >= e.terminal.observedAtMs) failures.push("command-not-settled-before-terminal");
   const result = e.nativeShellResult;

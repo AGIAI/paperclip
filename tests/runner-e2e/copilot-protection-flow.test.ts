@@ -1,3 +1,4 @@
+import { matchCopilotFixtureCommand } from "./copilot-protection-evidence.js";
 import { writeFileSync, unlinkSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { readFile, mkdtemp, rm, writeFile, unlink, rename, mkdir, symlink } from "node:fs/promises";
@@ -48,7 +49,7 @@ describe("Copilot Product protection integration", () => {
   it("feeds actual attached wire through canonical notices and rejects early terminal or missing linkage", () => {
     const { notices } = projected("attached-shell"); const call = notices.find(n => n.commandSha256)!;
     const started = notices.find(n => n.shellState === "started")!, result = notices.find(n => n.shellState === "completed")!;
-    const e = { expected: copilotOrigin(call), nativeCall: { ...call, operation: call.operation!, mode: call.mode!, detach: call.detach!, commandSha256: call.commandSha256! }, expectedCommandSha256: call.commandSha256!, expectedShellId: started.shellId!,
+    const e = { expected: copilotOrigin(call), nativeCall: { ...call, operation: call.operation!, mode: call.mode!, detach: call.detach!, commandSha256: call.commandSha256! }, expectedCommand: fixture["attached-shell"][0].params.update.rawInput.command, commandMatch: matchCopilotFixtureCommand(fixture["attached-shell"][0].params.update.rawInput.command, call.commandSha256!), expectedCommandSha256: call.commandSha256!, expectedShellId: started.shellId!,
       commandExit: { observedAtMs: result.observedAtMs - 1, code: 0, ownedProcessIdentityVerified: true, commandSha256: call.commandSha256! },
       nativeShellResult: { ...result, shellId: result.shellId!, commandToolCallId: result.commandToolCallId!, status: result.status!, exitCode: result.exitCode! },
       terminal: { observedAtMs: 50, runId: "run", turnId: "turn", status: "succeeded" as const }, cleanup: { observedAtMs: 60, ownedProcessesRemaining: 0 }, terminalMarkerMatches: true, afterCleanupMarkerMatches: true };
