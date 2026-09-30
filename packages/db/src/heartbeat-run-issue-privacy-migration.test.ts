@@ -64,7 +64,19 @@ describeEmbeddedPostgres("heartbeat run issue privacy migration", () => {
         (${maintenanceRunId}, ${companyId}, ${agentId}, 'succeeded', NULL, ${sql.json({ wakeReason: "heartbeat_timer" })})
     `;
 
+    const legacyProjectId = randomUUID();
+    await sql`INSERT INTO projects (id, company_id, name, visibility) VALUES (${legacyProjectId}, ${companyId}, 'Legacy private project', 'private')`;
+    await sql`INSERT INTO activity_log (company_id, actor_type, actor_id, action, entity_type, entity_id)
+      VALUES (${companyId}, 'user', 'original-owner', 'project.created', 'project', ${legacyProjectId})`;
+    await sql`INSERT INTO project_access_members (company_id, project_id, subject_type, subject_id)
+      VALUES (${companyId}, ${legacyProjectId}, 'user', 'ordinary-reader')`;
+
     await applyPendingMigrations(database.connectionString);
+    const [legacyProject] = await sql`SELECT privacy_owner_user_id FROM projects WHERE id = ${legacyProjectId}`;
+    expect(legacyProject.privacy_owner_user_id).toBe('original-owner');
+    expect(await sql`SELECT subject_id FROM project_access_members WHERE project_id = ${legacyProjectId} ORDER BY subject_id`)
+      .toEqual([{ subject_id: 'ordinary-reader' }, { subject_id: 'original-owner' }]);
+
 
     const rows = await sql<{ id: string; issue_id: string | null; scope_kind: string }[]>`
       SELECT "id", "issue_id", "scope_kind"

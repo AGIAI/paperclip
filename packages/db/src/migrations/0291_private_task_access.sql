@@ -74,12 +74,12 @@ DO $$ BEGIN
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workspace_operations_heartbeat_run_id_heartbeat_runs_id_fk' AND conrelid = 'public.workspace_operations'::regclass) THEN
-    ALTER TABLE "workspace_operations" ADD CONSTRAINT "workspace_operations_heartbeat_run_id_heartbeat_runs_id_fk" FOREIGN KEY ("heartbeat_run_id") REFERENCES "public"."heartbeat_runs"("id") ON DELETE cascade ON UPDATE no action;
+    ALTER TABLE "workspace_operations" ADD CONSTRAINT "workspace_operations_heartbeat_run_id_heartbeat_runs_id_fk" FOREIGN KEY ("heartbeat_run_id") REFERENCES "public"."heartbeat_runs"("id") ON DELETE set null ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'workspace_operations_issue_id_issues_id_fk' AND conrelid = 'public.workspace_operations'::regclass) THEN
-    ALTER TABLE "workspace_operations" ADD CONSTRAINT "workspace_operations_issue_id_issues_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issues"("id") ON DELETE cascade ON UPDATE no action;
+    ALTER TABLE "workspace_operations" ADD CONSTRAINT "workspace_operations_issue_id_issues_id_fk" FOREIGN KEY ("issue_id") REFERENCES "public"."issues"("id") ON DELETE set null ON UPDATE no action;
   END IF;
 END $$;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "heartbeat_runs_company_issue_created_idx" ON "heartbeat_runs" USING btree ("company_id","issue_id","created_at");--> statement-breakpoint
@@ -228,5 +228,67 @@ BEGIN
     WHERE a.id > cursor_id AND a.id <= next_id AND a.object_key LIKE a.company_id::text || '/assets/issues/drafts/%'
     ON CONFLICT DO NOTHING;
     cursor_id := next_id;
+  END LOOP;
+END $$;
+
+--> statement-breakpoint
+-- Preserve operation history while retaining every original task/run boundary.
+CREATE OR REPLACE FUNCTION paperclip_keep_operation_privacy_sources() RETURNS trigger AS $$
+DECLARE issue_sources jsonb := '{}'::jsonb; run_sources jsonb := '{}'::jsonb;
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    issue_sources := COALESCE(OLD.metadata->'_issuePrivacySources', '{}'::jsonb);
+    run_sources := COALESCE(OLD.metadata->'_runPrivacySources', '{}'::jsonb);
+    IF OLD.issue_id IS NOT NULL THEN issue_sources := issue_sources || jsonb_build_object(OLD.issue_id::text, true); END IF;
+    IF OLD.heartbeat_run_id IS NOT NULL THEN run_sources := run_sources || jsonb_build_object(OLD.heartbeat_run_id::text, true); END IF;
+  END IF;
+  IF NEW.issue_id IS NOT NULL THEN issue_sources := issue_sources || jsonb_build_object(NEW.issue_id::text, true); END IF;
+  IF NEW.heartbeat_run_id IS NOT NULL THEN run_sources := run_sources || jsonb_build_object(NEW.heartbeat_run_id::text, true); END IF;
+  NEW.metadata := COALESCE(NEW.metadata, '{}'::jsonb) || jsonb_build_object('_issuePrivacySources', issue_sources, '_runPrivacySources', run_sources);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS workspace_operations_keep_privacy_sources ON workspace_operations;
+--> statement-breakpoint
+CREATE TRIGGER workspace_operations_keep_privacy_sources BEFORE INSERT OR UPDATE ON workspace_operations
+FOR EACH ROW EXECUTE FUNCTION paperclip_keep_operation_privacy_sources();
+--> statement-breakpoint
+DO $$
+DECLARE cursor_id uuid := '00000000-0000-0000-0000-000000000000'; batch_ids uuid[];
+BEGIN
+  LOOP
+    SELECT array_agg(id ORDER BY id) INTO batch_ids FROM (
+      SELECT id FROM workspace_operations WHERE id > cursor_id ORDER BY id LIMIT 1000
+    ) batch;
+    EXIT WHEN batch_ids IS NULL;
+    UPDATE workspace_operations SET metadata = metadata WHERE id = ANY(batch_ids);
+    cursor_id := batch_ids[array_length(batch_ids, 1)];
+  END LOOP;
+END $$;
+
+--> statement-breakpoint
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS privacy_owner_user_id text;
+--> statement-breakpoint
+-- Recover management authority from creation evidence, never from read grants.
+DO $$
+DECLARE cursor_id uuid := '00000000-0000-0000-0000-000000000000'; batch_ids uuid[];
+BEGIN
+  LOOP
+    SELECT array_agg(id ORDER BY id) INTO batch_ids FROM (
+      SELECT id FROM projects WHERE id > cursor_id ORDER BY id LIMIT 1000
+    ) batch;
+    EXIT WHEN batch_ids IS NULL;
+    UPDATE projects p SET privacy_owner_user_id = COALESCE(p.personal_owner_user_id, (
+      SELECT CASE WHEN a.actor_type = 'user' THEN a.actor_id ELSE r.responsible_user_id END
+      FROM activity_log a LEFT JOIN heartbeat_runs r ON r.id = a.run_id AND r.company_id = a.company_id
+      WHERE a.company_id = p.company_id AND a.entity_type = 'project' AND a.entity_id = p.id::text AND a.action = 'project.created'
+      ORDER BY a.created_at, a.id LIMIT 1
+    )) WHERE p.id = ANY(batch_ids) AND p.privacy_owner_user_id IS NULL;
+    INSERT INTO project_access_members (company_id, project_id, subject_type, subject_id)
+      SELECT company_id, id, 'user', privacy_owner_user_id FROM projects
+      WHERE id = ANY(batch_ids) AND visibility = 'private' AND privacy_owner_user_id IS NOT NULL
+      ON CONFLICT (project_id, subject_type, subject_id) DO NOTHING;
+    cursor_id := batch_ids[array_length(batch_ids, 1)];
   END LOOP;
 END $$;

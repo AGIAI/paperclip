@@ -753,12 +753,12 @@ export function NewIssueDialog() {
       executionWorkspaceMode,
       selectedExecutionWorkspaceId,
       workMode,
-      isPrivate: effectivePrivate,
+      isPrivate,
     });
   }, [
     newIssueOpen,
     scheduleSave,
-    effectivePrivate,
+    isPrivate,
     status,
     priority,
     assigneeValue,

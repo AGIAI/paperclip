@@ -1,3 +1,4 @@
+import { agentVisibilityFromPermissions, isSharedAgentVisibility } from "@/lib/issuePrivacy";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Lock, Trash2, UserPlus } from "lucide-react";
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SearchableSelect, type SearchableSelectGroup } from "@/components/SearchableSelect";
 
-export function ProjectAccessMembers({ project }: { project: Project }) {
+export function ProjectAccessMembers({ project, canManage }: { project: Project; canManage: boolean }) {
   const [open, setOpen] = useState(false);
   const [selection, setSelection] = useState("");
   const queryClient = useQueryClient();
@@ -53,6 +54,10 @@ export function ProjectAccessMembers({ project }: { project: Project }) {
       ...(agentOptions.length ? [{ id: "agents", label: "Agents", options: agentOptions }] : []),
     ];
   }, [activeKeys, agentsQuery.data, directoryQuery.data]);
+  const selectedAgent = selection.startsWith("agent:")
+    ? agentsQuery.data?.find(agent => agent.id === selection.slice("agent:".length)) : null;
+  const sharingWithSharedAgent = selectedAgent
+    && isSharedAgentVisibility(agentVisibilityFromPermissions(selectedAgent.permissions));
   const addMember = useMutation({
     mutationFn: async () => {
       const [subjectType, subjectId] = selection.split(/:(.+)/) as ["user" | "agent", string];
@@ -77,7 +82,7 @@ export function ProjectAccessMembers({ project }: { project: Project }) {
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Lock className="h-3.5 w-3.5" aria-hidden="true" /> Manage access
+        <Lock className="h-3.5 w-3.5" aria-hidden="true" /> {canManage ? "Manage access" : "View access"}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
@@ -102,13 +107,19 @@ export function ProjectAccessMembers({ project }: { project: Project }) {
                 loading={directoryQuery.isLoading || agentsQuery.isLoading}
                 className="min-w-0 flex-1"
               />
-              <Button size="sm" disabled={!selection || addMember.isPending} onClick={() => addMember.mutate()}>
+              <Button size="sm" disabled={!canManage || !selection || addMember.isPending} onClick={() => addMember.mutate()}>
                 <UserPlus className="h-3.5 w-3.5" aria-hidden="true" /> Add
               </Button>
             </div>
+            {sharingWithSharedAgent ? (
+              <p className="rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100">
+                This agent can retain private project context in its memory and workspace for later runs.
+                Removing access cannot erase what it has already learned.
+              </p>
+            ) : null}
             <div className="divide-y divide-border/60">
               {(membersQuery.data ?? []).map((member) => {
-                const isPersonalOwner = project.personalOwnerUserId === member.subjectId && member.subjectType === "user";
+                const isPersonalOwner = member.subjectType === "user" && [project.personalOwnerUserId, project.privacyOwnerUserId].includes(member.subjectId);
                 return (
                   <div key={member.id} className="flex items-center gap-3 py-2">
                     <div className="min-w-0 flex-1">
@@ -122,7 +133,7 @@ export function ProjectAccessMembers({ project }: { project: Project }) {
                         variant="ghost"
                         size="icon-sm"
                         aria-label={`Remove ${member.subjectDisplayName ?? "member"}`}
-                        disabled={removeMember.isPending}
+                        disabled={!canManage || removeMember.isPending}
                         onClick={() => removeMember.mutate(member.id)}
                       >
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />

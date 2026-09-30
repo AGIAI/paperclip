@@ -1,3 +1,5 @@
+import type { CurrentBoardAccess } from "../api/access";
+import type { Issue, Project } from "@paperclipai/shared";
 import type {
   IssueAccessGrant,
   IssueAccessGrantAgentVisibility,
@@ -35,7 +37,7 @@ export function agentVisibilityFromPermissions(
 export function isSharedAgentVisibility(
   agentVisibility: IssueAccessGrantAgentVisibility | null,
 ): boolean {
-  return agentVisibility !== null && agentVisibility !== "private";
+  return agentVisibility !== "private";
 }
 
 export function grantIsSharedAgent(grant: IssueAccessGrant): boolean {
@@ -45,4 +47,22 @@ export function grantIsSharedAgent(grant: IssueAccessGrant): boolean {
 /** Only explicit + assignment grants are revocable from the share sheet; project grants are managed on the project. */
 export function grantIsRevocable(source: IssueAccessGrantSource): boolean {
   return source === "explicit" || source === "assignment";
+}
+
+/** Keep this UI gate aligned with assertCanManageIssuePrivacy on the server. */
+export function canManageIssuePrivacy(
+  issue: Pick<Issue, "companyId" | "responsibleUserId" | "createdByUserId" | "assigneeUserId"> | undefined,
+  userId: string | null,
+  access: CurrentBoardAccess | undefined,
+): boolean {
+  if (!issue || !access) return false;
+  if (access.source === "local_implicit" || access.isInstanceAdmin) return true;
+  if (userId && [issue.responsibleUserId, issue.createdByUserId, issue.assigneeUserId].includes(userId)) return true;
+  return access.memberships?.some(member => member.companyId === issue.companyId
+    && member.status === "active" && ["owner", "admin"].includes(member.membershipRole ?? "")) ?? false;
+}
+
+export function canManageProjectPrivacy(project: Pick<Project, "companyId" | "privacyOwnerUserId" | "personalOwnerUserId">, userId: string | null, access: CurrentBoardAccess | undefined): boolean {
+  return canManageIssuePrivacy({ companyId: project.companyId, responsibleUserId: project.privacyOwnerUserId ?? null,
+    createdByUserId: project.personalOwnerUserId ?? null, assigneeUserId: null }, userId, access);
 }

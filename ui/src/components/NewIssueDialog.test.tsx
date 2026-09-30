@@ -546,6 +546,11 @@ describe("NewIssueDialog", () => {
     await waitForAssertion(() => expect(toggle.getAttribute("aria-pressed")).toBe("true"));
     expect(toggle.disabled).toBe(true);
     expect(container.textContent).toContain("inherits private access from its parent");
+    await typeTextareaValue(container.querySelector('textarea[placeholder="Task title"]')!, "Private child draft");
+    // Saving this form must retain only the explicit toggle choice. A later
+    // standalone draft must not acquire a sticky private flag from its parent.
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 850)); });
+    expect(JSON.parse(localStorage.getItem("paperclip:issue-draft")!).isPrivate).toBe(false);
     const submit = Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes("Create Sub-Task"))!;
     await act(async () => submit.click());
     await flush();

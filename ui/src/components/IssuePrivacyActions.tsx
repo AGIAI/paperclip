@@ -61,7 +61,9 @@ export function IssuePrivacyActions({
   const visibilityMutation = useMutation({
     mutationFn: (visibility: IssueVisibility) => issuesApi.setVisibility(issue.id, visibility),
     onSuccess: (_result, visibility) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issue.id) });
+      // Privacy can change descendants and remove a task from a private project.
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(companyId) });
       if (issue.identifier) {
         queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(issue.identifier) });
       }

@@ -1,3 +1,4 @@
+import { canManageIssuePrivacy } from "../lib/issuePrivacy";
 import { TextAttachmentContext } from "../context/TextAttachmentContext";
 import { useTaskBrowsers, useBrowserArrivals } from "@/hooks/useTaskBrowsers";
 import { WorkspaceExportRecovery } from "../components/WorkspaceExportRecovery";
@@ -3497,13 +3498,7 @@ export function TaskDetailSurface({ conversation, tasksTab }: { tasksTab?: TaskS
     () => buildCompanyUserLabelMap(companyMembers?.users),
     [companyMembers?.users],
   );
-  // Privacy setter gate (UI mirror of the server's
-  // `resolveIssuePrivacyManagementRoot`): responsible user + board managers /
-  // admins. The server is authoritative; this only decides what to enable.
-  const canManagePrivacy = Boolean(
-    issue &&
-      (canManageBoardRuntime || (currentUserId && issue.responsibleUserId === currentUserId)),
-  );
+  const canManagePrivacy = canManageIssuePrivacy(issue, currentUserId, boardAccess);
   // Role-based principals for the share sheet's implicit rows (no revoke).
   const privacyImplicitPrincipals = useMemo<ShareSheetImplicitPrincipal[]>(() => {
     if (!issue) return [];

@@ -540,7 +540,7 @@ export function IssueBlockedNotice({
     ? reopenSuppressedLeaf.identifier ?? reopenSuppressedLeaf.id.slice(0, 8)
     : null;
   const reopenSuppressedLeafStatus = reopenSuppressedLeaf
-    ? reopenSuppressedLeaf.status.replace(/_/g, " ")
+    ? isLockedIssueStub(reopenSuppressedLeaf) ? "unavailable" : reopenSuppressedLeaf.status.replace(/_/g, " ")
     : null;
   const reopenSuppressedOtherCount = Math.max(unresolvedLeafBlockers.length - 1, 0);
 

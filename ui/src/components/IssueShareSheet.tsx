@@ -354,7 +354,9 @@ export function IssueShareSheet({
                 ))}
                 {activeGrants.map((grant) => {
                   const displayName = grant.subjectDisplayName ?? "Unknown";
-                  const revocable = canManage && !grant.inherited && grantIsRevocable(grant.source);
+                  const implicitPrincipal = implicitPrincipals.find(principal =>
+                    principal.id === `${grant.subjectType}:${grant.subjectId}`);
+                  const revocable = canManage && !implicitPrincipal && !grant.inherited && grantIsRevocable(grant.source);
                   const granter = grant.source === "explicit" ? "Shared" : "Granted";
                   return (
                     <RowShell
@@ -367,7 +369,7 @@ export function IssueShareSheet({
                         />
                       }
                       title={displayName}
-                      subtitle={grant.inherited ? "Inherited access — managed at its source" : `${granter} ${timeAgo(grant.createdAt)}`}
+                      subtitle={implicitPrincipal ? `${implicitPrincipal.roleLabel} — access remains while this role applies` : grant.inherited ? "Inherited access — managed at its source" : `${granter} ${timeAgo(grant.createdAt)}`}
                       badge={<SourceBadge source={grant.source} />}
                       action={
                         revocable ? (

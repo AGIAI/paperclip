@@ -127,7 +127,7 @@ function MarkdownIssueLink({
   // Mention of an issue this viewer can't read → existence-only locked chip
   // (never a title or a link), matching the locked-stub treatment on edges.
   if (error instanceof ApiError && error.status === 404) {
-    return <LockedIssueChip identifier={issuePathId} />;
+    return <LockedIssueChip identifier={issuePathId} unavailable />;
   }
 
   const identifier = data?.identifier ?? issuePathId;

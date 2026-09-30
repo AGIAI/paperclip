@@ -89,13 +89,14 @@ describe("IssueShareSheet", () => {
     document.body.innerHTML = "";
   });
 
-  async function renderSheet(canManage = true) {
+  async function renderSheet(canManage = true, implicitPrincipals: import("./IssueShareSheet").ShareSheetImplicitPrincipal[] = []) {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     root = createRoot(container);
     act(() => {
       root!.render(
         <QueryClientProvider client={client}>
           <IssueShareSheet
+            implicitPrincipals={implicitPrincipals}
             issueId="i1"
             companyId="c1"
             canManage={canManage}
@@ -128,6 +129,13 @@ describe("IssueShareSheet", () => {
     // explicit + assignment are revocable; project is not.
     expect(revokeButtons).toHaveLength(2);
     expect(scope.textContent).toContain("project-managed");
+  });
+
+  it("does not promise to revoke access still conferred by assignment", async () => {
+    listAccessGrants.mockResolvedValue([grant({ id: "g1", source: "assignment", subjectType: "agent", subjectId: "a1" })]);
+    await renderSheet(true, [{ id: "agent:a1", displayName: "Helper", roleLabel: "Current assignee" }]);
+    expect([...document.body.querySelectorAll("button")].filter(button => button.textContent?.trim() === "Revoke")).toHaveLength(0);
+    expect(document.body.textContent).toContain("access remains while this role applies");
   });
 
   it("hides Revoke entirely for non-setters", async () => {

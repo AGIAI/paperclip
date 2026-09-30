@@ -99,6 +99,7 @@ export async function ensurePersonalPrivateProject(dbOrTx: any, companyId: strin
         status: "in_progress",
         visibility: "private",
         personalOwnerUserId: userId,
+        privacyOwnerUserId: userId,
       })
       .onConflictDoNothing()
       .returning()

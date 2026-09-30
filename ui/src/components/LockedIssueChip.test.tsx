@@ -43,6 +43,13 @@ describe("LockedIssueChip", () => {
     expect(chip?.getAttribute("aria-label")).toContain("private");
   });
 
+  it("does not claim a missing or forbidden Markdown target is private", () => {
+    renderChip(<LockedIssueChip identifier="PAP-404" unavailable />);
+    const chip = container.querySelector('[data-testid="locked-issue-chip"]');
+    expect(chip?.getAttribute("aria-label")).toContain("unavailable");
+    expect(chip?.getAttribute("aria-label")).not.toContain("private");
+  });
+
   it("falls back to a neutral Private label when the identifier is withheld", () => {
     renderChip(<LockedIssueChip identifier={null} />);
     const chip = container.querySelector('[data-testid="locked-issue-chip"]');

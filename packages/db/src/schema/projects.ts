@@ -14,6 +14,7 @@ export const projects = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     visibility: text("visibility").notNull().default("open"),
+    privacyOwnerUserId: text("privacy_owner_user_id"),
     personalOwnerUserId: text("personal_owner_user_id"),
     status: text("status").notNull().default("backlog"),
     leadAgentId: uuid("lead_agent_id").references(() => agents.id),

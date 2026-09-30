@@ -102,6 +102,8 @@ export interface Project {
   visibility?: ProjectVisibility;
   /** Present only for the lazily-created per-user "My private tasks" project. */
   personalOwnerUserId?: string | null;
+  /** Only this user and administrators may change the project audience. */
+  privacyOwnerUserId?: string | null;
   status: ProjectStatus;
   leadAgentId: string | null;
   targetDate: string | null;

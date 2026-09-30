@@ -1,3 +1,6 @@
+import { authApi } from "@/api/auth";
+import { accessApi } from "@/api/access";
+import { canManageProjectPrivacy } from "@/lib/issuePrivacy";
 import { useWorkspaceIsolationControls } from "@/hooks/useWorkspaceIsolationControls";
 import { useState, type ReactNode } from "react";
 import { environmentDisplayLabel, filterManagedSandboxSelectableEnvironments } from "@/lib/managed-sandbox-environment";
@@ -207,6 +210,9 @@ function ArchiveDangerZone({
 export function ProjectProperties({ project, repositories, onUpdate, onFieldUpdate, getFieldSaveState, onArchive, archivePending }: ProjectPropertiesProps) {
   const { visible: workspaceIsolationControlsVisible } = useWorkspaceIsolationControls();
   const { selectedCompanyId } = useCompany();
+  const { data: privacySession } = useQuery({ queryKey: queryKeys.auth.session, queryFn: () => authApi.getSession() });
+  const { data: privacyAccess } = useQuery({ queryKey: queryKeys.access.currentBoardAccess, queryFn: () => accessApi.getCurrentBoardAccess() });
+  const canManagePrivacy = canManageProjectPrivacy(project, privacySession?.user?.id ?? privacySession?.session?.userId ?? null, privacyAccess);
   const queryClient = useQueryClient();
   const [executionWorkspaceAdvancedOpen, setExecutionWorkspaceAdvancedOpen] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<"local" | null>(null);
@@ -462,14 +468,14 @@ export function ProjectProperties({ project, repositories, onUpdate, onFieldUpda
                   if (!checked && !window.confirm("Make this project open to everyone in the company?")) return;
                   commitField("visibility", { visibility: checked ? "private" : "open" });
                 }}
-                disabled={!onUpdate && !onFieldUpdate}
+                disabled={!canManagePrivacy || (!onUpdate && !onFieldUpdate)}
               />
               <span>{project.visibility === "private" ? "Private" : "Open to company"}</span>
             </label>
             <p className="text-(length:--text-micro) text-muted-foreground">
               Only access members can discover this project. Tasks shared directly remain readable on their own.
             </p>
-            {project.visibility === "private" ? <ProjectAccessMembers project={project} /> : null}
+            {project.visibility === "private" ? <ProjectAccessMembers project={project} canManage={canManagePrivacy} /> : null}
           </div>
         </PropertyRow>
         {repositories ?? <ProjectRepositories key={project.id} project={project} />}
