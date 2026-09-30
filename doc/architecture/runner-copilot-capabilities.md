@@ -1,13 +1,10 @@
 # Copilot 1.0.88 rich ACP capability audit
 
-Current source candidate (2026-09-30): **Copilot profile v8 is unqualified**.
-Its native executable, owned mapper and native distribution closures are unchanged
-from v7, but its declaration binds the full shared ACPX patch. The patch's additive
-Cursor metadata persistence changes those bytes, so v8 has a distinct command
-digest and rejects v7 sessions. Copilot gains no usage or cost capability from this
-change. Retained v7 paid cases below remain exact historical evidence, not v8
-qualification. Fresh pack/image admission and the required exact-runtime local
-and Daytona qualification remain outstanding.
+Current qualification checkpoint (2026-09-30): **Copilot profile v8 remains unqualified.** The a8df warm attempt passed all nine Product matchers and daemon invariants, but the supervisor failed final-pack cleanup on an extra executable; the exact orphan was later retired safely and the original failure remains. The earlier 5c69 warm-PID failure is a separate unchanged historical grade. Sidecar rotation per `attach_run` is ACPX authority rotation, separate from daemon continuity. The Daytona denial observed no write but failed its original fixture when provider turn completion preceded acknowledged run Stop; later checks were not graded.
+
+Shutdown ownership [#14730](https://github.com/paperclipai/paperclip/pull/14730) and denial settlement [#14733](https://github.com/paperclipai/paperclip/pull/14733) remain under review. The latest findings concern process-inspection fallback, owner selection, and durable-event ordering. Neither change has a live qualification pass; final-source verification remains pending. V8 binds the shared ACPX patch under a new digest, rejects v7 sessions, and adds no usage/cost capability. Native per-run USD is unknown.
+
+Exact attempt references: warm result `effadec7b6b134e3b31148cf7eea3c2b24d37ee0fc6ce36dbc90ec420b171560`, reconciliation `1ad1788161e34abf7ddcda15e08134a4c80d1f0af176d7b5397ea6dd810dace0`; Daytona denial result `050a239b6d86754d0f0045979b7c343c007729528546b49f069e7396cd167b38`, reconciliation `2ef9834cd53345c03c04bbfec1ad0bba24a2de1d7096d9225acdfa185241b82a`.
 
 Historical v7 checkpoint (2026-09-30): **Copilot profile v7 remains unqualified**. Paid controller/Product source is `40064d28522de25fea85c1297f35b41bb8a8897a`; native runtime is `5b8e4454ef0bf12d0bb068c2e41d8c9df9356a1c`. Local attached async passed eight checks and local native denial passed ten, with exact command/permission correlation, expected task states, owned cleanup and full end integrity. Daytona hello passed six checks on the current Linux image; one owned sandbox was removed and absence observed through the cleanup window. The local three-turn warm case failed its stable-process invariant despite nine passing behavioral checks. The new controller repair retains the exact agent-files directory with the warm native owner and protects collection authority; it has deterministic and database coverage, but no new paid warm proof yet. The first Daytona denial launch failed before Product dispatch because two executable-digest fields were missing; it created no sandbox and remains a failed attempt. The source `3d21d375d` PR head has green CI and Greptile 5/5. Native per-run USD is unknown; included credits reached 20 with additional usage disabled at $0. The cloud hello infrastructure bound is $0.086931, with provisional analytics. These passes qualify only the named cases. See the [comparative capability report](runner-rich-acp-capabilities.md) for exact evidence, original failures and remaining gates.
 
@@ -87,14 +84,17 @@ status. The stream errors, aborts outstanding response delivery, and terminates
 the provider on violation; the existing runner owns bounded process cleanup.
 Other providers do not install this guard.
 
-The native `ask_user` and `exit_plan_mode` tools are absent from both agent and
-plan mode in the pinned deterministic tool catalogs. Forced model tool calls
-return explicit tool-unavailable results rather than producing a blocking
-request. No `--no-ask-user` or tool-exclusion flag was used. Agent mode is the
-only admitted production mode. If any native input-request event nevertheless
-arrives, the guard terminates the connection; it never presents a form whose
-answer cannot be delivered. This narrows the blocking-input question for the
-admitted pinned mode without claiming an upstream question responder exists.
+The Copilot SDK has native `ask_user` and `exit_plan_mode` capabilities, while
+inspection of the pinned deterministic ACP tool catalogs confirmed that these
+tools are absent in both agent and plan mode. Forced model tool calls in the
+inspected catalogs return explicit tool-unavailable results rather than
+producing a blocking request. This distinguishes SDK capability from ACP
+exposure. Agent mode is the only admitted production mode; no production
+qualification claim is made for plan mode. No `--no-ask-user` or tool-exclusion
+flag was used. If any native input-request event nevertheless arrives, the
+guard terminates the connection; it never presents a form whose answer cannot
+be delivered. Unexpected blocking input remains a guarded safety condition,
+not a qualified responder.
 
 The [offline conformance record](../../packages/paperclip-runner/test/fixtures/copilot-policy-conformance-2026-09-29.json)
 retains every attempt and its evidence digest, including the isolated comparison release. A protected file outside the

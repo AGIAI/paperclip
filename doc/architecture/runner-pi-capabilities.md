@@ -1,12 +1,6 @@
 # Pi rich ACP runtime
 
-Current source candidate (2026-09-30): **Pi profile v10 is unqualified**.
-The native wrapper/runtime and their platform closures remain unchanged from v9.
-The declaration also pins the full shared ACPX patch, whose additive Cursor
-metadata persistence changes its digest. Therefore v10 rejects v9 sessions;
-retained evidence is not relabeled. No provider budget, token accounting or model
-pricing behavior changes. Paid qualification still requires the existing enforced
-provider spending bound and fresh exact-runtime pack/image admission.
+Current qualification checkpoint (2026-09-30): **Pi profile v10 remains unqualified.** The capped-key/login prerequisite remains blocked. Native USD is unknown. The optional private budget helper is not integrated; Cursor's account-cycle cap does not establish Pi's provider spending bound. V10 keeps the native wrapper and closures unchanged, binds the shared ACPX patch under a new digest, and rejects v9 sessions. Fresh exact-runtime admission and final controller verification remain pending.
 
 Historical v9 checkpoint (2026-09-30): **Pi profile v9 remains unqualified**. Current runtime source is `5b8e4454ef0bf12d0bb068c2e41d8c9df9356a1c`; controller/Product harness source is `40064d28522de25fea85c1297f35b41bb8a8897a`. Runtime builds for macOS ARM64/x64 and Linux x64 are complete. No paid profile-v9 pass is claimed. A credential with a verifiable spend limit is still needed for the remaining paid qualification. The optional transport-budget candidate is frozen on a separate branch and is not integrated or a live spending guarantee. See the [comparative capability report](runner-rich-acp-capabilities.md) for current qualification gates and the field audit. The dated observations below retain their original profile identities.
 

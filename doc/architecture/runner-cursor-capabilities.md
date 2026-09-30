@@ -1,16 +1,17 @@
 # Cursor ACP capability inventory
 
-Current source candidate (2026-09-30): **Cursor profile v9 is unqualified**.
-Its declaration binds `paperclip-cursor-usage-v4`, all three newly verified native
-closures and the shared ACPX patch that persists bounded diagnostic observations.
-Every native counter receipt remains partial with unverified semantics; it cannot
-satisfy token or dollar accounting. The exact model remains unpriced until a
-verified rate is available. Prior v7 source, builds and paid observations below
-are historical and do not qualify v9. Old v7/v8 sessions must be reopened.
-The v9 collector marks missing, invalid or reused child run ordinals as
-`child_run_attribution_unverified`. The offline proof executes the pinned
-vendor child creation and reuse methods on all three platforms; child counter
-aggregation semantics remain unverified.
+Current qualification checkpoint (2026-09-30): **Cursor profile v9 remains unqualified.** Draft PR #14724 at `3adee6f3fc652d5f5ee40b2061a16cea0c7341f5` passes Apex 5/5 and all 51 check runs plus one context; one unchanged-head failed-job retry is recorded. It fixes future eval-notice preservation but does not regrade the retained strict protocol-accounting failure or establish native USD. The verified fixed $25 account-cycle cap resets October 28 and applies to account on-demand fees, not per-cell costs. The separate 15-test helper proposal is unintegrated and grants no launch authority. Profile v9 binds usage-v4 and three native closures; counters remain partial with unverified semantics. Local and Daytona qualification remain pending.
+
+A separate native-question attempt ended without a captured
+`cursor/ask_question` callback, and the model reported that AskQuestion was
+unavailable. [Public upstream review](https://forum.cursor.com/t/agent-acp-never-offers-the-askquestion-tool-so-cursor-ask-question-is-never-sent/172976)
+attributed the reported symptom to server-side ACP session identification,
+without identifying a missing initialize capability or a verified fix release.
+Native AskQuestion therefore remains unverified for the pinned model/mode; this
+does not establish universal absence or support in every mode. Semantic question
+continuation is separate and does not qualify the native callback. Evidence is
+retained at `runtime-9-8-10-preparation/cursor-question-public-review/root-findings.json`
+(SHA-256 `2fc34c1942e85ab58577b7cfa8ccdeafe520cc7c539aa67a7eef5a474848ad73`).
 
 Historical v7 checkpoint (2026-09-30): **Cursor profile v7 remains unqualified**. The corrected local native-plan case on controller/Product source `3d21d375de2b6249d9f5322bf001ce0ce0e052aa` and native runtime `5b8e4454ef0bf12d0bb068c2e41d8c9df9356a1c` passed all 26 checks. Reject, feedback, revision-bound acceptance, browser reconnect, exact delivery and unchanged workspace bytes passed. The single planning run succeeded while the task remained In Progress with an explicit next-message wait; no implementation or task completion is claimed. Cleanup and full end integrity passed. Result SHA-256: `685609f01291db84f40d890ef562473b95065e86907bd964b656ad732f6dd97a`. The earlier controller40064 attempt remains failed. Controller fix `c58a8881f` uses the production schema/policy/contract hash envelope; native runtime/profile bytes are unchanged. That exact Cursor PR head has green CI and Greptile 5/5. All three platform builds exist, but the remaining current-profile local/Daytona cases are still required. Native AskQuestion availability remains unverified. Cursor on-demand usage remains $0 under the approved fixed $25 account cap; native per-run USD is unknown. See the [comparative capability report](runner-rich-acp-capabilities.md) for exact source roles, evidence and remaining gates.
 
