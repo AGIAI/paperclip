@@ -7,7 +7,11 @@ export interface BootstrapReadNotice {
 export interface BootstrapReadProof { actionFile: string; events: readonly unknown[] }
 const record = (value: unknown): Record<string, any> => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
 const hashId = (domain: string, id: string) => `acpx-tool-${createHash("sha256").update(domain).update("tool\0").update(id).digest("hex")}`;
-/** Mirror the pinned sidecar identity bound and Rust acpx_opaque_item_id. */
+/** These native Product fixtures require runnerd (harness-env.ts), whose
+ * cli/acpx-runtime-sidecar.ts stableProviderIdentity feeds runner-core's
+ * provider_events.rs acpx_opaque_item_id. Durable tool execution IDs keep that
+ * hash; the separate in-process TypeScript driver's safeId replacement is not
+ * this path. Mirror the sidecar byte bound followed by the Rust opaque ID. */
 export function bootstrapReadExecutionId(toolCallId: string): string {
   if (!toolCallId || toolCallId.length > 240 || /[\u0000-\u001f\u007f]/u.test(toolCallId) || toolCallId.includes("[REDACTED]")) throw new Error("Invalid bootstrap native tool identity");
   const bounded = Buffer.byteLength(toolCallId) > 240 ? hashId("paperclip.acpx.provider-identity.v1\0", toolCallId) : toolCallId;
