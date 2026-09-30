@@ -138,7 +138,12 @@ Edits, additions, removals or changed configuration retire the owner before
 collection and fresh preparation. A configuration or copy change found at the
 final dispatch fence fails that run after retirement; it does not replay the
 request automatically. Idle expiry, restart and abandoned preparation also retire
-before collection. The whole-directory contract closes the provider process,
+before collection. Immediate collection retries have a fixed call budget and must
+advance; a deferred ownership state ends the callback without inventing attempts.
+A failed close leaves an unstopped pending receipt through generic run cleanup.
+Later owner retirement or independent current-run stop proof can still collect it;
+a prior run's stop proof cannot authorize collection. The whole-directory contract
+closes the provider process,
 including child processes, to establish this safe collection boundary. It
 preserves the provider's resumable conversation. Only the loaded instruction entry
 participates in the new runtime instruction digest; adding or editing another file does not change

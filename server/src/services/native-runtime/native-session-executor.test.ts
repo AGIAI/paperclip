@@ -5979,8 +5979,36 @@ describe("native session same-turn steering", () => {
   });
 });
 
+describe("bounded stopped instruction collection", () => {
+  it.each([
+    { scenario: "deferred", attempts: [0], nextAttemptAt: null, expectedCalls: 1 },
+    { scenario: "no progress", attempts: [0, 0], nextAttemptAt: new Date(0), expectedCalls: 2 },
+    { scenario: "regressed counter", attempts: [1, 0], nextAttemptAt: new Date(0), expectedCalls: 2 },
+    { scenario: "progressing counter", attempts: [0, 1, 2], nextAttemptAt: new Date(0), expectedCalls: 3 },
+    { scenario: "exhausted", attempts: [3], nextAttemptAt: new Date(0), expectedCalls: 1 },
+  ])("finishes pending collection without inventing attempts: $scenario", async ({ attempts, nextAttemptAt, expectedCalls }) => {
+    const { collectStoppedInstructionCopyWithRetries } = await import("../agent-instruction-working-copies.js");
+    const collect = vi.fn(async () => {
+      const index = collect.mock.calls.length - 1;
+      if (index >= attempts.length) throw new Error("collector invoked beyond bounded progress");
+      return { state: "pending_collection", attempts: attempts[index]!, nextAttemptAt };
+    });
+    expect(await collectStoppedInstructionCopyWithRetries(collect)).toEqual({ state: "pending_collection", attempts: attempts.at(-1), nextAttemptAt });
+    expect(collect).toHaveBeenCalledTimes(expectedCalls);
+  });
+  it("returns completed or absent copies and propagates collection errors", async () => {
+    const { collectStoppedInstructionCopyWithRetries } = await import("../agent-instruction-working-copies.js");
+    const result = { state: "saved", attempts: 1, nextAttemptAt: null };
+    const saved = vi.fn(async () => result), absent = vi.fn(async () => null);
+    expect(await collectStoppedInstructionCopyWithRetries(saved)).toBe(result);
+    expect(await collectStoppedInstructionCopyWithRetries(absent)).toBeNull();
+    expect(saved).toHaveBeenCalledOnce(); expect(absent).toHaveBeenCalledOnce();
+    await expect(collectStoppedInstructionCopyWithRetries(async () => { throw new Error("collection failed"); })).rejects.toThrow("collection failed");
+  });
+});
+
 describe("native warm session supervision", () => {
-  it.each(["collect", "stopped", "destroyed", "missing-lease", "foreign-run", "foreign-environment", "deleted-environment", "claim-edit", "claim-add", "claim-remove", "claim-remove-entry", "claim-canonical", "claim-config", "claim-uncertain"])("composes remote warm ownership with real DB successor leases and current-run collection: %s", async ending => {
+  it.each(["collect", "close-failure", "stopped", "destroyed", "missing-lease", "foreign-run", "foreign-environment", "deleted-environment", "claim-edit", "claim-add", "claim-remove", "claim-remove-entry", "claim-canonical", "claim-config", "claim-uncertain"])("composes remote warm ownership with real DB successor leases and current-run collection: %s", async ending => {
     const tables = await import("@paperclipai/db");
     const { eq } = await import("drizzle-orm");
     const { randomUUID } = await import("node:crypto");
@@ -6075,7 +6103,10 @@ describe("native warm session supervision", () => {
         const preparationKey = turn === 1 && ending === "claim-config" ? "changed-config" : "same-config";
         let retiredReceipt: Record<string, unknown> | null = null;
         const capability = () => ({ runId, preparationKey, hasChanges: () => copies.hasChanges({ companyId, runId, target }),
-          collectStopped: async () => { expect(closed).toBe(true); retiredReceipt = (await copies.get(companyId, runId))?.receipt ?? null; await copies.collectStopped({ companyId, runId, target }); } });
+          collectStopped: async () => { expect(closed).toBe(true); retiredReceipt = (await copies.get(companyId, runId))?.receipt ?? null;
+            const { collectStoppedInstructionCopyWithRetries } = await import("../agent-instruction-working-copies.js");
+            await collectStoppedInstructionCopyWithRetries(() => copies.collectStopped({ companyId, runId, target }));
+          }, retirementFailed: async () => { await copies.reportRetirementUnconfirmed(companyId, runId); } });
         let release: (() => Promise<void>) | null = null;
         if (prior) {
           // Same environment is insufficient: reject a different physical allocation.
@@ -6165,6 +6196,23 @@ describe("native warm session supervision", () => {
         expect(pending.state).toBe("pending_collection");
         expect(pending.receipt?.baseline).toBeDefined();
         expect(await readFile(join(originalRoot, "late-memory.txt"), "utf8")).toBe("Latest owner's remote bytes");
+        return;
+      }
+      if (ending === "close-failure") {
+        session.close.mockImplementationOnce(async () => { throw new Error("owned close not yet confirmed"); });
+        const before = commands.length;
+        expect(await closeWarmNativeSessionsForEnvironment({ environmentId, reason: "first retirement" })).toMatchObject({ failed: 1 });
+        await copies.reportUnavailable(companyId, prior!.binding.runId);
+        await copies.reportUnavailable(companyId, materializationRunId);
+        await copies.release(companyId, prior!.binding.runId);
+        await copies.release(companyId, materializationRunId);
+        expect(await copies.get(companyId, prior!.binding.runId)).toMatchObject({ state: "pending_collection", errorCode: "INSTRUCTION_STOP_UNCONFIRMED", processStoppedAt: null });
+        expect(commands).toHaveLength(before);
+        expect(await readFile(join(originalRoot, "late-memory.txt"), "utf8")).toBe("Latest owner's remote bytes");
+        expect(await closeWarmNativeSessionsForEnvironment({ environmentId, reason: "verified later retirement" })).toMatchObject({ closed: 1, failed: 0 });
+        expect(await copies.get(companyId, prior!.binding.runId)).toMatchObject({ state: "saved", receipt: { cleanupPending: false } });
+        expect(await readFile(join(canonical, "late-memory.txt"), "utf8")).toBe("Latest owner's remote bytes");
+        await expect(access(originalRoot)).rejects.toMatchObject({ code: "ENOENT" });
         return;
       }
       if (ending !== "collect") {

@@ -71,7 +71,7 @@ import {
   startAdapterExecutionTargetPaperclipBridge,
 } from "@paperclipai/adapter-utils/execution-target";
 import { agentService } from "./agents.js";
-import { agentInstructionWorkingCopyService, instructionWorkingCopyGuidance } from "./agent-instruction-working-copies.js";
+import { agentInstructionWorkingCopyService, collectStoppedInstructionCopyWithRetries, instructionWorkingCopyGuidance } from "./agent-instruction-working-copies.js";
 import { normalizeLegacyRunnerProvider } from "@paperclipai/adapter-utils";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -22431,12 +22431,9 @@ export function heartbeatService(
       })).digest("hex");
       const collectStoppedInstructions = async () => {
         if (!instructionCopy) return;
-        let saved = await instructionCopies.collectStopped({ companyId: agent.companyId, runId: run.id, target: executionTarget });
-        // Capture before disposal. Exhausted bounded collection leaves a durable
-        // explicit loss report, never a claim that missing bytes were saved.
-        while (saved?.state === "pending_collection" && saved.attempts < 3) {
-          saved = await instructionCopies.collectStopped({ companyId: agent.companyId, runId: run.id, target: executionTarget });
-        }
+        const saved = await collectStoppedInstructionCopyWithRetries(() => instructionCopies.collectStopped({
+          companyId: agent.companyId, runId: run.id, target: executionTarget,
+        }));
         if (!saved) return;
         const receipt = parseObject(saved.receipt);
         const storageWarning = readNonEmptyString(receipt.storageWarning);

@@ -32,6 +32,19 @@ const MAX_COLLECTION_ATTEMPTS = 3;
 const liveTargets = new Map<string, AdapterExecutionTarget>();
 const targetKey = (companyId: string, runId: string) => `${companyId}:${runId}`;
 
+/** Finish only bounded immediate collection work; deferred ownership remains pending. */
+export async function collectStoppedInstructionCopyWithRetries<T extends Pick<Copy, "state" | "attempts" | "nextAttemptAt">>(collect: () => Promise<T | null>): Promise<T | null> {
+  let saved: T | null = null;
+  let previousAttempts = -1;
+  for (let calls = 0; calls < MAX_COLLECTION_ATTEMPTS; calls++) {
+    saved = await collect();
+    if (!saved || saved.state !== "pending_collection" || saved.nextAttemptAt === null
+      || saved.attempts >= MAX_COLLECTION_ATTEMPTS || saved.attempts <= previousAttempts) break;
+    previousAttempts = saved.attempts;
+  }
+  return saved;
+}
+
 export function instructionWorkingCopyGuidance(copy: Pick<Copy, "executionRoot" | "entryFile" | "receipt">) {
   if (isAgentDirectoryCopy(copy)) return `Your persistent agent directory is ${copy.executionRoot} (AGENT_HOME). Your instruction entry is ${copy.executionRoot}/${copy.entryFile}. Read and write your own files and subfolders there. This directory belongs to this agent across tasks and sessions; task files belong in the task working directory. Paperclip restores this directory before execution and saves changes after the provider stops. Regular files, including binary files, persist; symlinks and special files are unsupported. Check the agent-files save receipt before claiming persistence; Only files you change or delete are synchronized. If another run changes the same file, the last completed synchronization wins. Temporary copies are removed after synchronization; there is no per-run file history. Storage allows 256 MiB per file, 2 GiB total, and 100,000 entries; the instruction entry must remain UTF-8 and at most 1 MiB. Reaching a storage limit never prevents this or future tasks from running. Remove or shrink files to free space; changes that exceed the limits will not be saved.${typeof copy.receipt?.storageWarning === "string" ? `\n\n${copy.receipt.storageWarning}` : ""}`;
   return `Your editable agent instruction file is ${copy.executionRoot}/${copy.entryFile}. Edit this registered private copy normally. After this run stops, Paperclip saves changed content as a persistent revision if your responsible user still has permission and the baseline has not changed. Check the run's instruction-save receipt before claiming persistence. Use read_agent_instructions, update_agent_instructions, get_agent_instruction_history, and restore_agent_instructions for immediate saves and history. Read first and pin the returned revision. Preserve conflicts; never silently retry against a newer head. Repository instructions, skills, and the loaded prompt are separate and are not collected.`;
@@ -346,7 +359,10 @@ export function agentInstructionWorkingCopyService(db: Db, options: { environmen
   async function reportUnavailable(companyId: string, runId: string) {
     const row = await get(companyId, runId);
     if (!row || completed.has(row.state) || row.state === "unchanged_turn" || row.candidateBase64 !== null || (isAgentDirectoryCopy(row) && row.candidateHash !== null) || row.state === "conflict") return row;
-    if (isAgentDirectoryCopy(row) && row.state === "unavailable") return row;
+    // A failed close or deferred lease observation grants no stop proof. Keep
+    // that row recoverable through generic heartbeat cleanup.
+    if (isAgentDirectoryCopy(row) && (row.state === "unavailable"
+      || row.state === "pending_collection" && !row.processStoppedAt)) return row;
     return patch(row, { state: "unavailable", errorCode: "INSTRUCTION_COLLECTION_UNAVAILABLE",
       errorMessage: "The registered instruction copy could not be retrieved safely before environment release. No instruction save is claimed.", nextAttemptAt: null });
   }
