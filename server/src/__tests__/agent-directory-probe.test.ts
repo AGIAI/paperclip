@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createRequire } from "node:module";
 import childProcess, { execFileSync } from "node:child_process";
 import { prepareAdapterExecutionTargetRuntime } from "@paperclipai/adapter-utils/execution-target";
 import { captureDirectorySnapshot } from "@paperclipai/adapter-utils/workspace-restore-merge";
@@ -16,6 +17,45 @@ describe("stable live agent directory observation", () => {
     fs.writeFileSync(join(root, "notes", "memory.bin"), Buffer.from([0, 1, 255]));
   });
   afterEach(() => { vi.restoreAllMocks(); fs.rmSync(root, { recursive: true, force: true }); });
+  function productionPrograms(): { probe: string; cleanup: string } {
+    // Product/dev starts the server with tsx. Vitest's own transform does not
+    // reproduce the lexical helpers injected into function.toString() there.
+    const loader = createRequire(import.meta.url).resolve("tsx");
+    const source = new URL("../services/agent-directory-probe.ts", import.meta.url).href;
+    const program = `import { agentDirectoryProbeProgram, agentDirectoryTransferCleanupProgram } from ${JSON.stringify(source)}; process.stdout.write(JSON.stringify({probe:agentDirectoryProbeProgram,cleanup:agentDirectoryTransferCleanupProgram}));`;
+    return JSON.parse(execFileSync(process.execPath, ["--import", loader, "--input-type=module", "--eval", program], {
+      cwd: root, env: { TSX_DISABLE_CACHE: "1", HOME: root, TMPDIR: root }, encoding: "utf8", timeout: 10_000, maxBuffer: 64 * 1024,
+    }));
+  }
+  it("runs a self-contained live probe after the production tsx transform", () => {
+    const { probe } = productionPrograms();
+    const observe = () => JSON.parse(execFileSync(process.execPath, ["-e", probe, root], {
+      env: {}, encoding: "utf8", timeout: 10_000, maxBuffer: 64 * 1024, stdio: "pipe",
+    }));
+    const before = probeAgentDirectory(root);
+    expect(observe()).toEqual(before);
+    fs.writeFileSync(join(root, "AGENTS.md"), "Changed instructions\n");
+    expect(observe()).toEqual(probeAgentDirectory(root));
+    expect(observe().digest).not.toBe(before.digest);
+    fs.symlinkSync(join(root, "AGENTS.md"), join(root, "unsafe"));
+    expect(observe).toThrow();
+  });
+  it("runs bounded transfer cleanup after the production tsx transform", () => {
+    const { cleanup } = productionPrograms();
+    const scratch = join(root, ".paperclip-runtime", "agent-files");
+    const retire = () => execFileSync(process.execPath, ["-e", cleanup, root], {
+      env: {}, encoding: "utf8", timeout: 10_000, maxBuffer: 64 * 1024, stdio: "pipe",
+    });
+    fs.mkdirSync(scratch, { recursive: true });
+    fs.writeFileSync(join(scratch, "unexpected"), "retain");
+    expect(retire).toThrow();
+    expect(fs.readFileSync(join(scratch, "unexpected"), "utf8")).toBe("retain");
+    fs.unlinkSync(join(scratch, "unexpected"));
+    retire();
+    expect(fs.existsSync(join(root, ".paperclip-runtime"))).toBe(false);
+    expect(fs.readFileSync(join(root, "AGENTS.md"), "utf8")).toBe("Instructions\n");
+    expect(fs.readFileSync(join(root, "notes", "memory.bin"))).toEqual(Buffer.from([0, 1, 255]));
+  });
   it("matches the complete materialized baseline and the actual remote Node program", async () => {
     const baseline = await captureDirectorySnapshot(root);
     const observed = probeAgentDirectory(root);

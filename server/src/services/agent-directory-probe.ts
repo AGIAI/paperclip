@@ -106,7 +106,12 @@ export function probeAgentDirectory(
   return { digest: createHash("sha256").update(JSON.stringify(entries)).digest("hex"), identity: identity(initial) };
 }
 
-export const agentDirectoryProbeProgram = `const probe=${probeAgentDirectory.toString()}; process.stdout.write(JSON.stringify(probe(process.argv[1], {fs:require('node:fs'),path:require('node:path'),createHash:require('node:crypto').createHash,platform:process.platform})))`;
+// tsx/esbuild keepNames injects this lexical helper into nested functions.
+// Include its exact name-property behavior in each plain-Node child program;
+// function.toString() alone does not carry the controller module's bindings.
+const childNameHelper = `const __name=(target,value)=>Object.defineProperty(target,"name",{value,configurable:true});`;
+
+export const agentDirectoryProbeProgram = `${childNameHelper} const probe=${probeAgentDirectory.toString()}; process.stdout.write(JSON.stringify(probe(process.argv[1], {fs:require('node:fs'),path:require('node:path'),createHash:require('node:crypto').createHash,platform:process.platform})))`;
 
 /** Retire only the two empty directories created by initial sandbox transfer.
  * Run before provider admission; this is never an exclusion from live probing. */
@@ -147,7 +152,7 @@ export function retireAgentDirectoryTransferScratch(root: string, modules = { fs
   verify();
 }
 
-export const agentDirectoryTransferCleanupProgram = `const retire=${retireAgentDirectoryTransferScratch.toString()}; retire(process.argv[1], {fs:require('node:fs'),path:require('node:path'),platform:process.platform})`;
+export const agentDirectoryTransferCleanupProgram = `${childNameHelper} const retire=${retireAgentDirectoryTransferScratch.toString()}; retire(process.argv[1], {fs:require('node:fs'),path:require('node:path'),platform:process.platform})`;
 
 /** Bound child: no shell, inherited credentials, or event-loop hashing. */
 export async function observeLocalAgentDirectory(root: string) {
