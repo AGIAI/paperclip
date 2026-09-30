@@ -4540,9 +4540,14 @@ it("steers the active provider turn through the durable PRP command path", async
   }
 }, 30_000);
 
-it.each(["held-ack", "lost-ack", "rejected-attach"] as const)(
-  "preserves old warm-attach authority and event ownership across %s",
-  async (mode) => {
+it.each([
+  ["held-ack", "normal"],
+  ["lost-ack", "normal"],
+  ["rejected-attach", "normal"],
+  ["lost-ack", "after-activation"],
+] as const)(
+  "preserves old warm-attach authority and event ownership across %s (%s observer)",
+  async (mode, observer) => {
     const stateDirectory = await mkdtemp(join(tmpdir(), "runnerd-warm-ack-"));
     const callsPath = join(stateDirectory, "calls.log");
     const cores: DurablePrpControlPlane[] = [];
@@ -4678,6 +4683,34 @@ it.each(["held-ack", "lost-ack", "rejected-attach"] as const)(
       const runnerPid = bundle.evidence().runnerPid;
       providerPid = bundle.evidence().codexPid;
       const rotations: (typeof core.store.state)[] = [];
+      const preparedStates: (typeof core.store.state)[] = [];
+      const commit = core.store.commit.bind(core.store);
+      vi.spyOn(core.store, "commit").mockImplementation((candidate) => {
+        commit(candidate);
+        // Capture the durable old epoch at publication. The authenticated
+        // successor may activate before attachRun observes the completed command.
+        if (
+          candidate.identity.runId === oldIdentity.runId &&
+          candidate.warmTransition?.phase === "prepared"
+        ) {
+          preparedStates.push(structuredClone(core.store.state));
+        }
+      });
+      if (observer === "after-activation") {
+        const getCommand = core.getCommand.bind(core);
+        vi.spyOn(core, "getCommand").mockImplementation((commandId) => {
+          const command = getCommand(commandId);
+          if (
+            command?.type === "run.attach" &&
+            command.status === "completed" &&
+            core.store.state.completedWarmTransition === undefined
+          ) {
+            // Deterministically exercise an observer that misses the old epoch.
+            return { ...command, status: "pending", result: null };
+          }
+          return command;
+        });
+      }
       const rotate = core.rotateRunIdentity.bind(core);
       vi.spyOn(core, "rotateRunIdentity").mockImplementation(
         (identity, template) => {
@@ -4751,7 +4784,16 @@ it.each(["held-ack", "lost-ack", "rejected-attach"] as const)(
         releaseCommit();
         await within("warm attach after old ACK", attachment, 10_000);
         expect(rotations).toHaveLength(1);
-        const retired = rotations[0]!;
+        expect(preparedStates.length).toBeGreaterThan(0);
+        const retired = preparedStates[0]!;
+        if (observer === "after-activation") {
+          expect(rotations[0]!.identity.runId).toBe("run-warm-ack-next");
+          expect(
+            rotations[0]!.committedEvents.some(
+              (entry) => entry.sourceEventId === heldEvent!.sourceEventId,
+            ),
+          ).toBe(false);
+        }
         const attachedEvent = retired.committedEvents.find(
           (entry) => entry.sourceEventId === heldEvent!.sourceEventId,
         )!;
