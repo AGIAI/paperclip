@@ -5090,9 +5090,10 @@ describeEmbeddedPostgres("tool access service", () => {
         "google-workspace-search",
         "github",
         "youcom",
+        "enterpret",
       ]),
     );
-    expect(res.body.apps).toHaveLength(56);
+    expect(res.body.apps).toHaveLength(57);
     expect(
       res.body.apps.find((app: { slug: string }) => app.slug === "gmail")
         .ownershipAvailability,
@@ -17984,6 +17985,21 @@ describe("classifyRisk", () => {
     for (const name of ["fireflies_share_meeting", "fireflies_revoke_meeting_access", "fireflies_move_meeting", "fireflies_create_soundbite", "fireflies_update_meeting_title"])
       expect(classifyRisk({ name, annotations: { readOnlyHint: true } }, "fireflies")).toBe("write");
     expect(classifyRisk({ name: "fireflies_share_meeting", annotations: { destructiveHint: true } }, "fireflies")).toBe("destructive");
+  });
+
+  it("classifies Enterpret run_graph_query as write despite readOnlyHint", () => {
+    expect(
+      classifyRisk(
+        { name: "run_graph_query", annotations: { readOnlyHint: true } },
+        "enterpret",
+      ),
+    ).toBe("write");
+    expect(
+      classifyRisk(
+        { name: "get_organization_details", annotations: { readOnlyHint: true } },
+        "enterpret",
+      ),
+    ).toBe("read");
   });
 
   const risk = (name: string, annotations?: Record<string, unknown>) =>

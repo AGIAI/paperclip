@@ -22,10 +22,11 @@ import { ReconnectCard } from "@/pages/apps/app-detail/AdvancedPanel";
  * the connector actually ships.
  *
  * Organization auth token is the primary, store-ready method. Browser OAuth
- * remains listed as a draft secondary path until Enterpret honors `mcp:read`
+ * remains in the definition as draft copy but is not connectable
+ * (`ownershipAvailability.dcr: false`) until Enterpret honors `mcp:read`
  * without granting `mcp:write`. Story 1 shows the current Browse card; story 2
  * is retained as a no-op mirror for review continuity. Later stories cover
- * OAuth (draft) and token recovery copy.
+ * OAuth (draft / future) and token recovery copy.
  *
  * No real sign-in, no real token, no provider call. Every value here is fake.
  */
@@ -232,7 +233,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "Design review for the Enterpret catalog connector using production components and the real generated definition. Organization auth token is primary and store-ready; browser OAuth remains draft secondary until Enterpret fixes the mcp:write over-grant. No real sign-in, token, or provider call.",
+          "Design review for the Enterpret catalog connector using production components and the real generated definition. Organization auth token is primary and store-ready; browser OAuth remains draft and not connectable until Enterpret fixes the mcp:write over-grant. No real sign-in, token, or provider call.",
       },
     },
   },
@@ -257,17 +258,17 @@ export const MethodCopy: Story = {
 };
 
 export const OAuthEntry: Story = {
-  name: "4 — Browser sign-in (draft), entry",
+  name: "4 — Browser sign-in (draft / gated), entry",
   render: () => <OAuthStateHost phase="entry" />,
 };
 
 export const OAuthStarting: Story = {
-  name: "5 — Browser sign-in (draft), in flight",
+  name: "5 — Browser sign-in (draft / gated), in flight",
   render: () => <OAuthStateHost phase="starting" />,
 };
 
 export const OAuthError: Story = {
-  name: "6 — Browser sign-in (draft), error",
+  name: "6 — Browser sign-in (draft / gated), error",
   render: () => (
     <OAuthStateHost
       phase="error"

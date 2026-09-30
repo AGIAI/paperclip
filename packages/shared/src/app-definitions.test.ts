@@ -9,6 +9,7 @@ import {
   CONNECTABLE_APP_DEFINITIONS,
   appSupportsCatalogSetup,
   getAvailableConnectionMethod,
+  getAvailableConnectionMethods,
   getAppDefinitionForUrl,
   getRecommendedConnectionMethod,
   recommendedDefaultsForApp,
@@ -459,7 +460,7 @@ describe("AppDefinition catalog", () => {
     });
   });
 
-  it("ships Enterpret with organization auth token primary and OAuth as draft secondary", () => {
+  it("ships Enterpret with organization auth token primary and OAuth gated unavailable", () => {
     const app = CONNECTABLE_APP_DEFINITIONS.find(
       (entry) => entry.slug === "enterpret",
     )!;
@@ -467,8 +468,9 @@ describe("AppDefinition catalog", () => {
       getAppDefinitionForUrl("https://wisdom-api.enterpret.com/server/mcp")
         ?.slug,
     ).toBe("enterpret");
-    // Organization auth token is primary; browser OAuth stays secondary/draft
-    // until Enterpret honors mcp:read without granting mcp:write.
+    // Organization auth token is primary and store-ready. OAuth remains in the
+    // definition as draft copy, but ownershipAvailability.dcr=false keeps it
+    // out of getAvailableConnectionMethods until Enterpret honors mcp:read.
     expect(app.methods.map((method) => method.key)).toEqual([
       "mcp-api-key",
       "mcp-oauth",
@@ -476,7 +478,12 @@ describe("AppDefinition catalog", () => {
     expect(app.redirectConstraints).toBe("https-or-loopback-http");
     expect(APP_STORE_HIDDEN_SLUGS.has("enterpret")).toBe(false);
     expect(app.availability?.available).not.toBe(false);
+    expect(app.ownershipAvailability).toMatchObject({ dcr: false });
+    expect(getAvailableConnectionMethods(app).map((method) => method.key)).toEqual([
+      "mcp-api-key",
+    ]);
     expect(getAvailableConnectionMethod(app)?.key).toBe("mcp-api-key");
+    expect(getAvailableConnectionMethod(app, "mcp-oauth")).toBeNull();
     expect(app.methods[0]).toMatchObject({
       transport: "mcp_remote",
       auth: "api_key",
@@ -682,13 +689,21 @@ describe("AppDefinition catalog", () => {
       APP_DEFINITIONS.find((app) => app.slug === "hugging-face")?.methods[0]
         ?.defaults?.scopesHint,
     ).toEqual(["read-mcp"]));
-  it("defaults every new connection action to allowed", () => {
+  it("defaults every new connection action to allowed except Enterpret writes", () => {
     for (const app of APP_DEFINITIONS)
-      for (const method of app.methods)
+      for (const method of app.methods) {
+        if (app.slug === "enterpret") {
+          expect(recommendedDefaultsForApp(app, method.key)).toEqual({
+            access: "all_agents",
+            askFirstRiskLevels: ["write", "destructive"],
+          });
+          continue;
+        }
         expect(recommendedDefaultsForApp(app, method.key)).toEqual({
           access: "all_agents",
           askFirstRiskLevels: [],
         });
+      }
   });
   it("defaults explicit read/write capability groups to their write-capable method", () => {
     const drive = APP_DEFINITIONS.find((app) => app.slug === "google-drive")!;

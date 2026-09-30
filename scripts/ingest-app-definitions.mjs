@@ -802,12 +802,13 @@ const apps = [
   // challenge (issuer https://oauth.enterpret.com, PKCE S256, registration
   // endpoint present, token_endpoint_auth_method "none"), so `defaults` ships
   // `serverUrl` only and the broker resolves endpoints at connect time.
-  // Primary method is the organization auth token (Bearer header). OAuth remains
-  // available as a secondary/draft path: Enterpret still over-grants mcp:write
-  // for an mcp:read request (CP-7154), so browser sign-in is not the release
-  // path. Public tools are read-only today; the over-grant is a scope bug, not
-  // a write tool surface. The provider documents no customer-registered OAuth
-  // app, so OAuth stays `dcr` only rather than `["customer", "dcr"]`.
+  // Primary method is the organization auth token (Bearer header). OAuth stays
+  // in the definition as a draft secondary method, but ownershipAvailability.dcr
+  // is false so getAvailableConnectionMethods hides it until Enterpret stops
+  // over-granting mcp:write for an mcp:read request (CP-7154). Public tools are
+  // read-only today; the over-grant is a scope bug, not a write tool surface.
+  // The provider documents no customer-registered OAuth app, so OAuth stays
+  // `dcr` only rather than `["customer", "dcr"]`.
   [
     "enterpret",
     "Enterpret",
@@ -846,6 +847,7 @@ const apps = [
           warnings: [
             "Enterpret auth tokens expire six months after you generate them. Generate a replacement before the current one lapses.",
             "This connection reads customer feedback, including verbatim quotes with speaker attribution.",
+            "run_graph_query starts as Ask first. Cypher is not established as read-only even when Enterpret advertises readOnlyHint.",
           ],
         },
       ),
@@ -879,9 +881,10 @@ const apps = [
     {
       docsUrl: "https://enterpret.support.site/article/enterpret-mcp-server",
       redirectConstraints: "https-or-loopback-http",
-      // Organization auth token is the primary, store-ready path. OAuth remains
-      // listed as a draft secondary method; its mcp:write over-grant (CP-7154)
-      // no longer blocks the connector as a whole.
+      // Organization auth token is the primary, store-ready path. Keep OAuth in
+      // the definition for when Enterpret fixes scopes, but disable DCR so the
+      // draft method is not connectable while the over-grant remains.
+      ownershipAvailability: { dcr: false },
     },
   ],
   [

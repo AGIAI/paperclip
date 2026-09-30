@@ -18,12 +18,14 @@ primary, store-ready connection method. Generate a Bearer token under Enterpret
 read-only today; the token path does not depend on Enterpret honouring a
 narrowed OAuth grant.
 
-**OAuth (`mcp-oauth`) stays secondary / draft.** Live validation found that
-Enterpret grants `mcp:write` against an `mcp:read` request and omits `scope`
-from the token response (see [Scope decision](#scope-decision); tracked as
-CP-7154). That over-grant **blocks promoting browser sign-in**, not the
-connector as a whole. Prefer the organization auth token until Enterpret fixes
-scopes.
+**OAuth (`mcp-oauth`) stays in the definition as draft copy but is not
+connectable.** Live validation found that Enterpret grants `mcp:write` against
+an `mcp:read` request and omits `scope` from the token response (see
+[Scope decision](#scope-decision); tracked as CP-7154). The definition sets
+`ownershipAvailability.dcr: false`, so `getAvailableConnectionMethods` hides
+browser sign-in while the organization auth token path remains available.
+Prefer the organization auth token until Enterpret fixes scopes, then re-enable
+DCR.
 
 Several live read and gateway checks passed on the OAuth method. Refresh, a
 real agent process, a full organization-token end-to-end pass, and
@@ -65,11 +67,11 @@ incremental. Treat the generic path as the baseline, not as a lesser fallback.
 - Endpoint: `https://wisdom-api.enterpret.com/server/mcp`. The bare and
   trailing-slash forms behave identically — `401`, no redirect.
 - Auth modes: **API key / organization auth token** (`mcp-api-key`, primary)
-  and **OAuth** (`mcp-oauth`, secondary / draft). Both are documented by the
-  provider on one catalog entry.
+  and **OAuth** (`mcp-oauth`, draft / not connectable). Both remain on one
+  catalog entry; only the token method is selectable.
 - OAuth scopes: requested `mcp:read`. Advertised by the provider: `email`,
   `mcp:read`, `mcp:write`. See [Scope decision](#scope-decision). The OAuth
-  over-grant keeps browser sign-in draft; it does not block the token path.
+  over-grant keeps DCR ownership unavailable; it does not block the token path.
 - Key scope: the Enterpret auth token is generated per Enterpret organization
   and carries that organization's access. Enterpret does not document a
   restricted or read-only token variant. Public tools remain read-only.
@@ -337,14 +339,14 @@ write-capable one.
 - setupPrerequisite: not used; the account requirement is carried in method
   warnings.
 - redirectConstraints: `https-or-loopback-http` (unprobed).
-- availability: omitted (setup allowed). The previous `{ available: false }`
-  gate treated the OAuth `mcp:write` over-grant as a blocker for the whole
-  connector. That gate is removed: organization auth token is the primary
-  method and may connect. `"enterpret"` is also removed from
-  `APP_STORE_HIDDEN_SLUGS`, and `catalogVisible` is `true` in the brand
-  manifest, so the card can appear in Browse. OAuth remains labelled draft in
-  method copy/warnings until Enterpret fixes scopes; operators should prefer
-  the auth token.
+- availability: omitted (setup allowed for the token path). The previous
+  `{ available: false }` gate treated the OAuth `mcp:write` over-grant as a
+  blocker for the whole connector. That gate is removed: organization auth
+  token is the primary method and may connect. `"enterpret"` is also removed
+  from `APP_STORE_HIDDEN_SLUGS`, and `catalogVisible` is `true` in the brand
+  manifest, so the card can appear in Browse. OAuth stays in the definition
+  with draft labels, but `ownershipAvailability.dcr: false` keeps it out of
+  setup until Enterpret fixes scopes.
 
 ## Actions
 
@@ -361,11 +363,11 @@ documented table:
   it is exactly the case where a provider annotation should not be believed.
 
 **Read the two status columns as the configuration used for the live validation
-run, not as what ships.** This entry ships **no per-tool policy**. Every
-discovered action — `run_graph_query` included — arrives **enabled and Allowed**
-under the central `recommendedDefaultsForApp`. The `deny` below was applied by
-hand on the test connection and has to be reapplied by hand on every new
-connection until a shipped policy exists. See
+run.** Shipping defaults now classify `run_graph_query` as **write** (despite
+the provider `readOnlyHint`) and put write/destructive actions on **Ask first**
+via `recommendedDefaultsForApp` for Enterpret. Other observed tools remain
+Allowed reads. The live-run `deny` below was applied by hand and is stronger
+than Ask first; operators who want Off can still set that after connect. See
 [Governance Defaults](#governance-defaults).
 
 | Tool | Risk | Status in validation | Filters | Approval in validation | Audit fields | Negative case |
@@ -375,15 +377,15 @@ connection until a shipped policy exists. See
 | `get_query_examples` | read | active | credential org | allow | same | same |
 | `search_graph_fields` | read | active | credential org | allow | same | same |
 | `search_graph_values` | read | active | credential org | allow | same | same |
-| `run_graph_query` | **unclassified** | **deny — set by hand; ships Allowed** | credential org | deny (set by hand) | same, plus redacted query shape | same |
+| `run_graph_query` | **write** (Paperclip override) | **deny — set by hand; ships Ask first** | credential org | deny (set by hand) | same, plus redacted query shape | same |
 | `find_user_quote` | read | active | credential org | allow | same, plus quote redaction | same |
 
 Legacy aliases `get_schema` and `search_knowledge_graph` remain served for the
 lifetime of an existing session and are dropped when the host refreshes its tool
 list. `execute_cypher_query` is no longer served at all.
 
-`run_graph_query` stays unclassified and was held **denied** for the whole live
-run. Four things say it cannot be assumed read-only: it is the rename of
+`run_graph_query` is classified **write** in Paperclip (provider
+`readOnlyHint` ignored) and was held **denied** for the whole live run. Four things say it cannot be assumed read-only: it is the rename of
 `execute_cypher_query`, Cypher is not a read-only language, the advertised scope
 set includes `mcp:write` — and the live run proved the issued token actually
 carries `mcp:write`. Its own `readOnlyHint: true` annotation is the provider
@@ -403,9 +405,9 @@ name, count, decision and outcome code — never payload content.
 
 - User path (auth token, primary): gallery card → paste the token from
   **Settings → Enterpret MCP** → access defaults.
-- User path (OAuth, draft): gallery card → Connect → Enterpret consent in the
-  browser → callback → access defaults. Prefer the auth token until Enterpret
-  fixes the mcp:write over-grant.
+- User path (OAuth, draft / not connectable): method remains in the definition
+  for when Enterpret fixes scopes, but DCR ownership is disabled so setup does
+  not offer browser sign-in today. Prefer the auth token.
 - Configuration steps: none beyond credentials. There is no tenant field to
   fill.
 - Error states: expired auth token (six-month lifetime); an account with no
@@ -422,14 +424,14 @@ name, count, decision and outcome code — never payload content.
 
 ## Governance Defaults
 
-- Default profile: the central `recommendedDefaultsForApp` — every discovered
-  action enabled and Allowed. No provider-local override.
-- Profile bindings: standard. Nothing Enterpret-specific.
-- Policies: none added. Because `run_graph_query` is unclassified rather than
-  proven read-only — and self-reports `readOnlyHint: true`, which is why it
-  lands on Allowed by default — an operator connecting this provider should set
-  that action to **Off** or **Ask first**. That is guidance, not a shipped
-  policy, and it is guidance an operator has to apply by hand today.
+- Default profile: Enterpret-specific `recommendedDefaultsForApp` — read
+  actions Allowed; write and destructive actions (including `run_graph_query`)
+  start as **Ask first**.
+- Profile bindings: standard.
+- Policies: `classifyRisk(..., "enterpret")` forces `run_graph_query` to
+  **write** even when the provider advertises `readOnlyHint: true`. Combined
+  with Ask-first defaults, new connections no longer ship that Cypher tool as
+  Allowed. Operators who want **Off** can still set that after connect.
 - **Narrowing an install is not a containment control.** The gallery connect
   flow creates both a company install and a company-level binding of the
   `app:<connectionId>` profile. Restricting the install to named agents rewrites

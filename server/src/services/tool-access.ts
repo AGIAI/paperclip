@@ -2368,6 +2368,11 @@ export function classifyRisk(
   if (sourceTemplateKey === "fireflies" && [
     "fireflies-share-meeting", "fireflies-revoke-meeting-access", "fireflies-move-meeting",
   ].includes(normalizedToolName)) return "write";
+  // Enterpret's run_graph_query self-reports readOnlyHint: true, but Cypher is
+  // not a read-only language and live validation never established the tool as
+  // safe. Treat it as write so Ask-first defaults can restrict it.
+  if (sourceTemplateKey === "enterpret" && normalizedToolName === "run-graph-query")
+    return "write";
   if (sourceTemplateKey === "posthog" && normalizedToolName === "exec")
     return "destructive";
   if (
