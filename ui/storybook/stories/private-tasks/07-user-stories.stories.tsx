@@ -8,7 +8,11 @@ import sharing, {
 import actions from "./03-task-actions.stories";
 import { RemovablePrivateBlocker } from "./04-references-and-blockers.stories";
 import projects from "./05-projects.stories";
-import { privacyDecorator, privacyParameters } from "./PrivacyStory";
+import {
+  openProjectMemberPicker,
+  privacyDecorator,
+  privacyParameters,
+} from "./PrivacyStory";
 
 // Reuse the same real-component canvases. Each play is a complete user journey,
 // while the component stories deliberately stop at individual review states.
@@ -170,7 +174,7 @@ export const OwnerAddsProjectMember: Story = {
       await userEvent.click(
         await page.findByRole("button", { name: "Manage access" }),
       );
-      await page.findByRole("dialog", { name: "Add a person or agent" });
+      await openProjectMemberPicker(canvasElement);
       await userEvent.click(
         await page.findByRole("option", { name: "Sam Rivera" }),
       );

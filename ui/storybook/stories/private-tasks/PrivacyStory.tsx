@@ -1,3 +1,4 @@
+import { userEvent, within } from "storybook/test";
 import {
   createContext,
   useContext,
@@ -116,4 +117,17 @@ export function StoryFrame({
       </div>
     </main>
   );
+}
+
+/** Radix may focus/open the selector on mount. Explicitly open it when it
+ * remains closed, without toggling an already-open selector back shut. */
+export async function openProjectMemberPicker(canvasElement: HTMLElement) {
+  const page = within(canvasElement.ownerDocument.body);
+  const dialog = await page.findByRole("dialog", {
+    name: "Private project access",
+  });
+  const trigger = within(dialog).getByRole("combobox");
+  if (trigger.getAttribute("aria-expanded") !== "true")
+    await userEvent.click(trigger);
+  await page.findByRole("dialog", { name: "Add a person or agent" });
 }

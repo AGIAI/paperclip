@@ -7,6 +7,7 @@ import { ProjectAccessMembers } from "@/components/ProjectAccessMembers";
 import { projectsApi } from "@/api/projects";
 import {
   mobile,
+  openProjectMemberPicker,
   privacyDecorator,
   privacyParameters,
   StoryFrame,
@@ -116,7 +117,7 @@ export const ReaderMemberList: Story = {
 export const SharedAgentSelected: Story = {
   play: async ({ canvasElement }) => {
     const page = await openMembers(canvasElement);
-    await page.findByRole("dialog", { name: "Add a person or agent" });
+    await openProjectMemberPicker(canvasElement);
     await userEvent.click(
       await page.findByRole("option", { name: "Research team agent" }),
     );
@@ -165,7 +166,7 @@ export const AddFailure: Story = {
   parameters: { privacy: { failure: "project-add" } },
   play: async ({ canvasElement }) => {
     const page = await openMembers(canvasElement);
-    await page.findByRole("dialog", { name: "Add a person or agent" });
+    await openProjectMemberPicker(canvasElement);
     await userEvent.click(
       await page.findByRole("option", { name: "Sam Rivera" }),
     );
