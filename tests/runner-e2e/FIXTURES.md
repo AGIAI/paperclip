@@ -285,7 +285,17 @@ each with one run (120s
 provider timeout, 300s attempt budget). `native-permission-deny-write` denies one
 exact native edit through its browser card, waits for the delivered rejection and
 failed tool, then cancels through the public run API. Its expected outcome is a
-cancelled run and an unfinished task, not successful task completion. It rejects
+cancelled run and an unfinished task, not successful task completion.
+The retained `paperclip.e2e.copilot-denial-settlement.v1` proof separates the exact
+provider terminal from the audited controller Stop. It records either
+`provider_cancelled_or_interrupted` or `provider_completed_before_stop_settlement`.
+The latter requires normal terminal persistence strictly before the server's Stop
+acknowledgement, with the same normalized session/source stream and a later source
+sequence than the failed denied tool. It cannot establish active-turn cancellation;
+a cancelled/interrupted terminal also does not by itself prove Stop reached active
+work. Dedicated cancellation coverage must retain its active-operation evidence.
+Missing, ambiguous, failed or foreign terminals and incomplete Stop receipts fail.
+This distinction does not regrade earlier failed attempts. The case rejects
 extra native operations/runs and observes the absent target through process
 retirement. Filesystem event loss or an unexplained parent-directory timestamp
 change makes no-effect coverage incomplete; stat polling alone cannot pass.
@@ -347,3 +357,13 @@ and order; any explicit canonical target must agree. Missing or conflicting
 attestations fail qualification. PRP retains only the first location and terminal
 updates may omit it, so canonical targets alone cannot prove bootstrap ownership.
 Neither tool titles nor output text supplies path evidence.
+
+Denial ordering uses canonical request, decline-resolution, delivery, failed-edit
+and terminal source sequences. Sample checkpoints retain the exact run/turn/source
+cursor. File samples and continuous-watch coverage compare only observer-local
+times. Provider emission, browser click and server persistence clocks are never
+compared to each other. Final remote samples use the sealed, independently verified
+process-retirement receipt; their timestamps are not relabeled as host time.
+This denial case does not qualify Stop during a definitely pending native request.
+That active-turn cancellation boundary needs a separate live case. The attached
+async-command oracle is unchanged by this denial-only correction.

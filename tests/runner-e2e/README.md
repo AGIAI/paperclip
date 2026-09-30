@@ -1306,6 +1306,10 @@ and the limits of reconnect evidence.
 
 The manual `copilot-protection` suite selects two Copilot candidate cases on
 each of local and Daytona (four cells). Discover them with `pnpm test:e2e:runner -- --list --suite copilot-protection`.
+The denial case keeps provider-turn settlement separate from controller run Stop.
+A normal provider completion before Stop acknowledgement is not active-turn
+cancellation coverage; denial, no-effects, run cancellation and retirement remain
+required. Earlier failed attempts retain their original grade.
 See [Copilot native protection](./FIXTURES.md#copilot-native-protection) for the
 expected cancelled negative test, finite attached-process oracle, evidence limits,
 and required rebuilt runtime. Registration is not a qualification claim.
@@ -1393,3 +1397,13 @@ lease history. Each turn has a 120-second limit; each three-run cell has a
 420-second budget and must be reserved accordingly. Existing Codex warm cells
 remain separate. All these suites are excluded from `--all`, never automatically
 retry, and remain pending qualification until their paid evidence passes.
+
+Denial ordering uses canonical request, decline-resolution, delivery, failed-edit
+and terminal source sequences. Sample checkpoints retain the exact run/turn/source
+cursor. File samples and continuous-watch coverage compare only observer-local
+times. Provider emission, browser click and server persistence clocks are never
+compared to each other. Final remote samples use the sealed, independently verified
+process-retirement receipt; their timestamps are not relabeled as host time.
+This denial case does not qualify Stop during a definitely pending native request.
+That active-turn cancellation boundary needs a separate live case. The attached
+async-command oracle is unchanged by this denial-only correction.
