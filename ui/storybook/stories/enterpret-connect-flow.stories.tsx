@@ -185,7 +185,7 @@ function ReconnectHost({ connection }: { connection: ToolConnection }) {
 /**
  * The two method descriptions a reviewer is approving, rendered from the
  * generated definition rather than retyped. Warnings included, because they are
- * the only place the operator learns about the six-month token expiry and the
+ * the only place the operator learns to check the token expiry and the
  * verbatim-quote exposure.
  */
 function MethodCopyHost() {
@@ -298,7 +298,7 @@ export const TokenExpired: Story = {
       connection={tokenConnection({
         healthStatus: "failed",
         healthMessage:
-          "Enterpret rejected this auth token. Tokens expire six months after you generate them; generate a replacement in Settings, Enterpret MCP.",
+          "Enterpret rejected this auth token. Check its expiry in Settings, Enterpret MCP, and generate a replacement if needed.",
         lastError: "invalid_token",
       })}
     />

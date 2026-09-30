@@ -418,8 +418,9 @@
         "https://github.com/paperclipai/paperclip/pull/13906"
       ],
       "reviewedAt": "2026-09-30",
-      "liveProof": "not-run",
-      "keyPermissions": "An organization auth token can read that organization's customer feedback. Use a token from Settings > Enterpret MCP; it expires after six months."
+      "liveProof": "token-connect-safe-read-refresh-reconnect-verified",
+      "evidenceLimit": "Isolated self-hosted same-machine QA on 2026-09-30; token-path agent-session deny, real agent process, expiry recovery, provider-side revocation, VPS, and Cloud remain untested.",
+      "keyPermissions": "An organization auth token can read that organization's customer feedback. Use a token from Settings > Enterpret MCP and check its displayed expiry there."
     },
     {
       "app": "enterpret",

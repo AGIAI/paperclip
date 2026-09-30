@@ -10,11 +10,12 @@ was and was not verified.
 
 **The connector has now been exercised against a real Enterpret account** — a
 named account holder signed in through an isolated Paperclip runtime on
-2026-09-25 (PAP-18538), and agent tool calls reached the live server.
+2026-09-25 (PAP-18538), and agent tool calls reached the live server. The
+organization-token method was separately exercised on an isolated self-hosted
+runtime on 2026-09-30.
 
 **Release path:** the **organization auth token** (`mcp-api-key`) is the
-primary connection method. Complete the account-bound token validation below
-before merging the store-visible connector. Generate a Bearer token under Enterpret
+primary connection method. Generate a Bearer token under Enterpret
 **Settings → Enterpret MCP** and paste it into Paperclip. Public MCP tools are
 read-only today; the token path does not depend on Enterpret honouring a
 narrowed OAuth grant.
@@ -28,9 +29,10 @@ browser sign-in while the organization auth token path remains available.
 Prefer the organization auth token until Enterpret fixes scopes, then re-enable
 DCR.
 
-Several live read and gateway checks passed on the OAuth method. Refresh, a
-real agent process, a full organization-token end-to-end pass, and
-provider-side revocation remain unverified. See
+Several live read and gateway checks passed on the OAuth method. The primary
+token path passed connection, catalog, safe read, refresh, and reconnect checks;
+a real agent process, server/VPS or Cloud deployment, and provider-side
+revocation remain unverified. See
 [Validation Hook](#validation-hook) for the scenario-by-scenario record.
 
 Authored against Paperclip App `fff410dfe777ae0427385e8297df992ba9aed4ce`, with
@@ -246,11 +248,11 @@ can hand you. The two methods differ, and they must not be described as one:
   confirms a procedure, plan on the issued token staying valid **until it
   expires**, treat expiry as the only assured end of access, and ask Enterpret
   support for a revocation path rather than assuming the dashboard has one.
-- **Auth token.** The dashboard can generate another organization token, but
-  this method was not live-tested and replacing a token has **not** been
-  verified to invalidate the old value. Do not treat generating a new token as
-  revocation. Confirm a provider-supported way to retire the specific old
-  token and verify that it is denied; until then, treat it as still valid.
+- **Auth token.** The dashboard can generate and revoke organization tokens.
+  The token method was live-tested on 2026-09-30, but revocation and whether
+  replacing a token invalidates the old value were **not** verified. Do not
+  treat generating a new token as revocation. Confirm the old token is denied
+  after retiring it; until then, treat it as still valid.
 
 Any runbook or teardown that treats "disconnect in Paperclip" as revocation
 leaves a live credential at the provider — and per the scope finding above, a
@@ -263,7 +265,8 @@ write-capable one.
   connect time. No client ID, no client secret, no callback URL to pre-register.
 - Where to register it: not applicable. For the auth-token method, an Enterpret
   admin generates a token at **Settings → Enterpret MCP → Generate** under
-  **Auth Token**. Tokens expire six months after generation.
+  **Auth Token**. Check the expiry shown for each token in the dashboard; the
+  token generated for the 2026-09-30 QA run showed **three months**.
 - Instance prerequisites: outbound HTTPS to `wisdom-api.enterpret.com` and
   `oauth.enterpret.com`. A public HTTPS base URL is **not** required — that
   applies to the Client ID Metadata Document tier only, and an instance without
@@ -414,7 +417,7 @@ decision, and outcome without copying the payload.
   not offer browser sign-in today. Prefer the auth token.
 - Configuration steps: none beyond credentials. There is no tenant field to
   fill.
-- Error states: expired auth token (six-month lifetime); an account with no
+- Error states: expired auth token (check the dashboard expiry); an account with no
   access to the organization's feedback. A scope *rejection* turned out not to
   be one of them — Enterpret accepts the `mcp:read` request and then over-grants
   (see [Scope decision](#scope-decision)), so the flow completes and the failure
@@ -457,6 +460,39 @@ decision, and outcome without copying the payload.
 - Rate limits: none set.
 
 ## Validation Hook
+
+### Organization auth-token QA (2026-09-30)
+
+This was a separate **self-hosted, same-machine** run on an isolated worktree,
+database, and Paperclip instance at App commit
+`dbe63eaae16fdb2f5386b324067e482f84f7fc7a`. The account holder generated
+one QA-only organization token in Enterpret's MCP settings. Its dashboard
+showed **Expires in 3 months**, so setup copy must not promise six months.
+The token value, feedback content, and full provider responses are excluded
+from this record.
+
+| Check | Observed result |
+| --- | --- |
+| Connect and discover | `mcp-api-key` connected as an organization grant; health was `ok`; authenticated catalog refresh found 8 tools. |
+| Safe allowed read | `get_organization_details` returned success for the intended Enterpret organization. The same bounded read succeeded again after reconnect. No quote or graph-query tool was invoked. |
+| Agent policy preview | The selected test agent's access summary changed the read action to `off` and back to `allowed` when its profile was toggled. The Test panel showed “No call will be made” while Off. |
+| Refresh and reconnect | Catalog refresh retained 8 actions. Reconnecting with the same valid token preserved the connection and catalog quarantine setting. An intentionally invalid replacement failed, then reconnecting with the valid token restored `active`/`ok`. This is **not** evidence that an expired token was renewed or that rotating a token revokes its predecessor. |
+| Activity | The safe call produced an explicit-grant decision and completed-call event. Connection activity remained queryable. |
+| Local disable / actual agent execution | Not exercised on this token path. An earlier OAuth QA run proved agent-session denies through the real gateway, but it does not substitute for a token-path agent process. |
+
+The board's `POST /tool-connections/:id/test-calls` is **not** an agent-policy
+denial probe. With the agent's action Off, that endpoint still returned
+`allowed` and invoked the safe provider read because it evaluates the board
+user's policy. The agent access summary and Test panel correctly showed Off.
+This mismatch is a shared Test endpoint issue, already noted in the OAuth QA
+below; do not cite the test call as proof of an agent deny. The QA profile was
+restored to Allowed. No customer-feedback content was requested.
+
+This run did not exercise a real agent process, a self-hosted VPS, or Cloud.
+Those remain separate verification steps before claiming those deployment
+shapes.
+
+### Earlier OAuth QA (2026-09-25)
 
 - Environment: an **isolated, issue-owned Paperclip runtime** on the maintainer
   host — its own `PAPERCLIP_HOME`, its own embedded Postgres, its own ports,
@@ -578,9 +614,9 @@ Labels as defined in the connector skills' shared matrix.
 | Paperclip's discovery ladder resolves this shape | `verified` against the live provider | `untested` | `untested` |
 | DCR client registration | `verified` — public client registered at connect time, nothing pre-registered | `untested` | `untested` |
 | OAuth consent and token exchange | `verified` | `untested` | `untested` |
-| Auth-token (header) connection | `untested` — the OAuth method was the one validated | `untested` | `untested` |
-| Authenticated `tools/list` | `verified` — 8 tools, all self-annotated `readOnlyHint: true` | `untested` | `untested` |
-| Agent execution through the gateway | `verified` — allowed and denied paths both exercised through a real agent-authenticated session | `untested` | `untested` |
+| Auth-token (header) connection | `verified` — connected, discovered 8 tools, and completed a safe read on 2026-09-30 | `untested` | `untested` |
+| Authenticated `tools/list` | `verified` — 8 tools on OAuth and the organization-token path | `untested` | `untested` |
+| Agent execution through the gateway | `verified` on OAuth — allowed and denied paths through an agent-authenticated session; token path used the board Test panel only | `untested` | `untested` |
 | Execution driven by an actual agent runtime | `untested` — the sessions above were minted against hand-inserted run rows; no agent process ran | `untested` | `untested` |
 | Granted scope matches the requested scope (OAuth) | **`failed` for OAuth** — `mcp:write` and `email` granted against an `mcp:read` request; OAuth method stays draft | `failed` for OAuth — provider-side | `failed` for OAuth — provider-side |
 | Provider-side revocation | `unsupported` — the authorization server advertises no `revocation_endpoint` | `unsupported` | `unsupported` |
@@ -610,11 +646,14 @@ mechanical store-visibility flip for the token path is also done on this branch
    `availability` cleared, `"enterpret"` removed from `APP_STORE_HIDDEN_SLUGS`,
    `catalogVisible: true`, tests and Storybook updated so organization auth
    token is primary. OAuth remains labelled draft in method copy.
-5. Required: exercise `mcp-api-key` end-to-end on a self-hosted instance
-   (`get_organization_details`, allow/deny, refresh, local disable) and record
-   results here before merging the store-visible connector.
-6. Confirm recovery when the token expires or is replaced. A self-hosted VPS
-   deployment needs separate evidence if claimed.
+5. **Partly done 2026-09-30:** `mcp-api-key` connected on an isolated
+   self-hosted instance; authenticated catalog, bounded allowed read, refresh,
+   failed replacement and valid reconnect, and activity passed. Token-path
+   agent-session deny and local disable remain untested. The board Test panel's
+   Off preview is not a substitute for those checks.
+6. **Partly done:** reconnect with the same valid token and recovery from an
+   invalid replacement passed. Recovery from actual expiry, old-token
+   invalidation after rotation, and server/VPS deployment remain untested.
 
 **OAuth method (secondary / draft) — separate gate**
 

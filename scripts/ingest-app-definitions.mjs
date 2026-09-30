@@ -845,7 +845,7 @@ const apps = [
             docs: "https://enterpret.support.site/article/enterpret-mcp-server",
           },
           warnings: [
-            "Enterpret auth tokens expire six months after you generate them. Generate a replacement before the current one lapses.",
+            "Check your auth token's expiry in Enterpret Settings > Enterpret MCP and replace it before it lapses.",
             "This connection reads customer feedback, including verbatim quotes with speaker attribution.",
             "run_graph_query starts as Ask first. Cypher is not established as read-only even when Enterpret advertises readOnlyHint.",
           ],
