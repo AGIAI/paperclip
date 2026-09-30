@@ -20,7 +20,7 @@ function admissionReadError(endpoint: AdmissionEndpoint, error: unknown): Remote
     } else if (error instanceof Error) {
       const message = error.message.slice(0, 256);
       if (error.name === "TimeoutError" || /^(?:apiRequestContext\.get: )?Timeout \d+ms exceeded\b/u.test(message)
-        || /\b(?:ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN)\b/u.test(message)) failureClass = "transient_infrastructure";
+        || /\b(?:ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up)\b/iu.test(message)) failureClass = "transient_infrastructure";
     }
   } catch { /* Unknown rejection values remain a bounded candidate failure. */ }
   return new RemoteAdmissionReadError(endpoint, failureClass);
