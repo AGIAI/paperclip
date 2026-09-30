@@ -1310,6 +1310,15 @@ See [Copilot native protection](./FIXTURES.md#copilot-native-protection) for the
 expected cancelled negative test, finite attached-process oracle, evidence limits,
 and required rebuilt runtime. Registration is not a qualification claim.
 
+Local human-denial cases for Copilot, Cursor and Pi create a fresh fixture-owned
+`pc-denied-*` directory before dispatch and watch its parent identity throughout
+the attempt. This keeps unrelated workspace startup writes outside the target
+watch. Exact prompt/native target correlation, complete watcher coverage and
+zero target mutations remain required. Evidence includes coverage failure
+reasons, parent device/inode changes and a bounded timestamped event journal;
+an absent final file cannot hide an incomplete watch or transient mutation.
+Remote cases retain their existing sealed observers.
+
 
 ### Cursor native interactions (candidate)
 

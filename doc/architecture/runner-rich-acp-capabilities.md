@@ -1,6 +1,6 @@
 # Rich ACP integration and qualification report
 
-Updated: 2026-09-29. Foundation PR #14430 is merged at
+Updated: 2026-09-30 UTC. Foundation PR #14430 is merged at
 `24beb005755465f71a19ec92a85da0958d1b9740`. Basic extended Runner Eval definitions
 are merged in `paperclip-evals` PR #29. Provider PRs remain separate review units
 and all three providers remain **pending qualification**.
@@ -9,7 +9,17 @@ The [September 30 UTC evidence checkpoint](runner-rich-acp-validation-2026-09-30
 separates current paid behavior, retained failures, runtime identities, billing
 coverage and incomplete qualification from historical results below.
 
-Current candidates are **Cursor v5, Copilot v5 and Pi v8**. On corrected source
+Current candidates are **Cursor v6, Copilot v6 and Pi v9**, pending fresh builds
+and qualification. Their identities bind shared runtime contract
+`paperclip.acpx-runtime-contract.v1`. The server includes that revision in the
+warm-session configuration fingerprint for every ACPX agent, so an existing
+owner cannot bypass changed cancellation and permission handling. Other
+transports retain their previous configuration digest. Current profile identity
+and admission tests pass (58 tests; one optional installation test skipped), and
+four server tests verify changed ACPX owners retire while unchanged Codex
+app-server owners remain reusable. These checks are not paid qualification.
+
+The most recent paid profiles are **Cursor v5, Copilot v5 and Pi v8**. On corrected source
 `5605c350b`, Cursor has passed all five basic paid local journeys: completion,
 semantic questions, semantic plan approval, controller restart and file
 editing/validation. Copilot has passed the paid Daytona completion journey;
@@ -47,7 +57,7 @@ recommends Cursor and Copilot, followed by Pi, using the existing qualified ACPX
 path. Codex app-server is the richness benchmark. The legacy Cursor and Pi
 adapters are outside this change.
 
-## Current profile evidence (2026-09-29, collected through September 30 UTC)
+## Retained paid profile evidence (2026-09-29, collected through September 30 UTC)
 
 The latest paid runtime source is `5605c350b2a4dae75be3779f164d7e1a0e4a5a87`.
 It includes the passive native-read evidence fix from `794e90a258`: correlation
@@ -141,10 +151,14 @@ timeout changed the run to failed. Its watcher also reported incomplete
 coverage while monitoring a workspace parent that startup can modify. The
 144.581-second attempt retired every owned process, left no owned semaphores,
 and passed the full end audit; additional billing remained disabled at $0.
-Shared cancellation settlement and explicit permission-provider provenance need
-runtime repairs. The denial fixture needs an isolated target parent and coverage
-diagnostics while retaining its strict completeness check. Paid runs are held
-until the corrected runtime is identified and verified.
+Shared cancellation settlement and explicit permission-provider provenance are
+being repaired. Fixture commit `98a29fcf7` creates an isolated denied-target
+parent before dispatch for local Copilot, Cursor and Pi. Its watcher retains
+coverage failure reasons, parent identities and a bounded event journal; exact
+native path correlation, complete observation and zero target mutation remain
+required. All 80 focused fixture tests and fixture typecheck pass. Remote sealed
+observers are unchanged. Paid runs are held until the corrected runtime is
+identified and verified.
 
 The Copilot cloud cell also retired all 46 observed local processes, restored
 the host semaphore count from 321 to its baseline 310, removed its owned
@@ -164,7 +178,7 @@ mode values; all 56 recovery/lifecycle tests and the Runner TypeScript build
 pass. The corrected-build Cursor cases above now pass the same strict validator.
 The original failed receipt remains a failure.
 
-The current macOS ARM64 pack is
+The most recent paid macOS ARM64 pack is
 `sha256:3940fbe1c7b197b964b8f8182c1f1ae548cff822a95ecb4539e0ca851b4f2032`.
 The rebuilt Linux x64 pack is
 `sha256:83702fae11105f5b9ee8f9731b86dc06becb12075f68bdc98dcdfe9f9c842473`,
