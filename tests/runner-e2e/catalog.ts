@@ -1,3 +1,4 @@
+import { nativeActiveStopTasks } from "./native-active-stop-tasks.js";
 import { cursorNativeTasks } from "./cursor-native-cases.js";
 import { copilotProtectionTasks } from "./copilot-protection-tasks.js";
 import { piNativeTasks } from "./pi-native-cases.js";
@@ -1045,6 +1046,13 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     environments: runnerEnvironments, tasks: piNativeTasks, expectedMatrixSize: 7,
     excludedExecutionIds: ["pi-native.runner-acpx-pi.daytona.restrictive-denial"],
     definitionMetadata: { version: 2, qualification: "pending", scheduling: "explicit-only", profileVersion: QUALIFIED_ACPX_PROFILES.pi.agentProfileVersion, remoteDenyAll: "unsupported-native-bootstrap-read-is-denied", remoteEvidence: "owned-lease-sealed-observer" },
+  },
+  {
+    id: "native-active-stop", label: "Stop an unanswered native permission", manualOnly: true,
+    description: "Stop while one exact Cursor or Copilot native permission remains unanswered; require cancelled provider settlement, caller-owned acknowledgement, stale-answer refusal and independent retirement/no effects.",
+    groups: ["native"], profiles: extendedHarnessProfiles.filter(profile => ["cursor", "copilot"].includes(profile.qualificationCandidate ?? "")),
+    environments: runnerEnvironments, tasks: nativeActiveStopTasks, expectedMatrixSize: 4,
+    definitionMetadata: { version: 1, qualification: "pending", scheduling: "explicit-only", evidence: "paperclip.e2e.native-active-stop-settlement.v1", pendingObservation: "retained-api-before-caller-uuid-stop", normalCompletionAccepted: false, permissionPolicy: "approve-reads", lifecycle: "per_turn", remoteEvidence: "owned-lease-sealed-observer", providerDeath: "not-covered" },
   },
   {
     id: "copilot-protection", label: "Copilot native protection", manualOnly: true,

@@ -1428,3 +1428,29 @@ pre-Stop observation to the public cancel request and its exact durable native
 intent. It rejects prior startup/Stop markers before dispatch and a competing
 request that wins after the last read. The server atomically reserves the caller
 identity; the fixture does not infer ownership from timestamps or HTTP success.
+
+## Stop during an unanswered native permission (explicit only)
+
+`--suite native-active-stop --task pending-permission-stop` selects Cursor and
+Copilot on local or Daytona, one run per cell. These four cells are excluded
+from `--all`. They use `approve-reads`, per-turn lifecycle and Cursor Agent mode;
+provider timeout is 120s and the attempt budget is 300s. The fixture asks for one
+exact native write, observes its unanswered permission card, then sends the
+public Stop request with a freshly retained caller UUID. It never denies or
+approves that callback before Stop.
+
+Passage requires a canonical cancelled request and cancelled provider turn,
+exact caller-intent acknowledgement, an unfinished task, rejection of a later
+stale answer, no follow-up run, continuous target no-effect observation and
+owned process retirement. Normal completion and interrupted/failed turns do
+not qualify this case. Native permission cards use runtime requests; ordinary
+issue-interaction rows are not substituted for their authority. Pending and final
+screenshots, `native-active-stop-pending.json`, `native-active-stop-settlement.json`
+and cleanup evidence retain the boundaries. Daytona also requires the exact
+owned lease and sealed remote observer proof before sandbox deletion.
+
+This suite adds an active-work cancellation oracle; it does not reinterpret
+older denial or cancellation results. Current live qualification is pending.
+Provider death during a pending callback remains a separate uncovered case:
+the existing chat worker-crash hook targets a runner worker and cannot establish
+safe ownership of the native provider process in both environments.

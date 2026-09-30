@@ -392,3 +392,34 @@ the response and final `paperclip.e2e.copilot-denial-settlement.v3` receipt.
 It refuses a non-running controller or existing Stop marker before dispatch.
 The completed-provider branch still requires a running controller that this
 request can stop; it does not accept a no-op Stop of an already terminal run.
+
+## Definitely-active native Stop
+
+`native-active-stop` / `pending-permission-stop` has four explicit-only cells:
+Cursor and Copilot, each local and Daytona. Its `native_active_stop` flow retains
+`paperclip.e2e.native-active-stop-pending.v1` from the public API while exactly one
+native permission remains pending, the exact controller run is running, and no
+Stop or answer marker exists. The receipt independently binds native session,
+normalized session, turn, source instance, request/tool IDs, source sequences and
+canonical row hashes. An awaited artifact write and fresh pending reread precede
+Stop dispatch; process-monotonic timestamps describe only these local observer
+boundaries. Remote provider clocks and database transaction timestamps never
+establish that ordering. The atomic caller UUID fence rejects an earlier racing
+Stop instead of borrowing its acknowledgement.
+
+`paperclip.e2e.native-active-stop-settlement.v1` accepts only
+`pending_permission_cancelled`: explicit-cancellation request closure with
+`replayAllowed:false`, then one exact `turn.cancelled`, plus the same scoped
+caller-owned native Stop acknowledgement. Missing, duplicate, foreign, failed,
+interrupted or normal terminal evidence fails. Only after this proof does the
+fixture attempt a stale public answer, requiring HTTP409 and an unanswerable
+browser card. It retains one cancelled run, issue `in_progress`, exact target
+absence through continuous observation, and all observed owned descendants
+retired. Remote proof is sealed before environment teardown; unproven cleanup
+fails independently. Only fully attested bootstrap reads may precede the one
+tested operation; alternate operations or attempts are rejected.
+
+The existing `copilot-protection` denial remains distinct: rejecting a permission
+before Stop does not exercise this pending-callback boundary. This new suite has
+pure calibration and wiring tests, not a paid qualification result. Provider
+process death is not simulated by substituting the chat runner-worker crash hook.
