@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Script } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
-import { bindRemoteNativeFixture, createRemoteTargetWatch, isRemoteRunRoot, parseRemoteProcStat, remoteNativeFixtureDiagnostics, type RemoteNativeFixtureOptions, type RemoteNativeSnapshot } from "./remote-native-fixtures.js";
+import { REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS, bindRemoteNativeFixture, createRemoteTargetWatch, isRemoteRunRoot, parseRemoteProcStat, remoteNativeFixtureDiagnostics, type RemoteNativeFixtureOptions, type RemoteNativeSnapshot } from "./remote-native-fixtures.js";
 
 import { createRemoteNativeBootstrap } from "./remote-native-bootstrap.js";
 
@@ -47,7 +47,7 @@ function harness() {
   });
   const get = vi.fn(async () => ({ id: "sandbox", labels, process: { executeCommand } }));
   const apiGet = vi.fn(async (path: string) => path.includes("/environments/") ? [structuredClone(lease)] : structuredClone(lease));
-  const options: RemoteNativeFixtureOptions = { api: { get: apiGet as RemoteNativeFixtureOptions["api"]["get"] }, daytona: { get }, sdkVersion: "0.203.0", authority, nodeSha256: hash("node"), runnerdSha256: hash("runnerd"), targets: ["result.txt"], actionFile: "action.txt", deadlineAt: Date.now() + 60_000 };
+  const options: RemoteNativeFixtureOptions = { api: { get: apiGet as RemoteNativeFixtureOptions["api"]["get"] }, daytona: { get }, sdkVersion: "0.203.0", authority, nodeSha256: hash("node"), runnerdSha256: hash("runnerd"), targets: ["result.txt"], actionFile: "action.txt", deadlineAt: Date.now() + REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS + 18_000 };
   return { options, current, labels, calls, executeCommand, apiGet, get, resolveTerminal, rejectTerminal,
     setLease(value: Record<string, unknown>) { lease = value; }, lease: () => lease, override(fn: typeof override) { override = fn; } };
 }
@@ -93,12 +93,45 @@ describe("remote native lease admission", () => {
       await fixture.close();
     } finally { vi.useRealTimers(); }
   });
+  it("reserves readiness after a late lease with delayed admission and installation", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(1_000_000);
+    try {
+      const h = harness(); h.options.deadlineAt = Date.now() + REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS;
+      const initialGet = h.get.getMockImplementation()!;
+      h.get.mockImplementationOnce(async () => { await new Promise(resolve => setTimeout(resolve, 9000)); return initialGet(); });
+      h.override(r => {
+        if (r.op === "runtime-ready" || r.op === "install") return new Promise(resolve => setTimeout(() => resolve({
+          exitCode: 0, result: JSON.stringify({ ok: true, result: r.op === "runtime-ready" ? readiness() : snapshot() }),
+        }), r.op === "runtime-ready" ? 9000 : 24_000));
+        return undefined;
+      });
+      const pending = bindRemoteNativeFixture(h.options);
+      // Retain a rejected setup for the assertion below while fake clocks advance.
+      void pending.catch(() => {});
+      await vi.advanceTimersByTimeAsync(8999); expect(h.calls).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(9001); expect(h.calls.map(c => c.request.op)).toEqual(["runtime-ready", "install"]);
+      expect(h.calls.find(c => c.request.op === "install")!.timeout).toBe(25);
+      await vi.advanceTimersByTimeAsync(24_000); const fixture = await pending;
+      expect(h.calls.map(c => c.request.op)).toEqual(["runtime-ready", "install", "wait", "arm"]);
+      expect(h.options.deadlineAt - Date.now()).toBe(22_000);
+      await fixture.publishAction("action.txt", "task"); expect(h.calls.at(-1)!.request.op).toBe("publish");
+      await fixture.close();
+    } finally { vi.useRealTimers(); }
+  });
+  it.each([42_000, 43_000, REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS - 1])("rejects a %ims late setup window before remote work", async budget => {
+    vi.useFakeTimers(); vi.setSystemTime(1_000_000);
+    try {
+      const h = harness(); h.options.deadlineAt = Date.now() + budget;
+      await expect(bindRemoteNativeFixture(h.options)).rejects.toThrow("insufficient_setup_budget");
+      expect(h.apiGet).not.toHaveBeenCalled(); expect(h.get).not.toHaveBeenCalled(); expect(h.calls).toHaveLength(0);
+    } finally { vi.useRealTimers(); }
+  });
   it("never installs on a missing runtime and reserves installation and teardown inside the original deadline", async () => {
     vi.useFakeTimers(); vi.setSystemTime(1_000_000);
     try {
       const h = harness(); h.override(r => r.op === "runtime-ready" ? { exitCode: 0, result: '{"ok":true,"result":{"ready":false}}' } : undefined);
       const outcome = bindRemoteNativeFixture(h.options).catch(error => error);
-      await vi.advanceTimersByTimeAsync(18_000);
+      await vi.advanceTimersByTimeAsync(h.options.deadlineAt - 42_000 - Date.now());
       expect((await outcome).message).toContain("readiness_deadline");
       expect(h.calls.every(c => c.request.op === "runtime-ready")).toBe(true);
       expect(Date.now()).toBe(h.options.deadlineAt - 42_000);
@@ -171,7 +204,7 @@ describe("remote native lease admission", () => {
   it("arms before publish, binds long receipt before teardown and preserves exact final bytes", async () => {
     const h = harness(), f = await bindRemoteNativeFixture(h.options);
     expect(h.calls.map(c => c.request.op)).toEqual(["runtime-ready", "install", "wait", "arm"]); expect(f.baseline.processes.live).toEqual([21]);
-    expect(h.calls[2]!.timeout).toBeLessThanOrEqual(45); expect(h.calls[2]!.request.timeoutMs).toBe(h.calls[2]!.timeout! * 1000);
+    expect(h.calls[2]!.timeout).toBeLessThanOrEqual(67); expect(h.calls[2]!.request.timeoutMs).toBe(h.calls[2]!.timeout! * 1000);
     await f.publishAction("action.txt", "write only result.txt");
     await expect(f.publishAction("action.txt", "retry")).rejects.toThrow("publish_bound");
     const bytes = "\nUnicode 🪴 literal \\n\n";
@@ -247,11 +280,11 @@ describe("cell deadline and cleanup bounds", () => {
       const h = harness(), f = await bindRemoteNativeFixture(h.options);
       await f.publishAction("action.txt", "task");
       const install = h.calls.find(c => c.request.op === "install")!, wait = h.calls.find(c => c.request.op === "wait")!;
-      expect(wait.timeout).toBe(45); expect(wait.request.timeoutMs).toBe(45_000);
-      expect(install.request.config.observerTtlMs).toBe(45_000); expect(install.timeout).toBe(25);
+      expect(wait.timeout).toBe(67); expect(wait.request.timeoutMs).toBe(67_000);
+      expect(install.request.config.observerTtlMs).toBe(67_000); expect(install.timeout).toBe(25);
       let settled = false;
       const result = f.finish().then(() => { settled = true; return "unexpected pass"; }, error => { settled = true; return error.message; });
-      await vi.advanceTimersByTimeAsync(44_999); expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(66_999); expect(settled).toBe(false);
       await vi.advanceTimersByTimeAsync(1); expect(await result).toContain("deadline");
       expect(Date.now()).toBe(h.options.deadlineAt - 15_000);
       h.rejectTerminal(new Error("late SDK close after host deadline")); await Promise.resolve();
@@ -262,7 +295,7 @@ describe("cell deadline and cleanup bounds", () => {
     vi.useFakeTimers(); vi.setSystemTime(1_000_000);
     try {
       const h = harness(), f = await bindRemoteNativeFixture(h.options);
-      await vi.advanceTimersByTimeAsync(42_000);
+      await vi.advanceTimersByTimeAsync(64_000);
       await f.snapshot("late-but-bounded"); const call = h.calls.at(-1)!;
       expect(call.timeout).toBe(3); expect(call.request.timeoutMs).toBe(3000);
       await vi.advanceTimersByTimeAsync(3000);
@@ -273,7 +306,7 @@ describe("cell deadline and cleanup bounds", () => {
   it("bounds cleanup after cell expiry and rejects finish immediately after explicit close", async () => {
     vi.useFakeTimers(); vi.setSystemTime(1_000_000);
     try {
-      const h = harness(), f = await bindRemoteNativeFixture(h.options); await vi.advanceTimersByTimeAsync(60_000);
+      const h = harness(), f = await bindRemoteNativeFixture(h.options); await vi.advanceTimersByTimeAsync(82_000);
       h.override(r => r.op === "close" ? new Promise(() => {}) : undefined);
       const close = f.close().then(() => "unexpected", error => error.message);
       await vi.advanceTimersByTimeAsync(9999); expect(h.calls.at(-1)!.request.timeoutMs).toBe(10_000);
@@ -461,7 +494,7 @@ describe("actual generated observer state machine", () => {
           return {exitCode:0,result:JSON.stringify({ok:true,result:request.op==='close'?{closed:true}:{}})};
         } } };
       try { await bindRemoteNativeFixture({ authority: ${JSON.stringify(authority)}, api:{get:async p=>p.includes('/environments/')?[lease]:lease}, daytona:{get:async()=>sandbox},
-        sdkVersion:'0.203.0',nodeSha256:${JSON.stringify(hash("node"))},runnerdSha256:${JSON.stringify(hash("runnerd"))},targets:['result.txt'],actionFile:'action.txt',deadlineAt:Date.now()+60000 }); } catch {}
+        sdkVersion:'0.203.0',nodeSha256:${JSON.stringify(hash("node"))},runnerdSha256:${JSON.stringify(hash("runnerd"))},targets:['result.txt'],actionFile:'action.txt',deadlineAt:Date.now()+82000 }); } catch {}
       if(!programs) throw Error('No captured generated programs');
       process.stdout.write(JSON.stringify(programs));
     `;
