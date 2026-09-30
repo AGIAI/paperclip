@@ -7,7 +7,7 @@ import { expect, type Page } from "@playwright/test";
 import { pollUntil, type RunnerApi } from "./api.js";
 import { collectRunEvents } from "./run-observations.js";
 import { createTaskThroughUi } from "./user-actions.js";
-import { observeRunProcesses, watchDeniedTarget } from "./copilot-local-fixtures.js";
+import { observeRunProcesses, createDeniedTargetFixture } from "./copilot-local-fixtures.js";
 import { cursorDeniedCommand, hasCursorDeniedCommand, hasCursorCancellation, readCursorToolEvidence, assertCursorRemoteSnapshot, cursorRemoteDeniedSample, hasCursorRemoteRetirement, hasCursorRemoteWorkspaceUnchanged, type CursorRemoteSnapshot, type CursorRemoteBinding, type CursorToolNotice } from "./cursor-native-evidence.js";
 import { cursorNativeCaseDesigns, cursorNativePlanArtifactGate, hasCursorDenialBoundary, hasCursorPlanDecision, hasDeliveredCursorNativeRequest, hasExactCursorNativeResponse, type CursorNativeMethod } from "./cursor-native-cases.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
@@ -125,7 +125,8 @@ export async function runCursorNativeFlow(input: {
     await input.evidence(`cursor-workspace-${phase}.json`, { baseline, current });
     check(`workspace-unchanged-${phase}`, JSON.stringify(current) === JSON.stringify(baseline), "Independent workspace bytes remain unchanged by a pending/rejected/cancelled native plan or question");
   };
-  const deniedRelative = `cursor-denied-${nonce}.txt`;
+  const localDeniedTarget = !remote && design.id === "native-write-deny-reconnect" ? await createDeniedTargetFixture(input.workspacePath, `cursor-denied-${nonce}.txt`) : null;
+  const deniedRelative = localDeniedTarget?.targetRelativePath ?? `cursor-denied-${nonce}.txt`;
   let deniedPath = remote ? "" : join(input.workspacePath, deniedRelative);
   let deniedCommand = remote ? null : cursorDeniedCommand(deniedPath);
   let denialNotices: CursorToolNotice[] = []; let denialRunEvents: Row[] = []; let denialTurnId = ""; let cancelRequestedAt = NaN; let cancellationProven = false;
@@ -152,7 +153,7 @@ export async function runCursorNativeFlow(input: {
   let processes = observeProcesses();
   let deniedRequest: Row | null = null;
   let processTimer: ReturnType<typeof setInterval> | undefined;
-  const watch = !remote && design.id === "native-write-deny-reconnect" ? watchDeniedTarget(input.workspacePath, `cursor-denied-${nonce}.txt`) : null;
+  const watch = localDeniedTarget?.watcher ?? null;
   if (watch) {
     processTimer = setInterval(() => { try { processes = observeProcesses(); } catch { processObservationError = true; } }, 250);
     input.registerCleanupAssertion!(async () => {

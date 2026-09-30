@@ -1,4 +1,4 @@
-import { observeRunProcesses, watchDeniedTarget } from "./copilot-local-fixtures.js";
+import { observeRunProcesses, createDeniedTargetFixture, bindDeniedTargetPrompt } from "./copilot-local-fixtures.js";
 import { hasDeliveredPiDenial, piPermissionRequests, hasPiRemoteRetirement, hasUnchangedPiRemoteTarget } from "./pi-native-evidence.js";
 import { randomBytes } from "node:crypto";
 import { lstat, readFile } from "node:fs/promises";
@@ -151,8 +151,9 @@ export async function runPiNativeFlow(input: {
       const agent = await api.get<Row>(`/api/agents/${fixtures.agent.id}`);
       const configured = await api.patch<Row>(`/api/agents/${fixtures.agent.id}`, { adapterConfig: { ...agent.adapterConfig, acpxPermissionMode: "approve-reads", lifecycleMode: "per_turn", timeoutSec: 120 } });
       check("human-denial-policy", configured.adapterConfig.acpxPermissionMode === "approve-reads" && configured.adapterConfig.lifecycleMode === "per_turn", "Native write requires a browser permission decision in an owned per-turn process");
-      const target = "pi-human-denied.txt", path = join(input.workspacePath, target);
-      const watcher = remote ? null : watchDeniedTarget(input.workspacePath, target), observer = remote ? null : observeRunProcesses();
+      const localTarget = remote ? null : await createDeniedTargetFixture(input.workspacePath, "pi-human-denied.txt");
+      const target = localTarget?.targetRelativePath ?? "pi-human-denied.txt", path = join(input.workspacePath, target);
+      const watcher = localTarget?.watcher ?? null, observer = remote ? null : observeRunProcesses();
       let processError = false, processAuthority: string | undefined;
       const observe = () => {
         const run = runs[0]; const authority = run?.processPid ? { pid: run.processPid, groupId: run.processGroupId, startedAt: run.processStartedAt, runId: run.id } : undefined;
@@ -170,10 +171,10 @@ export async function runPiNativeFlow(input: {
           await input.evidence("pi-human-denial-retirement.json", { processes, processError, fileAbsent, journal, passed });
           if (!passed) throw new Error("Pi human denial lacks independent no-effect and provider-retirement proof");
           return [{ id: "human-denial-through-retirement", passed, detail: "Browser-denied target stayed absent through exact owned provider-process retirement" }];
-        } finally { clearInterval(timer); watcher!.finish(); }
+        } finally { clearInterval(timer); await input.evidence("pi-human-denial-cleanup-attempt.json", { target, processes, processError, journal: watcher!.finish() }); }
       });
       if (!remote) check("human-target-initially-absent", await absent(path), "Independent target is absent before provider work");
-      await create(execution.task.buildTitle(nonce), execution.task.buildPrompt(nonce), { targets: [target] });
+      await create(execution.task.buildTitle(nonce), localTarget ? bindDeniedTargetPrompt(execution.task.buildPrompt(nonce), "pi-human-denied.txt", target) : execution.task.buildPrompt(nonce), { targets: [target] });
       if (remote) check("human-target-initially-absent", currentBaseline?.targets[target]?.absent === true && currentBaseline.targets[target]!.complete, "Remote watcher was armed before action publication with an absent target");
       const pending = await pollUntil({ label: "Pi native browser permission", deadlineAt: input.deadlineAt, load: async () => { const state = await load(); processes = observe(); return { ...state, events: state.runs.length === 1 ? await events(state.runs[0]!.id) : [] }; }, reject: rejectFailure,
         accept: state => state.runs.length === 1 && piPermissionRequests(state.events, state.runs[0]!.id).length === 1 });

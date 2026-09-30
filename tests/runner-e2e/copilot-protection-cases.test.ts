@@ -37,6 +37,16 @@ describe("Copilot protection Product oracles", () => {
   it("accepts an origin-bound browser denial with an independent continuous absence oracle", () => {
     expect(gradeCopilotDeniedWrite(denied())).toEqual({ passed: true, failures: [] });
   });
+  it("requires the exact isolated target in native permission evidence", () => {
+    const e = denied(); e.expectedRelativePath = "pc-denied-ABC123/copilot-denied-nonce.txt";
+    expect(gradeCopilotDeniedWrite(e).passed).toBe(false);
+    e.request!.targetRelativePath = e.expectedRelativePath;
+    expect(gradeCopilotDeniedWrite(e).passed).toBe(true);
+    for (const path of ["../copilot-denied-nonce.txt", "other/copilot-denied-nonce.txt", "pc-denied-ABC123/../copilot-denied-nonce.txt"]) {
+      e.expectedRelativePath = path; e.request!.targetRelativePath = path;
+      expect(gradeCopilotDeniedWrite(e).passed).toBe(false);
+    }
+  });
   it.each(["request", "decision", "deliveredDecision", "toolResult", "terminal", "cleanup", "mutationObservation"] as const)("rejects missing %s instead of treating no write as denial", field => {
     const e = denied(); e[field] = null; expect(gradeCopilotDeniedWrite(e).passed).toBe(false);
   });

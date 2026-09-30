@@ -6,7 +6,7 @@ import { pollUntil, type RunnerApi } from "./api.js";
 import { collectRunEvents } from "./run-observations.js";
 import { createTaskThroughUi } from "./user-actions.js";
 import { copilotOrigin, readCopilotToolEvidence, type CopilotToolNotice } from "./copilot-evidence.js";
-import { createAttachedCommandFixture, exists, observeRunProcesses, watchDeniedTarget } from "./copilot-local-fixtures.js";
+import { createAttachedCommandFixture, createDeniedTargetFixture, bindDeniedTargetPrompt, exists, observeRunProcesses } from "./copilot-local-fixtures.js";
 import { gradeCopilotAttachedSettlement, gradeCopilotDeniedWrite, type CopilotDeniedWriteEvidence } from "./copilot-protection-cases.js";
 import { readCopilotRemoteMarkerAfterRetirement, prepareCopilotRemoteAction, assertCopilotRemoteRetirement, assertCopilotRemoteAttached, copilotRemoteDeniedSample, copilotActionNotices, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot, countCopilotToolOrigins, readCopilotMarkerAfterCleanup } from "./copilot-protection-evidence.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
@@ -39,7 +39,9 @@ export async function runCopilotProtectionFlow(input: {
     assertCopilotRemoteRetirement(sealed, baseline); processes = sealed.processes;
     return sealed;
   }
-  const target = `copilot-denied-${nonce}.txt`, targetPath = join(workspacePath, target);
+  const targetName = `copilot-denied-${nonce}.txt`;
+  const localTarget = deny && !remote ? await createDeniedTargetFixture(workspacePath, targetName) : undefined;
+  const target = localTarget?.targetRelativePath ?? targetName, targetPath = localTarget?.targetPath ?? join(workspacePath, target);
   const fileObservations: CopilotDeniedWriteEvidence["fileObservations"] = [];
   const sample = async (phase: CopilotDeniedWriteEvidence["fileObservations"][number]["phase"]) => {
     if (remote) {
@@ -48,11 +50,11 @@ export async function runCopilotProtectionFlow(input: {
       remoteSnapshots.push(snapshot); fileObservations.push(copilotRemoteDeniedSample(snapshot, baseline, target, phase));
     } else fileObservations.push({ phase, observedAtMs: Date.now(), exists: await exists(targetPath) });
   };
-  const watcher = deny && !remote ? watchDeniedTarget(workspacePath, target) : undefined;
+  const watcher = localTarget?.watcher;
   const markerPath = join(workspacePath, `copilot-settlement-${nonce}.txt`);
   const command = deny || remote ? undefined : await createAttachedCommandFixture(markerPath);
   const exactCommand = () => remoteCommand ?? command;
-  let watchReceipt: ReturnType<ReturnType<typeof watchDeniedTarget>["finish"]> | undefined;
+  let watchReceipt: CopilotDeniedWriteEvidence["mutationObservation"] | undefined;
   const check = (id: string, passed: boolean, detail: string) => { checks.push({ id, passed, detail }); expect(passed, detail).toBe(true); };
   async function load() {
     if (issue.id) issue = await api.get<Row>(`/api/issues/${issue.id}`);
@@ -77,7 +79,7 @@ export async function runCopilotProtectionFlow(input: {
       workspace: { name: "Primary", sourceType: "local_path", cwd: workspacePath, isPrimary: true },
     });
     if (deny && !remote) { await sample("before-request"); check("target-initially-absent", !fileObservations[0]!.exists, "The exact isolated target is absent before dispatch"); }
-    const prompt = remote ? input.remoteBootstrap!.prompt(nonce) : `${execution.task.buildPrompt(nonce)}${command ? `\nThe exact supplied command is:\n${command.command}\nDo not inspect or modify fixture code, fabricate its marker, or launch a substitute command.` : ""}`;
+    const prompt = remote ? input.remoteBootstrap!.prompt(nonce) : `${localTarget ? bindDeniedTargetPrompt(execution.task.buildPrompt(nonce), targetName, target) : execution.task.buildPrompt(nonce)}${command ? `\nThe exact supplied command is:\n${command.command}\nDo not inspect or modify fixture code, fabricate its marker, or launch a substitute command.` : ""}`;
     await createTaskThroughUi({ page, issuePrefix: fixtures.company.issuePrefix!, agentName: fixtures.agent.name, title: execution.task.buildTitle(nonce), prompt, workMode: "standard", projectName: project.name });
     const found = await pollUntil({ label: "browser-created Copilot protection task", deadlineAt: input.deadlineAt, load: async () => (await api.get<Row[]>(`/api/companies/${fixtures.company.id}/issues?limit=100`)).find(r => r.title === execution.task.buildTitle(nonce)), accept: Boolean });
     if (!found) throw new Error("Browser-created task was not found"); issue = found;
