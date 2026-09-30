@@ -1,7 +1,7 @@
 {
   "schema": "paperclip-runner-rich-acp-validation-checkpoint/v1",
   "status": "current_candidates_not_qualified",
-  "preparedAt": "2026-09-30T06:02:19.119299+00:00",
+  "preparedAt": "2026-09-30T06:33:59.758448+00:00",
   "artifactPathBase": "campaign artifact root; relative references are evidence identifiers, not public download URLs",
   "preserveHistoricalEvidence": {
     "sourceRevision": "5605c350b2a4dae75be3779f164d7e1a0e4a5a87",
@@ -54,8 +54,8 @@
         "path": "runtime-6-6-9-eof-preparation/full-checks-415/typecheck.meta.txt",
         "sha256": "9687c8d07a1c6c6f5ba059a70e6b7ce7640bb747cb4a769a9db52a9928b929ba"
       },
-      "tests": "original_full_command_failed; unchanged isolated failures passed; remaining phases running",
-      "diagnosis": "Initial broad run failures are retained; all six failed cases passed unchanged when isolated. Remaining original-suite phases are resumed separately.",
+      "tests": "original_full_command_failed; separate resumed coverage finished; no passing full invocation",
+      "diagnosis": "Original failures remain failed. Approved unchanged isolated cases passed. Workspace B direct invocations included generated duplicates; two legacy ACPX diagnostic failures passed against the separately verified corrected frozen dependency closure.",
       "fullBuild": "passed",
       "fullLocalPass": false,
       "tokenGates": "passed",
@@ -76,7 +76,8 @@
         "serverFailuresPassed": 4,
         "cliTimeoutsPassed": 2,
         "codexSourceAuthTimeoutPassed": 1,
-        "serializedImportFailuresPassed": 2
+        "serializedImportFailuresPassed": 2,
+        "serializedCacheBoundPassed": 1
       },
       "originalRunReceipt": {
         "path": "runtime-6-6-9-eof-preparation/full-checks-415/test-run-supported.meta.txt",
@@ -95,8 +96,30 @@
         "stableWrapperAlreadyExcludesDist": true,
         "countsAreNotDeduplicatedSourceCoverage": true
       },
-      "serialized": "original_command_failed_two_cases; both passed unchanged isolated; remaining 110 suites running separately",
-      "dependencyClosure": "Existing source415 worktree installation differed from checked-in ACPX patches; corrected frozen-install evidence is separate."
+      "serialized": "Original command stopped in file 39 of 149. Both failed import cases passed unchanged in isolation. All 110 unrun suites then completed separately: 109 files passed, 1 failed; 2,046 tests passed, 1 failed. The remaining cache-bound case passed unchanged in one narrow rerun.",
+      "dependencyClosure": "Existing source415 worktree installation differed from checked-in ACPX patches; corrected frozen-install evidence is separate.",
+      "sourceRevision": "41503eb38f03c436b1569f9f0204625bb4d58782",
+      "resumedSerialized": {
+        "filesPassed": 109,
+        "filesFailed": 1,
+        "testsPassed": 2046,
+        "testsFailed": 1,
+        "testsSkipped": 0,
+        "failure": "Cache expected 256 entries but observed 248 after a 5.484s suite against a 5s TTL; unchanged isolated rerun passed.",
+        "fullInvocationPass": false
+      },
+      "finalVerificationRecord": {
+        "path": "runtime-6-6-9-eof-preparation/full-checks-415/verification-record.json",
+        "sha256": "16731e6e2d45a34876c957dfb863cb54ab3e747170a74bc161e515a607820a77"
+      },
+      "finalCleanSourceReceipt": {
+        "path": "runtime-6-6-9-eof-preparation/full-checks-415/source-clean-receipt.txt",
+        "sha256": "978fbb8e7ef99557759639446bf277d5f16d2aae2d717a3fed13f606f86dc884"
+      },
+      "summaryReceipt": {
+        "path": "runtime-6-6-9-eof-preparation/full-checks-415/qualification-summary.md",
+        "sha256": "4f0205c9f9ff1879c3c9bb8047d17f9073933923312386afeb1ed64434a02315"
+      }
     },
     "lockMetadataRepair": {
       "receipt": {
@@ -114,6 +137,24 @@
       "status": "verified_private_overlay_only_source_lock_restored",
       "policy": "The repository refresh bot owns pnpm-lock.yaml. The pull request restores the exact prior bytes; the verified hash-only overlay is private qualification-install evidence.",
       "privateOverlaySha256": "a54b018124b93fabf8e0aac36d8d3d4996b36e23fea8b74c6d0fb093ae596e85"
+    },
+    "latestParentCiBeforeFixtureFixes": {
+      "sourceRevision": "6b1e96af0fc817f9ee4def1de94916503f339575",
+      "success": 49,
+      "skipped": 2,
+      "failed": 4,
+      "pending": 0,
+      "receipt": {
+        "path": "runtime-6-6-9-eof-preparation/pr14633-6b1-ci-before-fixture-fixes.json",
+        "sha256": "0eeac5e0ff847fac404e63f1051920757d6de23b80535dd1e16d24fdd687160b"
+      },
+      "correctionCommit": "f401b831f2bf39b149821ab86bf2dfe55091765b",
+      "targetedEvidence": {
+        "path": "ci-stability-6b1e96af/handoff.receipt.json",
+        "sha256": "dcd2bd549b61b4db3765c809b24dbd8b92c470040971a5f8aa1b36284b05ca9d"
+      },
+      "targetedResults": "26 route tests passed; attachment case passed with real announcement dismissal; no assertion or timeout relaxation. New-head CI pending.",
+      "unconfirmedOtherBranchFailure": "Cursor branch runtime-exposure firstcase passed unchanged under local instrumentation; CI stall cause is unconfirmed, no runtime change."
     }
   },
   "platformBuilds": [
@@ -460,5 +501,38 @@
     "ownedProcessesRetired": 36,
     "ownedIpcRemaining": 0,
     "providerQualified": false
+  },
+  "copilotMessageIdentityCandidate": {
+    "pr": 14676,
+    "sourceRevision": "8e104372f2e68b397dee7cfea0836ec085243f66",
+    "profileVersion": 7,
+    "commandDigest": "sha256:9f98bf11135944aa8df56635d5c2e24b6a073e23a752cdf86cb9c044bfea74a5",
+    "status": "draft_source_candidate_not_built_or_paid_qualified",
+    "change": "Extract and patch verified owned inner distribution so ordered ACP start/delta/history updates preserve real native message IDs, including empty starts. Keep native executable unchanged and native IDs distinct even for identical text.",
+    "focusedJavaScriptTypeScriptTestsPassed": 212,
+    "runnerTypecheck": "passed",
+    "rustExactAdmissionTestsPassed": 1,
+    "nativeExecution": "ARM64 loopback only; three distinct equal-text native message IDs, empty starts and attached shell settlement",
+    "platformClosuresVerified": [
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-x64"
+    ],
+    "fullRepoGate": "pending",
+    "newPacksAndImages": "not built",
+    "paidQualification": "not run",
+    "originalPaidAsyncFailureRegraded": false,
+    "handoff": {
+      "path": "runtime-6-6-9-eof-preparation/copilot-message-identity-candidate/pr-handoff-01.json",
+      "sha256": "b6bf8db199d946335e532b7202ea7e30e4e3a2a4c874b070ad800d1e9a48adb1"
+    },
+    "rootReview": {
+      "path": "runtime-6-6-9-eof-preparation/copilot-message-identity-candidate/root-review-01.json",
+      "sha256": "f27fafdf88c89af3123a13f153dc87f17ba05a6c72b92ccbfb6a46de1791ea0c"
+    },
+    "nativeLoopback": {
+      "path": "runtime-6-6-9-eof-preparation/copilot-message-identity-candidate/native-loopback-01.json",
+      "sha256": "fd44e4e3ccba573a45c867205f91e2dcce01d603ab59fe513e8c4278f0833a90"
+    }
   }
 }
