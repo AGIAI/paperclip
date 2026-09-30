@@ -1,3 +1,6 @@
+import { readNativeCursorPlanWait, hasCommittedNativeCursorPlanWait } from "../services/native-runtime/native-cursor-plan-wait.js";
+import { nativeSha256 } from "../services/native-runtime/canonical.js";
+import { buildQuestionResponseDeliveryEnvelope } from "../services/question-response-delivery.js";
 import * as executionContinuation from "../services/execution-continuation.js";
 import { legacyDispositionFingerprint, LEGACY_DISPOSITION_REPAIR_INSTRUCTION } from "../services/recovery/legacy-continuation.js";
 import * as controllerLeases from "../services/legacy-controller-lease.js";
@@ -16,6 +19,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -56,6 +60,7 @@ import {
   heartbeatRunEvents,
   heartbeatRuns,
   issueComments,
+  issueQuestionResponseDeliveries,
   issueApprovals,
   issueDocuments,
   issuePlanDecompositions,
@@ -13718,6 +13723,152 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     expect(comments[0]?.body).toContain("Attempts: 1/1");
     expect(recoveryAction.evidence).toMatchObject({ sourceAttemptCount: 1, sourceMaxAttempts: 1 });
     expect(recoveryAction.ownerType).toBe("board");
+  });
+
+  describe("accepted Cursor planning boundaries", () => {
+  const nativeImplementation = mockExecutePaperclipNativeSession.getMockImplementation();
+  beforeEach(() => {
+    mockExecutePaperclipNativeSession.mockImplementation(async () => { throw new Error("Accepted-plan tests must never execute a provider"); });
+  });
+  afterEach(() => { mockExecutePaperclipNativeSession.mockImplementation(nativeImplementation!); });
+
+  async function seedAcceptedCursorPlanWait(semanticFinish = false) {
+    const f = await seedStrandedIssueFixture({ status: "in_progress", runStatus: "succeeded", livenessState: "advanced" });
+    const contractId = randomUUID(), instance = randomUUID(), interactionId = randomUUID();
+    const contract = { revision: "1", objective: "Review the plan before further work", criteria: [{ id: "objective", requirement: "Explicit completion required" }] };
+    const model = "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]";
+    const contractSha = nativeSha256(contract);
+    await db.insert(completionContracts).values({ id: contractId, companyId: f.companyId, issueId: f.issueId,
+      revision: 1, schemaVersion: "paperclip.completion-contract.v1", policyVersion: "phase6-v7", risk: "low",
+      completionAuthority: "agent_claim_policy", incompleteCriteriaPolicy: "preserve_non_terminal", contractJson: contract,
+      canonicalSha256: contractSha, createdByActorType: "system", createdByActorId: "test" });
+    await db.update(agents).set({ adapterType: "paperclip_runner", adapterConfig: { provider: "acpx", acpxAgent: "cursor", model, acpxSessionMode: "plan", acpxPermissionMode: "approve-all" } }).where(eq(agents.id, f.agentId));
+    await db.update(agentWakeupRequests).set({ status: "completed" }).where(eq(agentWakeupRequests.id, f.wakeupRequestId));
+    await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: f.issueId, nativeSessionId: f.runId,
+      completionContractId: contractId, completionContractSha256: contractSha, runnerInstanceId: instance,
+      runnerProfileJson: { nativeExecutionInput: { binding: { companyId: f.companyId, issueId: f.issueId, runId: f.runId, agentId: f.agentId }, provider: { kind: "acpx", agent: "cursor", model, cursorMode: "plan", permissionMode: "approve-all",
+        profile: paperclipRunner.resolveQualifiedAcpxProfile("cursor", model) }, session: { normalizedSessionId: f.runId },
+        completionContract: { id: contractId, sha256: contractSha, contract } } } }).where(eq(heartbeatRuns.id, f.runId));
+    const planId = `plan-${"a".repeat(64)}`;
+    const questionSet = { schema: "paperclip.question_set.v1", title: "Native plan", description: "Exact accepted revision", questions: [{ id: planId, prompt: "Proceed?", required: true,
+      answerMode: "single_select", options: [{ id: "accept", label: "Accept" }, { id: "reject", label: "Reject" }, { id: "cancel", label: "Cancel" }] }] };
+    const [interaction] = await db.insert(issueThreadInteractions).values({ id: interactionId, companyId: f.companyId, issueId: f.issueId, sourceRunId: f.runId,
+      createdByAgentId: f.agentId, kind: "ask_user_questions", status: "answered", continuationPolicy: "none",
+      idempotencyKey: `paperclip-runner-question:${f.runId}:request`, resolvedByUserId: "responsible-user", resolvedAt: new Date(Date.now() - 1000),
+      payload: { version: 1, questions: [{ id: planId, prompt: "Proceed?", selectionMode: "single", required: true, allowOther: false, options: [{ id: "accept", label: "Accept" }, { id: "reject", label: "Reject" }, { id: "cancel", label: "Cancel" }] }], runtimeRequestId: "request", questionSet: questionSet as never }, result: { version: 1, answers: [{ questionId: planId, optionIds: ["accept"] }] } }).returning();
+    const answer = buildQuestionResponseDeliveryEnvelope(interaction as never);
+    const [delivery] = await db.insert(issueQuestionResponseDeliveries).values({ companyId: f.companyId, issueId: f.issueId, interactionId,
+      sourceRunId: f.runId, targetRunId: f.runId, correlationId: randomUUID(), status: "delivered", deliveryMode: "steered", acknowledgedAt: new Date(), payloadSha256: nativeSha256(answer) }).returning();
+    const port = new PaperclipControlPlanePort(db, { companyId: f.companyId, issueId: f.issueId, runId: f.runId, agentId: f.agentId,
+      sessionId: f.runId, completionContractId: contractId, completionContractSha256: contractSha, sourceInstanceId: instance, controlPlaneSourceInstanceId: `control-${f.runId}` });
+    const events = [
+      { eventType: "runtime_request.created", payload: { request: { schema: "paperclip.runtime_request.v2", requestKind: "runtime", requestId: "request", type: "input", status: "pending", turnId: "turn", prompt: "Review plan",
+        origin: { adapter: "acpx-runtime-sidecar", provider: "cursor", method: "cursor/create_plan" }, input: questionSet } } },
+      { eventType: "runtime_request.resolved", payload: { requestId: "request", turnId: "turn", action: "submit", response: answer.response } },
+      { eventType: "turn.completed", payload: { status: "completed", error: null } },
+    ];
+    for (const [index, event] of events.entries()) await port.appendEvent({ schema: "paperclip.prp.event.v1", sourceEventId: `${instance}:${index + 1}`, sourceSeq: index + 1,
+      sourceInstanceId: instance, sourceKind: "runner", runId: f.runId, normalizedSessionId: f.runId, turnId: "turn", schemaVersion: 1, priority: 0,
+      emittedAt: new Date().toISOString(), ...event } as paperclipRunner.PrpEvent);
+    const proof = await readNativeCursorPlanWait(db, f);
+    expect(proof).not.toBeNull();
+    const result = semanticFinish ? { ...proof!.result, reportedWorkDisposition: "done" as const, summary: "Explicit semantic finish wins", continuation: undefined,
+      completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [{ criterionId: "objective", status: "satisfied" as const, evidenceRefs: [] }], remainingWork: [] } } : proof!.result;
+    await port.completeRun({ result, turnId: "turn", terminal: { schema: "paperclip.prp.terminal.v1", runTerminalState: "succeeded", turnTerminalState: "completed", reportedWorkDisposition: result.reportedWorkDisposition } });
+    return { ...f, interactionId, deliveryId: delivery!.id, proof: proof! };
+  }
+
+  it("keeps an accepted Cursor plan passive across restart, future configuration changes, and paused recovery", async () => {
+    const f = await seedAcceptedCursorPlanWait();
+    await finalizeNativeRun({ db, runId: f.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
+    await finalizeNativeRun({ db, runId: f.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
+    expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(true);
+    expect(await db.select().from(statusDecisions).where(eq(statusDecisions.runId, f.runId))).toEqual([expect.objectContaining({ reasonCode: "native_plan_accepted_waiting_for_continuation", toStatus: "in_progress" })]);
+    expect(await db.select().from(statusDecisionEffects).where(eq(statusDecisionEffects.issueId, f.issueId))).toEqual([expect.objectContaining({ effectKind: "issue_status_projection", targetType: "issue", deliveryState: "delivered" })]);
+    expect(await db.select().from(issueComments).where(eq(issueComments.createdByRunId, f.runId))).toEqual([expect.objectContaining({ body: expect.stringContaining("next message") })]);
+    for (const status of ["idle", "paused"] as const) {
+      await db.update(agents).set({ status, adapterConfig: { provider: "acpx", acpxAgent: "cursor",
+        model: "future-model", acpxSessionMode: "agent", acpxPermissionMode: "approve-reads" } }).where(eq(agents.id, f.agentId));
+      expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(true);
+      const recovered = await heartbeatService(db).reconcileStrandedAssignedIssues();
+      expect(recovered.continuationRequeued).toBe(0); expect(recovered.escalated).toBe(0);
+    }
+    expect(await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.companyId, f.companyId))).toHaveLength(1);
+    expect(mockAdapterExecute).not.toHaveBeenCalled(); expect(mockExecutePaperclipNativeSession).not.toHaveBeenCalled();
+  });
+
+  it("admits a later ordinary user message after an accepted Cursor plan without changing Plan mode or replaying its run", async () => {
+    const f = await seedAcceptedCursorPlanWait();
+    await finalizeNativeRun({ db, runId: f.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
+    // Occupy the single dispatch slot: this checks actual user-wake admission
+    // without executing any provider or fabricating a second semantic result.
+    const occupied = randomUUID();
+    await db.update(agents).set({ runtimeConfig: { heartbeat: { wakeOnDemand: true, maxConcurrentRuns: 1 } } }).where(eq(agents.id, f.agentId));
+    await db.insert(heartbeatRuns).values({ id: occupied, companyId: f.companyId, agentId: f.agentId, status: "running", startedAt: new Date(), contextSnapshot: {} });
+    const [comment] = await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId, authorType: "user", authorUserId: "responsible-user", body: "Continue reviewing the accepted plan in Plan mode." }).returning();
+    try {
+      const heartbeat = heartbeatService(db);
+      const next = await heartbeat.wakeup(f.agentId, { source: "automation", triggerDetail: "system", reason: "issue_commented", requestedByActorType: "user", requestedByActorId: "responsible-user",
+        payload: { issueId: f.issueId, commentId: comment!.id }, contextSnapshot: { issueId: f.issueId, taskId: f.issueId, wakeCommentId: comment!.id, wakeCommentIds: [comment!.id] } });
+      expect(next).not.toBeNull(); expect(next!.id).not.toBe(f.runId);
+      const [admitted] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, next!.id));
+      expect(admitted).toMatchObject({ status: "queued", retryOfRunId: null });
+      expect(admitted!.contextSnapshot?.wakeCommentIds).toContain(comment!.id);
+      const [agent] = await db.select().from(agents).where(eq(agents.id, f.agentId));
+      expect(agent!.adapterConfig.acpxSessionMode).toBe("plan");
+      expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(false);
+      expect(mockExecutePaperclipNativeSession).not.toHaveBeenCalled();
+    } finally {
+      await db.update(heartbeatRuns).set({ status: "cancelled", finishedAt: new Date() }).where(and(eq(heartbeatRuns.companyId, f.companyId), inArray(heartbeatRuns.status, ["running", "queued"])));
+      await db.update(agentWakeupRequests).set({ status: "cancelled", finishedAt: new Date() }).where(and(eq(agentWakeupRequests.companyId, f.companyId), inArray(agentWakeupRequests.status, ["queued", "claimed"])));
+    }
+  });
+
+  it.each(["delivery", "assignment", "admission", "user_request", "result_or_decision"] as const)("revokes an accepted Cursor plan passive wait after %s changes", async change => {
+    const f = await seedAcceptedCursorPlanWait();
+    await finalizeNativeRun({ db, runId: f.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
+    if (change === "delivery") await db.update(issueQuestionResponseDeliveries).set({ acknowledgedAt: null }).where(eq(issueQuestionResponseDeliveries.id, f.deliveryId));
+    if (change === "assignment") await db.update(issues).set({ assigneeAgentId: null }).where(eq(issues.id, f.issueId));
+    if (change === "admission") {
+      const [run] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.runId));
+      const profile = structuredClone(run!.runnerProfileJson!);
+      (profile.nativeExecutionInput as { provider: { cursorMode: string } }).provider.cursorMode = "agent";
+      await db.update(heartbeatRuns).set({ runnerProfileJson: profile }).where(eq(heartbeatRuns.id, f.runId));
+    }
+    if (change === "user_request") await db.insert(issueComments).values({ companyId: f.companyId, issueId: f.issueId, authorType: "user", authorUserId: "responsible-user", body: "Continue reviewing this plan in Plan mode." });
+    if (change === "result_or_decision") {
+      const [accepted] = await db.select().from(nativeRunResults).where(eq(nativeRunResults.runId, f.runId));
+      await db.update(nativeRunResults).set({ canonicalSha256: "changed" }).where(eq(nativeRunResults.id, accepted!.id));
+      expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(false);
+      await db.update(nativeRunResults).set({ canonicalSha256: accepted!.canonicalSha256 }).where(eq(nativeRunResults.id, accepted!.id));
+      expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(true);
+      await db.update(issues).set({ lastStatusDecisionId: null }).where(eq(issues.id, f.issueId));
+    }
+    expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(false);
+  });
+
+  it("rechecks accepted Cursor plan delivery under the status transaction before presentation or effects", async () => {
+    const f = await seedAcceptedCursorPlanWait();
+    await finalizeNativeRun({ db, runId: f.runId, workspaceFinalizeStatus: "succeeded", failpoint: "status_projection" });
+    const [coordinator] = await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, f.runId));
+    const [issue] = await db.select().from(issues).where(eq(issues.id, f.issueId));
+    await db.update(issueQuestionResponseDeliveries).set({ payloadSha256: "changed" }).where(eq(issueQuestionResponseDeliveries.id, f.deliveryId));
+    await expect(commitNativeStatusDecision({ db, companyId: f.companyId, issueId: f.issueId, runId: f.runId, assessmentId: coordinator!.assessmentId!,
+      priorStatus: issue!.status, priorStatusVersion: issue!.statusVersion, priorDecisionId: issue!.lastStatusDecisionId,
+      decision: { policyVersion: "phase6-v7", statusAction: "in_progress", toStatus: "in_progress", reasonCode: "native_plan_accepted_waiting_for_continuation", unblockDescriptor: null, effects: [] },
+      requireCursorPlanWaitSource: f.proof.source })).rejects.toBeInstanceOf(NativeStatusRaceError);
+    expect(await db.select().from(statusDecisions).where(eq(statusDecisions.runId, f.runId))).toHaveLength(0);
+    expect(await db.select().from(issueComments).where(eq(issueComments.createdByRunId, f.runId))).toHaveLength(0);
+  });
+
+  it("preserves explicit semantic finish priority over accepted Cursor plan evidence", async () => {
+    const f = await seedAcceptedCursorPlanWait(true);
+    await finalizeNativeRun({ db, runId: f.runId, workspaceFinalizeStatus: "succeeded", projectRunStatus: true });
+    expect(await hasCommittedNativeCursorPlanWait(db, f)).toBe(false);
+    const decisions = await db.select().from(statusDecisions).where(eq(statusDecisions.runId, f.runId));
+    expect(decisions).toHaveLength(1); expect(decisions[0]!.reasonCode).not.toBe("native_plan_accepted_waiting_for_continuation");
+  });
+
   });
 
   async function seedNativePassiveBoardResponse(
