@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { constants, closeSync, fchmodSync, fstatSync, fsyncSync, lstatSync, openSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
+import { constants, closeSync, fchmodSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { readPinnedCopilotInnerDistribution } from "./copilot-inner-distribution.mjs";
 
 export const COPILOT_VERSION = "1.0.88";
 // Extracted executable SHA-256 pins from npm archives after registry SHA-512 verification.
@@ -36,6 +37,7 @@ export function materializePinnedCopilotBinary(options = {}) {
   const bytes = readPinnedFile(source, 384 * 1024 * 1024, true);
   const sourceDigest = createHash("sha256").update(bytes).digest("hex");
   if (sourceDigest !== distribution.executableDigest) throw new Error("Copilot executable digest does not match its pinned distribution");
+  const inner = readPinnedCopilotInnerDistribution(bytes, `${options.platform ?? process.platform}-${options.architecture ?? process.arch}`);
   let target = source;
   if (options.targetDirectory !== undefined) {
     const directory = realpathSync(options.targetDirectory);
@@ -55,6 +57,19 @@ export function materializePinnedCopilotBinary(options = {}) {
     }
   }
   const entries = [{ path: "copilot", sha256: sourceDigest, size: bytes.length, executable: true }];
+  const output = options.targetDirectory === undefined ? packageRoot : realpathSync(options.targetDirectory);
+  // Preserve every embedded asset; only the hash-pinned app's message mapping
+  // changes. Never import or execute any archive entry during materialization.
+  mkdirSync(join(output, "distribution"), { mode: 0o755 });
+  for (const [path, entry] of inner) {
+    const relative = `distribution/${path}`;
+    const destination = join(output, relative);
+    mkdirSync(dirname(destination), { recursive: true, mode: 0o755 });
+    if (realpathSync(dirname(destination)) !== dirname(destination)) throw new Error("Copilot inner destination redirects through links");
+    writeFileSync(destination, entry.bytes, { flag: "wx", mode: entry.executable ? 0o755 : 0o644 });
+    entries.push({ path: relative, sha256: createHash("sha256").update(entry.bytes).digest("hex"), size: entry.bytes.length, executable: entry.executable });
+  }
+  entries.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   const closureSha256 = createHash("sha256").update(JSON.stringify(entries)).digest("hex");
   const manifestPath = join(options.targetDirectory === undefined ? packageRoot : realpathSync(options.targetDirectory), ".paperclip-copilot-closure.json");
   const closure = `${JSON.stringify({ schema: "paperclip.native_distribution_closure.v1", entries })}\n`;
