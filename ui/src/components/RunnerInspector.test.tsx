@@ -252,6 +252,31 @@ describe("RunnerInspector", () => {
     expect(Array.from(container.querySelectorAll("button")).some((item) => item.textContent?.trim() === "Latest events")).toBe(false);
   });
 
+  it("keeps latest events refreshable while a live run is already at the latest page", async () => {
+    eventsMock
+      .mockResolvedValueOnce(eventPage([20, 21], { historyBefore: true, historyAfter: false }))
+      .mockResolvedValueOnce(eventPage([22, 23], { historyBefore: true, historyAfter: false }));
+    flushSync(() => root.render(
+      <RunnerInspector
+        runId="run-1"
+        run={{ status: "running", resultJson: null }}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    ));
+    await flush();
+
+    const latestButton = () => Array.from(container.querySelectorAll("button")).find((item) => item.textContent?.trim() === "Latest events");
+    expect(latestButton()).toBeDefined();
+    expect(container.textContent).toContain("event-21");
+
+    flushSync(() => latestButton()?.click());
+    await flush();
+
+    expect(eventsMock).toHaveBeenNthCalledWith(2, "run-1", "tail", 1_000, undefined);
+    expect(container.textContent).toContain("event-23");
+  });
+
   it("ignores an older-page response after switching runs", async () => {
     const olderPage = deferred<HeartbeatRunEvent[]>();
     eventsMock.mockImplementation((runId: string, _cursor: unknown, _limit: number, options?: { beforeSeq?: number }) => {

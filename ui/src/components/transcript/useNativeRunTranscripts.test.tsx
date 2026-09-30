@@ -259,4 +259,51 @@ describe("native history readiness and stable projection", () => {
     expect(latest.transcriptByRun.get("one")).toContainEqual(expect.objectContaining({ kind: "assistant", text: "Visible despite the context outage" }));
   });
 
+  it("treats the current context as authoritative for requests in older event windows", async () => {
+    const question = { id: 1, seq: 1, runId: "one", eventType: "runtime_request.created",
+      createdAt: "2026-09-30T12:00:00Z", payload: { prpEvent: {
+        schema: "paperclip.prp.event.v1", schemaVersion: 1, runId: "one",
+        eventType: "runtime_request.created", payload: { request: {
+          requestId: "old-permission", requestKind: "permission_approval", status: "pending",
+        } },
+      } } };
+    eventsMock.mockResolvedValueOnce([question]).mockResolvedValue([]);
+    contextMock.mockResolvedValueOnce([question]).mockResolvedValue([]);
+    await act(async () => { root.render(<StateProbe />); });
+    expect(latest.transcriptByRun.get("one")).toContainEqual(expect.objectContaining({ kind: "runtime_request", status: "pending" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(latest.errorsByRun.size).toBe(0);
+    expect(latest.transcriptByRun.get("one")?.some((entry) => entry.kind === "runtime_request" && entry.status === "pending")).toBe(false);
+  });
+
+  it("does not reopen stale pending requests while context is unavailable", async () => {
+    const event = (seq: number, eventType: string, payload: Record<string, unknown>) => ({
+      id: seq, seq, runId: "one", eventType, createdAt: "2026-09-30T12:00:00Z",
+      payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1,
+        runId: "one", eventType, payload } },
+    });
+    const question = event(1, "runtime_request.created", { request: {
+      requestId: "old-permission", requestKind: "permission_approval", status: "pending",
+    } });
+    const answer = event(2, "item.completed", {
+      kind: "agentMessage", channel: "final", text: "Keep the existing answer visible",
+    });
+    contextMock.mockResolvedValueOnce([question, answer])
+      .mockRejectedValueOnce(new Error("context unavailable"))
+      .mockResolvedValue([answer]);
+    eventsMock.mockResolvedValueOnce([{ seq: 100, payload: {}, eventType: "log", historyBefore: true, historyAfter: false }])
+      .mockResolvedValueOnce([{ ...event(101, "runtime_request.resolved", { requestId: "old-permission" }), historyAfter: true }])
+      .mockResolvedValueOnce([{ seq: 102, eventType: "log", payload: { text: "x".repeat(2 * 1024 * 1024) }, historyAfter: false }])
+      .mockResolvedValue([]);
+    await act(async () => { root.render(<StateProbe />); });
+    expect(latest.transcriptByRun.get("one")).toContainEqual(expect.objectContaining({ kind: "runtime_request", status: "pending" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(latest.errorsByRun.has("one")).toBe(true);
+    expect(latest.transcriptByRun.get("one")?.some((entry) => entry.kind === "runtime_request" && entry.status === "pending")).toBe(false);
+    expect(latest.transcriptByRun.get("one")).toContainEqual(expect.objectContaining({ kind: "assistant", text: "Keep the existing answer visible" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(latest.errorsByRun.size).toBe(0);
+    expect(latest.transcriptByRun.get("one")?.some((entry) => entry.kind === "runtime_request" && entry.status === "pending")).toBe(false);
+  });
+
 });

@@ -29905,7 +29905,13 @@ export function heartbeatService(
             nullif(${heartbeatRunEvents.payload} #>> '{prpEvent,payload,text}', ''),
             nullif(${heartbeatRunEvents.payload} #>> '{prpEvent,payload,item,text}', '')
           ), '') is not null`,
-        )).orderBy(desc(heartbeatRunEvents.seq)).limit(1),
+        )).orderBy(
+          sql`case when coalesce(
+            nullif(${heartbeatRunEvents.payload} #>> '{prpEvent,payload,channel}', ''),
+            nullif(${heartbeatRunEvents.payload} #>> '{prpEvent,payload,item,channel}', '')
+          ) = 'final' then 1 else 0 end desc`,
+          desc(heartbeatRunEvents.seq),
+        ).limit(1),
         db.select().from(heartbeatRunEvents).where(and(
           runFilter,
           eq(heartbeatRunEvents.eventType, "run.result.accepted"),

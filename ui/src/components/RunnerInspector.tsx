@@ -661,6 +661,7 @@ export function RunnerInspector({
   const [rawTraceAccess, setRawTraceAccess] = useState<RawTraceAccess | null>(null);
   const rawTraceAccessRef = useRef<RawTraceAccess | null>(null);
   const rawTraceAccessEpochRef = useRef(0);
+  const isLiveRun = run?.status === "queued" || run?.status === "running";
   const canInspectRaw =
     open && rawTraceAccess?.runId === runId ? rawTraceAccess.allowed : null;
 
@@ -1164,8 +1165,8 @@ export function RunnerInspector({
                 <Button size="sm" variant="outline" disabled={loadingEventPage || !(events[0]?.historyBefore ?? viewingOlderEvents)} onClick={() => void loadEventPage("older")}>Older events</Button>
                 {viewingOlderEvents ? <>
                   <Button size="sm" variant="outline" disabled={loadingEventPage || events.at(-1)?.historyAfter === false} onClick={() => void loadEventPage("newer")}>Newer events</Button>
-                  <Button size="sm" variant="outline" disabled={loadingEventPage} onClick={() => void loadEventPage("latest")}>Latest events</Button>
                 </> : null}
+                {viewingOlderEvents || isLiveRun ? <Button size="sm" variant="outline" disabled={loadingEventPage} onClick={() => void loadEventPage("latest")}>Latest events</Button> : null}
               </div>
               <div className="grid gap-2 border-b border-border p-3 sm:grid-cols-2 xl:grid-cols-(--gtc-runner-inspector-filters)">
                 <div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-8" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search operations, fields, and events" /></div>

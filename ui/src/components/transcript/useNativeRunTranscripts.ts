@@ -40,6 +40,7 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
   );
   const [eventsByRun, setEventsByRun] = useState<Map<string, HeartbeatRunEvent[]>>(new Map());
   const [contextByRun, setContextByRun] = useState<Map<string, HeartbeatRunEvent[]>>(new Map());
+  const [unavailableContextRunIds, setUnavailableContextRunIds] = useState<ReadonlySet<string>>(new Set());
   const eventsByRunRef = useRef(eventsByRun);
   eventsByRunRef.current = eventsByRun;
   const [errorsByRun, setErrorsByRun] = useState<Map<string, NativeRunTranscriptError>>(new Map());
@@ -47,7 +48,7 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
   const [historyCollapsedRunIds, setHistoryCollapsedRunIds] = useState<ReadonlySet<string>>(new Set());
   const [retryGeneration, setRetryGeneration] = useState(0);
   const retry = useCallback(() => setRetryGeneration((value) => value + 1), []);
-  const projectionCacheRef = useRef(new Map<string, { events: HeartbeatRunEvent[]; context: HeartbeatRunEvent[]; transcript: TranscriptEntry[] }>());
+  const projectionCacheRef = useRef(new Map<string, { events: HeartbeatRunEvent[]; context: HeartbeatRunEvent[]; contextUnavailable: boolean; transcript: TranscriptEntry[] }>());
   const cursorByRunRef = useRef(new Map<string, RunEventCursor>());
 
   useEffect(() => {
@@ -61,6 +62,10 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
     };
     setEventsByRun(retainMap);
     setContextByRun(retainMap);
+    setUnavailableContextRunIds((previous) => {
+      const next = new Set([...previous].filter((id) => retainedIds.has(id)));
+      return next.size === previous.size ? previous : next;
+    });
     setErrorsByRun(retainMap);
     setHydratedRunIds((previous) => {
       const next = new Set([...previous].filter((id) => retainedIds.has(id)));
@@ -82,7 +87,6 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
         let historyBefore = false;
         let incomingWasTrimmed = false;
         let pagesFetched = 0;
-        let context: HeartbeatRunEvent[] | undefined;
         let contextError: Error | undefined;
         for (;;) {
           const readPage = () => readTranscriptRequest(
@@ -100,15 +104,29 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
                 controller.signal,
               ),
             ]);
-            if (pageResult.status === "rejected") throw pageResult.reason;
-            page = pageResult.value;
+            if (cancelled) return;
             if (contextResult.status === "fulfilled") {
-              context = contextResult.value;
+              const context = contextResult.value;
+              setContextByRun((previous) => {
+                const old = previous.get(run.id) ?? EMPTY_EVENTS;
+                if (JSON.stringify(old) === JSON.stringify(context)) return previous;
+                return new Map(previous).set(run.id, context);
+              });
+              setUnavailableContextRunIds((previous) => {
+                if (!previous.has(run.id)) return previous;
+                const next = new Set(previous);
+                next.delete(run.id);
+                return next;
+              });
             } else {
+              setUnavailableContextRunIds((previous) => previous.has(run.id)
+                ? previous : new Set([...previous, run.id]));
               contextError = contextResult.reason instanceof Error
                 ? contextResult.reason
                 : new Error("Current run requests and final response could not be loaded");
             }
+            if (pageResult.status === "rejected") throw pageResult.reason;
+            page = pageResult.value;
           } else {
             page = await readPage();
           }
@@ -143,14 +161,6 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
         // Commit this run's cursor with its rows. A slow sibling must neither
         // hold its readiness hostage nor stall live polling for this run.
         cursorByRunRef.current.set(run.id, cursor);
-        if (context !== undefined) {
-          const nextContext = context;
-          setContextByRun((previous) => {
-            const old = previous.get(run.id) ?? EMPTY_EVENTS;
-            if (JSON.stringify(old) === JSON.stringify(nextContext)) return previous;
-            return new Map(previous).set(run.id, nextContext);
-          });
-        }
         if (incoming.length > 0) {
           const merged = mergeRunEvents(historyBefore ? [] : eventsByRunRef.current.get(run.id) ?? [], incoming);
           const retained = retainEventTail(merged);
@@ -216,12 +226,28 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
     for (const run of nativeRuns) {
       const events = eventsByRun.get(run.id) ?? EMPTY_EVENTS;
       const context = contextByRun.get(run.id) ?? EMPTY_EVENTS;
+      const contextUnavailable = unavailableContextRunIds.has(run.id);
       if (events === EMPTY_EVENTS && context === EMPTY_EVENTS) continue;
       let cached = projectionCacheRef.current.get(run.id);
-      if (!cached || cached.events !== events || cached.context !== context) {
-        cached = { events, context, transcript: nativeRunEventsToTranscript(
+      if (!cached || cached.events !== events || cached.context !== context || cached.contextUnavailable !== contextUnavailable) {
+        let transcript = nativeRunEventsToTranscript(
           mergeRunEvents(context, events).sort((left, right) => left.seq - right.seq),
-        ) };
+        );
+        const pendingRequestIds = new Set(nativeRunEventsToTranscript(context)
+          .flatMap((entry) => entry.kind === "runtime_request" && entry.status === "pending"
+            ? [entry.requestId] : []));
+        transcript = transcript.filter((entry) => entry.kind !== "runtime_request"
+          || entry.status !== "pending"
+          || (!contextUnavailable && pendingRequestIds.has(entry.requestId)));
+        if (contextUnavailable) {
+          // A failed context read cannot establish that an old request is still
+          // pending, or that a response-wake result has no outstanding request.
+          // Keep activity and answers visible, but require a fresh snapshot for
+          // these interactive states. The surfaced error offers retry.
+          transcript = transcript.map((entry) => entry.kind === "run_result"
+              ? { ...entry, acceptedResponseWake: undefined } : entry);
+        }
+        cached = { events, context, contextUnavailable, transcript };
         projectionCacheRef.current.set(run.id, cached);
       }
       transcripts.set(run.id, cached.transcript);
@@ -230,7 +256,7 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
       if (!transcripts.has(id)) projectionCacheRef.current.delete(id);
     }
     return transcripts;
-  }, [eventsByRun, contextByRun, nativeRuns]);
+  }, [eventsByRun, contextByRun, nativeRuns, unavailableContextRunIds]);
 
   return {
     transcriptByRun, errorsByRun, hydratedRunIds, historyCollapsedRunIds, retry,

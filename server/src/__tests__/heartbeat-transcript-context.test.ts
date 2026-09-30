@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { agents, applyPendingMigrations, closeRegisteredClients, companies, createDb, heartbeatRunEvents, heartbeatRuns } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -139,7 +139,16 @@ describeContext("heartbeat transcript context", () => {
 
     await db.insert(heartbeatRunEvents).values([unknownChannelMessage] as never);
     const unknownContext = await service.listTranscriptContext(runId, companyId);
-    expect(unknownContext.map((event) => event.seq)).toContain(8);
+    expect(unknownContext.map((event) => event.seq)).toContain(4);
+    expect(unknownContext.map((event) => event.seq)).not.toContain(8);
+
+    await db.delete(heartbeatRunEvents).where(and(
+      eq(heartbeatRunEvents.companyId, companyId),
+      eq(heartbeatRunEvents.runId, runId),
+      eq(heartbeatRunEvents.seq, 4),
+    ));
+    const fallbackContext = await service.listTranscriptContext(runId, companyId);
+    expect(fallbackContext.map((event) => event.seq)).toContain(8);
 
     const missingChannelMessage = protocolEvent(9, "item.completed", {
       kind: "agentMessage",
