@@ -5,11 +5,11 @@ import { createCursorNativeUsage } from "./cursor-native-usage.mjs";
 
 // This is an owned ACP-only patch of the immutable vendor archive. The legacy
 // Cursor adapter and the vendor's interactive CLI are not changed.
-export const CURSOR_RUNTIME_PATCH_VERSION = "paperclip-cursor-usage-v3";
+export const CURSOR_RUNTIME_PATCH_VERSION = "paperclip-cursor-usage-v4";
 export const CURSOR_RUNTIME_PATCH_PINS = Object.freeze({
-  "darwin-arm64": { file: "5672.index.js", before: "7784c8b16d4e639814c13b12be2a687f5dc2cd98cbf29ed0a10820778ab1bf62", after: "83fa4d462b3d8fd95b05420589cc80b8a6536dbff0cc3c5d36fec69d8a753970" },
-  "darwin-x64": { file: "9841.index.js", before: "3c0aaf6ecc4fceb0f95e1731deec75384984570d14d0871cecec11972b948ac4", after: "060c8816fac3d110f5931ce626e5f2d841d8252fba7dafd52e37157ca915301d" },
-  "linux-x64": { file: "1699.index.js", before: "2de420f1b31e70ca74b083a1ce5b519c2abffa5789d71cc06e84d2c38acb7c07", after: "3435f90f028eb5b08cf8cb7b289694993636f2868e6af217c167a5fd27ac03b2" },
+  "darwin-arm64": { file: "5672.index.js", before: "7784c8b16d4e639814c13b12be2a687f5dc2cd98cbf29ed0a10820778ab1bf62", after: "35c5bf13b261ea884bb0e7b26ae7bd4c4999b0b4b08ab338bc22f2ccce2b8108" },
+  "darwin-x64": { file: "9841.index.js", before: "3c0aaf6ecc4fceb0f95e1731deec75384984570d14d0871cecec11972b948ac4", after: "5b2510248429febe1c9aead6ad43d35d89cdedc4dd057d4f07495efa33c7da55" },
+  "linux-x64": { file: "1699.index.js", before: "2de420f1b31e70ca74b083a1ce5b519c2abffa5789d71cc06e84d2c38acb7c07", after: "38fe96fa71463372bffdd9efa3e5608293ff075d079149fe20a1625783c4eb39" },
 });
 const digest = value => createHash("sha256").update(value).digest("hex");
 

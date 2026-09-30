@@ -33,6 +33,7 @@ export async function qualifyCursorNativeUsage(vendorRoot) {
     const original = await readFile(join(vendorRoot, platform, "dist-package", pin.file), "utf8");
     assert.equal(hash(original), pin.before);
     const source = patchCursorRuntimeSource(original, platform);
+    assert.equal(hash(source), pin.after);
     assert.throws(() => patchCursorRuntimeSource(original + "\n", platform), /digest mismatch/);
     const exported = {}; runInNewContext(source, { exports: exported });
     assert.ok(exported.modules["./src/acp/agent-session.ts"]);
@@ -43,13 +44,18 @@ export async function qualifyCursorNativeUsage(vendorRoot) {
     const handlePrompt = runInNewContext(`({${segment(source, "handlePrompt(e){", "claimTaskToolCall(e,t){")}}).handlePrompt`, scope);
     const invocationSource = segment(source, "D=async e=>", ",yield D(y)");
     const childUpdate = runInNewContext(`({${segment(source, "onInteractionUpdate(e,t){", "onSessionCompleted(e,t){")}}).onInteractionUpdate`);
+    // Execute the vendor's object construction and reuse transition, rather
+    // than assuming a hand-built child's fields match the pinned implementation.
+    const childLifecycle = runInNewContext(`(class {${segment(source, "beginOrUpdateRun(e,t){", "announce(e,t){")}}).prototype`);
     assert.ok(source.includes("yield this.processPrompt(e,s,l,paperclipUsage)"));
     assert.ok(source.includes("processPrompt(e,t,n,paperclipUsage){"));
     const checks = [];
     const createHost = backend => {
       const publisher = { turn: 0, children: new Map(), enabled: true,
         beginTurn() { return ++this.turn; }, runIdsForTurn() { return []; }, whenAllTerminal: async () => true,
-        enqueue(_child, fn) { return fn(); }, onInteractionUpdate: childUpdate };
+        enqueue(_child, fn) { return fn(); }, turnFor() { return this.turn; },
+        beginOrUpdateRun: childLifecycle.beginOrUpdateRun, resolveParentSession: childLifecycle.resolveParentSession,
+        startNewRun: childLifecycle.startNewRun, onInteractionUpdate: childUpdate };
       const host = {
         subagentPublisher: publisher, subagentsEnabled: true, backgroundWorkRegistry: { abortWork() {} },
         ctx: { withCancel() { const abort = new AbortController(); return [{ signal: abort.signal, get canceled() { return abort.signal.aborted; } }, () => abort.abort()]; } },
@@ -82,10 +88,17 @@ export async function qualifyCursorNativeUsage(vendorRoot) {
 
     const childHost = createHost(async () => {});
     const childResult = await childHost.run({ execute: async ({ publisher, turn }) => {
-      const child = { turn, runs: 1, terminal: false, presenter: { presentInteractionUpdate() {} } };
-      publisher.children.set("native-child", child);
+      const child = publisher.beginOrUpdateRun("native-child", { toolCallId: "native-tool", parentAgentId: "parent", name: "worker" });
+      assert.equal(child.runs, 1); assert.equal(child.turn, turn); assert.equal(child.terminal, false);
+      assert.equal(publisher.children.get("native-child"), child);
+      child.presenter = { presentInteractionUpdate() {} };
       publisher.onInteractionUpdate("native-child", event({ inputTokens: 7n }));
-      child.runs = 2; publisher.onInteractionUpdate("native-child", event({ inputTokens: 8n }));
+      child.terminal = true;
+      const reused = publisher.beginOrUpdateRun("native-child", { toolCallId: "native-tool-2", parentAgentId: "parent", name: "worker" });
+      assert.equal(reused, child); assert.equal(reused.runs, 2); assert.equal(reused.terminal, false);
+      assert.equal(reused.sessionId, "native-child.2"); assert.equal(reused.turn, turn);
+      child.presenter = { presentInteractionUpdate() {} };
+      publisher.onInteractionUpdate("native-child", event({ inputTokens: 8n }));
       publisher.onInteractionUpdate("unknown-history-child", event({ inputTokens: 999n }));
       child.terminal = true; publisher.onInteractionUpdate("native-child", event({ inputTokens: 999n }));
     } });
@@ -95,7 +108,7 @@ export async function qualifyCursorNativeUsage(vendorRoot) {
     childHost.publisher.children.get("native-child").terminal = false;
     childHost.publisher.onInteractionUpdate("native-child", event({ inputTokens: 999n }));
     assert.equal(childEnvelope.observations.length, 1);
-    checks.push("child_run_attribution", "history_and_late_child_isolation");
+    checks.push("vendor_child_creation_and_reuse", "child_run_attribution", "history_and_late_child_isolation");
 
     const started = deferred(), release = deferred(); let oldCallback;
     const overlapping = createHost(async (_context, _state, action, _model, callbacks) => {
@@ -121,7 +134,7 @@ export async function qualifyCursorNativeUsage(vendorRoot) {
     platforms.push({ platform, vendorSha256: hash(original), candidateSha256: hash(source), checks });
   }
   return { schema: "paperclip.cursor.native-usage-offline-proof.v1", providerCalls: 0, standardUsageEmitted: false,
-    boundary: "digest-pinned handlePrompt, native invocation and child update methods; surrounding session/transport doubled", platforms };
+    boundary: "digest-pinned handlePrompt, native invocation, child creation/reuse and child update methods; surrounding session/transport doubled", platforms };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   assert.equal(process.argv.length, 3, "Usage: node qualify-cursor-native-usage.mjs VENDOR_RESEARCH_ROOT");

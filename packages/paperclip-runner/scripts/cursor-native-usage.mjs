@@ -48,7 +48,8 @@ export function createCursorNativeUsage(promptId) {
   return {
     beginParent() { return begin("parent", invocations + 1); },
     observeChild(child, update) {
-      if (closed || !child || child.terminal || !Number.isSafeInteger(child.runs) || child.runs < 1) return;
+      if (closed || !child || child.terminal) return;
+      if (!Number.isSafeInteger(child.runs) || child.runs < 1) { reasons.add("child_run_attribution_unverified"); return; }
       // The native callback identifies only the child, not its run generation.
       // After ID reuse, delayed old-run updates cannot be distinguished safely.
       if (child.runs !== 1) { reasons.add("child_run_attribution_unverified"); return; }

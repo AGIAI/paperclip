@@ -1,12 +1,16 @@
 # Cursor ACP capability inventory
 
-Current source candidate (2026-09-30): **Cursor profile v8 is unqualified**.
-Its declaration binds `paperclip-cursor-usage-v3`, all three newly verified native
+Current source candidate (2026-09-30): **Cursor profile v9 is unqualified**.
+Its declaration binds `paperclip-cursor-usage-v4`, all three newly verified native
 closures and the shared ACPX patch that persists bounded diagnostic observations.
 Every native counter receipt remains partial with unverified semantics; it cannot
 satisfy token or dollar accounting. The exact model remains unpriced until a
 verified rate is available. Prior v7 source, builds and paid observations below
-are historical and do not qualify v8. Old v7 sessions must be reopened.
+are historical and do not qualify v9. Old v7/v8 sessions must be reopened.
+The v9 collector marks missing, invalid or reused child run ordinals as
+`child_run_attribution_unverified`. The offline proof executes the pinned
+vendor child creation and reuse methods on all three platforms; child counter
+aggregation semantics remain unverified.
 
 Historical v7 checkpoint (2026-09-30): **Cursor profile v7 remains unqualified**. The corrected local native-plan case on controller/Product source `3d21d375de2b6249d9f5322bf001ce0ce0e052aa` and native runtime `5b8e4454ef0bf12d0bb068c2e41d8c9df9356a1c` passed all 26 checks. Reject, feedback, revision-bound acceptance, browser reconnect, exact delivery and unchanged workspace bytes passed. The single planning run succeeded while the task remained In Progress with an explicit next-message wait; no implementation or task completion is claimed. Cleanup and full end integrity passed. Result SHA-256: `685609f01291db84f40d890ef562473b95065e86907bd964b656ad732f6dd97a`. The earlier controller40064 attempt remains failed. Controller fix `c58a8881f` uses the production schema/policy/contract hash envelope; native runtime/profile bytes are unchanged. That exact Cursor PR head has green CI and Greptile 5/5. All three platform builds exist, but the remaining current-profile local/Daytona cases are still required. Native AskQuestion availability remains unverified. Cursor on-demand usage remains $0 under the approved fixed $25 account cap; native per-run USD is unknown. See the [comparative capability report](runner-rich-acp-capabilities.md) for exact source roles, evidence and remaining gates.
 
@@ -84,24 +88,24 @@ cancelled-work accounting. A thrown JSON-RPC error returns no prompt envelope,
 so these observations are not retained on that error path. This is a new source candidate, not a change to
 the frozen v7 runtime or a regrading of historical evidence.
 
-The `paperclip-cursor-usage-v3` candidate retains the vendor version and archive
+The `paperclip-cursor-usage-v4` candidate retains the vendor version and archive
 pins. Private full-tree materialization verifies 446 files per macOS target and
 454 files on Linux; only the ACP implementation chunk differs from each vendor
 tree. Its patched closures are:
 
 | Platform | Patched closure SHA-256 |
 | --- | --- |
-| macOS ARM64 | `0681abb675b46054155e0b3f28850bf4668cf24fb1aab457dad1f24b61b3ee6b` |
-| macOS x64 | `18caa80f90f70f6a7d815335062b0858327891ec854aebe90b585a42eac578e6` |
-| Linux x64 | `0ee4ceb24062e991650bfb4c0b4ec5fbd7f1a01487b8c70aef0cf257509701a4` |
+| macOS ARM64 | `257424bd48e35412091c6adfc61e4648e836757ec1d240d890bba81a24918c30` |
+| macOS x64 | `6f28c799c5afdc64fbdff8a2157f565f17ae7615efe014ac389d63bf70cf2be2` |
+| Linux x64 | `eadb8bb8ffb0450455b15b88c9b230307a9e149958a0c452d16dd157b4633d74` |
 
-`usage-v3-runtime-patch-offline-proof.json` retains fresh isolation/instruction
-checks, and `native-usage-v3-offline-proof.json` records the usage checks. Earlier
+`usage-v4-runtime-patch-offline-proof.json` retains fresh isolation/instruction
+checks, and `native-usage-v4-offline-proof.json` records the usage checks. Earlier
 proof files remain historical. These are offline source proofs; native emission
 semantics, accounting completeness and live qualification remain unproven.
 
 The pinned-source offline harness executes the patched prompt method, native
-invocation expression and child-update method on all three platform chunks with
+invocation expression, child construction/reuse and child-update methods on all three platform chunks with
 transport/session dependency doubles. It proves routing and bounds, not actual
 backend emissions, retry/subagent inclusion, cache/reasoning overlap or billing.
 Shared metadata persistence and new distribution/profile identities are separate
@@ -118,7 +122,7 @@ Question and plan requests lack a session ID. The shared hook binds them to the 
 
 Fixed launch arguments are `--disable-project-configs --disable-auto-update acp`, using the verified bundled Node and absolute verified `index.js`. Private HOME/XDG roots are required together with CURSOR_CONFIG_DIR, CURSOR_DATA_DIR, disabled compilation caching, `AGENT_CLI_CREDENTIAL_STORE=memory`, and `NO_OPEN_BROWSER=1`. Only explicitly bound CURSOR_API_KEY or CURSOR_AUTH_TOKEN may enter. The controller creates a provider/session-scoped credential-name binding from the explicit task environment, ignoring inherited or caller-supplied markers. Rust forwards it through the closed sidecar environment boundary. Before host admission, the sidecar rejects missing, stale, wrong-provider or unbound credentials and removes the marker before provider launch. Tests cover this full boundary and preserve legacy credential behavior. Do not use `--force`, `--trust`, or `--approve-mcps` to paper over governance.
 
-`--disable-project-configs` only suppresses `.cursor/cli.json`. It does not suppress project MCP, Cursor/Claude hooks, or installed plugins. `assertCursorWorkspacePolicy` refuses ambient project execution config from the workspace through its nearest Git root, including symlinks and unreadable configuration. Ordinary Claude settings with neither hooks nor plugins remain admissible. Enterprise system hooks are checked too. The host repeats admission checks before native launch. The vendor admission check alone cannot prevent a concurrent file mutation. The current `paperclip-cursor-usage-v3` distribution patch removes local hook loading, asynchronous team hook synchronization, ambient MCP loader initialization, and ambient-client merging from the ACP source. The retained admission check remains defense in depth. This closes those discovery paths independently of filesystem polling; authenticated validation on the patched final runtime remains required.
+`--disable-project-configs` only suppresses `.cursor/cli.json`. It does not suppress project MCP, Cursor/Claude hooks, or installed plugins. `assertCursorWorkspacePolicy` refuses ambient project execution config from the workspace through its nearest Git root, including symlinks and unreadable configuration. Ordinary Claude settings with neither hooks nor plugins remain admissible. Enterprise system hooks are checked too. The host repeats admission checks before native launch. The vendor admission check alone cannot prevent a concurrent file mutation. The current `paperclip-cursor-usage-v4` distribution patch removes local hook loading, asynchronous team hook synchronization, ambient MCP loader initialization, and ambient-client merging from the ACP source. The retained admission check remains defense in depth. This closes those discovery paths independently of filesystem polling; authenticated validation on the patched final runtime remains required.
 
 Artifact paths are never automatically read or uploaded. References require a present regular file under the physical workspace, reject traversal and symbolic links, and retain `registered:false`. Private/outside paths are omitted and produce a visible warning. This is metadata validation, not durable file ownership or a replacement for artifact registration checks.
 

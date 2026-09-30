@@ -215,7 +215,7 @@ impl AcpxProviderDescriptor {
                 "2026.09.26-dd393fe",
                 None,
                 None,
-                "sha256:b9e94cbcdce2783665612c85caf019c4defe37d3d245a694de590ebdf5b1f1a3",
+                "sha256:a76ad26878a3b3328154901563cbda857e53583e4e01787f35a797992ef76162",
             ),
             "copilot" => (
                 self.model.as_str(),
@@ -2803,7 +2803,7 @@ mod tests {
                 "cursor",
                 "cursor-agent",
                 "2026.09.26-dd393fe",
-                "sha256:b9e94cbcdce2783665612c85caf019c4defe37d3d245a694de590ebdf5b1f1a3",
+                "sha256:a76ad26878a3b3328154901563cbda857e53583e4e01787f35a797992ef76162",
                 None,
                 None,
                 "explicit-model",
@@ -2843,6 +2843,15 @@ mod tests {
             }
             let valid: AcpxProviderDescriptor = serde_json::from_value(value.clone()).unwrap();
             valid.validate(&context()).unwrap();
+            if agent == "cursor" {
+                let mut previous_v8 = value.clone();
+                previous_v8["commandDigest"] = json!(
+                    "sha256:b9e94cbcdce2783665612c85caf019c4defe37d3d245a694de590ebdf5b1f1a3"
+                );
+                let previous_v8: AcpxProviderDescriptor =
+                    serde_json::from_value(previous_v8).unwrap();
+                assert!(previous_v8.validate(&context()).is_err());
+            }
             let mut previous_identity = value.clone();
             previous_identity["commandDigest"] = json!(match agent {
                 "cursor" =>

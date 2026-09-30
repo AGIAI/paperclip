@@ -94,7 +94,7 @@ describe("accepted Cursor plan passive-wait authority", () => {
     const facts = fixture();
     expect(nativeCursorPlanWaitFromFacts(facts)).not.toBeNull();
     const current = resolveQualifiedAcpxProfile("cursor", "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]");
-    const next = { ...current, agentProfileVersion: 9, commandDigest: `sha256:${"b".repeat(64)}` } satisfies typeof current;
+    const next = { ...current, agentProfileVersion: 10, commandDigest: `sha256:${"b".repeat(64)}` } satisfies typeof current;
     expect(next.agentProfileVersion).toBeGreaterThan(current.agentProfileVersion);
     const resolver = vi.spyOn(runner, "resolveQualifiedAcpxProfile").mockReturnValue(next);
     try { expect(nativeCursorPlanWaitFromFacts(facts)).toBeNull(); }
