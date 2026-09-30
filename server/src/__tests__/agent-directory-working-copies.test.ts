@@ -192,7 +192,7 @@ describe("persistent agent directories", () => {
       expect((await copies.get(companyId, first.runId))?.receipt?.retainedByRunId).toBeUndefined();
       await copies.collectStopped({ companyId, runId: first.runId });
     });
-    it("durably preserves an adopted directory after retirement failure", async () => {
+    it.each(["owner-close", "restart-proof"])("durably preserves an adopted directory after retirement failure and final cleanup: %s", async recovery => {
       const first = await run();
       expect(await copies.hasChanges({ companyId, runId: first.runId })).toBe(false);
       const secondId = await nextRun();
@@ -201,13 +201,33 @@ describe("persistent agent directories", () => {
       expect(await copies.reportRetirementUnconfirmed(companyId, secondId)).toMatchObject({
         state: "pending_collection", errorCode: "INSTRUCTION_STOP_UNCONFIRMED", processStoppedAt: null,
       });
+      await fs.writeFile(path.join(first.localRoot, "unsaved-memory.txt"), "Keep failed retirement edits");
+      // Mirror heartbeat's final cleanup after preparation throws. Neither the
+      // current pending owner nor the prior alias may become terminal loss.
+      await copies.reportUnavailable(companyId, secondId);
+      await copies.reportUnavailable(companyId, first.runId);
+      expect(await copies.get(companyId, secondId)).toMatchObject({ state: "pending_collection", errorCode: "INSTRUCTION_STOP_UNCONFIRMED", processStoppedAt: null });
       await copies.reportRetirementUnconfirmed(companyId, first.runId);
       await copies.release(companyId, first.runId);
       await copies.release(companyId, secondId);
       await copies.recoverStopped(); // A terminal run with no stop receipt grants no collection authority.
       expect((await copies.get(companyId, secondId))?.processStoppedAt).toBeNull();
       expect(await fs.readFile(path.join(first.localRoot, entryFile), "utf8")).toBe(initial);
-      await copies.collectStopped({ companyId, runId: secondId }); // Explicit test owner retirement.
+      if (recovery === "owner-close") await copies.collectStopped({ companyId, runId: secondId }); // Explicit test owner retirement.
+      else {
+        const { appendHeartbeatRunEvent } = await import("../services/heartbeat-run-events.js");
+        const stop = (runId: string) => appendHeartbeatRunEvent(db, { companyId, runId, agentId,
+          eventType: "native.local_process_stopped", stream: "system", level: "info", message: "Test-owned process retirement proof", payload: {} });
+        await stop(first.runId);
+        copies = agentInstructionWorkingCopyService(db); // No in-memory owner or transport survives.
+        await copies.recoverStopped();
+        expect((await copies.get(companyId, secondId))?.processStoppedAt).toBeNull();
+        await stop(secondId);
+        await copies.recoverStopped();
+      }
+      expect(await copies.get(companyId, secondId)).toMatchObject({ state: "saved", receipt: { cleanupPending: false } });
+      expect(await fs.readFile(path.join(root, "unsaved-memory.txt"), "utf8")).toBe("Keep failed retirement edits");
+      await expect(fs.stat(first.localRoot)).rejects.toMatchObject({ code: "ENOENT" });
     });
     it("declines reuse after canonical instruction changes", async () => {
       const first = await run();
