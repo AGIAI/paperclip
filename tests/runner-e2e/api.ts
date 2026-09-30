@@ -18,8 +18,8 @@ export class RunnerApi {
     this.baseURL = `http://127.0.0.1:${port}`;
   }
 
-  async get<T>(path: string): Promise<T> {
-    const response = await this.request.get(path);
+  async get<T>(path: string, options?: { timeout: number }): Promise<T> {
+    const response = await (options ? this.request.get(path, options) : this.request.get(path));
     if (!response.ok()) throw new Error(await failureMessage(response, "GET"));
     return response.json() as Promise<T>;
   }

@@ -51,7 +51,7 @@ export interface RemoteFixtureDaytona {
     executeCommand(command: string, cwd?: string, env?: Record<string, string>, timeout?: number): Promise<{ exitCode: number; result: string }>;
   } }>;
 }
-export interface RemoteFixtureApi { get<T>(path: string): Promise<T> }
+export interface RemoteFixtureApi { get<T>(path: string, options?: { timeout: number }): Promise<T> }
 
 /** Linux /proc identity uses boot ID + start ticks, never PID alone. */
 export function parseRemoteProcStat(pid: number, stat: string, bootId: string): RemoteProcessIdentity & { group: number; state: string } {
