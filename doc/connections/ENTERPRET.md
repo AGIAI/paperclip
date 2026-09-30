@@ -224,17 +224,19 @@ The RFC 8414 document advertises no `revocation_endpoint` — re-read 2026-09-25
 and still absent. Removing the connection in Paperclip clears local credential
 material and gateway access, but there is no documented provider-side instrument
 to invalidate an issued OAuth token. The auth-token method is separate: the
-dashboard can generate another organization token, but this validation did not
-establish whether that invalidates any token issued earlier.
+dashboard has a Revoke control, but an immediate post-revocation read still
+succeeded on 2026-09-30. Whether generating another token invalidates an
+earlier one is untested.
 
 An `introspection_endpoint` *is* advertised, and Paperclip calls neither. That
 is worth separating: introspection tells you what a token can do, which is how
 the scope over-grant above was found, but it cannot take a token away.
 
-Consequence: runbook scenario **Revoke and reconnect** cannot reach `verified`
-on any deployment through a provider-side revocation call — confirmed by the
-live run, not merely predicted. Local removal is testable and passes, and must
-be recorded as exactly that rather than as full revocation.
+Consequence: the OAuth **Revoke and reconnect** scenario cannot reach
+`verified` through a provider-side revocation call — confirmed by the live
+metadata, not merely predicted. The organization-token Revoke control failed
+the immediate denial check. Local removal passed and must be recorded as
+exactly that rather than as full provider-side revocation.
 
 **Operator instruction.** Disconnecting Enterpret in Paperclip is only half of
 revoking it — and for OAuth the other half is not a procedure this validation
@@ -256,9 +258,9 @@ can hand you. The two methods differ, and they must not be described as one:
   unknown. Do not treat the dashboard confirmation, generating another token,
   or local disconnect as proof of revocation. Confirm the old token is denied.
 
-Any runbook or teardown that treats "disconnect in Paperclip" as revocation
-leaves a live credential at the provider — and per the scope finding above, a
-write-capable one.
+Any runbook or teardown that treats "disconnect in Paperclip" as provider-side
+revocation can leave a live credential at Enterpret. The OAuth grant tested
+above also carried `mcp:write`.
 
 ## Administrator Setup (mandatory)
 
