@@ -3738,8 +3738,8 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
 
 export function LogViewer({ run, adapterType, onOpenInspector }: { run: HeartbeatRun; adapterType: string; onOpenInspector?: () => void }) {
   const { visible } = usePageVisibility();
-  const [events, setEvents] = useState<HeartbeatRunEvent[]>([]);
-  const [eventHistoryOmitted, setEventHistoryOmitted] = useState(false);
+  const [eventState, setEventState] = useState({ events: [] as HeartbeatRunEvent[], historyOmitted: false });
+  const { events, historyOmitted: eventHistoryOmitted } = eventState;
   const [logLines, setLogLines] = useState<RunLogChunk[]>([]);
   const [loading, setLoading] = useState(true);
   const [logLoading, setLogLoading] = useState(!!run.logRef);
@@ -3824,22 +3824,19 @@ export function LogViewer({ run, adapterType, onOpenInspector }: { run: Heartbea
   });
 
   useEffect(() => {
-    setEvents([]);
-    setEventHistoryOmitted(false);
+    setEventState({ events: [], historyOmitted: false });
   }, [run.id]);
 
   useEffect(() => {
     if (initialEvents) {
       const retained = retainEventTail(initialEvents);
-      setEvents(retained.events);
-      setEventHistoryOmitted(retained.collapsed || initialEvents.at(-1)?.historyAfter === true);
+      setEventState({
+        events: retained.events,
+        historyOmitted: retained.collapsed || initialEvents[0]?.historyBefore === true,
+      });
       setLoading(false);
     }
   }, [initialEvents]);
-
-  useEffect(() => {
-    if (retainEventTail(events).collapsed) setEventHistoryOmitted(true);
-  }, [events]);
 
   const getScrollContainer = useCallback((): ScrollContainer => {
     if (scrollContainerRef.current) return scrollContainerRef.current;
@@ -4004,7 +4001,10 @@ export function LogViewer({ run, adapterType, onOpenInspector }: { run: Heartbea
         const newEvents = await heartbeatsApi.events(run.id, maxSeq, 100);
         if (cancelled) return;
         if (newEvents.length > 0) {
-          setEvents((prev) => retainEventTail(mergeRunEvents(prev, newEvents)).events);
+          setEventState((prev) => {
+            const retained = retainEventTail(mergeRunEvents(prev.events, newEvents));
+            return { events: retained.events, historyOmitted: prev.historyOmitted || retained.collapsed };
+          });
         }
       } catch {
         // ignore polling errors
@@ -4145,8 +4145,9 @@ export function LogViewer({ run, adapterType, onOpenInspector }: { run: Heartbea
           createdAt: new Date(event.createdAt),
         };
 
-        setEvents((prev) => {
-          return retainEventTail(mergeRunEvents(prev, [liveEvent])).events;
+        setEventState((prev) => {
+          const retained = retainEventTail(mergeRunEvents(prev.events, [liveEvent]));
+          return { events: retained.events, historyOmitted: prev.historyOmitted || retained.collapsed };
         });
       };
 

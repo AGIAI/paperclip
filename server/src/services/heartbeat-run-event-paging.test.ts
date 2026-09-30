@@ -48,5 +48,7 @@ describe("bounded heartbeat run event pages", () => {
     });
     expect(page).toHaveLength(1);
     expect(page[0].seq).toBe(1);
+    expect(page[0].historyBefore).toBe(false);
+    expect(page[0].historyAfter).toBe(false);
   });
 });

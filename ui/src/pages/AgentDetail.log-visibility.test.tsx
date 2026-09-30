@@ -39,7 +39,8 @@ it.each([LogViewer, ProductionLogViewer])("starts from the recent event tail and
     message: `event-${seq}`,
     payload: null,
     createdAt: new Date("2026-09-10T12:00:00Z"),
-    ...(seq === 1_004 ? { historyAfter: true } : {}),
+    ...(seq === 0 ? { historyBefore: true } : {}),
+    ...(seq === 1_004 ? { historyAfter: false } : {}),
   }));
   events.mockReturnValue(eventRows as never[]);
   const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "succeeded", logRef: null } as HeartbeatRun;
@@ -58,6 +59,39 @@ it.each([LogViewer, ProductionLogViewer])("starts from the recent event tail and
     expect(notice?.textContent).toContain("browse older activity");
     await act(async () => (notice?.querySelector("button") as HTMLButtonElement).click());
     expect(onOpenInspector).toHaveBeenCalledOnce();
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
+
+it.each([LogViewer, ProductionLogViewer])("shows the omission notice from the tail page's historyBefore marker (%#)", async (Viewer) => {
+  const eventRow = {
+    id: 10,
+    companyId: "company-1",
+    runId: "run-1",
+    agentId: "agent-1",
+    seq: 10,
+    eventType: "event",
+    stream: "system" as const,
+    level: "info" as const,
+    color: null,
+    message: "recent event",
+    payload: null,
+    createdAt: new Date("2026-09-10T12:00:00Z"),
+    historyBefore: true as const,
+    historyAfter: false,
+  };
+  events.mockReturnValue([eventRow] as never[]);
+  const run = { id: "run-1", companyId: "company-1", agentId: "agent-1", status: "succeeded", logRef: null } as HeartbeatRun;
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<Viewer run={run} adapterType="codex_local" onOpenInspector={vi.fn()} />));
+    expect(events).toHaveBeenCalledWith("run-1", "tail", 200);
+    expect(container.textContent).toContain("Events (1)");
+    expect(container.querySelector('[data-testid="run-event-history-notice"]')?.textContent).toContain("browse older activity");
   } finally {
     await act(async () => root.unmount());
     container.remove();

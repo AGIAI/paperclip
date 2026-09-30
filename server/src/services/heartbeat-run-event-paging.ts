@@ -33,7 +33,7 @@ export function boundHeartbeatRunEventPage<T extends { seq: number }>(input: {
     const after = baseAfter || (byteCut && input.direction === "forward");
     return events.map((event, index) => ({
       ...event,
-      ...(before && index === 0 ? { historyBefore: true as const } : {}),
+      ...(index === 0 ? { historyBefore: before } : {}),
       ...(index === events.length - 1 ? { historyAfter: after } : {}),
     }));
   };

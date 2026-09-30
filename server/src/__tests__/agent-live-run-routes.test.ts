@@ -484,7 +484,7 @@ describe("agent live run routes", () => {
       beforeSeq: undefined,
       limit: 200,
     });
-    expect(forward.body).toEqual([{ seq: 11, eventType: "stdout", payload: null, historyAfter: false }]);
+    expect(forward.body).toEqual([{ seq: 11, eventType: "stdout", payload: null, historyBefore: false, historyAfter: false }]);
 
     for (const query of ["afterSeq=-1", "afterSeq=1.5", "afterSeq=tail&beforeSeq=-1", "limit=1001"]) {
       const invalid = await requestApp(app, (url) =>

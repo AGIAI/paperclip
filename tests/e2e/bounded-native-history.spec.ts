@@ -64,6 +64,7 @@ test("long native history opens at the latest activity and older events remain b
     await page.getByRole("button", { name: /Earlier activity/ }).last().click();
     await page.getByRole("link", { name: "View run", exact: true }).last().click();
     await expect(page).toHaveURL(new RegExp(`/runs/${run.id}$`));
+    await expect(page.getByTestId("run-event-history-notice")).toBeVisible();
     await page.getByRole("button", { name: /Inspect/ }).first().click();
     await page.getByRole("tab", { name: "Pipeline", exact: true }).click();
     await expect(page.getByText("Recent activity · 1,000 events")).toBeVisible();
