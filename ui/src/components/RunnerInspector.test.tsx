@@ -193,7 +193,7 @@ describe("RunnerInspector", () => {
     eventsMock
       .mockResolvedValueOnce(eventPage([10, 11], { historyBefore: true, historyAfter: false }))
       .mockResolvedValueOnce(eventPage([8, 9], { historyBefore: true, historyAfter: true }))
-      .mockResolvedValueOnce(eventPage([10, 11], { historyBefore: false, historyAfter: false }))
+      .mockResolvedValueOnce(eventPage([10, 11], { historyBefore: false, historyAfter: true }))
       .mockResolvedValueOnce(eventPage([98, 99], { historyBefore: true, historyAfter: false }));
     flushSync(() => root.render(
       <RunnerInspector
@@ -222,6 +222,34 @@ describe("RunnerInspector", () => {
     await flush();
     expect(eventsMock).toHaveBeenNthCalledWith(4, "run-1", "tail", 1_000, undefined);
     expect(container.textContent).toContain("Recent activity · 2 events");
+  });
+
+  it("labels a newer page as recent when its history marker shows it reached the latest page", async () => {
+    const latestPage = eventPage([20, 21], { historyBefore: true, historyAfter: false });
+    expect(latestPage.at(-1)?.historyAfter).toBe(false);
+    eventsMock
+      .mockResolvedValueOnce(eventPage([20, 21], { historyBefore: true, historyAfter: false }))
+      .mockResolvedValueOnce(eventPage([18, 19], { historyBefore: true, historyAfter: true }))
+      .mockResolvedValueOnce(latestPage);
+    flushSync(() => root.render(
+      <RunnerInspector
+        runId="run-1"
+        run={{ status: "succeeded", resultJson: null }}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    ));
+    await flush();
+    const button = (label: string) => Array.from(container.querySelectorAll("button")).find((item) => item.textContent?.trim() === label)!;
+    flushSync(() => button("Older events").click());
+    await flush();
+    expect(container.textContent).toContain("Earlier activity · 2 events");
+
+    flushSync(() => button("Newer events").click());
+    await flush();
+    expect(eventsMock).toHaveBeenNthCalledWith(3, "run-1", 19, 1_000, undefined);
+    expect(container.textContent).toContain("Recent activity · 2 events");
+    expect(Array.from(container.querySelectorAll("button")).some((item) => item.textContent?.trim() === "Latest events")).toBe(false);
   });
 
   it("ignores an older-page response after switching runs", async () => {

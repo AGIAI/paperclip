@@ -777,7 +777,13 @@ export function RunnerInspector({
       // Replace the window: browsing old history must not build an unbounded cache.
       if (page.length > 0 || direction === "latest") {
         setEvents(page);
-        setViewingOlderEvents(direction !== "latest");
+        setViewingOlderEvents(
+          direction === "older"
+            ? true
+            : direction === "latest"
+              ? false
+              : page.at(-1)?.historyAfter !== false,
+        );
         setSelectedKey(null);
       }
     } catch (cause) {

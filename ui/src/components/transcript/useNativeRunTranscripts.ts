@@ -82,7 +82,8 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
         let historyBefore = false;
         let incomingWasTrimmed = false;
         let pagesFetched = 0;
-        let context: HeartbeatRunEvent[] = EMPTY_EVENTS;
+        let context: HeartbeatRunEvent[] | undefined;
+        let contextError: Error | undefined;
         for (;;) {
           const readPage = () => readTranscriptRequest(
             (signal) => heartbeatsApi.events(run.id, cursor, EVENT_PAGE_SIZE, { signal }),
@@ -92,13 +93,22 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
           // not expendable scrollback. Read them independently of the window.
           let page: HeartbeatRunEvent[];
           if (pagesFetched === 0) {
-            [page, context] = await Promise.all([
+            const [pageResult, contextResult] = await Promise.allSettled([
               readPage(),
               readTranscriptRequest(
                 (signal) => heartbeatsApi.eventContext(run.id, { signal }),
                 controller.signal,
               ),
             ]);
+            if (pageResult.status === "rejected") throw pageResult.reason;
+            page = pageResult.value;
+            if (contextResult.status === "fulfilled") {
+              context = contextResult.value;
+            } else {
+              contextError = contextResult.reason instanceof Error
+                ? contextResult.reason
+                : new Error("Current run requests and final response could not be loaded");
+            }
           } else {
             page = await readPage();
           }
@@ -133,11 +143,14 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
         // Commit this run's cursor with its rows. A slow sibling must neither
         // hold its readiness hostage nor stall live polling for this run.
         cursorByRunRef.current.set(run.id, cursor);
-        setContextByRun((previous) => {
-          const old = previous.get(run.id) ?? EMPTY_EVENTS;
-          if (JSON.stringify(old) === JSON.stringify(context)) return previous;
-          return new Map(previous).set(run.id, context);
-        });
+        if (context !== undefined) {
+          const nextContext = context;
+          setContextByRun((previous) => {
+            const old = previous.get(run.id) ?? EMPTY_EVENTS;
+            if (JSON.stringify(old) === JSON.stringify(nextContext)) return previous;
+            return new Map(previous).set(run.id, nextContext);
+          });
+        }
         if (incoming.length > 0) {
           const merged = mergeRunEvents(historyBefore ? [] : eventsByRunRef.current.get(run.id) ?? [], incoming);
           const retained = retainEventTail(merged);
@@ -158,6 +171,9 @@ export function useNativeRunTranscripts(runs: readonly NativeRunTranscriptSource
             ? previous
             : new Set([...previous, run.id]));
         }
+        // Keep successful event reads and the last known context visible while
+        // reporting and retrying a failed companion read, even for settled runs.
+        if (contextError) throw contextError;
         setErrorsByRun((previous) => {
           if (!previous.has(run.id)) return previous;
           const next = new Map(previous);

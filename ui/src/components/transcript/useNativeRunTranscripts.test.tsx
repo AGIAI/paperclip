@@ -237,4 +237,26 @@ describe("native history readiness and stable projection", () => {
     expect(latest.transcriptByRun.get("one")).toContainEqual(expect.objectContaining({ kind: "assistant", text: "Preserved final answer" }));
   });
 
+  it("keeps successful event pages visible when context fails and retries a settled run", async () => {
+    const final = {
+      id: 99, seq: 99, runId: "one", eventType: "item.completed", historyAfter: false,
+      createdAt: "2026-09-30T12:00:00Z",
+      payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1,
+        runId: "one", eventType: "item.completed",
+        payload: { kind: "agentMessage", text: "Visible despite the context outage", channel: "final" },
+      } },
+    };
+    eventsMock.mockResolvedValueOnce([final]).mockResolvedValue([]);
+    contextMock.mockRejectedValueOnce(new Error("context unavailable")).mockResolvedValue([]);
+    await act(async () => { root.render(<StateProbe runs={[{ id: "one", status: "succeeded", runtimeMode: "native" }]} />); });
+    expect(latest.transcriptByRun.get("one")).toContainEqual(expect.objectContaining({ kind: "assistant", text: "Visible despite the context outage" }));
+    expect(latest.errorsByRun.get("one")?.message).toBe("context unavailable");
+    expect(latest.isInitialHydrating).toBe(false);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(eventsMock.mock.calls.at(-1)?.[1]).toBe(99);
+    expect(contextMock).toHaveBeenCalledTimes(2);
+    expect(latest.errorsByRun.size).toBe(0);
+    expect(latest.transcriptByRun.get("one")).toContainEqual(expect.objectContaining({ kind: "assistant", text: "Visible despite the context outage" }));
+  });
+
 });

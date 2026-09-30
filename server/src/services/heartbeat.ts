@@ -29888,10 +29888,13 @@ export function heartbeatService(
           sql`${heartbeatRunEvents.payload} #>> '{prpEvent,schemaVersion}' = '1'`,
           sql`${heartbeatRunEvents.payload} #>> '{prpEvent,eventType}' = 'item.completed'`,
           sql`${heartbeatRunEvents.payload} #>> '{prpEvent,runId}' = ${runId}`,
-          sql`coalesce(
+          sql`(coalesce(
             nullif(${heartbeatRunEvents.payload} #>> '{prpEvent,payload,channel}', ''),
             nullif(${heartbeatRunEvents.payload} #>> '{prpEvent,payload,item,channel}', '')
-          ) = 'final'`,
+          ) in ('final', 'unknown') or coalesce(
+            nullif(${heartbeatRunEvents.payload} #>> '{prpEvent,payload,channel}', ''),
+            nullif(${heartbeatRunEvents.payload} #>> '{prpEvent,payload,item,channel}', '')
+          ) is null)`,
           sql`lower(replace(coalesce(
             nullif(${heartbeatRunEvents.payload} #>> '{prpEvent,payload,kind}', ''),
             nullif(${heartbeatRunEvents.payload} #>> '{prpEvent,payload,item,kind}', ''),

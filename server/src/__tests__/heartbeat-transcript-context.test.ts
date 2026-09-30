@@ -89,6 +89,11 @@ describeContext("heartbeat transcript context", () => {
       channel: "final",
       item: { id: "final-1", kind: "agentMessage", channel: "final", text: "The answer before a long control tail." },
     });
+    const unknownChannelMessage = protocolEvent(8, "item.completed", {
+      kind: "agentMessage",
+      channel: "unknown",
+      text: "Legacy unknown-channel final message.",
+    });
     const acceptedResult = (seq: number) => protocolEvent(seq, "run.result.accepted", {
       result: { schema: "paperclip.run_result.v1", summary: `accepted-${seq}` },
     });
@@ -102,7 +107,7 @@ describeContext("heartbeat transcript context", () => {
       companyId,
       agentId,
       runId,
-      seq: index + 8,
+      seq: index + 11,
       eventType: "item.started",
       stream: "system",
       level: "info",
@@ -124,13 +129,32 @@ describeContext("heartbeat transcript context", () => {
     const context = await service.listTranscriptContext(runId, companyId);
     const contextSeqs = context.map((event) => event.seq);
 
-    expect(tail.events.map((event) => event.seq)).toEqual([37, 38, 39, 40, 41]);
+    expect(tail.events.map((event) => event.seq)).toEqual([40, 41, 42, 43, 44]);
     expect(contextSeqs).toContain(1);
     expect(contextSeqs).not.toContain(3);
     expect(contextSeqs).toContain(4);
     expect(contextSeqs).toContain(5);
     expect(contextSeqs).toContain(6);
     expect(contextSeqs).toContain(7);
-    expect(contextSeqs).not.toContain(8);
+
+    await db.insert(heartbeatRunEvents).values([unknownChannelMessage] as never);
+    const unknownContext = await service.listTranscriptContext(runId, companyId);
+    expect(unknownContext.map((event) => event.seq)).toContain(8);
+
+    const missingChannelMessage = protocolEvent(9, "item.completed", {
+      kind: "agentMessage",
+      text: "Legacy message without a channel.",
+    });
+    const analysisMessage = protocolEvent(10, "item.completed", {
+      kind: "agentMessage",
+      channel: "analysis",
+      text: "Analysis must not be promoted to a final response.",
+    });
+    await db.insert(heartbeatRunEvents).values([missingChannelMessage, analysisMessage] as never);
+    const latestContext = await service.listTranscriptContext(runId, companyId);
+    const latestContextSeqs = latestContext.map((event) => event.seq);
+    expect(latestContextSeqs).toContain(9);
+    expect(latestContextSeqs).not.toContain(8);
+    expect(latestContextSeqs).not.toContain(10);
   });
 });
