@@ -3,9 +3,33 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { ObservedStateTimeout, pollUntil } from "./api.js";
+import { ObservedStateTimeout, RemoteAdmissionReadError, RunnerApiHttpError, pollUntil } from "./api.js";
 import { classifyFailure } from "./failure-classifier.js";
 import { REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS, bindRemoteNativeFixture, type RemoteFixtureApi, type RemoteFixtureDaytona, type RemoteNativeFixture } from "./remote-native-fixtures.js";
+
+type AdmissionEndpoint = "issue" | "run" | "leases";
+
+function admissionReadError(endpoint: AdmissionEndpoint, error: unknown): RemoteAdmissionReadError {
+  let failureClass: RemoteAdmissionReadError["failureClass"] = "candidate_failure";
+  // Only typed status or transport diagnostics classify the failure. In
+  // particular, an HTTP body must not supply classification keywords.
+  try {
+    if (error instanceof RunnerApiHttpError) {
+      if (error.status === 408 || error.status === 429 || (error.status >= 500 && error.status <= 599)) failureClass = "transient_infrastructure";
+      else if (error.status === 401 || error.status === 403) failureClass = "permanent_infrastructure";
+    } else if (error instanceof Error) {
+      const message = error.message.slice(0, 256);
+      if (error.name === "TimeoutError" || /^(?:apiRequestContext\.get: )?Timeout \d+ms exceeded\b/u.test(message)
+        || /\b(?:ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN)\b/u.test(message)) failureClass = "transient_infrastructure";
+    }
+  } catch { /* Unknown rejection values remain a bounded candidate failure. */ }
+  return new RemoteAdmissionReadError(endpoint, failureClass);
+}
+
+function admissionJson(endpoint: AdmissionEndpoint, value: unknown): boolean {
+  const record = (item: unknown): item is Record<string, unknown> => item !== null && typeof item === "object" && !Array.isArray(item);
+  return endpoint === "leases" ? Array.isArray(value) && value.every(record) : record(value);
+}
 
 export interface RemoteNativeBootstrap {
   prompt(nonce: string): string;
@@ -67,12 +91,12 @@ export function createRemoteNativeBootstrap(input: {
       let lastState: Record<string, string | number | boolean> = { observed: false };
       const admissionDeadlineAt = input.deadlineAt - REMOTE_FIXTURE_MIN_SETUP_BUDGET_MS;
       let fixture: RemoteNativeFixture;
-      let lastReadError: unknown;
+      let lastReadError: RemoteAdmissionReadError | undefined;
       try {
         const ready = await pollUntil({
           label: "owned native qualification lease", deadlineAt: admissionDeadlineAt, intervalMs: 100,
           load: async () => {
-            type Read<T> = PromiseSettledResult<T> | { status: "pending" };
+            type Read<T> = { status: "fulfilled"; value: T } | { status: "rejected"; reason: RemoteAdmissionReadError } | { status: "pending" };
             let issueRead: Read<Record<string, any>> = { status: "pending" };
             let runRead: Read<Record<string, any>> = { status: "pending" };
             let leasesRead: Read<Array<Record<string, any>>> = { status: "pending" };
@@ -118,18 +142,19 @@ export function createRemoteNativeBootstrap(input: {
                 finished = true; clearTimeout(timer); resolve(state);
               };
               const timer = setTimeout(() => {
-                const failure = { status: "rejected" as const, reason: new Error("API connection timed out during remote admission") };
-                if (issueRead.status === "pending") issueRead = failure;
-                if (runRead.status === "pending") runRead = failure;
-                if (leasesRead.status === "pending") leasesRead = failure;
+                const failure = (endpoint: AdmissionEndpoint) => ({ status: "rejected" as const, reason: new RemoteAdmissionReadError(endpoint, "transient_infrastructure") });
+                if (issueRead.status === "pending") issueRead = failure("issue");
+                if (runRead.status === "pending") runRead = failure("run");
+                if (leasesRead.status === "pending") leasesRead = failure("leases");
                 finish(snapshot());
               }, remainingMs);
-              function read<T>(path: string, save: (result: Read<T>) => void) {
+              function read<T>(endpoint: AdmissionEndpoint, path: string, save: (result: Read<T>) => void) {
                 // Both handlers are installed before dispatch. Late completion
                 // is consumed but cannot mutate saved evidence or start a poll.
                 void Promise.resolve().then(() => input.api.get<T>(path, { timeout })).then(
-                  value => settled({ status: "fulfilled", value }),
-                  reason => settled({ status: "rejected", reason }),
+                  value => settled(admissionJson(endpoint, value) ? { status: "fulfilled", value }
+                    : { status: "rejected", reason: admissionReadError(endpoint, undefined) }),
+                  reason => settled({ status: "rejected", reason: admissionReadError(endpoint, reason) }),
                 );
                 function settled(result: Read<T>) {
                   if (finished) return;
@@ -138,9 +163,9 @@ export function createRemoteNativeBootstrap(input: {
                   if (state.rejection || [issueRead, runRead, leasesRead].every(read => read.status !== "pending")) finish(state);
                 }
               }
-              read<Record<string, any>>(`/api/issues/${request.issueId}`, result => { issueRead = result; });
-              read<Record<string, any>>(`/api/heartbeat-runs/${request.runId}`, result => { runRead = result; });
-              read<Array<Record<string, any>>>(`/api/environments/${input.environmentId}/leases`, result => { leasesRead = result; });
+              read<Record<string, any>>("issue", `/api/issues/${request.issueId}`, result => { issueRead = result; });
+              read<Record<string, any>>("run", `/api/heartbeat-runs/${request.runId}`, result => { runRead = result; });
+              read<Array<Record<string, any>>>("leases", `/api/environments/${input.environmentId}/leases`, result => { leasesRead = result; });
             });
             lastState = state.evidence;
             lastReadError = state.rejection ? undefined : state.readError;
@@ -162,7 +187,8 @@ export function createRemoteNativeBootstrap(input: {
         if (lastReadError !== undefined && lastState.phase === "lease_admission") {
           if (classifyFailure(lastReadError) === "transient_infrastructure") {
             const timeout = new ObservedStateTimeout("owned native qualification lease", "transient_infrastructure", JSON.stringify(lastState));
-            timeout.cause = lastReadError;
+            // The safe read classification is already in the bounded state.
+            // Do not expose the rejected transport value through a cause chain.
             error = timeout;
           } else error = lastReadError;
         }

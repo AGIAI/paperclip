@@ -1361,8 +1361,10 @@ change saved evidence or start another poll. Missing reads
 cannot admit a lease; successful ownership/status reads are retained.
 Admission and observer setup failures save bounded, allowlisted read status,
 run-stage, lease-count and classified read-failure evidence;
-this evidence does not infer a provider-side cause. Persistent API failures retain
-their real cause and infrastructure classification. A recovered API failure does
+this evidence does not infer a provider-side cause. Admission GET failures are normalized once to fixed endpoint labels, generic
+messages and explicit failure classes. Typed HTTP status and pinned transport
+timeout shapes preserve infrastructure classification without response bodies,
+URLs or original cause chains in thrown errors. Malformed responses never admit. A recovered API failure does
 not reclassify a later successfully observed state timeout.
 The initial provider's instruction-file read window remains 20 seconds after
 provider startup, and no action is published before the observer is armed.
