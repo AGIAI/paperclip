@@ -7,9 +7,10 @@ import { useNativeRunTranscripts } from "./useNativeRunTranscripts";
 import { TRANSCRIPT_REQUEST_TIMEOUT_MS } from "./read-transcript-request";
 
 const eventsMock = vi.hoisted(() => vi.fn());
+const contextMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/api/heartbeats", () => ({
-  heartbeatsApi: { events: eventsMock },
+  heartbeatsApi: { events: eventsMock, eventContext: contextMock },
 }));
 
 function Probe() {
@@ -38,6 +39,7 @@ describe("useNativeRunTranscripts", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     eventsMock.mockReset();
+    contextMock.mockReset().mockResolvedValue([]);
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -101,6 +103,7 @@ describe("native history readiness and stable projection", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     eventsMock.mockReset();
+    contextMock.mockReset().mockResolvedValue([]);
     container = document.createElement("div");
     root = createRoot(container);
   });
@@ -163,7 +166,75 @@ describe("native history readiness and stable projection", () => {
     expect(latest.hydratedRunIds.has("slow")).toBe(false);
     expect(latest.transcriptByRun.has("one")).toBe(true);
     await act(async () => { root.render(<StateProbe runs={[one]} />); });
-    expect(eventsMock.mock.calls.filter(([id]) => id === "one").map(([, cursor]) => cursor)).toEqual([0, 7]);
+    expect(eventsMock.mock.calls.filter(([id]) => id === "one").map(([, cursor]) => cursor)).toEqual(["tail", 7]);
     expect(latest.isInitialHydrating).toBe(false);
   });
+  it("loads only the recent page and exposes collapsed history without draining old pages", async () => {
+    const page = Array.from({ length: 1_000 }, (_, index) => ({
+      seq: 90_001 + index, payload: {}, eventType: "log",
+      ...(index === 0 ? { historyBefore: true } : {}),
+      ...(index === 999 ? { historyAfter: false } : {}),
+    }));
+    eventsMock.mockResolvedValue(page);
+    await act(async () => { root.render(<StateProbe />); });
+    expect(eventsMock).toHaveBeenCalledTimes(1);
+    expect(eventsMock.mock.calls[0][1]).toBe("tail");
+    expect(latest.historyCollapsedRunIds.has("one")).toBe(true);
+    expect(latest.isInitialHydrating).toBe(false);
+  });
+
+  it("jumps to the current tail after bounded catch-up and keeps the final response", async () => {
+    let catchup = false;
+    let forwardPages = 0;
+    const final = {
+      id: 1_000_000, runId: "one", seq: 1_000_000, eventType: "item.completed",
+      createdAt: "2026-09-30T12:00:00Z", historyBefore: true, historyAfter: false,
+      payload: { prpEvent: {
+        schema: "paperclip.prp.event.v1", schemaVersion: 1, runId: "one",
+        eventType: "item.completed", itemId: "answer",
+        payload: { kind: "agentMessage", text: "Latest final answer", channel: "final" },
+      } },
+    };
+    eventsMock.mockImplementation((_id, cursor) => {
+      if (!catchup) return Promise.resolve([{ seq: 1, payload: {}, eventType: "log", historyAfter: false }]);
+      if (cursor === "tail") return Promise.resolve([final]);
+      forwardPages += 1;
+      return Promise.resolve([{ seq: cursor + 1, payload: {}, eventType: "log", historyAfter: true }]);
+    });
+    await act(async () => { root.render(<StateProbe />); });
+    catchup = true;
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(forwardPages).toBe(4);
+    expect(eventsMock).toHaveBeenCalledTimes(6);
+    expect(latest.transcriptByRun.get("one")).toContainEqual(expect.objectContaining({ kind: "assistant", text: "Latest final answer" }));
+    expect(latest.historyCollapsedRunIds.has("one")).toBe(true);
+    eventsMock.mockResolvedValue([]);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(eventsMock.mock.calls.at(-1)?.[1]).toBe(1_000_000);
+  });
+
+  it("keeps pending requests and the final answer outside the scrollback window, then drops resolved context", async () => {
+    const contextEvent = (seq: number, eventType: string, payload: Record<string, unknown>) => ({
+      id: seq, seq, runId: "one", eventType, createdAt: "2026-09-30T12:00:00Z",
+      payload: { prpEvent: { schema: "paperclip.prp.event.v1", schemaVersion: 1,
+        runId: "one", eventType, payload } },
+    });
+    const question = contextEvent(1, "runtime_request.created", { request: {
+      requestId: "old-permission", requestKind: "permission_approval", type: "permission",
+      status: "pending", prompt: "Allow this operation?",
+    } });
+    const answer = contextEvent(2, "item.completed", {
+      kind: "agentMessage", text: "Preserved final answer", channel: "final",
+    });
+    contextMock.mockResolvedValue([question, answer]);
+    eventsMock.mockResolvedValueOnce([{ seq: 100_000, payload: {}, eventType: "log", historyBefore: true, historyAfter: false }]).mockResolvedValue([]);
+    await act(async () => { root.render(<StateProbe />); });
+    expect(latest.transcriptByRun.get("one")).toContainEqual(expect.objectContaining({ kind: "runtime_request", requestId: "old-permission", status: "pending" }));
+    expect(latest.transcriptByRun.get("one")).toContainEqual(expect.objectContaining({ kind: "assistant", text: "Preserved final answer" }));
+    contextMock.mockResolvedValue([answer]);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000); });
+    expect(latest.transcriptByRun.get("one")?.some((entry) => entry.kind === "runtime_request")).toBe(false);
+    expect(latest.transcriptByRun.get("one")).toContainEqual(expect.objectContaining({ kind: "assistant", text: "Preserved final answer" }));
+  });
+
 });

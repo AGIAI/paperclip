@@ -119,6 +119,8 @@ import {
 } from "@paperclipai/shared";
 import { ResponsibleUserDenialNotice } from "../components/ResponsibleUserDenialNotice";
 import { RunWorkspaceRecoverySurface } from "../components/RunWorkspaceRecoverySurface";
+import { RunnerInspector } from "../components/RunnerInspector";
+import { mergeRunEvents, retainEventTail } from "../lib/run-event-pagination";
 import { buildPermissionsForTrustPreset, getTrustPreset } from "../lib/trust-policy-ui";
 import { redactHomePathUserSegments, redactHomePathUserSegmentsInValue } from "@paperclipai/adapter-utils";
 import { agentRouteRef } from "../lib/utils";
@@ -3262,6 +3264,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
   }, [run.responsibleUserId, userDirectory]);
   const responsibleDenialCode = isResponsibleUserDenialCode(run.errorCode) ? run.errorCode : null;
   const [sessionOpen, setSessionOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [claudeLoginResult, setClaudeLoginResult] = useState<ClaudeLoginResult | null>(null);
 
   useEffect(() => {
@@ -3430,6 +3433,15 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
                   {retryRun.isPending ? "Retrying…" : "Retry"}
                 </Button>
               )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-6 px-2"
+                onClick={() => setInspectorOpen(true)}
+              >
+                <Eye className="h-3.5 w-3.5 mr-1" />
+                Inspect run
+              </Button>
             </div>
             {/* Adapter type · provider · model */}
             {(() => {
@@ -3710,17 +3722,24 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
       })()}
 
       {/* Log viewer */}
-      <LogViewer run={run} adapterType={adapterType} />
+      <LogViewer run={run} adapterType={adapterType} onOpenInspector={() => setInspectorOpen(true)} />
       <ScrollToBottom />
+      <RunnerInspector
+        runId={run.id}
+        run={run}
+        open={inspectorOpen}
+        onOpenChange={setInspectorOpen}
+      />
     </div>
   );
 }
 
 /* ---- Log Viewer ---- */
 
-export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: string }) {
+export function LogViewer({ run, adapterType, onOpenInspector }: { run: HeartbeatRun; adapterType: string; onOpenInspector?: () => void }) {
   const { visible } = usePageVisibility();
   const [events, setEvents] = useState<HeartbeatRunEvent[]>([]);
+  const [eventHistoryOmitted, setEventHistoryOmitted] = useState(false);
   const [logLines, setLogLines] = useState<RunLogChunk[]>([]);
   const [loading, setLoading] = useState(true);
   const [logLoading, setLogLoading] = useState(!!run.logRef);
@@ -3801,15 +3820,26 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
   // Fetch events
   const { data: initialEvents } = useQuery({
     queryKey: ["run-events", run.id],
-    queryFn: () => heartbeatsApi.events(run.id, 0, 200),
+    queryFn: () => heartbeatsApi.events(run.id, "tail", 200),
   });
 
   useEffect(() => {
+    setEvents([]);
+    setEventHistoryOmitted(false);
+  }, [run.id]);
+
+  useEffect(() => {
     if (initialEvents) {
-      setEvents(initialEvents);
+      const retained = retainEventTail(initialEvents);
+      setEvents(retained.events);
+      setEventHistoryOmitted(retained.collapsed || initialEvents.at(-1)?.historyAfter === true);
       setLoading(false);
     }
   }, [initialEvents]);
+
+  useEffect(() => {
+    if (retainEventTail(events).collapsed) setEventHistoryOmitted(true);
+  }, [events]);
 
   const getScrollContainer = useCallback((): ScrollContainer => {
     if (scrollContainerRef.current) return scrollContainerRef.current;
@@ -3974,7 +4004,7 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
         const newEvents = await heartbeatsApi.events(run.id, maxSeq, 100);
         if (cancelled) return;
         if (newEvents.length > 0) {
-          setEvents((prev) => appendCapped(prev, newEvents, MAX_LIVE_EVENTS));
+          setEvents((prev) => retainEventTail(mergeRunEvents(prev, newEvents)).events);
         }
       } catch {
         // ignore polling errors
@@ -4116,8 +4146,7 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
         };
 
         setEvents((prev) => {
-          if (prev.some((existing) => existing.seq === seq)) return prev;
-          return appendCapped(prev, [liveEvent], MAX_LIVE_EVENTS);
+          return retainEventTail(mergeRunEvents(prev, [liveEvent])).events;
         });
       };
 
@@ -4337,6 +4366,11 @@ export function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType
       {events.length > 0 && (
         <div>
           <div className="mb-2 text-xs font-medium text-muted-foreground">Events ({events.length})</div>
+          {eventHistoryOmitted && (
+            <div className="mb-2 text-xs text-muted-foreground" data-testid="run-event-history-notice">
+              Recent activity is shown here. Open the <button type="button" className="underline underline-offset-2" onClick={onOpenInspector}>run inspector</button> to browse older activity.
+            </div>
+          )}
           <div className="bg-neutral-100 dark:bg-neutral-950 rounded-lg p-3 font-mono text-xs space-y-0.5">
             {events.map((evt) => {
               const color = evt.color
