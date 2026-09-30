@@ -1,6 +1,14 @@
 # Cursor ACP capability inventory
 
-Current checkpoint (2026-09-30): **Cursor profile v7 remains unqualified**. The corrected local native-plan case on controller/Product source `3d21d375de2b6249d9f5322bf001ce0ce0e052aa` and native runtime `5b8e4454ef0bf12d0bb068c2e41d8c9df9356a1c` passed all 26 checks. Reject, feedback, revision-bound acceptance, browser reconnect, exact delivery and unchanged workspace bytes passed. The single planning run succeeded while the task remained In Progress with an explicit next-message wait; no implementation or task completion is claimed. Cleanup and full end integrity passed. Result SHA-256: `685609f01291db84f40d890ef562473b95065e86907bd964b656ad732f6dd97a`. The earlier controller40064 attempt remains failed. Controller fix `c58a8881f` uses the production schema/policy/contract hash envelope; native runtime/profile bytes are unchanged. That exact Cursor PR head has green CI and Greptile 5/5. All three platform builds exist, but the remaining current-profile local/Daytona cases are still required. Native AskQuestion availability remains unverified. Cursor on-demand usage remains $0 under the approved fixed $25 account cap; native per-run USD is unknown. See the [comparative capability report](runner-rich-acp-capabilities.md) for exact source roles, evidence and remaining gates.
+Current source candidate (2026-09-30): **Cursor profile v8 is unqualified**.
+Its declaration binds `paperclip-cursor-usage-v3`, all three newly verified native
+closures and the shared ACPX patch that persists bounded diagnostic observations.
+Every native counter receipt remains partial with unverified semantics; it cannot
+satisfy token or dollar accounting. The exact model remains unpriced until a
+verified rate is available. Prior v7 source, builds and paid observations below
+are historical and do not qualify v8. Old v7 sessions must be reopened.
+
+Historical v7 checkpoint (2026-09-30): **Cursor profile v7 remains unqualified**. The corrected local native-plan case on controller/Product source `3d21d375de2b6249d9f5322bf001ce0ce0e052aa` and native runtime `5b8e4454ef0bf12d0bb068c2e41d8c9df9356a1c` passed all 26 checks. Reject, feedback, revision-bound acceptance, browser reconnect, exact delivery and unchanged workspace bytes passed. The single planning run succeeded while the task remained In Progress with an explicit next-message wait; no implementation or task completion is claimed. Cleanup and full end integrity passed. Result SHA-256: `685609f01291db84f40d890ef562473b95065e86907bd964b656ad732f6dd97a`. The earlier controller40064 attempt remains failed. Controller fix `c58a8881f` uses the production schema/policy/contract hash envelope; native runtime/profile bytes are unchanged. That exact Cursor PR head has green CI and Greptile 5/5. All three platform builds exist, but the remaining current-profile local/Daytona cases are still required. Native AskQuestion availability remains unverified. Cursor on-demand usage remains $0 under the approved fixed $25 account cap; native per-run USD is unknown. See the [comparative capability report](runner-rich-acp-capabilities.md) for exact source roles, evidence and remaining gates.
 
 Evidence updated: 2026-09-29. Candidate: `2026.09.26-dd393fe`. This profile is **not live-qualified**. One authorized task-context prompt on the initial free account returned an upgrade requirement, invoked no semantic tools, and supplied no usage receipt. Its cost is unknown; the account dashboard remained unchanged at coarse precision. The user then selected another account, whose exact-model local Runner Eval passed task-context and history tools with clean terminal settlement. Its dashboard attributed 56K rounded tokens to included usage and no incremental charge; ACP still supplied no token or dollar receipt. The local Product hello subsequently passed through the real browser, server, database, native runner, and authenticated completion tool. A second local Product case passed file creation, editing, command validation, an independent exact-byte matcher, and visible workspace artifact presentation. The merged-source local Product question and revision-bound Plan approval also passed browser response and semantic-tool continuation. A serialized follow-up passed pending semantic-question recovery across a server restart. A verified native ACP probe also denied a shell write before any observed side effect. Native Cursor questions/plans and their recovery, durable permission presentation, interruption, and Daytona execution remain required qualification gates.
 
@@ -46,11 +54,63 @@ The reference is the runner's Codex app-server integration and its closed thread
 | Session metadata | `session_info_update` title after automatic naming | Capability documented | Runner owns normalized session identity; provider title is currently not surfaced |
 | Prompt media | Image=true, audio=false, embeddedContext=false in observed initialize | The shared runner turn contract accepts text only; it does not forward image attachment blocks to ACP | P1: implement bounded, validated attachment-to-ACP conversion with capability checks, then qualify the exact model. Audio/embedded context are explicitly unsupported by this advertisement |
 | MCP and semantic tools | Session MCP injection supports stdio/HTTP/SSE; user/project config also loaded | Runner-owned authenticated MCP bridge only; the owned distribution patch never initializes ambient MCP | Exact tool discovery and company/token boundary remain live tests |
-| Usage/cost | No `usage_update`/token-usage emission found in pinned ACP implementation; prompt result contains stopReason | Must report usage unavailable, never zero or estimates presented as actual | Dollar accounting unavailable without another explicit measured source. Live spend needs a measurable bound before starting |
+| Usage/cost | Vendor ACP emits only prompt `stopReason`; native `TurnEndedUpdate` separately exposes optional input/output/cache/reasoning counters | The observation-only patch below preserves bounded native counters as partial diagnostic metadata; it emits no standard usage or dollar receipt | Native counter aggregation semantics and exact-model pricing remain unverified; accounting stays unavailable |
 | Reviews, compaction, hooks, memory | Native mode changes, hooks present internally; no dedicated ACP counterparts to Codex context/hook/memory lifecycle found | No fabricated event families | Distinguish confirmed absence of ACP event mapping from unverified native internals |
 | Goal controls / lineage | No ACP goal or fork lineage protocol found | Unsupported | No equivalent of Codex native goals/thread lineage |
 
 ## Wire and isolation findings
+
+The observation-only usage candidate adds `_meta.paperclipCursorUsage` to a
+prompt response. Its `paperclip.cursor.native-usage.v1` envelope contains a fresh
+opaque prompt ID and separate native invocation/run observations. It allows at
+most 64 observations, 64 invocation identities and 16 KiB of JSON. Only observed,
+safe nonnegative numeric input/output/cache-read/cache-write/reasoning counters
+are retained; absent or invalid fields are omitted. Every envelope remains
+`completeness: "partial"` with `native_counter_semantics_unverified`, even when
+all fields are present. There are no standard ACP usage fields, counter sums,
+estimated dollars or billed dollars. A reused child ID has no native callback
+generation, so its counters are omitted with `child_run_attribution_unverified`.
+The `invocationId` is a generated per-prompt ordinal. `nativeRun` is likewise a
+generated invocation ordinal for parents, and the vendor's child run ordinal
+for children; neither is advertised as a native request ID. Finalization closes
+all tracked invocations, marks any missing terminal observation and enforces the
+15,744-byte emission limit after all reasons are present, trimming observations
+explicitly. The declared 16 KiB limit includes a 640-byte reserve for the bounded
+ACPX request/message identity wrapper persisted alongside the envelope.
+History and callbacks arriving after their invocation/prompt closes cannot add
+observations to another prompt. Cancelled prompts return their own partial
+envelope after the existing cancellation handling; they do not claim complete
+cancelled-work accounting. A thrown JSON-RPC error returns no prompt envelope,
+so these observations are not retained on that error path. This is a new source candidate, not a change to
+the frozen v7 runtime or a regrading of historical evidence.
+
+The `paperclip-cursor-usage-v3` candidate retains the vendor version and archive
+pins. Private full-tree materialization verifies 446 files per macOS target and
+454 files on Linux; only the ACP implementation chunk differs from each vendor
+tree. Its patched closures are:
+
+| Platform | Patched closure SHA-256 |
+| --- | --- |
+| macOS ARM64 | `0681abb675b46054155e0b3f28850bf4668cf24fb1aab457dad1f24b61b3ee6b` |
+| macOS x64 | `18caa80f90f70f6a7d815335062b0858327891ec854aebe90b585a42eac578e6` |
+| Linux x64 | `0ee4ceb24062e991650bfb4c0b4ec5fbd7f1a01487b8c70aef0cf257509701a4` |
+
+`usage-v3-runtime-patch-offline-proof.json` retains fresh isolation/instruction
+checks, and `native-usage-v3-offline-proof.json` records the usage checks. Earlier
+proof files remain historical. These are offline source proofs; native emission
+semantics, accounting completeness and live qualification remain unproven.
+
+The pinned-source offline harness executes the patched prompt method, native
+invocation expression and child-update method on all three platform chunks with
+transport/session dependency doubles. It proves routing and bounds, not actual
+backend emissions, retry/subagent inclusion, cache/reasoning overlap or billing.
+Shared metadata persistence and new distribution/profile identities are separate
+integration requirements. Until semantics and the exact selected model's pricing
+are verified, these observations grant no accounting coverage. The vendor package
+declares no license grant; its bundled license notices describe third-party
+components. [Cursor's terms](https://cursor.com/en-US/terms-of-service) and the
+applicable agreement remain release-review evidence for modified distributions;
+this source work does not establish redistribution permission.
 
 The documentation calls todo/task/image methods notifications. The pinned presenter actually calls `connection.extMethod(...).catch(...)`: these messages can carry JSON-RPC IDs. They need immediate acknowledgement plus activity normalization. They must never become human input requests or block awaiting an unnecessary decision.
 
@@ -58,7 +118,7 @@ Question and plan requests lack a session ID. The shared hook binds them to the 
 
 Fixed launch arguments are `--disable-project-configs --disable-auto-update acp`, using the verified bundled Node and absolute verified `index.js`. Private HOME/XDG roots are required together with CURSOR_CONFIG_DIR, CURSOR_DATA_DIR, disabled compilation caching, `AGENT_CLI_CREDENTIAL_STORE=memory`, and `NO_OPEN_BROWSER=1`. Only explicitly bound CURSOR_API_KEY or CURSOR_AUTH_TOKEN may enter. The controller creates a provider/session-scoped credential-name binding from the explicit task environment, ignoring inherited or caller-supplied markers. Rust forwards it through the closed sidecar environment boundary. Before host admission, the sidecar rejects missing, stale, wrong-provider or unbound credentials and removes the marker before provider launch. Tests cover this full boundary and preserve legacy credential behavior. Do not use `--force`, `--trust`, or `--approve-mcps` to paper over governance.
 
-`--disable-project-configs` only suppresses `.cursor/cli.json`. It does not suppress project MCP, Cursor/Claude hooks, or installed plugins. `assertCursorWorkspacePolicy` refuses ambient project execution config from the workspace through its nearest Git root, including symlinks and unreadable configuration. Ordinary Claude settings with neither hooks nor plugins remain admissible. Enterprise system hooks are checked too. The host repeats admission checks before native launch. The vendor admission check alone cannot prevent a concurrent file mutation. The current `paperclip-cursor-instructions-v2` distribution patch removes local hook loading, asynchronous team hook synchronization, ambient MCP loader initialization, and ambient-client merging from the ACP source. The retained admission check remains defense in depth. This closes those discovery paths independently of filesystem polling; authenticated validation on the patched final runtime remains required.
+`--disable-project-configs` only suppresses `.cursor/cli.json`. It does not suppress project MCP, Cursor/Claude hooks, or installed plugins. `assertCursorWorkspacePolicy` refuses ambient project execution config from the workspace through its nearest Git root, including symlinks and unreadable configuration. Ordinary Claude settings with neither hooks nor plugins remain admissible. Enterprise system hooks are checked too. The host repeats admission checks before native launch. The vendor admission check alone cannot prevent a concurrent file mutation. The current `paperclip-cursor-usage-v3` distribution patch removes local hook loading, asynchronous team hook synchronization, ambient MCP loader initialization, and ambient-client merging from the ACP source. The retained admission check remains defense in depth. This closes those discovery paths independently of filesystem polling; authenticated validation on the patched final runtime remains required.
 
 Artifact paths are never automatically read or uploaded. References require a present regular file under the physical workspace, reject traversal and symbolic links, and retain `registered:false`. Private/outside paths are omitted and produce a visible warning. This is metadata validation, not durable file ownership or a replacement for artifact registration checks.
 

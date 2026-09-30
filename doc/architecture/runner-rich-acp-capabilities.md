@@ -1,6 +1,27 @@
 # Rich ACP integration and qualification report
 
-## Qualification checkpoint — September 30, 2026, after 64 attempts
+Current source checkpoint (2026-09-30): **Cursor v8, Copilot v8 and Pi v10
+remain unqualified**. All three declarations bind shared ACPX patch SHA-256
+`bd5393058a218040d217fa85449d59a6f30507de54cd645bf0ef21422823f85e`.
+Cursor additionally binds newly materialized `paperclip-cursor-usage-v3` closures;
+Copilot and Pi native distribution bytes are unchanged. The new identities reject
+retained 7/7/9 sessions. Claude, Codex and Grok profile declarations stay unchanged.
+The metadata is observation-only: native counters always remain partial, absent
+fields stay absent, and no token totals or dollar costs are inferred. A supported
+schema does not prove native counter aggregation semantics. No new paid pass,
+build, publication or production qualification is claimed for these identities.
+The external eval definitions still pin 7/7/9 and need a separate reviewed update.
+
+| Source candidate | Remaining production gate |
+| --- | --- |
+| Cursor v8 | Qualify the exact new runtime locally and on Daytona; resolve native counter semantics and verified exact-model pricing before treating observations as accounting. Native input, permissions, recovery, isolation and warm continuity remain required. |
+| Copilot v8 | Admit fresh exact-runtime packs/images and qualify the required local/Daytona cases. Prior v7 passes remain case-specific historical proof. Native external-tool/sampling/limits callbacks must not leave unresolved admitted requests. |
+| Pi v10 | Retain the enforced spending-bound requirement, then qualify the exact runtime locally and on Daytona. The optional transport-budget candidate remains unintegrated. |
+
+The following checkpoint and chronology retain their original source/profile
+identities; their builds and paid outcomes do not qualify the new candidates.
+
+## Historical qualification checkpoint — September 30, 2026, after 64 attempts
 
 All three providers remain unqualified. The retained paid baseline is Cursor v7,
 Copilot v7 and Pi v9, with native runtime source `5b8e4454ef0bf12d0bb068c2e41d8c9df9356a1c`.
@@ -94,7 +115,7 @@ Native Cursor/Copilot per-run USD remains unknown. Cursor's fixed account-wide o
 
 The [prior evidence checkpoint](runner-rich-acp-validation-2026-09-30-current.json) retains controller/harness `ca7026182c2b861e3badbcb7e5b733445a6ee403` and runtime `e822b614fc368043f4b3d5e34a8d9bbda644e055`; despite its filename, it is historical for the current source. The [earlier September 30 checkpoint](runner-rich-acp-validation-2026-09-30.json) is also historical. Original failures, unknown costs and exact source/profile identities remain unchanged.
 
-| Current production gate | Required evidence or decision |
+| Gate recorded at the historical checkpoint | Required evidence or decision |
 | --- | --- |
 | Cursor v7 | The exact corrected local native-plan case passed; complete the remaining required cases. Native AskQuestion availability remains unverified; semantic questions cannot substitute for its callback. Complete the required local/Daytona native input, permission, recovery, isolation and warm-continuity cases. |
 | Copilot v7 | Local attached-async and native-denial plus Daytona hello passed. Repair and requalify failed warm process continuity; broader provider qualification remains pending. Complete the remaining local/Daytona denial, recovery, isolation and warm-continuity cases. Explicit detached work remains unsupported. Native external-tool/sampling/limits callbacks require proof that admitted tools cannot leave an unresolved request, or a qualified responder. |
