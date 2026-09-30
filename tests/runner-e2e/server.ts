@@ -1,3 +1,4 @@
+import { createRunnerE2EServerStopper, runnerE2EServerDetached } from "./server-stop.js";
 import { runnerE2ETypeScriptProcessArgs } from "./web-server-command.js";
 import { qualifyLegacyClaudeCli } from "./legacy-claude-cli.js";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -116,10 +117,9 @@ function startServer() {
       cwd: repositoryRoot,
       env: definedServerEnvironment,
       stdio: ["ignore", "pipe", "pipe"],
-      // Stay in the launcher-created process group. That lets the launcher stop
-      // Playwright, this wrapper, Paperclip, embedded Postgres, and runner children
-      // as one verified tree even if graceful web-server shutdown stalls.
-      detached: false,
+      // Playwright signals the wrapper's group. Keep that signal from bypassing
+      // our single graceful stop; the launcher still tracks descendant groups.
+      detached: runnerE2EServerDetached,
     },
   );
   child = candidate;
@@ -152,12 +152,8 @@ function startServer() {
   // A shutdown may arrive in the synchronous interval around spawn. Never let
   // that race create an unowned replacement server.
   if (shutdownSignal) {
-    expectedStops.add(candidate);
-    try {
-      candidate.kill(shutdownSignal);
-    } catch {
-      // The process may have failed during spawn.
-    }
+    // The main/error path awaits this same promise and reports any failure.
+    void stopServer(candidate, shutdownSignal).catch(() => {});
   }
   return candidate;
 }
@@ -166,53 +162,13 @@ function delay(milliseconds: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function waitForExit(candidate: ChildProcess, timeoutMs: number) {
-  if (childExited(candidate) || childErrors.has(candidate)) return true;
-  return await new Promise<boolean>((resolve) => {
-    let settled = false;
-    const finish = (exited: boolean) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      candidate.off("exit", onExit);
-      candidate.off("error", onError);
-      resolve(exited);
-    };
-    const onExit = () => finish(true);
-    const onError = () => finish(true);
-    const timeout = setTimeout(() => finish(false), timeoutMs);
-    candidate.once("exit", onExit);
-    candidate.once("error", onError);
-  });
-}
-
-async function stopServer(
-  candidate: ChildProcess,
-  signal: NodeJS.Signals = "SIGTERM",
-) {
-  expectedStops.add(candidate);
-  if (childExited(candidate) || childErrors.has(candidate)) return;
-  try {
-    candidate.kill(signal);
-  } catch {
-    if (childExited(candidate) || childErrors.has(candidate)) return;
-    throw new Error("Could not signal the Paperclip server to stop");
-  }
-  if (await waitForExit(candidate, gracefulStopTimeoutMs)) return;
-
-  appendLog(
-    `\nPaperclip did not stop within ${gracefulStopTimeoutMs}ms; sending SIGKILL\n`,
-  );
-  try {
-    candidate.kill("SIGKILL");
-  } catch {
-    if (childExited(candidate) || childErrors.has(candidate)) return;
-    throw new Error("Could not force the Paperclip server to stop");
-  }
-  if (!(await waitForExit(candidate, 5_000))) {
-    throw new Error("Paperclip server did not exit after SIGKILL");
-  }
-}
+const stopServer = createRunnerE2EServerStopper({
+  gracefulTimeoutMs: gracefulStopTimeoutMs,
+  forcedTimeoutMs: 5_000,
+  hasSpawnError: (candidate) => childErrors.has(candidate),
+  markExpectedStop: (candidate) => { expectedStops.add(candidate); },
+  log: appendLog,
+});
 
 async function waitForHealth(candidate: ChildProcess) {
   const deadline = Date.now() + restartTimeoutMs;
@@ -339,12 +295,9 @@ for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
     if (shutdownSignal) return;
     shutdownSignal = signal;
     if (!child) return;
-    expectedStops.add(child);
-    try {
-      child.kill(signal);
-    } catch {
-      // The Paperclip process may already have exited.
-    }
+    // Begin immediately, including during a health/restart wait. The final
+    // cleanup joins this promise instead of sending a second graceful signal.
+    void stopServer(child, signal).catch(() => {});
   });
 }
 

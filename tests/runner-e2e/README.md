@@ -1088,7 +1088,13 @@ lockfile from its own trusted checkout, never from the tested branch.
 
 The restart supervisor starts Paperclip with the TypeScript loader in the same
 Node process it owns. A forced stop therefore cannot leave an old controller
-alive to stop the embedded database after the replacement starts.
+alive to stop the embedded database after the replacement starts. On Unix, the
+server has its own process group so Playwright's wrapper-group shutdown cannot
+signal it independently. Signal handling, restart cleanup, and final cleanup
+share one stop operation per server: one graceful signal, a 30-second wait, then
+SIGKILL to the owned server group and a 5-second exit wait if needed. Windows
+retains direct-child signaling. This prevents a second graceful signal from
+interrupting asynchronous warm-session retirement.
 
 Everyday restart and Stop scenarios exempt only their recorded cancellation,
 graceful-shutdown interruption, or process-loss outcome. A later adapter error
