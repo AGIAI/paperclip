@@ -15,45 +15,17 @@
   ],
   "methods": [
     {
-      "key": "mcp-oauth",
-      "transport": "mcp_remote",
-      "auth": "oauth",
-      "ownershipModes": [
-        "dcr"
-      ],
-      "whenToUse": "Use browser sign-in so each person's questions run under their own Enterpret account.",
-      "defaults": {
-        "serverUrl": "https://wisdom-api.enterpret.com/server/mcp",
-        "scopesHint": [
-          "mcp:read"
-        ]
-      },
-      "guidanceMd": "Sign in to Enterpret in the browser. Each person connects with their own Enterpret account, and Enterpret attributes their queries individually.",
-      "riskTier": "S3",
-      "label": "Sign in with Enterpret",
-      "grantKinds": [
-        "user"
-      ],
-      "consoleLinks": {
-        "docs": "https://enterpret.support.site/article/enterpret-mcp-server"
-      },
-      "warnings": [
-        "You need an Enterpret account with access to your organization's feedback.",
-        "This connection reads customer feedback, including verbatim quotes with speaker attribution."
-      ]
-    },
-    {
       "key": "mcp-api-key",
       "transport": "mcp_remote",
       "auth": "api_key",
       "ownershipModes": [
         "customer"
       ],
-      "whenToUse": "Use an organization auth token when browser sign-in is not suitable.",
+      "whenToUse": "Recommended. Use an organization auth token from Settings → Enterpret MCP. This is the primary, store-ready connection method.",
       "defaults": {
         "serverUrl": "https://wisdom-api.enterpret.com/server/mcp"
       },
-      "guidanceMd": "Generate an auth token in Enterpret under Settings, Enterpret MCP, then paste it below. One token belongs to one Enterpret organization.",
+      "guidanceMd": "Generate an auth token in Enterpret under Settings, Enterpret MCP, then paste it below. One token belongs to one Enterpret organization. This is the recommended connection method.",
       "riskTier": "S3",
       "label": "Use an auth token",
       "grantKinds": [
@@ -81,12 +53,37 @@
         "Enterpret auth tokens expire six months after you generate them. Generate a replacement before the current one lapses.",
         "This connection reads customer feedback, including verbatim quotes with speaker attribution."
       ]
+    },
+    {
+      "key": "mcp-oauth",
+      "transport": "mcp_remote",
+      "auth": "oauth",
+      "ownershipModes": [
+        "dcr"
+      ],
+      "whenToUse": "Draft until Enterpret fixes OAuth scopes. Prefer an organization auth token. Use browser sign-in only when each person must run under their own Enterpret account.",
+      "defaults": {
+        "serverUrl": "https://wisdom-api.enterpret.com/server/mcp",
+        "scopesHint": [
+          "mcp:read"
+        ]
+      },
+      "guidanceMd": "Sign in to Enterpret in the browser. Each person connects with their own Enterpret account, and Enterpret attributes their queries individually. Prefer an organization auth token until Enterpret honors mcp:read without granting mcp:write.",
+      "riskTier": "S3",
+      "label": "Sign in with Enterpret (draft)",
+      "grantKinds": [
+        "user"
+      ],
+      "consoleLinks": {
+        "docs": "https://enterpret.support.site/article/enterpret-mcp-server"
+      },
+      "warnings": [
+        "Draft: Enterpret currently grants mcp:write when Paperclip requests mcp:read. Prefer an organization auth token until Enterpret fixes this scope over-grant.",
+        "You need an Enterpret account with access to your organization's feedback.",
+        "This connection reads customer feedback, including verbatim quotes with speaker attribution."
+      ]
     }
   ],
   "docsUrl": "https://enterpret.support.site/article/enterpret-mcp-server",
-  "redirectConstraints": "https-or-loopback-http",
-  "availability": {
-    "available": false,
-    "reason": "Enterpret grants write scope when Paperclip requests read-only access. This connection is unavailable until Enterpret provides a verified read-only grant."
-  }
+  "redirectConstraints": "https-or-loopback-http"
 }

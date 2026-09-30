@@ -459,7 +459,7 @@ describe("AppDefinition catalog", () => {
     });
   });
 
-  it("keeps Enterpret discovery-first, read-scoped, and out of the store until it is validated live", () => {
+  it("ships Enterpret with organization auth token primary and OAuth as draft secondary", () => {
     const app = CONNECTABLE_APP_DEFINITIONS.find(
       (entry) => entry.slug === "enterpret",
     )!;
@@ -467,35 +467,17 @@ describe("AppDefinition catalog", () => {
       getAppDefinitionForUrl("https://wisdom-api.enterpret.com/server/mcp")
         ?.slug,
     ).toBe("enterpret");
+    // Organization auth token is primary; browser OAuth stays secondary/draft
+    // until Enterpret honors mcp:read without granting mcp:write.
     expect(app.methods.map((method) => method.key)).toEqual([
-      "mcp-oauth",
       "mcp-api-key",
+      "mcp-oauth",
     ]);
     expect(app.redirectConstraints).toBe("https-or-loopback-http");
-    // No live account has exercised the nine production-validation scenarios.
-    // Hiding the slug from Browse is not enough on its own, because a hidden
-    // slug is still directly connectable, so the definition refuses setup too.
-    expect(APP_STORE_HIDDEN_SLUGS.has("enterpret")).toBe(true);
-    expect(app.availability?.available).toBe(false);
-    expect(app.availability?.reason).toBeTruthy();
+    expect(APP_STORE_HIDDEN_SLUGS.has("enterpret")).toBe(false);
+    expect(app.availability?.available).not.toBe(false);
+    expect(getAvailableConnectionMethod(app)?.key).toBe("mcp-api-key");
     expect(app.methods[0]).toMatchObject({
-      transport: "mcp_remote",
-      auth: "oauth",
-      // Enterpret documents no customer-registered OAuth app, only RFC 7591.
-      ownershipModes: ["dcr"],
-      grantKinds: ["user"],
-      riskTier: "S3",
-      defaults: {
-        serverUrl: "https://wisdom-api.enterpret.com/server/mcp",
-        // Narrower than the "mcp:read mcp:write" the 401 challenge advertises.
-        scopesHint: ["mcp:read"],
-      },
-    });
-    // RFC 9728 -> RFC 8414 discovery resolves from the challenge, so shipping a
-    // complete endpoint pair would suppress discovery permanently.
-    expect(app.methods[0].defaults?.authorizationEndpoint).toBeUndefined();
-    expect(app.methods[0].defaults?.tokenEndpoint).toBeUndefined();
-    expect(app.methods[1]).toMatchObject({
       transport: "mcp_remote",
       auth: "api_key",
       ownershipModes: ["customer"],
@@ -511,6 +493,27 @@ describe("AppDefinition catalog", () => {
         prefix: "Bearer ",
       },
     });
+    expect(app.methods[1]).toMatchObject({
+      transport: "mcp_remote",
+      auth: "oauth",
+      // Enterpret documents no customer-registered OAuth app, only RFC 7591.
+      ownershipModes: ["dcr"],
+      grantKinds: ["user"],
+      riskTier: "S3",
+      defaults: {
+        serverUrl: "https://wisdom-api.enterpret.com/server/mcp",
+        // Narrower than the "mcp:read mcp:write" the 401 challenge advertises.
+        scopesHint: ["mcp:read"],
+      },
+    });
+    // RFC 9728 -> RFC 8414 discovery resolves from the challenge, so shipping a
+    // complete endpoint pair would suppress discovery permanently.
+    expect(app.methods[1].defaults?.authorizationEndpoint).toBeUndefined();
+    expect(app.methods[1].defaults?.tokenEndpoint).toBeUndefined();
+    expect(app.methods[1].label).toMatch(/draft/i);
+    expect(app.methods[1].warnings?.some((w) => /mcp:write/i.test(w))).toBe(
+      true,
+    );
     // The definition records the placement of a credential, never a value.
     const serialized = JSON.stringify(app);
     expect(serialized).not.toMatch(/eyJ[A-Za-z0-9_-]{8,}/);
@@ -768,7 +771,6 @@ describe("AppDefinition catalog", () => {
       "context7",
       "egnyte",
       "embat",
-      "enterpret",
       "kernel",
       "local-falcon",
       "make",
@@ -782,7 +784,7 @@ describe("AppDefinition catalog", () => {
       "ticktick",
       "xero",
     ]);
-    expect(APP_STORE_DEFINITIONS).toHaveLength(56);
+    expect(APP_STORE_DEFINITIONS).toHaveLength(57);
     const connectableSlugs = new Set(
       CONNECTABLE_APP_DEFINITIONS.map((entry) => entry.slug),
     );

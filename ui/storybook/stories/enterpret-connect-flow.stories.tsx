@@ -21,12 +21,11 @@ import { ReconnectCard } from "@/pages/apps/app-detail/AdvancedPanel";
  * `AppDefinition`, so the copy, artwork and method labels below are the ones
  * the connector actually ships.
  *
- * Read the first two stories together. Enterpret ships `availability.available
- * = false` because no Enterpret account has validated it, so **the unavailable
- * card is the current state** and everything after it is what the connector
- * looks like once the runbook's nine scenarios pass. The later stories are
- * labelled "after validation" for that reason; they are a design review of
- * copy, not evidence that any flow has run.
+ * Organization auth token is the primary, store-ready method. Browser OAuth
+ * remains listed as a draft secondary path until Enterpret honors `mcp:read`
+ * without granting `mcp:write`. Story 1 shows the current Browse card; story 2
+ * is retained as a no-op mirror for review continuity. Later stories cover
+ * OAuth (draft) and token recovery copy.
  *
  * No real sign-in, no real token, no provider call. Every value here is fake.
  */
@@ -37,7 +36,7 @@ const ENTERPRET = CONNECTABLE_APP_DEFINITIONS.find(
   (app) => app.slug === "enterpret",
 ) as AppDefinition;
 
-/** Enterpret as it will look once validation clears `availability`. */
+/** Alias retained for OAuth-state stories; definition is already store-ready via token. */
 const ENTERPRET_VALIDATED: AppDefinition = {
   ...ENTERPRET,
   availability: undefined,
@@ -191,7 +190,7 @@ function ReconnectHost({ connection }: { connection: ToolConnection }) {
 function MethodCopyHost() {
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
-      {[OAUTH_METHOD, TOKEN_METHOD].map((method) => (
+      {[TOKEN_METHOD, OAUTH_METHOD].map((method) => (
         <section
           key={method.key}
           className="space-y-2 rounded-lg border border-border p-4"
@@ -233,7 +232,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "Design review for the Enterpret catalog connector using production components and the real generated definition. The connector ships unavailable until a real Enterpret account validates it, so story 1 is the current state and stories 3 onward preview the validated experience. No real sign-in, token, or provider call.",
+          "Design review for the Enterpret catalog connector using production components and the real generated definition. Organization auth token is primary and store-ready; browser OAuth remains draft secondary until Enterpret fixes the mcp:write over-grant. No real sign-in, token, or provider call.",
       },
     },
   },
@@ -242,13 +241,13 @@ export default meta;
 
 type Story = StoryObj;
 
-export const BrowseUnavailable: Story = {
-  name: "1 — Browse, unavailable (current state)",
+export const BrowseStoreReady: Story = {
+  name: "1 — Browse, store-ready via auth token (current state)",
   render: () => <BrowseHost entry={ENTERPRET} />,
 };
 
 export const BrowseAfterValidation: Story = {
-  name: "2 — Browse, after validation",
+  name: "2 — Browse, same card (token primary)",
   render: () => <BrowseHost entry={ENTERPRET_VALIDATED} />,
 };
 
@@ -258,17 +257,17 @@ export const MethodCopy: Story = {
 };
 
 export const OAuthEntry: Story = {
-  name: "4 — Browser sign-in, entry",
+  name: "4 — Browser sign-in (draft), entry",
   render: () => <OAuthStateHost phase="entry" />,
 };
 
 export const OAuthStarting: Story = {
-  name: "5 — Browser sign-in, in flight",
+  name: "5 — Browser sign-in (draft), in flight",
   render: () => <OAuthStateHost phase="starting" />,
 };
 
 export const OAuthError: Story = {
-  name: "6 — Browser sign-in, error",
+  name: "6 — Browser sign-in (draft), error",
   render: () => (
     <OAuthStateHost
       phase="error"
@@ -305,8 +304,8 @@ export const TokenExpired: Story = {
   ),
 };
 
-export const BrowseUnavailableNarrow: Story = {
-  name: "9 — Browse, unavailable, narrow",
+export const BrowseStoreReadyNarrow: Story = {
+  name: "9 — Browse, store-ready, narrow",
   render: () => <BrowseHost entry={ENTERPRET} />,
   globals: { viewport: { value: "mobile", isRotated: false } },
 };

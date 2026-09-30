@@ -802,12 +802,12 @@ const apps = [
   // challenge (issuer https://oauth.enterpret.com, PKCE S256, registration
   // endpoint present, token_endpoint_auth_method "none"), so `defaults` ships
   // `serverUrl` only and the broker resolves endpoints at connect time.
-  // `scopesHint` is the reviewed read-only minimum, deliberately narrower than
-  // the "mcp:read mcp:write" set the challenge advertises: the documented tool
-  // surface is read-shaped and nothing observed establishes a write need. The
-  // provider documents no way for a customer to register their own OAuth app,
-  // so the OAuth method is `dcr` only rather than the `["customer", "dcr"]`
-  // default.
+  // Primary method is the organization auth token (Bearer header). OAuth remains
+  // available as a secondary/draft path: Enterpret still over-grants mcp:write
+  // for an mcp:read request (CP-7154), so browser sign-in is not the release
+  // path. Public tools are read-only today; the over-grant is a scope bug, not
+  // a write tool surface. The provider documents no customer-registered OAuth
+  // app, so OAuth stays `dcr` only rather than `["customer", "dcr"]`.
   [
     "enterpret",
     "Enterpret",
@@ -817,42 +817,17 @@ const apps = [
     ["https://wisdom-api.enterpret.com/*"],
     [
       method(
-        "mcp-oauth",
-        "mcp_remote",
-        "oauth",
-        {
-          serverUrl: "https://wisdom-api.enterpret.com/server/mcp",
-          scopesHint: ["mcp:read"],
-        },
-        "S3",
-        "Sign in to Enterpret in the browser. Each person connects with their own Enterpret account, and Enterpret attributes their queries individually.",
-        {
-          label: "Sign in with Enterpret",
-          ownershipModes: ["dcr"],
-          grantKinds: ["user"],
-          whenToUse:
-            "Use browser sign-in so each person's questions run under their own Enterpret account.",
-          consoleLinks: {
-            docs: "https://enterpret.support.site/article/enterpret-mcp-server",
-          },
-          warnings: [
-            "You need an Enterpret account with access to your organization's feedback.",
-            "This connection reads customer feedback, including verbatim quotes with speaker attribution.",
-          ],
-        },
-      ),
-      method(
         "mcp-api-key",
         "mcp_remote",
         "api_key",
         { serverUrl: "https://wisdom-api.enterpret.com/server/mcp" },
         "S3",
-        "Generate an auth token in Enterpret under Settings, Enterpret MCP, then paste it below. One token belongs to one Enterpret organization.",
+        "Generate an auth token in Enterpret under Settings, Enterpret MCP, then paste it below. One token belongs to one Enterpret organization. This is the recommended connection method.",
         {
           label: "Use an auth token",
           grantKinds: ["organization"],
           whenToUse:
-            "Use an organization auth token when browser sign-in is not suitable.",
+            "Recommended. Use an organization auth token from Settings → Enterpret MCP. This is the primary, store-ready connection method.",
           credentialFields: [
             field(
               "authorization",
@@ -874,19 +849,39 @@ const apps = [
           ],
         },
       ),
+      method(
+        "mcp-oauth",
+        "mcp_remote",
+        "oauth",
+        {
+          serverUrl: "https://wisdom-api.enterpret.com/server/mcp",
+          scopesHint: ["mcp:read"],
+        },
+        "S3",
+        "Sign in to Enterpret in the browser. Each person connects with their own Enterpret account, and Enterpret attributes their queries individually. Prefer an organization auth token until Enterpret honors mcp:read without granting mcp:write.",
+        {
+          label: "Sign in with Enterpret (draft)",
+          ownershipModes: ["dcr"],
+          grantKinds: ["user"],
+          whenToUse:
+            "Draft until Enterpret fixes OAuth scopes. Prefer an organization auth token. Use browser sign-in only when each person must run under their own Enterpret account.",
+          consoleLinks: {
+            docs: "https://enterpret.support.site/article/enterpret-mcp-server",
+          },
+          warnings: [
+            "Draft: Enterpret currently grants mcp:write when Paperclip requests mcp:read. Prefer an organization auth token until Enterpret fixes this scope over-grant.",
+            "You need an Enterpret account with access to your organization's feedback.",
+            "This connection reads customer feedback, including verbatim quotes with speaker attribution.",
+          ],
+        },
+      ),
     ],
     {
       docsUrl: "https://enterpret.support.site/article/enterpret-mcp-server",
       redirectConstraints: "https-or-loopback-http",
-      // Live OAuth validation found a write-capable grant for a read-only
-      // request. Store-hiding alone still leaves the slug directly connectable,
-      // so the definition also refuses setup. Keep this gate until a fresh
-      // authorization and refresh verify a grant without unreviewed scopes.
-      availability: {
-        available: false,
-        reason:
-          "Enterpret grants write scope when Paperclip requests read-only access. This connection is unavailable until Enterpret provides a verified read-only grant.",
-      },
+      // Organization auth token is the primary, store-ready path. OAuth remains
+      // listed as a draft secondary method; its mcp:write over-grant (CP-7154)
+      // no longer blocks the connector as a whole.
     },
   ],
   [

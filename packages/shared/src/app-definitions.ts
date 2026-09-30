@@ -55,7 +55,6 @@ export const APP_STORE_HIDDEN_SLUGS = new Set([
   "context7",
   "egnyte",
   "embat",
-  "enterpret",
   "kernel",
   "local-falcon",
   "make",
