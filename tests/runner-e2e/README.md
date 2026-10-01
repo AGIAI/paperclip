@@ -39,7 +39,9 @@ native-write evidence, caller-owned control acknowledgments, independent
 no-effect/retirement proof and the actual production task UI. Daytona also
 requires the existing immutable image and executable digests. These cells do
 not establish native follow-up queue persistence or provider-death recovery.
-They do not change the existing 19 Pi cells or promote Pi's pending profile.
+The current Pi matrix has 25 explicit cells (13 local and 12 Daytona), including
+these four controls and the pending-native-question restart cases. Pi's profile
+remains pending; catalog presence is not live qualification.
 
 ## Provider-free browser bootstrap regression
 
@@ -1435,8 +1437,9 @@ mock control plane. Neither suite substitutes for the other.
 
 ### Pi native Product fixtures
 
-The separate `pi-native` suite defines seven explicit Pi cells: native questions,
-agent-file persistence and browser permission denial on local and Daytona, plus
+The separate `pi-native` suite defines nine explicit Pi cells: native questions,
+agent-file persistence, browser permission denial and controller restart with an
+unanswered native question on local and Daytona, plus
 a local-only automatic `restrictive-denial` case. The latter cannot use the remote
 setup read under `deny-all`, so it is explicitly excluded there. It uses the
 pinned candidate profile and exact OpenRouter model. It is excluded from `--all`,
