@@ -415,6 +415,17 @@ jobs:
           timeout --verbose --signal=TERM --kill-after=15s 4m \
             pnpm --filter @paperclipai/plugin-sdk ensure-build-deps \
             > remote-source-verification/test-build-deps.log 2>&1
+      - name: Build Runner declarations for focused E2E support
+        if: inputs.source_e2e_support_only
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          # Server imports resolve the Runner package's generated dist declarations.
+          # The full source mode creates these during its earlier workspace checks.
+          trap 'printf "%s\n" "$?" > remote-source-verification/runner-typescript.status' EXIT
+          timeout --verbose --signal=TERM --kill-after=15s 7m \
+            pnpm --filter @paperclipai/paperclip-runner build:typescript \
+            > remote-source-verification/runner-typescript.log 2>&1
       - name: Run every source check and retain each result
         timeout-minutes: ${{ inputs.source_e2e_support_only && 28 || inputs.source_root_tests_only && 182 || 273 }}
         env:
