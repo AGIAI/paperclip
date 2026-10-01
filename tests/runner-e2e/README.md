@@ -25,6 +25,22 @@ The launcher always sets `PAPERCLIP_ANNOUNCEMENTS_ENABLED=false` for its isolate
 instances so announcement panels do not obscure screenshot evidence. No shell
 or workflow configuration is needed, including for Daytona cells.
 
+## Pi controls (explicit only)
+
+`--suite pi-controls` selects four candidate Pi cells: pending-permission Stop
+and browser same-turn steering, each local and Daytona. Discover without
+credentials using `pnpm test:e2e:runner -- --list --suite pi-controls`. For an
+authorized bounded attempt select, for example,
+`--id pi-controls.runner-acpx-pi.local.pending-permission-stop
+--max-automatic-retries 0 --max-parallel 1`.
+
+The [fixture contract](FIXTURES.md#pi-active-controls) requires exact pending
+native-write evidence, caller-owned control acknowledgments, independent
+no-effect/retirement proof and the actual production task UI. Daytona also
+requires the existing immutable image and executable digests. These cells do
+not establish native follow-up queue persistence or provider-death recovery.
+They do not change the existing 19 Pi cells or promote Pi's pending profile.
+
 ## Provider-free browser bootstrap regression
 
 `pnpm test:e2e:runner:browser-support` includes a wide development-module graph

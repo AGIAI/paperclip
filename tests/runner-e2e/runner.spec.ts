@@ -1,4 +1,5 @@
 import { runNativeActiveStopFlow } from "./native-active-stop-flow.js";
+import { runPiControlsFlow } from "./pi-controls-flow.js";
 import { runCursorNativeFlow } from "./cursor-native-flow.js";
 import { createRemoteNativeBootstrap, createRemoteFixtureClient } from "./remote-native-bootstrap.js";
 import { runCleanupWithObservers, verifyCleanupAssertions, type CleanupAssertion } from "./cleanup-verification.js";
@@ -561,7 +562,7 @@ for (const execution of executions) {
     const credentials = credentialValues();
     const secrets = normalizedSecrets(Object.values(credentials));
     const api = new RunnerApi(request);
-    const companyRunFlow = execution.suite.id === "task-titles" || ["blocker_guidance", "continuation_accounting", "continuation", "context_integrity", "agent_chat", "everyday_workflow", "first_task", "instruction_persistence", "pi_native", "copilot_protection", "cursor_native", "native_active_stop"].includes(execution.task.flow);
+    const companyRunFlow = execution.suite.id === "task-titles" || ["blocker_guidance", "continuation_accounting", "continuation", "context_integrity", "agent_chat", "everyday_workflow", "first_task", "instruction_persistence", "pi_native", "pi_controls", "copilot_protection", "cursor_native", "native_active_stop"].includes(execution.task.flow);
     const consoleDiagnostics: Array<Record<string, unknown>> = [];
     const networkDiagnostics: Array<Record<string, unknown>> = [];
     const pageLifecycleDiagnostics: Array<Record<string, unknown>> = [];
@@ -859,7 +860,7 @@ for (const execution of executions) {
       });
 
       const remoteBootstrap = execution.environment.id === "daytona"
-        && ["cursor_native", "pi_native", "copilot_protection", "native_active_stop"].includes(execution.task.flow)
+        && ["cursor_native", "pi_native", "pi_controls", "copilot_protection", "native_active_stop"].includes(execution.task.flow)
         ? createRemoteNativeBootstrap({
           api, daytona: await createRemoteFixtureClient(credentials.DAYTONA_API_KEY ?? ""),
           companyId: fixtures.company.id, environmentId: fixtures.environment.id, agentId: fixtures.agent.id,
@@ -937,6 +938,15 @@ for (const execution of executions) {
           evidence: (name, data) => writeSanitizedJson(snapshotsDir, name, data, secrets),
         });
         issue = accounting.issue as IssueRecord; selectedRuns = accounting.runs as RunRecord[];
+      } else if (execution.task.flow === "pi_controls") {
+        const story = await runPiControlsFlow({
+          page, api, fixtures, execution, nonce, workspacePath, deadlineAt: startedAtMs + deadlineMs,
+          observe: (currentIssue, currentRuns) => { issue = currentIssue as IssueRecord; selectedRuns = currentRuns as RunRecord[]; },
+          capture: captureScreenshot, evidence: (name, data) => writeSanitizedJson(snapshotsDir, name, data, secrets),
+          remoteBootstrap, registerCleanupAssertion, registerBeforeEnvironmentTeardownAssertion,
+        });
+        issue = story.issue as IssueRecord; selectedRuns = story.runs as RunRecord[];
+        matcherResults = story.checks.map(check => ({ matcher: { kind: "json_path" as const, path: `piControls.${check.id}`, expected: true }, passed: check.passed, detail: check.detail }));
       } else if (execution.task.flow === "native_active_stop") {
         const story = await runNativeActiveStopFlow({
           page, api, fixtures, execution, nonce, workspacePath, deadlineAt: startedAtMs + deadlineMs,

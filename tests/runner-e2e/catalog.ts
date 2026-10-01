@@ -1,4 +1,5 @@
 import { nativeActiveStopTasks } from "./native-active-stop-tasks.js";
+import { piControlTasks } from "./pi-controls-cases.js";
 import { cursorNativeTasks } from "./cursor-native-cases.js";
 import { copilotProtectionTasks } from "./copilot-protection-tasks.js";
 import { piNativeTasks } from "./pi-native-cases.js";
@@ -1080,6 +1081,16 @@ export const extendedHarnessFileTask: RunnerTaskFixture = {
 };
 
 export const runnerSuites: readonly RunnerSuiteFixture[] = [
+  {
+    id: "pi-controls", label: "Pi active controls", manualOnly: true,
+    description: "Pending native-write Stop and browser-originated same-turn steering, with exact control receipts and independent retirement/no-effect evidence.",
+    groups: ["native"], profiles: extendedHarnessProfiles.filter(profile => profile.qualificationCandidate === "pi"),
+    environments: runnerEnvironments, tasks: piControlTasks, expectedMatrixSize: 4,
+    definitionMetadata: { version: 1, qualification: "pending", scheduling: "explicit-only", profileVersion: QUALIFIED_ACPX_PROFILES.pi.agentProfileVersion,
+      pending: "paperclip.e2e.pi-control-pending.v1", stop: "paperclip.e2e.pi-stop-settlement.v1", steering: "paperclip.e2e.pi-steering-settlement.v1",
+      permissionPolicy: "approve-reads", lifecycle: "per_turn", normalCompletionProvesStop: false, nativeFollowUp: "not-covered", providerDeath: "not-covered",
+      remoteObservationCoverage: "continuous-through-owned-process-retirement", filesystemAfterRemoteRetirementObserved: false },
+  },
   {
     id: "cursor-native", label: "Cursor native interactions", manualOnly: true,
     description: "Native question continuation, revision-bound plan decisions and restrictive permission denial with independent process and file evidence.",

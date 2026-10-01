@@ -31,6 +31,13 @@ and the reloaded task UI; fixture prompts contain no naming instructions.
 
 ## Selecting a family
 
+Pi's explicit-only `pi-controls` Product suite tests Stop while native permission
+is unanswered and browser-originated same-turn steering, locally and on Daytona.
+Its [fixture contract](../tests/runner-e2e/FIXTURES.md#pi-active-controls) separates
+control acknowledgment, actual message consumption and owned process retirement.
+The four cells add coverage without changing the existing 19 Pi cells; they
+remain unqualified until measured on the exact candidate runtime.
+
 Use **Runner Evals** for a runner protocol, adapter, transport, native session,
 tool grant, or one-turn provider qualification question. The workflow checks
 out an exact `paperclip-evals` revision, builds the Runner and viewer, runs a

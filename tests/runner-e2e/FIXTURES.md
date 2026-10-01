@@ -304,6 +304,54 @@ is reconnect evidence only; these cases do not establish provider-death recovery
 They use public product APIs, real browser answers, and ordinary isolated files;
 no database writes, private hooks, or fabricated provider results are allowed.
 
+## Pi active controls
+
+The explicit-only `pi-controls` suite adds `pending-permission-stop` and
+`same-turn-steering` on local and Daytona, each with one provider run, a
+120-second active-turn timeout and a 300-second attempt budget. The existing
+19 Pi cells and their suite fingerprints are unchanged. Catalog presence and
+deterministic calibration do not constitute paid qualification.
+
+Both cases create a task through the browser and select `approve-reads` and
+`per_turn` through the public agent API before startup. They retain
+`paperclip.e2e.pi-control-pending.v1` while an exact native Pi write and its
+permission card are pending in one run/turn/session/source. The card's native
+tool ID is joined to the canonical execution ID using the existing runnerd
+identity mapping. Pi does not emit Cursor/Copilot diagnostic notices; those
+notices are never synthesized. Earlier native reads can provide orientation;
+other native operations cannot substitute for the observed write.
+
+Stop awaits the pending evidence write and rereads that boundary before sending
+one caller UUID to the public cancel API. It requires the original request's
+normalized cancellation closure, a cancelled terminal, and the same-scope
+caller-owned intent and acknowledgment audit IDs. Normal completion, a prior
+permission decision, an expired request, and unacknowledged cancellation fail.
+Only after cancellation does it attempt a stale **decline**, which must return
+409. It never sends an allow decision. The task remains In Progress, with one
+cancelled run and no automatic continuation.
+
+Steering submits a random marker only in a browser comment after the permission
+is pending, then clicks that comment's production Steer button. It records the
+exact public POST's queue/revision/run binding and requires the saved run
+acknowledgment plus the Product facade's same-turn acknowledgment item. The raw
+Rust `acpx-control-*` transport echo is suppressed by the facade;
+`CodexHarnessSession.steer` emits the durable correlated item after the command
+acknowledges. A deterministic calibration invokes that actual producer. The
+browser denies the original write only after acknowledgment while the request
+still remains pending. Success requires correlated native denial, the random
+marker as the persisted and visible final response, Done, and one succeeded
+run. Merely echoing the comment in the transcript or scheduling another turn
+cannot pass. Native `pi/follow_up` and durable native queue state are not tested.
+
+Both cells require independent absent-target and zero-mutation evidence plus
+owned process retirement. Local observation runs through cleanup. Daytona uses
+the existing authenticated lease observer with exact image/executable pins,
+fresh baseline/pending observations and its owned-process retirement seal;
+retrieving that seal later does not claim later filesystem surveillance.
+Missing cleanup fails the result. Provider-death recovery is outside these
+cases. All screenshots and receipts use the existing evidence/redaction/result
+pipeline; native USD may remain unknown and estimates remain distinct.
+
 ## Copilot native protection
 
 The explicit-only `copilot-protection` suite has two cases on local and Daytona,
