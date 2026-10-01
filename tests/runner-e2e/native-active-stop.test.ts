@@ -29,13 +29,14 @@ function fixture(provider: ActiveStopProvider = "copilot") {
     notice(1, "tool", { status: "pending", ...operation }),
     row(2, "tool.execution.started", { schema: "paperclip.tool.execution.v1", executionId: "tool", transport: "builtin", status: "running", ...operation }),
     notice(3, "permission_requested", { requestId: "request", declineOffered: true, ...operation }),
-    row(4, "runtime_request.created", { request: { schema: "paperclip.runtime_request.v2", requestKind: "permission_approval", type: "permission", status: "pending", requestId: "request", turnId: "turn", itemId: "item-run", method: "item/commandExecution/requestApproval",
+    row(4, "runtime_request.created", { request: { schema: "paperclip.runtime_request.v2", requestKind: "permission_approval", type: "permission", status: "pending", requestId: "request", turnId: "turn", itemId: "item-run", method: "session/request_permission",
       details: { toolCallId: "tool" }, origin: { adapter: "acpx-runtime-sidecar", provider, method: "session/request_permission" } } }),
   ];
   const run: Row = { id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", resultJson: {} };
   const issue = { id: "issue", companyId: "company", status: "in_progress" };
   const state = () => ({ events, run, issue });
   const pending = () => observeActiveStopPending({ ...state(), scope, caller, cancellationRequestId });
+  const permissionResponse = vi.fn();
   const settle = (requestId = cancellationRequestId) => {
     // Exercise the actual Product terminal and pending-request producers. Only
     // the state storage/emitter and callback are test doubles; no provider runs.
@@ -43,7 +44,7 @@ function fixture(provider: ActiveStopProvider = "copilot") {
     const state = {
       terminalTurns: new Map(), workspaceChangesByTurn: new Map(), result: null,
       conversationMode: "direct", activeTurnId: "turn", turnStarted: true,
-      pendingRuntimeRequestMap: new Map([[request.requestId, { request, settle: vi.fn() }]]),
+      pendingRuntimeRequestMap: new Map([[request.requestId, { request, settle: permissionResponse }]]),
       cancelPendingRequests: CodexSessionState.prototype.cancelPendingRequests,
       emit: (eventType: string, value: Row) => events.push(row(events.length + 1, eventType, value)),
     } as unknown as CodexSessionState;
@@ -54,7 +55,7 @@ function fixture(provider: ActiveStopProvider = "copilot") {
     } };
     return run;
   };
-  return { scope, events, run, issue, row, notice, state, pending, settle };
+  return { scope, events, run, issue, row, notice, state, pending, settle, permissionResponse };
 }
 const frame = (row: Row) => row.payload.prpEvent;
 const payload = (row: Row) => frame(row).payload;
@@ -214,6 +215,7 @@ describe("definitely active native permission Stop", () => {
   });
   it.each(["cursor", "copilot"] as const)("binds %s's unanswered callback to cancelled provider settlement and caller-owned Stop", provider => {
     const f = fixture(provider), pending = f.pending(); f.settle();
+    expect(f.permissionResponse.mock.calls).toEqual([[{ action: "cancel" }]]);
     expect(readActiveStopSettlement({ ...f.state(), pending, dispatchMonotonicNs: (BigInt(pending.observedMonotonicNs) + 1n).toString() })).toMatchObject({
       schema: "paperclip.e2e.native-active-stop-settlement.v2", branch: "pending_permission_cancelled", normalCompletionAccepted: false, taskStillInProgress: true, replayAllowed: false,
       pending: { normalizedSessionId: "normalized-session", nativeSessionId: "native-session", cancellationRequestId },
