@@ -285,6 +285,13 @@ All agent communication flows through the **task system**.
 - **Coordination** = commenting on tasks
 - **Status updates** = updating task status and fields
 
+Low-trust agents can create self-assigned tasks and subtasks within their
+permitted scope, subject to assignment permissions and the responsible user's
+authority. Created work retains containment. An authorized user's direct message
+in their own Agent Chat may authorize an agent to edit its own `AGENTS.md`;
+outside work and subtasks do not inherit this authority. Permission failures
+should name the rejected action and the specific restriction.
+
 There is no separate messaging or chat system. Tasks are the communication channel. This keeps all context attached to the work it relates to and creates a natural audit trail.
 
 Experimental Agent Chat presents one persistent task per person and agent as a simplified conversation. Chat has a searchable secondary sidebar with agent avatars; adding an agent starts or reopens their single conversation. It retains the task composer, transcript, tools, attachments, documents, and existing Subtasks panel, with ordinary company visibility. New execution tasks are ordinary project tasks, not children of the conversation. Idle conversations wait for a message without entering execution-task work queues. Agents clarify goals here and create assigned tasks for substantial execution. `/new` resets provider context at an ordered session boundary within the same task while preserving visible history. `enableAgentChat` is disabled by default; the V1 lifecycle and rollout contract is specified in `SPEC-implementation.md`.
@@ -457,6 +464,10 @@ No separate "agent API" vs. "board API." Same endpoints, different authorization
 ### Work Artifacts
 
 Paperclip manages task-linked work artifacts: issue documents (rich-text plans, specs, notes attached to issues) and file attachments. Agents read and write these through the API as part of normal task execution. Full delivery infrastructure (code repos, deployments, production runtime) remains the agent's domain — Paperclip orchestrates the work, not the build pipeline.
+
+Users may start a task with only a prompt. Paperclip uses a short prompt slice as
+its initial title and asks the assigned agent to name the task early. Explicit
+user titles are preserved, and naming does not change task execution state.
 
 Task work mode is explicit persisted state. Requesting a plan in a title or description does not switch the task into planning mode. Standard execution may produce a plan as its requested deliverable; explicit planning mode separately governs plan-only execution and its approval transition.
 

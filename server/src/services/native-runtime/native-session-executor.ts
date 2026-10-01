@@ -2193,7 +2193,13 @@ export function retainedNativeCleanupJournalMatches(input: {
         payload.isError === false &&
         payload.sourceEventId === event.sourceEventId &&
         payload.sourceEventType === event.eventType &&
-        canonicalJson(payload.input) === canonicalJson(semantic.input) &&
+        // Current receipts retain a digest; older journals retain the input.
+        // If both exist, both must bind to the accepted semantic input.
+        (payload.inputDigest === undefined
+          ? canonicalJson(payload.input) === canonicalJson(semantic.input)
+          : payload.inputDigest === nativeSha256(semantic.input) &&
+            (payload.input === undefined ||
+              canonicalJson(payload.input) === canonicalJson(semantic.input))) &&
         canonicalJson(payload.correlation) ===
           canonicalJson(semantic.correlation) &&
         record(record(command.result).result).callId === semantic.callId
@@ -7268,6 +7274,7 @@ export async function executePaperclipNativeSession(input: {
   runnerRemoteCodexNpmSpec?: string | null;
   runnerRemoteProviderPackPath?: string | null;
   stopTaskForReassignment?: (target: { companyId: string; issueId: string; agentId: string; runId: string | null }) => Promise<void>;
+  syncIssueExternalObjects?: (issueId: string) => Promise<void>;
   enqueueWakeup?: (
     agentId: string,
     options: {
@@ -9158,10 +9165,24 @@ async function executePaperclipNativeSessionWithinScope(
   // A following run cannot attach until the prior run's durable finalization
   // is committed. Provider completion alone is not an authority boundary.
   if (warmSessionId !== null && lifecyclePolicy.mode === "warm") {
+    // A structured failed/cancelled result completes the protocol without
+    // throwing. Heartbeat still stops its sandbox, so retire the provider now
+    // while its transport can collect files and checkpoint the suspended runner.
+    // Leaving it in the warm map makes the next turn retire a stopped transport.
+    const retainSession = native.terminal.runTerminalState === "succeeded";
     const instructionCopy = input.instructionWorkingCopy;
     const ownedSession = warmNativeSessions.get(warmSessionId);
-    const collectInstructions = Boolean(instructionCopy && ownedSession?.ownerToken === warmSessionOwnerToken &&
-      (instructionCopy.checkpointWarm ? !await instructionCopy.checkpointWarm() : await instructionCopy.hasChanges()));
+    let collectInstructions: boolean;
+    try {
+      collectInstructions = Boolean(instructionCopy && ownedSession?.ownerToken === warmSessionOwnerToken &&
+        (instructionCopy.checkpointWarm ? !await instructionCopy.checkpointWarm() : await instructionCopy.hasChanges()));
+    } catch (error) {
+      // A checkpoint or its receipt callback can reject. Retire this owner
+      // before heartbeat stops the sandbox, preserving the initiating error.
+      await releaseWarmNativeSession(warmSessionId, warmSessionOwnerToken, lifecyclePolicy.idleTimeoutMs, true)
+        .catch(() => undefined);
+      throw error;
+    }
     const collectedByOwner = ownedSession?.instructionCopy?.collectStopped === instructionCopy?.collectStopped;
     if (collectInstructions && ownedSession) {
       // Keep the unchanged warm path intact. A changed private instruction copy
@@ -9172,7 +9193,7 @@ async function executePaperclipNativeSessionWithinScope(
       warmSessionId,
       warmSessionOwnerToken,
       lifecyclePolicy.idleTimeoutMs,
-      false,
+      !retainSession,
     );
     if (collectInstructions && !collectedByOwner) await instructionCopy!.collectStopped();
   }
@@ -10627,6 +10648,7 @@ export async function createRunnerdBackend(input: {
   toolTrace?: NativeToolTrace;
   onLog?: (stream: "stdout" | "stderr", chunk: string) => Promise<void>;
   stopTaskForReassignment?: (target: { companyId: string; issueId: string; agentId: string; runId: string | null }) => Promise<void>;
+  syncIssueExternalObjects?: (issueId: string) => Promise<void>;
   enqueueWakeup?: (
     agentId: string,
     options: {
@@ -10769,6 +10791,7 @@ async function createRunnerdBackendWithinSessionClaim(
     currentWakeComments: currentWakeComments ?? undefined,
     chatAttachmentReadScope: input.chatAttachmentReadScope,
     stopTaskForReassignment: input.stopTaskForReassignment,
+    syncIssueExternalObjects: input.syncIssueExternalObjects,
     enqueueWakeup: input.enqueueWakeup,
   });
   const authorityEpoch = new SessionToolAuthorityEpoch(

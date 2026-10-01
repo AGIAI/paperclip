@@ -1,3 +1,4 @@
+import { externalObjectService } from "./external-objects.js";
 import { isAiAuthenticationBlocked } from "./ai-auth-failure.js";
 import { CHAT_COMPLETION_WAKE_REASON, prepareChatCompletionTurn, chatCompletionInstruction, isCompletedOnboardingHandoffWake } from "./chat-completion-delivery.js";
 import { AgentDirectoryReuseInvalidatedError, isAgentDirectoryCopy } from "./agent-directory-working-copies.js";
@@ -323,6 +324,7 @@ import {
   nativeChatWorkspaceCwd,
   nativeChatWorkspaceMatches,
 } from "./native-runtime/native-chat-workspace.js";
+import { materializeIsolatedTaskDirectory, shouldUseIsolatedTaskDirectory } from "./isolated-task-directory.js";
 import { trackAgentFirstHeartbeat } from "@paperclipai/shared/telemetry";
 import { getTelemetryClient } from "../telemetry.js";
 import {
@@ -8554,6 +8556,7 @@ export function buildPaperclipTaskMarkdown(input: {
     id: string;
     identifier: string | null;
     title: string;
+    titleNeedsGeneration?: boolean;
     workMode?: string | null;
     conversationAgentId?: string | null;
     description?: string | null;
@@ -8732,6 +8735,14 @@ export function buildPaperclipTaskMarkdown(input: {
       `- Issue: ${quoteTaskScalar(issue.identifier || issue.id)}`,
       `- Title: ${quoteTaskScalar(issue.title)}`,
     );
+    if (issue.titleNeedsGeneration && !issue.conversationAgentId) {
+      lines.push(
+        "",
+        "Task title directive:",
+        "The current title is a provisional slice of the user's prompt. As one of your first tool calls, use set_task_title with a concise title describing the requested outcome and onlyIfProvisional: true. If that tool is unavailable, PUT /api/issues/" + issue.id + "/title with {title, onlyIfProvisional: true} using your normal Paperclip authentication. Do this in Ask and Plan modes too. Preserve the full task description and any title already chosen by the user; then continue the task.",
+        "Check the title tool result. If its wording is rejected as credential material, retry once with a shorter, plain-language title that keeps the task's meaning and contains no secret values. Use a new idempotency key for changed arguments. Do not treat a rejected call as a saved title.",
+      );
+    }
     if (issue.conversationAgentId) {
       lines.push("", "Chat mode directive:", AGENT_CHAT_DIRECTIVE, `Current composer mode: ${issue.workMode ?? "standard"}.`);
       if (input.conversationConfirmations?.cards.length) {
@@ -10163,7 +10174,14 @@ export function heartbeatService(
   }) {
     const leaseOwnerRun = await getRun(input.runId);
     if (leaseOwnerRun && isNativeRunnerOwnershipHeld(leaseOwnerRun)) return;
-    if (input.providerResourceDisposition === "destroy") {
+    // Recovery can finish workspace copy-back outside the executor's finally.
+    // Successful copy-back does not earn warm retention for a failed turn.
+    const status = leaseOwnerRun?.status ?? input.status;
+    const providerResourceDisposition = providerResourceDispositionForTerminalRun(
+      input.providerResourceDisposition,
+      status,
+    );
+    if (providerResourceDisposition === "destroy") {
       const closeResult = await (
         options.closeWarmNativeSessionsForRun ??
         (async ({ runId, reason }) => {
@@ -10231,9 +10249,9 @@ export function heartbeatService(
         heartbeatRunId: input.runId,
         companyId: input.companyId,
         agentId: input.agentId,
-        status: leaseReleaseStatusForRunStatus(input.status),
+        status: leaseReleaseStatusForRunStatus(status),
         failureReason: input.failureReason ?? undefined,
-        providerResourceDisposition: input.providerResourceDisposition,
+        providerResourceDisposition,
         nativeLifecycleTelemetry: input.nativeLifecycleTelemetry,
       })
       .catch((err) => {
@@ -10691,6 +10709,7 @@ export function heartbeatService(
         id: issues.id,
         identifier: issues.identifier,
         title: issues.title,
+        titleNeedsGeneration: issues.titleNeedsGeneration,
         description: issues.description,
         status: issues.status,
         workMode: issues.workMode,
@@ -12556,9 +12575,10 @@ export function heartbeatService(
     opts?: {
       useProjectWorkspace?: boolean | null;
       executionEnvironmentDriver?: string | null;
+      anchorWorkspace?: ResolvedAnchorWorkspaceForRun;
     },
   ): Promise<ResolvedWorkspaceForRun> {
-    const anchor = await resolveAnchorWorkspaceForRun(
+    const anchor = opts?.anchorWorkspace ?? await resolveAnchorWorkspaceForRun(
       agent,
       context,
       previousSessionParams,
@@ -13106,7 +13126,9 @@ export function heartbeatService(
     await db
       .update(agentWakeupRequests)
       .set({ status, ...patch, updatedAt: new Date() })
-      .where(eq(agentWakeupRequests.id, wakeupRequestId));
+      // Reassignment revokes requests transactionally. Late execution settlement
+      // must not turn a revoked request back into authority for a later retry.
+      .where(and(eq(agentWakeupRequests.id, wakeupRequestId), ne(agentWakeupRequests.status, "cancelled")));
   }
 
   async function addContinuationExhaustedCommentOnce(input: {
@@ -17171,6 +17193,7 @@ export function heartbeatService(
                 eq(agentWakeupRequests.companyId, current.companyId),
                 eq(agentWakeupRequests.agentId, current.agentId),
                 eq(agentWakeupRequests.runId, current.id),
+                ne(agentWakeupRequests.status, "cancelled"),
               ),
             );
         await tx
@@ -17909,7 +17932,7 @@ export function heartbeatService(
         await tx
           .update(agentWakeupRequests)
           .set({ status: "queued", claimedAt: null, updatedAt: now })
-          .where(eq(agentWakeupRequests.id, released.wakeupRequestId));
+          .where(and(eq(agentWakeupRequests.id, released.wakeupRequestId), ne(agentWakeupRequests.status, "cancelled")));
       }
 
       const context = parseObject(released.contextSnapshot);
@@ -20976,6 +20999,7 @@ export function heartbeatService(
               id: issueRef.id,
               identifier: issueRef.identifier,
               title: issueRef.title,
+              titleNeedsGeneration: issueContext?.titleNeedsGeneration,
               workMode: issueRef.workMode,
               conversationAgentId: issueContext?.conversationAgentId,
               description: issueRef.description,
@@ -21432,6 +21456,19 @@ export function heartbeatService(
           );
         }
       }
+      const useIsolatedTaskDirectory = issueRef !== null && shouldUseIsolatedTaskDirectory({
+        trustPreset: trustPreset.kind,
+        environmentDriver: selectedEnvironmentForConfig?.driver ?? null,
+        mode: requestedExecutionWorkspaceMode,
+        hasProjectWorkspace: projectContext?.hasWorkspace ?? false,
+        projectWorkspaceId: issueRef.projectWorkspaceId,
+        workspaceStrategies: [
+          config.workspaceStrategy,
+          issueAssigneeOverrides?.adapterConfig?.workspaceStrategy,
+          projectExecutionWorkspacePolicy?.workspaceStrategy,
+          issueExecutionWorkspaceSettings?.workspaceStrategy,
+        ],
+      });
       const workspaceManagedConfig = buildExecutionWorkspaceAdapterConfig({
         agentConfig: config,
         projectPolicy: projectExecutionWorkspacePolicy,
@@ -21443,6 +21480,9 @@ export function heartbeatService(
       const mergedConfig = {
         ...workspaceManagedConfig,
         ...(issueAssigneeOverrides?.adapterConfig ?? {}),
+        // The base below is already task-owned. Keep directory transport while
+        // preserving isolated mode and the mandatory sandbox preflight.
+        ...(useIsolatedTaskDirectory ? { workspaceStrategy: { type: "project_primary" } } : {}),
       };
       const configSnapshot = buildExecutionWorkspaceConfigSnapshot(
         mergedConfig,
@@ -21724,6 +21764,39 @@ export function heartbeatService(
           return preflightEnvironment.driver;
         },
         resolveWorkspace: async () => {
+          if (useIsolatedTaskDirectory && issueRef) {
+            const cwd = await materializeIsolatedTaskDirectory({
+              companyId: agent.companyId,
+              issueId: issueRef.id,
+            });
+            if (reusableExistingExecutionWorkspace && (
+              reusableExistingExecutionWorkspace.companyId !== agent.companyId ||
+              reusableExistingExecutionWorkspace.projectId !== issueRef.projectId ||
+              reusableExistingExecutionWorkspace.sourceIssueId !== issueRef.id ||
+              reusableExistingExecutionWorkspace.mode !== "isolated_workspace" ||
+              reusableExistingExecutionWorkspace.strategyType !== "project_primary" ||
+              reusableExistingExecutionWorkspace.cwd !== cwd
+            )) {
+              throw new WorkspaceValidationFailure("The existing execution workspace is not this task's isolated directory.", {
+                workspaceValidation: { reason: "isolated_task_directory_binding_mismatch", issueId: issueRef.id },
+              });
+            }
+            return resolveWorkspaceForRun(agent, context, previousSessionParams, {
+              executionEnvironmentDriver: selectedEnvironmentForConfig?.driver ?? null,
+              anchorWorkspace: {
+                cwd,
+                source: "task_session",
+                projectId: issueRef.projectId,
+                workspaceId: null,
+                repoUrl: null,
+                repoRef: null,
+                workspaceHints: [],
+                warnings: [],
+                baseCwdFallback: false,
+                materializationFailures: [],
+              },
+            });
+          }
           if (nativeChatWorkspaceScope && !nativeChatWorkspaceScope.projectId) {
             const cwd = await materializeNativeChatTaskRoot(
               nativeChatWorkspaceScope,
@@ -24608,6 +24681,10 @@ export function heartbeatService(
                       }
                     },
                     enqueueWakeup,
+                    syncIssueExternalObjects: externalObjectService(db, {
+                      pluginWorkerManager: options.pluginWorkerManager,
+                      enabled: async () => (await instanceSettings.getExperimental()).enableExternalObjects === true,
+                    }).syncIssueSafely,
                     onSpawn: async (meta) => {
                       markDispatchStarted();
                       await persistRunProcessMetadata(run.id, meta);
@@ -26626,6 +26703,10 @@ export function heartbeatService(
       triggerDetail,
       payload,
     });
+    // Keep each request's own server-derived origin, including coalesced wakes.
+    // A run's merged context cannot establish which caller authored one receipt.
+    // Overwrite caller-supplied nested context rather than trusting it.
+    payload = { ...payload, [DEFERRED_WAKE_CONTEXT_KEY]: { ...enrichedContextSnapshot } };
     let issueId =
       readNonEmptyString(enrichedContextSnapshot.issueId) ?? issueIdFromPayload;
     if (executionReconciliationWake && !issueId) return null;
@@ -28403,8 +28484,12 @@ export function heartbeatService(
                   or(isNull(heartbeatRuns.nativeIssueId), eq(heartbeatRuns.nativeIssueId, issue.id)),
                 )).then(rows => rows[0] ?? null)
               : null;
+          const canCoalesceComments = !isConversation(issue) && opts.allowRunCoalescing !== false;
+          // A resumed receipt already passed admission under this issue lock.
+          // Consume it with its successor even when chat keeps other messages
+          // in separate turns, or finalization will deliver it a second time.
           const pendingComments =
-            !isConversation(issue) && opts.allowRunCoalescing !== false &&
+            (executionWaitRequestId || canCoalesceComments) &&
             !(await getExecutionBlocker(tx as unknown as Db, issue.companyId, issue.id))
               ? await tx
                   .select()
@@ -28415,11 +28500,13 @@ export function heartbeatService(
                       inArray(agentWakeupRequests.agentId, handoffSource ? [agentId, handoffSource.agentId] : [agentId]),
                       eq(agentWakeupRequests.status, "deferred_issue_execution"),
                       sql`${agentWakeupRequests.payload}->>'issueId' = ${issue.id}`,
+                      canCoalesceComments ? undefined : eq(agentWakeupRequests.id, executionWaitRequestId!),
                     ),
                   )
                   .orderBy(asc(agentWakeupRequests.requestedAt))
               : [];
           const adoptedComments = pendingComments.filter((wake) => {
+            if (wake.id === executionWaitRequestId) return true;
             if (wake.id === opts.queuedCommentInterruptId || wake.id === opts.queuedCommentRequestId) return true;
             const deferredPayload = parseObject(wake.payload);
             const deferredContext = parseObject(

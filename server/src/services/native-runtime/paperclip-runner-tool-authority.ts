@@ -1,3 +1,7 @@
+import { setIssueTitle } from "../issue-title.js";
+import { externalObjectService } from "../external-objects.js";
+import { instanceSettingsService } from "../instance-settings.js";
+import { setIssueTitleSchema } from "@paperclipai/shared";
 import { authorizeInstructionCommit } from "../agent-instruction-authorization.js";
 import { executeAgentInstructionTool } from "./agent-instruction-tools.js";
 import { createReadStream } from "node:fs";
@@ -5,6 +9,9 @@ import { publicChatTaskUrl } from "../chat-task-url.js";
 import type { createAssignedMcpTools } from "./assigned-mcp-tools.js";
 import { assertAssignableAgent } from "../agent-assignability.js";
 import { authorizationService } from "../authorization.js";
+import { resolveCoreTrustPreset } from "../trust-preset-resolver.js";
+import { normalizeIssueExecutionPolicy } from "../issue-execution-policy.js";
+import { buildLowTrustSourceTrust } from "../source-trust.js";
 import { handoffPlanContext } from "./handoff-plan-context.js";
 import { callCreateSkillTool } from "../skill-tools.js";
 import { callProjectTool } from "../project-tools.js";
@@ -13,7 +20,7 @@ import { resolveNativeRuntimeMcpSnapshot } from "./runtime-context.js";
 import { connectionIntentService } from "../connection-intents.js";
 import { RUNTIME_CONNECTION_TOOL_DEFINITIONS } from "../connection-tool-definitions.js";
 import { connectionsSearchInputSchema, connectionRequestInputSchema, CONNECTION_INTENT_AGENT_GUIDANCE } from "@paperclipai/shared";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { paperclipChatFilePreparationDelivery } from "@paperclipai/adapter-utils/chat-file-delivery";
 import {
   isPaperclipExternalChatContractTurn,
@@ -47,6 +54,7 @@ import {
   issueComments,
   issueDocuments,
   issues,
+  projects,
   issueThreadInteractions,
 } from "@paperclipai/db";
 import { CAPABILITY_SEMANTIC_TOOL_CATALOG, runnerCodexDynamicToolsFit, SemanticToolOutcomeUnknownError } from "../../vendor/paperclip-runner/index.js";
@@ -87,7 +95,7 @@ import {
 const IMPLEMENTED_OPERATIONS = new Set([
   "read_agent_instructions", "update_agent_instructions", "get_agent_instruction_history", "restore_agent_instructions",
   "search_api", "call_api", "hire_agent",
-  "get_task_context", "get_task_history", "search_tasks", "report_progress",
+  "get_task_context", "get_task_history", "search_tasks", "report_progress", "set_task_title",
   "request_human_input",
   "create_skill", "create_task", "reassign_task", "set_dependencies", "create_project", "list_project_repositories", "list_projects", "register_deliverable",
   "list_documents", "read_document", "list_document_revisions", "write_document",
@@ -120,6 +128,7 @@ type Binding = {
   readRemoteWorkspaceFile?: RemoteWorkspaceFileReader;
   currentWakeComments?: CurrentWakeCommentsBinding;
   chatAttachmentReadScope?: NativeChatAttachmentReadScope;
+  syncIssueExternalObjects?: (issueId: string) => Promise<void>;
   stopTaskForReassignment?: (target: { companyId: string; issueId: string; agentId: string; runId: string | null }) => Promise<void>;
   enqueueWakeup?: (agentId: string, options: {
     source: "assignment";
@@ -547,6 +556,7 @@ export class PaperclipRunnerToolAuthority {
       case "create_task": return this.#createTask(input,
         (await captureRunIdentity(this.db, this.binding)).context?.id ?? null);
       case "reassign_task": return this.#reassignTask(input);
+      case "set_task_title": return this.#setTaskTitle(input);
       case "set_dependencies": return this.#setDependencies(input);
       case "register_deliverable": return this.#registerDeliverable(input);
       default: throw new Error("paperclip_runner_tool_not_bound");
@@ -946,8 +956,36 @@ export class PaperclipRunnerToolAuthority {
     const inputFingerprint = createHash("sha256")
       .update(canonicalJson(input))
       .digest("hex");
+    const authorizeCreate = async (tx: Db, context: {
+      run: typeof heartbeatRuns.$inferSelect;
+      issue: typeof issues.$inferSelect;
+      actor: typeof agents.$inferSelect;
+    }) => {
+      const parentIssueId = context.issue.conversationAgentId ? null : context.issue.id;
+      const projectId = nullableProviderId(input.projectId) ?? (parentIssueId ? context.issue.projectId : null);
+      const scope = { projectId, parentIssueId, assigneeAgentId, assigneeUserId: null };
+      const decision = await authorizationService(tx).decide({
+        actor: { type: "agent", source: "agent_jwt", companyId: this.binding.companyId,
+          agentId: this.binding.agentId, runId: this.binding.runId, onBehalfOfUserId: context.run.responsibleUserId },
+        action: "tasks:assign",
+        resource: { type: "issue", companyId: this.binding.companyId, ...scope },
+        scope,
+      });
+      if (!decision.allowed) throw forbidden(decision.explanation);
+      await assertAssignableAgent(tx, this.binding.companyId, assigneeAgentId, { kind: "work" });
+      const project = projectId
+        ? await tx.select().from(projects).where(and(eq(projects.id, projectId), eq(projects.companyId, this.binding.companyId))).then(rows => rows[0] ?? null)
+        : null;
+      const trust = resolveCoreTrustPreset({
+        companyId: this.binding.companyId, agent: context.actor, project,
+        run: { companyId: this.binding.companyId, executionPolicy: context.run.contextSnapshot?.executionPolicy },
+      });
+      if (trust.kind === "denied") throw forbidden(trust.detail);
+      return { projectId, trust };
+    };
     let publication: Awaited<ReturnType<typeof persistActivity>>["publication"] | null = null;
     const result = await this.#withMutationReceipt("create_task", idempotencyKey, input, async (tx, context) => {
+      const { projectId, trust } = await authorizeCreate(tx, context);
       const conversation = Boolean(context.issue.conversationAgentId);
       const existingChild = await tx.select().from(issues).where(and(
         eq(issues.companyId, this.binding.companyId),
@@ -973,8 +1011,14 @@ export class PaperclipRunnerToolAuthority {
         };
       }
       let deduplicated = false;
+      const issueId = randomUUID();
       const createInput = {
-        projectId: nullableProviderId(input.projectId),
+        id: issueId,
+        projectId,
+        ...(trust.kind === "low_trust_review" ? {
+          executionPolicy: { ...normalizeIssueExecutionPolicy({ authorizationPolicy: { trustPreset: trust.preset, trustBoundary: trust.boundary } }) },
+          sourceTrust: buildLowTrustSourceTrust({ issueId, runId: this.binding.runId, agentId: this.binding.agentId }),
+        } : {}),
         initialPlan: nullableProviderId(input.initialPlan),
         title: requiredString(input.title),
         description: input.description === null || input.description === undefined
@@ -1047,7 +1091,7 @@ export class PaperclipRunnerToolAuthority {
           assigneeActorId: child.assigneeAgentId,
         },
       };
-    }) as Record<string, unknown>;
+    }, { beforeReceiptReplay: async (tx, context) => { await authorizeCreate(tx, context); } }) as Record<string, unknown>;
 
     if (publication) publishActivity(publication);
     const task = record(result.task);
@@ -1243,6 +1287,25 @@ export class PaperclipRunnerToolAuthority {
         issueStateGuard: { statuses: ["todo"], assigneeAgentId, statusVersion: result.stateRevision },
       });
     }
+    return result;
+  }
+
+  async #setTaskTitle(input: Record<string, unknown>): Promise<unknown> {
+    const titleInput = setIssueTitleSchema.parse(input);
+    requiredString(titleInput.idempotencyKey);
+    // Use the shared title receipt so native and HTTP retries have the same
+    // identity and cannot overwrite a later user edit when switching surfaces.
+    const { result, publication } = await this.db.transaction(async (tx) => {
+      await this.#lockAuthorizedMutationContext(tx as unknown as Db);
+      return setIssueTitle(tx as unknown as Db, this.binding.companyId, this.binding.issueId, titleInput, {
+        actorType: "agent", actorId: this.binding.agentId, agentId: this.binding.agentId, runId: this.binding.runId,
+      });
+    });
+    if (publication) publishActivity(publication);
+    const syncExternalObjects = this.binding.syncIssueExternalObjects ?? externalObjectService(this.db, {
+      enabled: async () => (await instanceSettingsService(this.db).getExperimental()).enableExternalObjects === true,
+    }).syncIssueSafely;
+    await syncExternalObjects(this.binding.issueId);
     return result;
   }
 
@@ -1926,6 +1989,7 @@ function redactedTask(task: typeof issues.$inferSelect) {
     companyId: task.companyId,
     identifier: task.identifier,
     title: task.title,
+    titleNeedsGeneration: task.titleNeedsGeneration,
     description: task.description,
     status: task.status,
     statusVersion: task.statusVersion,

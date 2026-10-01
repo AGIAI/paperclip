@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { agents, environmentLeases, environments, agentInstructionWorkingCopies as copies, type Db } from "@paperclipai/db";
 import { syncDirectoryToSsh, restoreWorkspaceFromSshExecution } from "@paperclipai/adapter-utils/ssh";
 import { prepareAdapterExecutionTargetRuntime, runAdapterExecutionTargetShellCommand, type AdapterExecutionTarget, type PreparedAdapterExecutionTargetRuntime } from "@paperclipai/adapter-utils/execution-target";
-import { withDirectoryMergeLock, directorySnapshotSha256, parseDirectorySnapshot, serializeDirectorySnapshot } from "@paperclipai/adapter-utils/workspace-restore-merge";
+import { withDirectoryMergeLock, directorySnapshotSha256, parseDirectorySnapshot, serializeDirectorySnapshot, type DirectoryMergeLockOperation } from "@paperclipai/adapter-utils/workspace-restore-merge";
 import { AGENT_FILES_CONTRACT, AgentFileLimitError, agentFileStore, agentStorageWarning, inspectAgentDirectory } from "./agent-file-store.js";
 import { agentInstructionsBundleMode, deriveBundleState, resolveManagedInstructionsRoot } from "./agent-instructions.js";
 import { instructionGitExcludeProgram } from "./agent-instruction-files.js";
@@ -108,7 +108,7 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
           if (!handedOff) await db.delete(copies).where(and(eq(copies.companyId, input.companyId), eq(copies.runId, input.runId)));
           throw error;
         }
-      });
+      }, "agent_directory_handoff");
     }
     const localRoot = path.join(path.dirname(root), "file-sync", "runs", input.runId, "live");
     // Local copies live outside the task cwd. Remote copies use the reserved,
@@ -232,15 +232,18 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
       } catch (error) {
         failure = error;
         logger.warn({ err: error, runId: row.runId, attempt: attempt + 1, stopped }, "Agent file checkpoint failed");
+        if (error instanceof HttpError && error.status < 500) break;
       }
       finally {
         await captured?.cleanup().catch(error => logger.warn({ err: error, runId: row.runId }, "Agent checkpoint scratch cleanup deferred to session retirement"));
       }
     }
-    if (!stopped) return patch(row, { errorCode: "AGENT_FILES_CHECKPOINT_UNSTABLE", errorMessage: "Incremental checkpoint could not be validated; collecting after provider stop.", nextAttemptAt: null });
+    const rejection = failure instanceof HttpError && failure.status === 403 ? failure.message : null;
+    if (!stopped) return patch(row, { errorCode: "AGENT_FILES_CHECKPOINT_UNSTABLE",
+      errorMessage: rejection ? `Agent-file save rejected: ${rejection} Changes were not saved.` : "Incremental checkpoint could not be validated; collecting after provider stop.", nextAttemptAt: null });
     const storageLimit = failure instanceof AgentFileLimitError || String(failure).includes("LIMIT_EXCEEDED");
     return patch(row, { state: "unavailable", processStoppedAt: new Date(), errorCode: storageLimit ? "AGENT_FILES_LIMIT_EXCEEDED" : "AGENT_FILES_SAVE_FAILED",
-      errorMessage: "Agent-file synchronization failed after provider stop. No successful save is claimed.", nextAttemptAt: null,
+      errorMessage: rejection ? `Agent-file save rejected: ${rejection} Changes were not saved.` : "Agent-file synchronization failed after provider stop. No successful save is claimed.", nextAttemptAt: null,
       receipt: { ...row.receipt, storageWarning: storageLimit ? agentStorageWarning(failure instanceof AgentFileLimitError ? failure.message : "Agent folder exceeds a storage limit") : null } });
   }
   async function collectStopped(row: Copy, target?: AdapterExecutionTarget | null) {
@@ -276,7 +279,7 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
         row = await patch(row, { state: "unavailable", nextAttemptAt: null,
           receipt: { ...row.receipt, storageWarning: error instanceof AgentFileLimitError ? agentStorageWarning(error.message) : row.receipt?.storageWarning ?? null },
           errorCode: error instanceof AgentFileLimitError ? "AGENT_FILES_LIMIT_EXCEEDED" : "AGENT_FILES_SAVE_FAILED",
-          errorMessage: error instanceof HttpError && error.status === 422
+          errorMessage: error instanceof HttpError && (error.status === 403 || error.status === 422)
             ? `${error.message}. This run's agent-folder changes were not saved; the temporary copy is discarded.`
             : "Agent-file synchronization failed. No successful save is claimed; the temporary copy is discarded.",
         });
@@ -343,18 +346,18 @@ export function agentDirectoryWorkingCopyService(db: Db, get: (companyId: string
       cwd: remoteCwd, env: {}, timeoutMs: 15_000, bypassSession: true });
     return result.exitCode === 0 && !result.timedOut;
   }
-  async function serial<T>(row: Copy, fn: (current: Copy) => Promise<T>): Promise<T> {
+  async function serial<T>(row: Copy, fn: (current: Copy) => Promise<T>, operation: DirectoryMergeLockOperation): Promise<T> {
     // Duplicate stop callbacks and restart recovery must not race while moving
     // the stopped working copy. This lock is outside the writable tree.
     return withDirectoryMergeLock(path.resolve(row.localRoot, "../../.."), async () => {
       const current = await get(row.companyId, row.runId);
       if (!current) throw notFound("Agent directory copy not found");
       return fn(current);
-    });
+    }, process.env, operation);
   }
   return { prepare, hasChanges, canReuse,
-    checkpointWarm: (row: Copy, target?: AdapterExecutionTarget | null) => serial(row, current => current.receipt?.warm === true ? checkpoint(current, target) : Promise.resolve(current)),
-    collectStopped: (row: Copy, target?: AdapterExecutionTarget | null) => serial(row, current => collectStopped(current, target)),
-    release: (row: Copy) => serial(row, release),
+    checkpointWarm: (row: Copy, target?: AdapterExecutionTarget | null) => serial(row, current => current.receipt?.warm === true ? checkpoint(current, target) : Promise.resolve(current), "agent_directory_checkpoint"),
+    collectStopped: (row: Copy, target?: AdapterExecutionTarget | null) => serial(row, current => collectStopped(current, target), "agent_directory_collect"),
+    release: (row: Copy) => serial(row, release, "agent_directory_release"),
   };
 }

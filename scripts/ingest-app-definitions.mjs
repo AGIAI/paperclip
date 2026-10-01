@@ -258,7 +258,7 @@ const apps = [
   [
     "github",
     "GitHub",
-    "Give agents repository tools or let people work with an agent from GitHub issues and pull requests.",
+    "Give agents access to GitHub repositories, issues, and pull requests.",
     "developer",
     "github.com",
     ["https://api.githubcopilot.com/mcp/*", "https://github.com/*"],
@@ -271,7 +271,7 @@ const apps = [
         "S3",
         "Authorize Paperclip, then choose selected repositories in GitHub. You can edit repository access later from GitHub's installation settings.",
         {
-          label: "Use this connection as an agent tool",
+          label: "Connect GitHub",
           purpose: "tool",
           oauthStrategy: "paperclip_cloud_connector",
           connectorProfile: "github.code",
@@ -306,31 +306,40 @@ const apps = [
           requiredResourceFilters: ["organization", "repository"],
         },
       ),
-      channelMethod(
-        "github",
-        [
-          {
-            ...field("appId", "GitHub App ID", "123456"),
-            type: "text",
-            secret: false,
-          },
-          {
-            ...field(
-              "privateKey",
-              "Private key (PEM)",
-              "-----BEGIN RSA PRIVATE KEY-----",
-            ),
-            type: "textarea",
-          },
-        ],
-        ["organization", "repository"],
-        "Generate the webhook secret in Paperclip, then create one private GitHub App with active SSL-verified webhooks, Issues and Pull requests read/write permission, and the selectable issue_comment and pull_request_review_comment events. GitHub sends installation and installation_repositories automatically. Install the App only on repositories where people may mention the agent.",
-        {
-          register: "https://github.com/settings/apps/new",
-          docs: "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
-        },
-      ),
     ],
+  ],
+  [
+    "github-code-review-bot",
+    "GitHub Code Review Bot",
+    "Have an agent review pull requests and respond to GitHub mentions.",
+    "developer",
+    "github.com",
+    [],
+    channelMethod(
+      "github",
+      [
+        {
+          ...field("appId", "GitHub App ID", "123456"),
+          type: "text",
+          secret: false,
+        },
+        {
+          ...field(
+            "privateKey",
+            "Private key (PEM)",
+            "-----BEGIN RSA PRIVATE KEY-----",
+          ),
+          type: "textarea",
+        },
+      ],
+      ["organization", "repository"],
+      "Generate the webhook secret in Paperclip, then create one private GitHub App with active SSL-verified webhooks, Issues and Pull requests read/write permission, and the selectable issue_comment and pull_request_review_comment events. GitHub sends installation and installation_repositories automatically. Install the App only on repositories where people may mention the agent.",
+      {
+        register: "https://github.com/settings/apps/new",
+        docs: "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
+      },
+    ),
+    { featured: true },
   ],
   [
     "slack",
@@ -1169,6 +1178,31 @@ const apiKeyMethodFor = (
   );
 };
 const specialMethodsFor = (entry) => {
+  if (entry.slug === "asana") return [
+    oauthMethodFor(entry, "managed", entry.serverUrl, {
+      label: "Sign in with Asana",
+      ownershipModes: ["platform_shared"],
+      oauthStrategy: "paperclip_cloud_connector",
+      connectorProfile: "asana.mcp",
+      grantKinds: ["user", "agent"],
+      defaults: { serverUrl: entry.serverUrl, scopesHint: ["default"] },
+      guidanceMd: "Sign in to Asana with Paperclip. Asana gives this connection access to the workspaces available to your account.",
+      whenToUse: "Connect your Asana account with Paperclip's app.",
+      warnings: [],
+    }),
+    {
+      ...customerOAuthMethodFor(entry),
+      defaults: {
+        serverUrl: entry.serverUrl,
+        discoveryUrl: "https://mcp.asana.com/.well-known/oauth-protected-resource/v2",
+        scopesHint: ["default"],
+      },
+      oauthClientSecretRequired: true,
+      guidanceMd: "Create an MCP app in Asana, then add the callback URL below under OAuth. Under Manage distribution, select your workspace and save. API apps do not work with Asana MCP.",
+      consoleLinks: { register: "https://app.asana.com/0/my-apps", docs: entry.docsUrl },
+      warnings: [],
+    },
+  ];
   if (entry.slug === "mem0" || entry.slug === "honcho") return [
     apiKeyMethodFor(entry, "mcp-api-key", entry.serverUrl, {
       guidanceMd: `Open the ${entry.name} dashboard, create an API key for the account agents should use, and paste it below.`,
