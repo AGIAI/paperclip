@@ -41,6 +41,24 @@ When changing the workflow path or branch, authorize the new reference before
 updating the caller. Retain older authorized SHA references while queued runs or
 supported reruns still use them.
 
+## Manual Full Source Verification
+
+The `Docker Runner check` workflow's `verify_source` mode runs the broad source
+checks on GitHub-hosted Ubuntu, independently of the EC2 image jobs. Dispatch it
+with `target_branch`, `expected_source_sha` (the full commit SHA), and
+`expected_resolved_lock_sha256` (the reviewed SHA-256 of the resolved lock).
+Source verification is exclusive of the other dispatch modes. It uses Node
+24.21.0 and pnpm 9.15.4, resolves dependencies without lifecycle scripts, checks
+the reviewed lock digest, then performs a frozen install without scripts.
+
+The checks are `pnpm -r typecheck`, `pnpm test:run`, `pnpm check:token-gates`,
+`pnpm test:e2e:runner:typecheck`, `pnpm test:e2e:runner:unit`, and `pnpm build`,
+followed by `scripts/verify-grok-npm-install.mjs` when present. The
+`source-full-verification-<run-id>` artifact retains source identity, original
+and resolved locks, the lock diff, and command logs/statuses even on failure.
+A failed check does not skip the remaining checks. No image is published and no
+provider credentials are supplied.
+
 ## Start Dev
 
 From repo root:

@@ -12,7 +12,7 @@ on:
         type: boolean
         default: false
       verify_source:
-        description: "Run broad source checks on EC2"
+        description: "Run broad source checks on GitHub-hosted Ubuntu without building an image"
         type: boolean
         default: false
       verify_runner:
@@ -24,11 +24,11 @@ on:
         type: boolean
         default: false
       expected_source_sha:
-        description: "Require this immutable target commit (required for verify_runner)"
+        description: "Require this immutable target commit (required for verify_runner or verify_source)"
         type: string
         required: false
       expected_resolved_lock_sha256:
-        description: "Require this reviewed resolved dependency lock (required for verify_runner)"
+        description: "Require this reviewed resolved dependency lock (required for verify_runner or verify_source)"
         type: string
         required: false
       verify_public_install:
@@ -103,6 +103,8 @@ jobs:
           EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
           EXPECTED_LOCK_SHA256: ${{ inputs.expected_resolved_lock_sha256 }}
           VERIFY_RUNNER: ${{ inputs.verify_runner }}
+          VERIFY_SOURCE: ${{ inputs.verify_source }}
+          IMAGE_MODE: ${{ inputs.publish_eval_image || inputs.verify_public_install || inputs.build_eval_viewer }}
           DIAGNOSE_AJV: ${{ inputs.diagnose_ajv_pack }}
           OTHER_MODE: ${{ inputs.publish_eval_image || inputs.verify_source || inputs.verify_public_install || inputs.build_eval_viewer }}
         run: |
@@ -116,9 +118,15 @@ jobs:
           done
           target_sha="$(gh api "repos/$REPOSITORY/git/ref/heads/$TARGET_BRANCH" --jq '.object.sha')"
           [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
-          if [ "$VERIFY_RUNNER" = true ]; then
+          if [ "$VERIFY_RUNNER" = true ] || [ "$VERIFY_SOURCE" = true ]; then
             [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
             [[ "$EXPECTED_LOCK_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          fi
+          if [ "$VERIFY_SOURCE" = true ]; then
+            test "$VERIFY_RUNNER" != true
+            test "$IMAGE_MODE" != true
+          fi
+          if [ "$VERIFY_RUNNER" = true ]; then
             test "$OTHER_MODE" != true
           fi
           if [ "$DIAGNOSE_AJV" = true ]; then
@@ -207,6 +215,120 @@ jobs:
             packages/paperclip-runner/**/test-results/
           retention-days: 14
 
+  manual_source_verify:
+    name: Full source verification on GitHub-hosted Ubuntu
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_source
+    needs: authorize_manual
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      CI: "true"
+      PAPERCLIP_TELEMETRY_ENABLED: "false"
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      NPM_CONFIG_UPDATE_NOTIFIER: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.authorize_manual.outputs.target_sha }}
+          persist-credentials: false
+      - name: Record immutable source and planned checks
+        env:
+          SOURCE_SHA: ${{ needs.authorize_manual.outputs.target_sha }}
+          EXPECTED_LOCK_SHA256: ${{ inputs.expected_resolved_lock_sha256 }}
+        run: |
+          set -euo pipefail
+          mkdir -p remote-source-verification
+          git rev-parse HEAD > remote-source-verification/source.txt
+          test "$(cat remote-source-verification/source.txt)" = "$SOURCE_SHA"
+          printf '%s\n' "$EXPECTED_LOCK_SHA256" > remote-source-verification/expected-resolved-lock.sha256
+          cp pnpm-lock.yaml remote-source-verification/original-pnpm-lock.yaml
+          sha256sum pnpm-lock.yaml > remote-source-verification/original-lock.sha256
+          printf '%s\n' \
+            'pnpm -r typecheck' \
+            'pnpm test:run' \
+            'pnpm check:token-gates' \
+            'pnpm test:e2e:runner:typecheck' \
+            'pnpm test:e2e:runner:unit' \
+            'pnpm build' \
+            'if [ -f scripts/verify-grok-npm-install.mjs ]; then node scripts/verify-grok-npm-install.mjs; fi' \
+            > remote-source-verification/commands.txt
+          index=0
+          while IFS= read -r _check; do
+            index=$((index + 1))
+            printf 'not-run\n' > "remote-source-verification/check-$index.status"
+            : > "remote-source-verification/check-$index.log"
+          done < remote-source-verification/commands.txt
+          for phase in resolution lock-check install; do
+            printf 'not-run\n' > "remote-source-verification/$phase.status"
+            : > "remote-source-verification/$phase.log"
+          done
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.21.0
+          package-manager-cache: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 9.15.4
+      - name: Install the exact reviewed dependency graph without lifecycle scripts
+        timeout-minutes: 10
+        env:
+          EXPECTED_LOCK_SHA256: ${{ inputs.expected_resolved_lock_sha256 }}
+        run: |
+          set -euo pipefail
+          node --version > remote-source-verification/node.txt
+          pnpm --version > remote-source-verification/pnpm.txt
+          test "$(cat remote-source-verification/node.txt)" = v24.21.0
+          test "$(cat remote-source-verification/pnpm.txt)" = 9.15.4
+          phase=resolution
+          trap 'printf "%s\n" "$?" > "remote-source-verification/$phase.status"' EXIT
+          pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile > remote-source-verification/resolution.log 2>&1
+          printf '0\n' > remote-source-verification/resolution.status
+          cp pnpm-lock.yaml remote-source-verification/resolved-pnpm-lock.yaml
+          sha256sum pnpm-lock.yaml > remote-source-verification/resolved-lock.sha256
+          git diff -- pnpm-lock.yaml > remote-source-verification/lock.diff
+          phase=lock-check
+          printf '%s  pnpm-lock.yaml\n' "$EXPECTED_LOCK_SHA256" | sha256sum --check --strict > remote-source-verification/lock-check.log 2>&1
+          printf '0\n' > remote-source-verification/lock-check.status
+          phase=install
+          pnpm install --frozen-lockfile --ignore-scripts > remote-source-verification/install.log 2>&1
+      - name: Run every source check and retain each result
+        timeout-minutes: 108
+        run: |
+          set -uo pipefail
+          status=0
+          index=0
+          while IFS= read -r check; do
+            index=$((index + 1))
+            echo "Starting $check"
+            printf 'running\n' > "remote-source-verification/check-$index.status"
+            check_status=0
+            timeout --signal=TERM --kill-after=15s 15m bash -c "$check" > "remote-source-verification/check-$index.log" 2>&1 || check_status=$?
+            printf '%s\n' "$check_status" > "remote-source-verification/check-$index.status"
+            printf '%s\t%s\n' "$check_status" "$check" >> remote-source-verification/check-status.tsv
+            if [ "$check_status" -ne 0 ]; then status=1; fi
+            echo "Finished $check (exit $check_status)"
+          done < remote-source-verification/commands.txt
+          exit "$status"
+      - name: Capture the final lock state even on resolution failure
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -d remote-source-verification ] && [ -f pnpm-lock.yaml ]; then
+            cp pnpm-lock.yaml remote-source-verification/final-pnpm-lock.yaml
+            sha256sum pnpm-lock.yaml > remote-source-verification/final-lock.sha256
+            git diff -- pnpm-lock.yaml > remote-source-verification/final-lock.diff
+          fi
+      - name: Retain source verification evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: source-full-verification-${{ github.run_id }}
+          path: remote-source-verification/
+          retention-days: 14
+
   manual_ajv_pack_diagnostic:
     name: Pinned AJV directory-pack diagnostic on Linux
     if: github.event_name == 'workflow_dispatch' && inputs.diagnose_ajv_pack
@@ -270,7 +392,7 @@ jobs:
 
   manual_image:
     name: Build and verify on EC2
-    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner && !inputs.diagnose_ajv_pack
+    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner && !inputs.verify_source && !inputs.diagnose_ajv_pack
     needs: authorize_manual
     runs-on: runs-on/fleet=paperclip-public-pr-x64/env=public-ci
     timeout-minutes: 90
@@ -341,26 +463,8 @@ jobs:
           docker buildx imagetools inspect "$immutable" >/dev/null
           echo "$immutable" > remote-verification/image.txt
           echo "Image: $immutable" >> "$GITHUB_STEP_SUMMARY"
-      - name: Verify repository on EC2
-        if: inputs.verify_source
-        # Leave time for artifact retention before the fleet's one-hour lifetime.
-        timeout-minutes: 38
-        run: |
-          set -uo pipefail
-          pnpm install --frozen-lockfile --ignore-scripts
-          status=0
-          for check in 'pnpm -r typecheck' 'pnpm test:run' 'pnpm check:token-gates' 'pnpm test:e2e:runner:typecheck' 'pnpm test:e2e:runner:unit' 'pnpm build' 'if [ -f scripts/verify-grok-npm-install.mjs ]; then node scripts/verify-grok-npm-install.mjs; fi'; do
-            label="$(echo "$check" | tr -cs 'a-zA-Z0-9' '-')"
-            echo "Starting $check"
-            check_status=0
-            timeout --signal=TERM --kill-after=15s 15m bash -c "$check" > "remote-verification/$label.log" 2>&1 || check_status=$?
-            printf '%s\t%s\n' "$check_status" "$check" >> remote-verification/check-status.tsv
-            if [ "$check_status" -ne 0 ]; then status=1; fi
-            echo "Finished $check (exit $check_status)"
-          done
-          exit "$status"
       - name: Verify clean public npm installation
-        if: inputs.verify_public_install && !inputs.verify_source
+        if: inputs.verify_public_install
         timeout-minutes: 35
         run: |
           set -euo pipefail
@@ -369,7 +473,7 @@ jobs:
           pnpm build > remote-verification/npm-build.log 2>&1
           node scripts/verify-grok-npm-install.mjs > remote-verification/public-npm-install.log 2>&1
       - name: Build canonical eval report viewer
-        if: always() && (inputs.verify_source || inputs.build_eval_viewer)
+        if: always() && inputs.build_eval_viewer
         run: |
           set -euo pipefail
           pnpm install --frozen-lockfile --ignore-scripts --filter '@paperclipai/paperclip-runner...'
