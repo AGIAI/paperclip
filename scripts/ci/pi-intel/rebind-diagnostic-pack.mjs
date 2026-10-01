@@ -1,0 +1,17 @@
+// Rebind exactly one diagnostic sidecar, preserving every candidate closure and source field.
+import {readFileSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+import {join} from 'node:path';
+import {canonicalJson,sha256Tree,sha256File,requireTrue,verifyPack} from './verify-pack.mjs';
+const [pack,originalSidecar,source] = process.argv.slice(2);
+const file=join(pack,'provider-pack.json'); const manifest=JSON.parse(readFileSync(file));
+requireTrue(manifest.payload.runnerSourceRevision===source,'Original source mismatch');
+requireTrue(manifest.payload.artifacts.acpxSidecar.path==='dist/cli/acpx-runtime-sidecar.cjs','Sidecar path mismatch');
+requireTrue(manifest.payload.artifacts.acpxSidecar.sha256==='sha256:'+originalSidecar,'Original sidecar pin mismatch');
+const p=manifest.payload;
+p.artifacts.acpxSidecar.sha256=sha256File(join(pack,p.artifacts.acpxSidecar.path));
+p.distDigest=sha256Tree(join(pack,'dist'));
+p.bridgeDigest='sha256:'+createHash('sha256').update(p.artifacts.opencodeProxy.sha256).update('\n').update(p.artifacts.acpxSidecar.sha256).update('\n').update(p.distDigest).digest('hex');
+manifest.digest='sha256:'+createHash('sha256').update(canonicalJson(p)).digest('hex');
+writeFileSync(file,JSON.stringify(manifest,null,2)+'\n');
+console.log(JSON.stringify(verifyPack(pack,source,'darwin','x64')));

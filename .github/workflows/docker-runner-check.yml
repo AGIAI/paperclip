@@ -31,6 +31,10 @@ on:
         description: "Verify frozen Pi 1.0 closed startup and SDK contracts on native Intel macOS (no provider prompts)"
         type: boolean
         default: false
+      diagnose_pi_startup:
+        description: "Instrument one retained S native Intel startup with unchanged deadlines (diagnostic only, no provider prompts)"
+        type: boolean
+        default: false
       diagnose_ajv_pack:
         description: "Diagnose only pinned AJV npm directory packing on Linux (no Runner build/tests)"
         type: boolean
@@ -65,7 +69,7 @@ permissions: {}
 
 concurrency:
   # Publishing a newer image must not discard an earlier verification's evidence.
-  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.verify_pi_intel && 'pi-native-intel' || inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.source_e2e_support_only && 'source-e2e-support' || inputs.source_root_tests_only && 'source-root-tests' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
+  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.diagnose_pi_startup && 'pi-startup-diagnostic' || inputs.verify_pi_intel && 'pi-native-intel' || inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.source_e2e_support_only && 'source-e2e-support' || inputs.source_root_tests_only && 'source-root-tests' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
   cancel-in-progress: true
 
 jobs:
@@ -120,8 +124,9 @@ jobs:
           SOURCE_E2E_SUPPORT_ONLY: ${{ inputs.source_e2e_support_only }}
           IMAGE_MODE: ${{ inputs.publish_eval_image || inputs.verify_public_install || inputs.build_eval_viewer }}
           VERIFY_PI_INTEL: ${{ inputs.verify_pi_intel }}
+          DIAGNOSE_PI_STARTUP: ${{ inputs.diagnose_pi_startup }}
           DIAGNOSE_AJV: ${{ inputs.diagnose_ajv_pack }}
-          OTHER_MODE: ${{ inputs.publish_eval_image || inputs.verify_source || inputs.verify_public_install || inputs.build_eval_viewer || inputs.verify_pi_intel || inputs.source_e2e_support_only }}
+          OTHER_MODE: ${{ inputs.publish_eval_image || inputs.verify_source || inputs.verify_public_install || inputs.build_eval_viewer || inputs.verify_pi_intel || inputs.diagnose_pi_startup || inputs.source_e2e_support_only }}
         run: |
           set -euo pipefail
           test "$REPOSITORY" = paperclipai/paperclip
@@ -165,6 +170,7 @@ jobs:
             test "$EXPECTED_LOCK_SHA256" = 5ae57d1ddd475691dac1f1cfbd4836e54f7da1956b47e6e705b218ae3070ae2e
           fi
           if [ "$VERIFY_PI_INTEL" = true ]; then
+            test "$DIAGNOSE_PI_STARTUP" != true
             test "$VERIFY_RUNNER" != true
             test "$VERIFY_SOURCE" != true
             test "$SOURCE_ROOT_TESTS_ONLY" != true
@@ -174,6 +180,18 @@ jobs:
             test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
             # Standard hosted runner minutes are free for this public repository.
             # Artifact storage and unrelated resource costs are not inferred here.
+            test "$(gh api "repos/$REPOSITORY" --jq '.visibility')" = public
+          fi
+          if [ "$DIAGNOSE_PI_STARTUP" = true ]; then
+            test "$VERIFY_PI_INTEL" != true
+            test "$VERIFY_RUNNER" != true
+            test "$VERIFY_SOURCE" != true
+            test "$SOURCE_ROOT_TESTS_ONLY" != true
+            test "$SOURCE_E2E_SUPPORT_ONLY" != true
+            test "$DIAGNOSE_AJV" != true
+            test "$IMAGE_MODE" != true
+            test "$EXPECTED_SOURCE_SHA" = 586af4d7f3b07aa683338aedb4e5182603b70401
+            test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
             test "$(gh api "repos/$REPOSITORY" --jq '.visibility')" = public
           fi
           if [ -n "$EXPECTED_SOURCE_SHA" ]; then
@@ -245,6 +263,57 @@ jobs:
           name: pi-native-intel-${{ github.run_id }}
           include-hidden-files: true
           path: pi-intel-evidence/
+          retention-days: 7
+          if-no-files-found: error
+
+  manual_pi_startup_diagnostic:
+    name: Retained S native Intel startup timing diagnostic (not qualification)
+    if: github.event_name == 'workflow_dispatch' && inputs.diagnose_pi_startup
+    needs: authorize_manual
+    runs-on: macos-15-intel
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout trusted diagnostic helpers only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted-ci
+          persist-credentials: false
+      - name: Download exact failed qualification artifacts
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/paperclipai/paperclip/actions/artifacts/11200013599/zip \
+            > "$RUNNER_TEMP/pi-startup-36940079040.zip"
+          printf '%s  %s\n' 9e0209b69b2ee886c4cc8c9c74310a6c1a9010c81e41d618499b2a4d42f92830 \
+            "$RUNNER_TEMP/pi-startup-36940079040.zip" | shasum -a 256 --check
+      - name: Run one instrumented startup with original assertions and deadlines
+        timeout-minutes: 18
+        run: |
+          set -euo pipefail
+          python3 -B trusted-ci/scripts/ci/pi-intel/startup_diagnostic.py \
+            --archive "$RUNNER_TEMP/pi-startup-36940079040.zip" \
+            --output "$GITHUB_WORKSPACE/pi-startup-diagnostic-evidence"
+      - name: Admit complete diagnostic evidence within the storage bound
+        if: always()
+        id: diagnostic_evidence
+        timeout-minutes: 2
+        run: |
+          python3 -B trusted-ci/scripts/ci/pi-intel/admit_diagnostic_evidence.py \
+            --evidence "$GITHUB_WORKSPACE/pi-startup-diagnostic-evidence" \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Retain original and diagnostic identities, timings, assertions and cleanup
+        if: always() && steps.diagnostic_evidence.outputs.admitted == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pi-startup-diagnostic-${{ github.run_id }}
+          include-hidden-files: true
+          path: pi-startup-diagnostic-evidence/
           retention-days: 7
           if-no-files-found: error
 
@@ -614,7 +683,7 @@ jobs:
 
   manual_image:
     name: Build and verify on EC2
-    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner && !inputs.verify_source && !inputs.diagnose_ajv_pack && !inputs.verify_pi_intel && !inputs.source_e2e_support_only
+    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner && !inputs.verify_source && !inputs.diagnose_ajv_pack && !inputs.verify_pi_intel && !inputs.diagnose_pi_startup && !inputs.source_e2e_support_only
     needs: authorize_manual
     runs-on: runs-on/fleet=paperclip-public-pr-x64/env=public-ci
     timeout-minutes: 90

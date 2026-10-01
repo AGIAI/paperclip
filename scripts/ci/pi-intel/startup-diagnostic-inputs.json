@@ -1,0 +1,60 @@
+{
+  "schema": "paperclip.native-intel-startup-diagnostic-input/v1",
+  "sourceRevision": "586af4d7f3b07aa683338aedb4e5182603b70401",
+  "resolvedLockSha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
+  "artifactRunId": "36940079040",
+  "artifactId": "11200013599",
+  "artifactWorkflowRevision": "9b7a91e3fca55eba893bd62dd7b0ca9e94abdb4d",
+  "artifactZipBytes": 1128953890,
+  "artifactZipSha256": "9e0209b69b2ee886c4cc8c9c74310a6c1a9010c81e41d618499b2a4d42f92830",
+  "selectedFiles": {
+    "receipt.json": {
+      "bytes": 28434,
+      "sha256": "6e67bf4b79806bde77287350994ee91086cce7574ea5ab893303b1bdf2f40fa4"
+    },
+    "provider-pack.tar.gz": {
+      "bytes": 1029171454,
+      "sha256": "825f95d44ae81ec2d382aa2ffc203cf023e3b9862f91b0fa6f592eed9ad96d4f"
+    },
+    "provider-pack.json": {
+      "bytes": 3629,
+      "sha256": "0cac1cfee6b980601fcb6f34d06060f4e9f5746df06f458632d041b18c47b1a0"
+    },
+    "pack-inventory.json": {
+      "bytes": 10633747,
+      "sha256": "c95c9cfbcbefb0e566add7ca70ba9bc115e3ff8c1b6a9d113b677583287b807e"
+    },
+    "paperclip-runnerd": {
+      "bytes": 32035568,
+      "sha256": "a0c7ace7ad0be9ac5b5f9c58749d9c452cd3a1ef143a38d5120d8e4f2bf82d6a"
+    },
+    "source.tar": {
+      "bytes": 141598720,
+      "sha256": "87f48d5c0df9c4e9c30c880c5b1da862b063d9ba4c12afc4788ee5fd6adcfc6e"
+    },
+    "source-input-inventory.json": {
+      "bytes": 1032538,
+      "sha256": "88ccb84c519bfc99f4ac8d8801c93cf083b3ba5b836405a345697d2243f7b64d"
+    },
+    "resolved-pnpm-lock.yaml": {
+      "bytes": 607788,
+      "sha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba"
+    }
+  },
+  "originalSidecarSha256": "97eedf930681729c6a1654e6c54bcc9657154e5dd2761f9922f4b01c7358f9f7",
+  "originalPackDigest": "sha256:dd7e629c794dc8cdcd43cf1326b4d812bb3dd97949384f13ce97500f47fc4d01",
+  "daemonSha256": "a0c7ace7ad0be9ac5b5f9c58749d9c452cd3a1ef143a38d5120d8e4f2bf82d6a",
+  "nodeSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49",
+  "testPath": "packages/paperclip-runner/test/pi-closed-startup.test.mjs",
+  "testSha256": "8967cf9c8cd130b68bf9d64abef8cb8d352af00646e2288b341d8c6ae758b47a",
+  "observerSha256": "1fcf353beb90722f90401a7792a5853bf0807d964a1065e3f55b76a63bc4b4cc",
+  "profileDigest": "sha256:5e276f48c8a87b3e6165369faac62d3925282c84b98934575b1b7b97ad50b309",
+  "closureDigest": "sha256:8c6e7802d47da9410af56e367f6cf7af572fcbf3e361627cee026e8cffc9bdd3",
+  "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+  "originalFailure": "PRP command session.open timed out; settledMs30684; durationMs31720;44SDK contracts passed; cleanup verified",
+  "executionCount": 1,
+  "providerCalls": 0,
+  "timeoutChanges": false,
+  "archiveBytesMaximum": 268435456,
+  "retentionDays": 7
+}
