@@ -145,7 +145,7 @@ def execute(args):
         run([node,'packages/paperclip-runner/scripts/build-provider-pack.mjs',pack,'--candidate-providers=pi,copilot,cursor'],'pack-build',600)
         verified=json.loads(run([node,HERE/'verify-pack.mjs',pack,SOURCE,'darwin','x64'],'pack-verify',180))
         require(sha(pack/'node_modules/node/bin/node')==PIN['nodeSha256'],'Pack Node mismatch')
-        authority={'pack':source_guard.tree(pack,allow_links=True),'dist':source_guard.tree(stage/'packages/paperclip-runner/dist'),'assets':source_guard.tree(stage/source_guard.ASSETS)}
+        authority=source_guard.capture_authority(stage,pack)
         source_guard.verify_source(stage,SOURCE,PIN['resolvedLockSha256'],pack,authority)
         atomic_json(out/'pack-inventory.json',closed_tree(pack));shutil.copy2(pack/'provider-pack.json',out/'provider-pack.json');shutil.copy2(daemon,out/'paperclip-runnerd')
         receipt.update(packVerification=verified,packManifestSha256=sha(out/'provider-pack.json'),packInventorySha256=sha(out/'pack-inventory.json'),daemonSha256=sha(daemon),nodeSha256=sha(node),buildInputsMatchLocal=True,outputDigestsAssumedEqual=False)
