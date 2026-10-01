@@ -144,7 +144,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
         await tx.delete(mcpOauthRequests).where(lt(mcpOauthRequests.expiresAt, now));
         const [counts] = await tx.select({ total: sql<number>`count(*)::int`,
           client: sql<number>`(count(*) FILTER (WHERE ${mcpOauthRequests.clientId} = ${client.id}))::int`,
-        }).from(mcpOauthRequests);
+        }).from(mcpOauthRequests).where(isNull(mcpOauthRequests.decidedAt));
         if (!counts || counts.total >= 1000 || counts.client >= 10) {
           throw new McpOAuthError("temporarily_unavailable", "Too many pending connection requests. Retry later.", 429);
         }

@@ -309,4 +309,16 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     expect(await db.select().from(mcpOauthRequests).where(eq(mcpOauthRequests.clientId, client.client_id))).toHaveLength(1);
   });
 
+  it("does not charge completed connections against a shared client's pending consent quota", async () => {
+    const f = await fixture();
+    const input = { client_id: f.client.client_id, redirect_uri: redirectUri, response_type: "code", resource: config.resource, code_challenge: challenge, code_challenge_method: "S256" };
+    for (let i = 0; i < 12; i++) {
+      const id = (await oauth.authorize(input)).split("/").at(-1)!;
+      const consent = await oauth.consent(id, f.actor, { decision: "approve", companyId: f.company.id, allowWrites: false });
+      const code = new URL(consent.redirectUrl).searchParams.get("code")!;
+      await expect(oauth.token({ grant_type: "authorization_code", client_id: f.client.client_id, redirect_uri: redirectUri, resource: config.resource, code, code_verifier: verifier })).resolves.toHaveProperty("access_token");
+    }
+    await expect(oauth.authorize(input)).resolves.toContain("/mcp-connect/");
+  });
+
 });

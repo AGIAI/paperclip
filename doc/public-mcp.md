@@ -172,6 +172,6 @@ catalog to implement them.
 Registration also enforces shared source quotas (6 per minute and 30 unconsented
 clients) using a resource-bound hash of the trusted request IP; raw addresses are
 not stored. Configure trusted proxies correctly. Authorization starts atomically
-remove expired requests and enforce 10 retained requests per client and 1,000
+remove expired requests and enforce 10 pending-consent requests per client and 1,000
 instance-wide, independently of further client registrations. Existing grants
 remain usable when anonymous registration or authorization is throttled.
