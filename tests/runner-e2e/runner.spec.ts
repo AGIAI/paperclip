@@ -56,6 +56,7 @@ import {
   findSecretLeakInJsonValues,
   normalizedSecrets,
   sanitizeJson,
+  browserDiagnosticUrl,
 } from "./redaction.js";
 import {
   CREDENTIAL_NAMES,
@@ -779,7 +780,7 @@ for (const execution of executions) {
         consoleDiagnostics.push({
           type: message.type(),
           text: message.text(),
-          location: message.location(),
+          location: { ...message.location(), url: browserDiagnosticUrl(message.location().url) },
         });
       }
     });
@@ -788,21 +789,21 @@ for (const execution of executions) {
         type: "pageerror",
         message: error.message,
         stack: error.stack ?? null,
-        url: page.url(),
+        url: browserDiagnosticUrl(page.url()),
       });
     });
     page.on("framenavigated", (frame) => {
       if (frame === page.mainFrame())
         pageLifecycleDiagnostics.push({
           type: "navigation",
-          url: frame.url(),
+          url: browserDiagnosticUrl(frame.url()),
           at: new Date().toISOString(),
         });
     });
     page.on("requestfailed", (requestEvent) => {
       networkDiagnostics.push({
         method: requestEvent.method(),
-        url: requestEvent.url(),
+        url: browserDiagnosticUrl(requestEvent.url()),
         failure: requestEvent.failure()?.errorText ?? null,
       });
     });
@@ -810,7 +811,7 @@ for (const execution of executions) {
       if (response.status() >= 400) {
         networkDiagnostics.push({
           method: response.request().method(),
-          url: response.url(),
+          url: browserDiagnosticUrl(response.url()),
           status: response.status(),
           statusText: response.statusText(),
         });
