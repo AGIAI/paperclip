@@ -446,6 +446,41 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     }
   });
 
+  it("bounds lifetimes and retries without claiming unsupported replay", async () => {
+    const f = await eventFixture();
+    const short = await f.service.subscribe(f.principal, { ...f.input, ttlMs: 1 });
+    expect(Date.parse(short.refreshBefore)).toBe(f.now() + 30_000);
+    const unlimited = await f.service.subscribe(f.principal, { ...f.input, ttlMs: null });
+    expect(Date.parse(unlimited.refreshBefore)).toBe(f.now() + 24 * 3600_000);
+    expect(unlimited.cursor).toBeNull();
+    await expect(f.service.subscribe(f.principal, { ...f.input, cursor: "pretend-replay" })).rejects.toThrow();
+    await f.activity(); f.setStatus(503);
+    for (let attempt = 0; attempt < 8; attempt++) { await f.service.tick(); f.advance(3600_000); }
+    expect(f.received.filter(r => r.body.eventId)).toHaveLength(6);
+    expect(new Set(f.received.filter(r => r.body.eventId).map(r => r.body.eventId)).size).toBe(1);
+    await f.service.unsubscribe(f.principal, f.input);
+  });
+
+  it("does not skip an older activity that commits after a newer event was delivered", async () => {
+    const f = await eventFixture(); await f.service.subscribe(f.principal, f.input);
+    let release!: () => void;
+    let inserted!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const ready = new Promise<void>(resolve => { inserted = resolve; });
+    const lateId = randomUUID();
+    const transaction = db.transaction(async tx => {
+      await tx.insert(activityLog).values({ id: lateId, companyId: f.company.id, actorType: "user", actorId: f.actor.userId!, action: "issue.updated", entityType: "issue", entityId: f.task.id, details: { status: "done" }, createdAt: new Date(f.now() + 1) });
+      inserted(); await gate;
+    });
+    try {
+      await ready; const newer = await f.activity(); await f.service.tick();
+      expect(f.received.filter(r => r.body.eventId).map(r => r.body.eventId)).toEqual(["evt_" + newer.id]);
+    } finally { release(); await transaction; }
+    await f.service.tick();
+    expect(f.received.filter(r => r.body.eventId).at(-1)!.body.eventId).toBe("evt_" + lateId);
+    await f.service.unsubscribe(f.principal, f.input);
+  });
+
   it("sends only comment/document references and checks hosted membership on each delivery", async () => {
     const f = await eventFixture("https://cloud.example");
     const authority = { token: "fixture-cloud-proof", expiresAt: f.now() + 60_000 };

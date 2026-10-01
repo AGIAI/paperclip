@@ -363,7 +363,7 @@ and retrieve results later. [The runbook](../public-mcp.md) includes commands.
 The shared production Paperclip skill also gains generic document-creation and
 read-back guidance.
 
-Hosted use additionally requires Cloud migration 0054, a secret-store encryption
+Hosted use additionally requires Cloud migration 0055, a secret-store encryption
 key, the Cloud feature flag, and a compatible tenant release/fleet rollout.
 Signup eligibility, execution credentials and spending setup remain explicit.
 Merging does not create a company, launch paid agents, expose a live public
