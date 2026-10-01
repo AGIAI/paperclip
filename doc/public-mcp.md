@@ -28,6 +28,38 @@ token again; normal API endpoints do not accept these OAuth tokens. Public
 installation requires a reachable HTTPS deployment. Private self-hosted
 instances require a directly reachable endpoint; no managed relay is included.
 
+## Connect an assistant directly
+
+After the instance is enabled and reachable, an existing team member can connect
+without a store listing. For Codex CLI:
+
+```sh
+codex mcp add paperclip --url https://YOUR-PAPERCLIP-HOST/mcp/paperclip
+codex mcp login paperclip --scopes paperclip:read,paperclip:write,offline_access
+```
+
+For Claude Code:
+
+```sh
+claude mcp add --transport http paperclip https://YOUR-PAPERCLIP-HOST/mcp/paperclip
+```
+
+Open Claude Code's `/mcp` menu and authenticate the Paperclip server. Both flows
+open browser sign-in and consent: select a team and explicitly enable task and
+comment writes when wanted. Read-only consent cannot delegate work.
+
+Ask the assistant to identify the connected team and list its agents, then ask
+it to delegate a small task to an available agent. The returned task link is the
+durable reference. In a later conversation, ask for that task's progress and
+report. Configure the agent's provider credentials, execution environment and
+budget in Paperclip before expecting it to run; the assistant connection does
+not supply them. Revocation is available at `/assistant-connections`.
+
+The optional [workflow packages](../integrations/assistant-plugins/README.md)
+teach team review, delegation and result retrieval. Build them for the same
+endpoint before installing locally. Public ChatGPT/Codex and Claude directory
+installation requires the separate deployment and submission work below.
+
 ## Identity and consent
 
 - Protected-resource discovery: `/.well-known/oauth-protected-resource/mcp/paperclip`.

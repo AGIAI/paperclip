@@ -404,12 +404,12 @@
       ]
     },
     {
-      "id": "skill:skills/paperclip/SKILL.md:planning-required-when-planning-requested:648",
+      "id": "skill:skills/paperclip/SKILL.md:task-documents-and-deliverables:648",
       "sourceKind": "skill_heading",
       "sourceAnchor": "skills/paperclip/SKILL.md:648",
-      "title": "Planning (Required when planning requested)",
-      "expectedSemantics": "Skill guidance headed “Planning (Required when planning requested)”.",
-      "primaryDisposition": "optional_agent_tool",
+      "title": "Task Documents and Deliverables",
+      "expectedSemantics": "Skill guidance headed “Task Documents and Deliverables”.",
+      "primaryDisposition": "always_agent_tool",
       "requiredGrants": [],
       "assertionClasses": [
         "control_plane_invariant"
@@ -419,9 +419,24 @@
       ]
     },
     {
-      "id": "skill:skills/paperclip/SKILL.md:key-endpoints-hot-routes:681",
+      "id": "skill:skills/paperclip/SKILL.md:planning-required-when-planning-requested:662",
       "sourceKind": "skill_heading",
-      "sourceAnchor": "skills/paperclip/SKILL.md:681",
+      "sourceAnchor": "skills/paperclip/SKILL.md:662",
+      "title": "Planning (Required when planning requested)",
+      "expectedSemantics": "Skill guidance headed “Planning (Required when planning requested)”.",
+      "primaryDisposition": "optional_agent_tool",
+      "requiredGrants": [],
+      "assertionClasses": [
+        "control_plane_invariant"
+      ],
+      "evidenceIds": [
+        "skill:skills/paperclip/SKILL.md:662"
+      ]
+    },
+    {
+      "id": "skill:skills/paperclip/SKILL.md:key-endpoints-hot-routes:695",
+      "sourceKind": "skill_heading",
+      "sourceAnchor": "skills/paperclip/SKILL.md:695",
       "title": "Key Endpoints (Hot Routes)",
       "expectedSemantics": "Skill guidance headed “Key Endpoints (Hot Routes)”.",
       "primaryDisposition": "optional_agent_tool",
@@ -430,13 +445,13 @@
         "control_plane_invariant"
       ],
       "evidenceIds": [
-        "skill:skills/paperclip/SKILL.md:681"
+        "skill:skills/paperclip/SKILL.md:695"
       ]
     },
     {
-      "id": "skill:skills/paperclip/SKILL.md:searching-issues:710",
+      "id": "skill:skills/paperclip/SKILL.md:searching-issues:724",
       "sourceKind": "skill_heading",
-      "sourceAnchor": "skills/paperclip/SKILL.md:710",
+      "sourceAnchor": "skills/paperclip/SKILL.md:724",
       "title": "Searching Issues",
       "expectedSemantics": "Skill guidance headed “Searching Issues”.",
       "primaryDisposition": "optional_agent_tool",
@@ -445,13 +460,13 @@
         "control_plane_invariant"
       ],
       "evidenceIds": [
-        "skill:skills/paperclip/SKILL.md:710"
+        "skill:skills/paperclip/SKILL.md:724"
       ]
     },
     {
-      "id": "skill:skills/paperclip/SKILL.md:full-reference:720",
+      "id": "skill:skills/paperclip/SKILL.md:full-reference:734",
       "sourceKind": "skill_heading",
-      "sourceAnchor": "skills/paperclip/SKILL.md:720",
+      "sourceAnchor": "skills/paperclip/SKILL.md:734",
       "title": "Full Reference",
       "expectedSemantics": "Skill guidance headed “Full Reference”.",
       "primaryDisposition": "optional_agent_tool",
@@ -460,13 +475,13 @@
         "control_plane_invariant"
       ],
       "evidenceIds": [
-        "skill:skills/paperclip/SKILL.md:720"
+        "skill:skills/paperclip/SKILL.md:734"
       ]
     },
     {
-      "id": "skill:skills/paperclip/SKILL.md:conversational-confirmation-answers:724",
+      "id": "skill:skills/paperclip/SKILL.md:conversational-confirmation-answers:738",
       "sourceKind": "skill_heading",
-      "sourceAnchor": "skills/paperclip/SKILL.md:724",
+      "sourceAnchor": "skills/paperclip/SKILL.md:738",
       "title": "Conversational confirmation answers",
       "expectedSemantics": "Skill guidance headed “Conversational confirmation answers”.",
       "primaryDisposition": "always_agent_tool",
@@ -475,7 +490,7 @@
         "control_plane_invariant"
       ],
       "evidenceIds": [
-        "skill:skills/paperclip/SKILL.md:724"
+        "skill:skills/paperclip/SKILL.md:738"
       ]
     },
     {
