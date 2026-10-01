@@ -1,9 +1,14 @@
-import { link, mkdir, mkdtemp, open, realpath, rm, symlink, writeFile, type FileHandle } from "node:fs/promises";
+import { link, lstat, mkdir, mkdtemp, open, readdir, realpath, rename, rm, symlink, writeFile, type FileHandle } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { inventoryPiRuntimeFiles, PI_RUNTIME_MANIFEST_SCHEMA, verifyPiRuntimeManifest, type PiRuntimeManifest } from "./pi-verified-runtime.js";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const original = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...original, lstat: vi.fn(original.lstat), readdir: vi.fn(original.readdir) };
+});
 
 const temporary: string[] = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const root of temporary.splice(0)) await rm(root, { recursive: true, force: true }); });
@@ -70,6 +75,56 @@ describe("Pi complete runtime manifest", () => {
     } finally { release(); }
     await expect(inventory).rejects.toThrow("fixture hash read failure");
     expect(active).toBe(0); expect(started).toBe(32);
+  });
+
+  it("bounds discovery and drains a failed batch before descent or later scheduling", async () => {
+    const root = await mkdtemp(join(tmpdir(), "paperclip-pi-discovery-")); temporary.push(root);
+    for (let index = 0; index < 40; index++) await writeFile(join(root, `file-${String(index).padStart(2, "0")}`), "data");
+    const original = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    let release!: () => void; const hold = new Promise<void>(resolve => { release = resolve; });
+    let active = 0; let peak = 0; let started = 0; let settled = false;
+    vi.mocked(lstat).mockImplementation((async (path: any, options: any) => {
+      if (String(path) === root) return original.lstat(path, options);
+      const index = started++; active++; peak = Math.max(peak, active);
+      try {
+        if (index === 0) throw new Error("fixture discovery failure");
+        await hold; return await original.lstat(path, options);
+      } finally { active--; }
+    }) as typeof lstat);
+    const inventory = inventoryPiRuntimeFiles(root);
+    void inventory.then(() => { settled = true; }, () => { settled = true; });
+    try {
+      await vi.waitFor(() => expect(started).toBe(32));
+      expect(peak).toBeLessThanOrEqual(32); expect(peak).toBeGreaterThan(1); expect(settled).toBe(false);
+    } finally { release(); }
+    try {
+      await expect(inventory).rejects.toThrow("fixture discovery failure");
+      expect(active).toBe(0); expect(started).toBe(32);
+    } finally { vi.mocked(lstat).mockImplementation(original.lstat); }
+  });
+
+  it("rechecks queued directories after earlier subtrees and never descends into a replacement symlink", async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-discovery-race-"))); temporary.push(root);
+    const outside = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-outside-"))); temporary.push(outside);
+    await mkdir(join(root, "a")); await mkdir(join(root, "b"));
+    await writeFile(join(root, "a/trigger"), "inside"); await writeFile(join(outside, "private"), "must not read");
+    const original = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    let replaced = false;
+    const readsStart = vi.mocked(readdir).mock.calls.length;
+    vi.mocked(lstat).mockImplementation((async (path: any, options: any) => {
+      if (String(path) === join(root, "a/trigger") && !replaced) {
+        replaced = true;
+        await rename(join(root, "b"), join(root, "b-retired"));
+        await symlink(outside, join(root, "b"));
+      }
+      return original.lstat(path, options);
+    }) as typeof lstat);
+    try {
+      await expect(inventoryPiRuntimeFiles(root)).rejects.toThrow("directory changed before traversal");
+      expect(replaced).toBe(true);
+      const visited = vi.mocked(readdir).mock.calls.slice(readsStart).map(([path]) => String(path));
+      expect(visited).not.toContain(join(root, "b")); expect(visited).not.toContain(outside);
+    } finally { vi.mocked(lstat).mockImplementation(original.lstat); }
   });
 
   it("refuses unrecorded resources and duplicate manifest entries", async () => {

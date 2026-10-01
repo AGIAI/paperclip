@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { chmod, lstat, mkdir, mkdtemp, open, realpath, rm, writeFile, type FileHandle } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import type { AcpxPrivateSnapshot } from "./private-snapshot.js";
 
 export interface NativeAcpxDistributionEntry { path: string; sha256: string; size: number; executable: boolean }
@@ -31,6 +31,7 @@ const MAX_NATIVE_MANIFEST_BYTES = 4 * 1024 * 1024;
 // Bound both file descriptors and buffers. A single larger admitted file runs
 // alone and remains subject to MAX_NATIVE_FILE_BYTES.
 const NATIVE_COPY_CONCURRENCY = 32;
+const NATIVE_DIRECTORY_CONCURRENCY = 32;
 const NATIVE_COPY_BUFFER_BYTES = 32 * 1024 * 1024;
 const BOOTSTRAP = ".paperclip-native-entry.cjs";
 const GUARD = ".paperclip-native-module-guard.cjs";
@@ -102,6 +103,27 @@ export async function createNativeAcpxDistributionSnapshot(input: NativeAcpxDist
     if (!same(rootBefore, await heldRoot.stat({ bigint: true }))) throw new Error("Native ACPX distribution root changed before snapshot");
     await mkdir(packageRoot, { mode: 0o700 });
     if (input.isolatedCacheEnvironmentName) await mkdir(cacheRoot, { mode: 0o700 });
+    // Build each private parent once. Level ordering prevents child creation
+    // from racing its parent; batches bound work and drain before any cleanup.
+    const parentLevels = new Map<number, Set<string>>();
+    for (const entry of entries) {
+      const parts = entry.path.split("/");
+      for (let depth = 1; depth < parts.length; depth++) {
+        const path = join(packageRoot, ...parts.slice(0, depth));
+        const level = parentLevels.get(depth) ?? new Set<string>();
+        level.add(path); parentLevels.set(depth, level); directories.add(path);
+      }
+    }
+    const directoryBatch = async (paths: string[], operation: (path: string) => Promise<unknown>): Promise<void> => {
+      for (let start = 0; start < paths.length; start += NATIVE_DIRECTORY_CONCURRENCY) {
+        const settled = await Promise.allSettled(paths.slice(start, start + NATIVE_DIRECTORY_CONCURRENCY).map(operation));
+        const failed = settled.find(result => result.status === "rejected");
+        if (failed?.status === "rejected") throw failed.reason;
+      }
+    };
+    for (const depth of [...parentLevels.keys()].sort((a, b) => a - b)) {
+      await directoryBatch([...parentLevels.get(depth)!].sort(), path => mkdir(path, { mode: 0o700 }));
+    }
     const copyEntry = async (entry: NativeAcpxDistributionEntry): Promise<void> => {
       const path = join(source, ...entry.path.split("/"));
       if (await realpath(path) !== path) throw new Error("Native ACPX closure contains a symbolic link");
@@ -120,9 +142,6 @@ export async function createNativeAcpxDistributionSnapshot(input: NativeAcpxDist
         if (!same(before, await file.stat({ bigint: true })) || !same(before, await lstat(path, { bigint: true })) || await realpath(path) !== path) throw new Error("Native ACPX closure file changed while read");
         if (sha256(bytes) !== entry.sha256) throw new Error(`Native ACPX closure file digest mismatch: ${entry.path}`);
         const target = join(packageRoot, ...entry.path.split("/"));
-        await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-        let directory = dirname(target);
-        while (directory !== privateRoot) { directories.add(directory); directory = dirname(directory); }
         await writeFile(target, bytes, { mode: entry.executable ? 0o500 : 0o400, flag: "wx" });
       } finally { await file.close(); }
     };
@@ -172,7 +191,7 @@ export async function createNativeAcpxDistributionSnapshot(input: NativeAcpxDist
     const manifest = Buffer.from(JSON.stringify({ roots: [packageRoot], executable: null, digests }));
     const manifestPath = join(privateRoot, "manifest.json");
     await writeFile(manifestPath, manifest, { mode: 0o400, flag: "wx" });
-    for (const directory of directories) await chmod(directory, 0o500);
+    await directoryBatch([...directories], path => chmod(path, 0o500));
     commandDirectory = await open(packageRoot, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_DIRECTORY);
     return { commandDirectory, bootstrap, snapshot: { roots: [packageRoot], executable: null, digests, handoff: { path: manifestPath, digest: sha256(manifest) }, close } };
   } catch (error) {

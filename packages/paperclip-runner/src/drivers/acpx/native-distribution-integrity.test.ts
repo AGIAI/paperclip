@@ -11,7 +11,7 @@ import { createNativeAcpxDistributionSnapshot, readNativeAcpxDistributionEntries
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const original = await importOriginal<typeof import("node:fs/promises")>();
-  return { ...original, rm: vi.fn(original.rm) };
+  return { ...original, rm: vi.fn(original.rm), mkdir: vi.fn(original.mkdir), chmod: vi.fn(original.chmod) };
 });
 
 const roots: string[] = [];
@@ -52,6 +52,22 @@ async function manyFileFixture(sizes: number[]) {
     const bytes = Buffer.alloc(sizes[index]!, index + 1);
     await writeFile(join(declaration.distributionRoot, path), bytes, { mode: 0o600 });
     entries.push({ path, sha256: hash(bytes), size: bytes.length, executable: false });
+  }
+  entries.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  await writeFile(declaration.manifestPath, JSON.stringify({ entries }));
+  return { declaration: { ...declaration, expectedClosureSha256: hash(JSON.stringify(entries)) }, entries };
+}
+async function directoryFixture() {
+  const declaration = await fixture();
+  const entries = await readNativeAcpxDistributionEntries(declaration);
+  for (let index = 0; index < 40; index++) {
+    const parent = `dir-${String(index).padStart(2, "0")}/nested`;
+    await mkdir(join(declaration.distributionRoot, parent), { recursive: true });
+    for (const name of ["a", "b"]) {
+      const path = `${parent}/${name}`; const bytes = Buffer.from(path);
+      await writeFile(join(declaration.distributionRoot, path), bytes, { mode: 0o600 });
+      entries.push({ path, sha256: hash(bytes), size: bytes.length, executable: false });
+    }
   }
   entries.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   await writeFile(declaration.manifestPath, JSON.stringify({ entries }));
@@ -143,6 +159,56 @@ describe("native ACPX execution closure", () => {
     const denied = await output((await (await verifyNativeAcpxInstallation(evil)).openCommand()).spawn());
     expect(denied.code).not.toBe(0); expect(denied.error).toContain("escaped its closed distribution");
   }, 30_000);
+  it("creates each private parent once and seals every directory before returning", async () => {
+    const { declaration, entries } = await directoryFixture();
+    const creatingStart = vi.mocked(mkdir).mock.calls.length;
+    const created = await createNativeAcpxDistributionSnapshot(declaration, entries);
+    try {
+      const root = created.snapshot.roots[0]!;
+      const calls = vi.mocked(mkdir).mock.calls.slice(creatingStart).map(([path]) => String(path)).filter(path => path.startsWith(root));
+      expect(calls).toHaveLength(81); expect(new Set(calls).size).toBe(81);
+      for (const path of calls) expect((await stat(path)).mode & 0o777).toBe(0o500);
+      for (const entry of entries) {
+        const path = join(root, entry.path);
+        expect(hash(await readFile(path))).toBe(entry.sha256);
+        expect((await stat(path)).mode & 0o777).toBe(entry.executable ? 0o500 : 0o400);
+      }
+    } finally { await created.commandDirectory.close(); await created.snapshot.close(); }
+  });
+  it.each(["create", "seal"] as const)("bounds %s batches and drains failures before cleanup or further scheduling", async stage => {
+    const { declaration, entries } = await directoryFixture();
+    const original = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+    const hold = gate(); let started = 0; let active = 0; let peak = 0; let settled = false;
+    const removalStart = vi.mocked(rm).mock.calls.length;
+    const operation = async (path: any, mode: any) => {
+      const selected = stage === "create"
+        ? /paperclip-acpx-native-.*\/distribution\/dir-\d+$/.test(String(path))
+        : mode === 0o500;
+      if (!selected) return stage === "create" ? original.mkdir(path, mode) : original.chmod(path, mode);
+      const index = started++; active++; peak = Math.max(peak, active);
+      try {
+        if (index === 0) throw new Error(`fixture ${stage} failure`);
+        await hold.promise;
+        return stage === "create" ? await original.mkdir(path, mode) : await original.chmod(path, mode);
+      } finally { active--; }
+    };
+    if (stage === "create") vi.mocked(mkdir).mockImplementation(operation as typeof mkdir);
+    else vi.mocked(chmod).mockImplementation(operation as typeof chmod);
+    const creating = createNativeAcpxDistributionSnapshot(declaration, entries);
+    void creating.then(() => { settled = true; }, () => { settled = true; });
+    try {
+      await vi.waitFor(() => expect(started).toBe(32));
+      expect(peak).toBeGreaterThan(1); expect(peak).toBeLessThanOrEqual(32); expect(settled).toBe(false);
+      expect(vi.mocked(rm).mock.calls.slice(removalStart).filter(([path]) => String(path).includes("paperclip-acpx-native-"))).toHaveLength(0);
+    } finally { hold.release(); }
+    try {
+      await expect(creating).rejects.toThrow(`fixture ${stage} failure`);
+      expect(active).toBe(0); expect(started).toBe(32);
+      const removed = vi.mocked(rm).mock.calls.slice(removalStart).map(([path]) => String(path)).filter(path => path.includes("paperclip-acpx-native-"));
+      expect(removed).toHaveLength(1);
+      await expect(stat(removed[0]!)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally { vi.mocked(mkdir).mockImplementation(original.mkdir); vi.mocked(chmod).mockImplementation(original.chmod); }
+  });
   it("copies concurrently within its descriptor bound and retains canonical manifest order", async () => {
     const { declaration, entries } = await manyFileFixture(Array.from({ length: 40 }, (_, index) => 100 + index));
     const prototype = await filePrototype(join(declaration.distributionRoot, "runtime"));

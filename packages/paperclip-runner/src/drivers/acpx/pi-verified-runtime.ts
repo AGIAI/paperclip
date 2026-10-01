@@ -29,6 +29,7 @@ function safeRelative(path: string): boolean {
 }
 // Hash streams are bounded; at most 32 descriptors/stream buffers are live.
 const PI_INVENTORY_HASH_CONCURRENCY = 32;
+const PI_INVENTORY_DISCOVERY_CONCURRENCY = 32;
 
 function hash(bytes: Uint8Array | string): string { return `sha256:${createHash("sha256").update(bytes).digest("hex")}`; }
 
@@ -44,22 +45,38 @@ export async function inventoryPiRuntimeFiles(root: string): Promise<PiRuntimeFi
   const regular: Array<{ path: string; entry: PiRuntimeFile }> = [];
   const visit = async (directory: string): Promise<void> => {
     const entries = (await readdir(directory)).sort();
-    for (const name of entries) {
-      const path = join(directory, name);
-      const rel = relative(physicalRoot, path).split(sep).join("/");
-      if (!safeRelative(rel)) throw new Error("Pi runtime contains an invalid filename");
-      const stat = await lstat(path);
-      if (stat.isDirectory()) { await visit(path); continue; }
-      if (files.length >= 100_000) throw new Error("Pi runtime file inventory exceeds its bound");
-      if (stat.isSymbolicLink()) {
-        const target = await readlink(path);
-        if (isAbsolute(target) || !contained(physicalRoot, resolve(dirname(path), target)) || !contained(physicalRoot, await realpath(path))) throw new Error("Pi runtime link escapes its pack");
-        files.push({ path: rel, kind: "symlink", target, sha256: hash(target) });
-      } else if (stat.isFile()) {
-        if (stat.nlink !== 1) throw new Error("Pi runtime file has another writable name");
-        const entry: PiRuntimeFile = { path: rel, kind: "file", sha256: "" };
-        files.push(entry); regular.push({ path, entry });
-      } else throw new Error("Pi runtime contains a non-file resource");
+    for (let start = 0; start < entries.length; start += PI_INVENTORY_DISCOVERY_CONCURRENCY) {
+      const discovered = await Promise.allSettled(entries.slice(start, start + PI_INVENTORY_DISCOVERY_CONCURRENCY).map(async name => {
+        const path = join(directory, name);
+        const rel = relative(physicalRoot, path).split(sep).join("/");
+        if (!safeRelative(rel)) throw new Error("Pi runtime contains an invalid filename");
+        return { path, rel, stat: await lstat(path) };
+      }));
+      // Drain every admitted operation before failure or descent. Consuming the
+      // sorted batch serially preserves the original depth-first manifest order.
+      const failed = discovered.find(result => result.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
+      for (const result of discovered) {
+        if (result.status !== "fulfilled") continue;
+        const { path, rel, stat } = result.value;
+        if (stat.isDirectory()) {
+          // A previous sibling may have required a complete subtree walk since
+          // this batch was inspected. Never descend using that stale identity.
+          const current = await lstat(path);
+          if (!current.isDirectory() || current.isSymbolicLink() || current.dev !== stat.dev || current.ino !== stat.ino || await realpath(path) !== path) throw new Error("Pi runtime directory changed before traversal");
+          await visit(path); continue;
+        }
+        if (files.length >= 100_000) throw new Error("Pi runtime file inventory exceeds its bound");
+        if (stat.isSymbolicLink()) {
+          const target = await readlink(path);
+          if (isAbsolute(target) || !contained(physicalRoot, resolve(dirname(path), target)) || !contained(physicalRoot, await realpath(path))) throw new Error("Pi runtime link escapes its pack");
+          files.push({ path: rel, kind: "symlink", target, sha256: hash(target) });
+        } else if (stat.isFile()) {
+          if (stat.nlink !== 1) throw new Error("Pi runtime file has another writable name");
+          const entry: PiRuntimeFile = { path: rel, kind: "file", sha256: "" };
+          files.push(entry); regular.push({ path, entry });
+        } else throw new Error("Pi runtime contains a non-file resource");
+      }
     }
   };
   await visit(physicalRoot);
