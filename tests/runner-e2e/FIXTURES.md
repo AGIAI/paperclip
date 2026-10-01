@@ -421,10 +421,20 @@ both input orders. Neither policy claims the original ACP wire order of a live
 attempt. Old v1 receipts are not valid inputs to the
 new grader. Earlier paid failures retain their original definition and grade.
 
-`paperclip.e2e.native-active-stop-settlement.v1` accepts only
-`pending_permission_cancelled`: explicit-cancellation request closure with
-`replayAllowed:false`, then one exact `turn.cancelled`, plus the same scoped
-caller-owned native Stop acknowledgement. Missing, duplicate, foreign, failed,
+Suite version 4 and `paperclip.e2e.native-active-stop-settlement.v2` accept only
+`pending_permission_cancelled`: the Product harness's exact
+`runtime_request.cancelled` closure (`reason: turn_terminal`, matching request,
+item and turn, no answer), then one exact `turn.cancelled` (`status: cancelled`,
+`error: null`), plus the same scoped caller-owned native Stop acknowledgement.
+Both events must belong to the retained source/session/turn and follow all four
+pre-Stop evidence rows. The harness consumes raw backend request closures and
+projects its own pending-request outcome before the terminal. Raw backend-only
+`provider`, `requestType`, `replayAllowed` and `providerTurnId` fields are not
+required from that Product projection. Replay refusal is independently checked
+through the stale public answer below. A generic terminal without the retained
+request and exact acknowledged caller UUID is insufficient. The v2 settlement
+receipt records this changed oracle; historical v1 receipts and failed attempts
+retain their original grades. Missing, duplicate, foreign, failed,
 interrupted or normal terminal evidence fails. Only after this proof does the
 fixture attempt a stale public answer, requiring HTTP409 and an unanswerable
 browser card. It retains one cancelled run, issue `in_progress`, exact target

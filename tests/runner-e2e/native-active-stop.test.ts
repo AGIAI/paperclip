@@ -8,6 +8,9 @@ import { createCursorToolEvidence } from "../../packages/paperclip-runner/src/dr
 import { createCopilotToolEvidence } from "../../packages/paperclip-runner/src/drivers/acpx/copilot-tool-evidence.js";
 import type { CanonicalProviderEvent } from "../../packages/paperclip-runner/src/provider-events.js";
 
+import { CodexSessionState } from "../../packages/paperclip-runner/src/drivers/codex/codex-session-state.js";
+import { mapTerminalTurn } from "../../packages/paperclip-runner/src/drivers/codex/codex-session-terminal.js";
+
 const caller = readActiveStopCaller({ deploymentMode: "local_trusted" }, { session: { userId: "local-board", id: "paperclip:local_implicit:local-board" } });
 const cancellationRequestId = "11111111-2222-4333-8444-555555555555";
 type Row = Record<string, any>;
@@ -26,7 +29,7 @@ function fixture(provider: ActiveStopProvider = "copilot") {
     notice(1, "tool", { status: "pending", ...operation }),
     row(2, "tool.execution.started", { schema: "paperclip.tool.execution.v1", executionId: "tool", transport: "builtin", status: "running", ...operation }),
     notice(3, "permission_requested", { requestId: "request", declineOffered: true, ...operation }),
-    row(4, "runtime_request.created", { request: { schema: "paperclip.runtime_request.v2", requestKind: "permission_approval", type: "permission", status: "pending", requestId: "request", turnId: "turn", itemId: "tool",
+    row(4, "runtime_request.created", { request: { schema: "paperclip.runtime_request.v2", requestKind: "permission_approval", type: "permission", status: "pending", requestId: "request", turnId: "turn", itemId: "item-run", method: "item/commandExecution/requestApproval",
       details: { toolCallId: "tool" }, origin: { adapter: "acpx-runtime-sidecar", provider, method: "session/request_permission" } } }),
   ];
   const run: Row = { id: "run", companyId: "company", nativeIssueId: "issue", runtimeMode: "native", status: "running", resultJson: {} };
@@ -34,8 +37,17 @@ function fixture(provider: ActiveStopProvider = "copilot") {
   const state = () => ({ events, run, issue });
   const pending = () => observeActiveStopPending({ ...state(), scope, caller, cancellationRequestId });
   const settle = (requestId = cancellationRequestId) => {
-    events.push(row(5, "runtime_request.cancelled", { provider: "acpx", requestId: "request", turnId: "turn", requestKind: "permission_approval", requestType: "permission", itemId: "tool", reason: "explicit_cancellation", replayAllowed: false }),
-      row(6, "turn.cancelled", { provider: "acpx", providerTurnId: "turn", status: "cancelled", error: null }));
+    // Exercise the actual Product terminal and pending-request producers. Only
+    // the state storage/emitter and callback are test doubles; no provider runs.
+    const request = events.find(event => event.eventType === "runtime_request.created")!.payload.prpEvent.payload.request;
+    const state = {
+      terminalTurns: new Map(), workspaceChangesByTurn: new Map(), result: null,
+      conversationMode: "direct", activeTurnId: "turn", turnStarted: true,
+      pendingRuntimeRequestMap: new Map([[request.requestId, { request, settle: vi.fn() }]]),
+      cancelPendingRequests: CodexSessionState.prototype.cancelPendingRequests,
+      emit: (eventType: string, value: Row) => events.push(row(events.length + 1, eventType, value)),
+    } as unknown as CodexSessionState;
+    mapTerminalTurn(state, { id: "turn", status: "cancelled", error: null }, "turn");
     run.status = "cancelled"; run.resultJson = { startupCancellation: { cancellationRequestId: requestId, requestedBy: { type: "board", userId: "local-board" } }, nativeCancellation: {
       schema: "paperclip.native-cancellation.v1", intentId: `native-cancellation:${requestId}`, companyId: "company", runId: "run", issueId: "issue", scope: "run",
       dispatched: true, dispatchState: "acknowledged", reasonCode: "cancellation_run_only", effects: ["release_run_resources"], intentAuditId: "audit-intent", acknowledgementAuditId: "audit-ack",
@@ -203,9 +215,19 @@ describe("definitely active native permission Stop", () => {
   it.each(["cursor", "copilot"] as const)("binds %s's unanswered callback to cancelled provider settlement and caller-owned Stop", provider => {
     const f = fixture(provider), pending = f.pending(); f.settle();
     expect(readActiveStopSettlement({ ...f.state(), pending, dispatchMonotonicNs: (BigInt(pending.observedMonotonicNs) + 1n).toString() })).toMatchObject({
-      schema: "paperclip.e2e.native-active-stop-settlement.v1", branch: "pending_permission_cancelled", normalCompletionAccepted: false, taskStillInProgress: true, replayAllowed: false,
+      schema: "paperclip.e2e.native-active-stop-settlement.v2", branch: "pending_permission_cancelled", normalCompletionAccepted: false, taskStillInProgress: true, replayAllowed: false,
       pending: { normalizedSessionId: "normalized-session", nativeSessionId: "native-session", cancellationRequestId },
     });
+  });
+  it("matches the retained Product closure shape with distinct native and item identities", () => {
+    const { f, pending, read } = settled();
+    expect(pending.toolCallId).toBe("tool");
+    // Content-free shape captured from the failed Product attempt. These exact
+    // payloads come from mapTerminalTurn -> cancelPendingRequests above.
+    expect(payload(f.events[4]!)).toEqual({ requestId: "request", requestKind: "permission_approval",
+      turnId: "turn", itemId: "item-run", reason: "turn_terminal" });
+    expect(payload(f.events[5]!)).toEqual({ status: "cancelled", error: null });
+    expect(read().schema).toBe("paperclip.e2e.native-active-stop-settlement.v2");
   });
   it("admits only a fully attested remote bootstrap read completed before the pending operation", () => {
     const f = fixture(), actionFile = `.paperclip-eval-action-${"a".repeat(36)}.txt`;
@@ -249,6 +271,13 @@ describe("definitely active native permission Stop", () => {
     ["foreign request", ({ f }: ReturnType<typeof settled>) => { payload(f.events[4]!).requestId = "other"; }],
     ["expired rather than cancelled", ({ f }: ReturnType<typeof settled>) => { f.events[4]!.eventType = frame(f.events[4]!).eventType = "runtime_request.expired"; }],
     ["provider death", ({ f }: ReturnType<typeof settled>) => { payload(f.events[4]!).reason = "provider_process_lost"; }],
+    ["raw backend closure is not the Product contract", ({ f }: ReturnType<typeof settled>) => { payload(f.events[4]!).reason = "explicit_cancellation"; }],
+    ["answered closure", ({ f }: ReturnType<typeof settled>) => { payload(f.events[4]!).action = "accept"; }],
+    ["resolved request", ({ f }: ReturnType<typeof settled>) => { f.events[4]!.eventType = frame(f.events[4]!).eventType = "runtime_request.resolved"; }],
+    ["duplicate closure", ({ f }: ReturnType<typeof settled>) => { f.events.push(f.row(7, "runtime_request.cancelled", payload(f.events[4]!))); }],
+    ["foreign closure turn", ({ f }: ReturnType<typeof settled>) => { payload(f.events[4]!).turnId = "other"; }],
+    ["missing acknowledgement", ({ f }: ReturnType<typeof settled>) => { delete f.run.resultJson.nativeCancellation.acknowledgementAuditId; }],
+    ["unacknowledged intent", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.nativeCancellation.dispatchState = "pending"; }],
     ["replay permitted", ({ f }: ReturnType<typeof settled>) => { payload(f.events[4]!).replayAllowed = true; }],
     ["tampered pending row", ({ f }: ReturnType<typeof settled>) => { payload(f.events[3]!).request.itemId = "changed"; }],
     ["missing pending receipt", (s: ReturnType<typeof settled>) => { s.pending.requestRowSha256 = ""; }],
@@ -345,8 +374,8 @@ describe("explicit active Stop discovery", () => {
     expect(cells).toHaveLength(4); expect(suite.manualOnly).toBe(true);
     expect(cells.map(e => `${e.profile.qualificationCandidate}/${e.environment.id}`).sort()).toEqual(["copilot/daytona", "copilot/local", "cursor/daytona", "cursor/local"]);
     expect(cells.every(e => e.task.expectedRunCount === 1 && e.task.flow === "native_active_stop" && e.task.expectedTerminalState?.run === "cancelled")).toBe(true);
-    expect(suite.definitionMetadata).toMatchObject({ version: 3, normalCompletionAccepted: false, providerDeath: "not-covered" });
-    expect(suiteDefinitionHash(suite)).not.toBe(suiteDefinitionHash({ ...suite, definitionMetadata: { ...suite.definitionMetadata, version: 2 } }));
+    expect(suite.definitionMetadata).toMatchObject({ version: 4, evidence: "paperclip.e2e.native-active-stop-settlement.v2", normalCompletionAccepted: false, providerDeath: "not-covered" });
+    expect(suiteDefinitionHash(suite)).not.toBe(suiteDefinitionHash({ ...suite, definitionMetadata: { ...suite.definitionMetadata, version: 3 } }));
     expect(suiteDefinitionHash(suite)).not.toBe(suiteDefinitionHash({ ...suite, definitionMetadata: { ...suite.definitionMetadata, normalCompletionAccepted: true } }));
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"])).some(e => e.suite.id === suite.id)).toBe(false);
   });

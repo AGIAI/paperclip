@@ -1460,6 +1460,15 @@ Native notice ordering follows each real projector: Cursor waits for its exact
 command origin before emitting permission evidence; Copilot can emit the
 permission notice first. Both still require the exact tool origin before Stop.
 
+Suite version 4 uses the normalized Product cancellation contract and writes
+`paperclip.e2e.native-active-stop-settlement.v2`. It requires the exact request,
+item and turn closure with `reason: turn_terminal`, followed by the same stream's
+`turn.cancelled` with `status: cancelled` and `error: null`. The Product harness
+emits these fields; raw backend-only cancellation metadata is not its contract.
+The retained pending v2 receipt, caller UUID and durable scoped acknowledgement
+remain mandatory. This fixes an oracle mismatch observed after a real Stop was
+acknowledged; the failed attempt remains failed and needs a fresh live run.
+
 Passage requires a canonical cancelled request and cancelled provider turn,
 exact caller-intent acknowledgement, an unfinished task, rejection of a later
 stale answer, no follow-up run, continuous target no-effect observation and
