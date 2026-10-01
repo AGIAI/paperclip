@@ -5,6 +5,8 @@ from pathlib import Path
 from closed_inventory import closed_tree
 from owned_processes import OwnedProcesses,atomic_json
 import source_guard
+from lifecycle import Lifecycle, run_test_cases
+from retain_pack import retain_pack
 
 HERE=Path(__file__).resolve().parent
 INPUTS=json.loads((HERE/'profile-inputs.json').read_text())
@@ -36,28 +38,30 @@ def execute(args):
          'RUSTUP_TOOLCHAIN':'1.97.1','CARGO_BUILD_JOBS':'2','npm_config_audit':'false','npm_config_fund':'false',
          'npm_config_update_notifier':'false','npm_config_package_import_method':'copy'}
     Path(env['HOME']).mkdir(mode=0o700)
-    active=None;owner=None;cleanup_ok=True
+    active=None;owner=None;lifecycle=Lifecycle()
     def stop_signal(signum,_):raise InterruptedError('CI stopped with signal '+str(signum))
     signal.signal(signal.SIGTERM,stop_signal)
     def run(command,label,timeout,cwd=stage,command_env=None,owned=False):
-        nonlocal active,owner,cleanup_ok
+        nonlocal active,owner
+        lifecycle.begin()
         row={'label':label,'startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'command':list(map(str,command)),'deadlineSeconds':timeout,'status':'running'}
         receipt['commands'].append(row);save();start=time.monotonic()
         with (out/(label+'.log')).open('x') as log:
             try:
+                if owned:owner=OwnedProcesses(out/(label+'-processes.json'),scratch,stage,pack/'dist/cli/acpx-runtime-sidecar.cjs')
                 active=subprocess.Popen(row['command'],cwd=cwd,env=command_env or env,stdout=log,stderr=log,start_new_session=True)
-                if owned:cleanup_ok=False;owner=OwnedProcesses(out/(label+'-processes.json'),scratch,stage,pack/'dist/cli/acpx-runtime-sidecar.cjs')
                 while active.poll() is None:
                     if owner:owner.observe(active.pid)
                     require(time.monotonic()-start<timeout,'Command deadline exceeded: '+label)
                     time.sleep(.1 if owner else .5)
                 if owner:owner.observe(active.pid)
             finally:
-                if active:
+                try:
+                    # No reliable returned handle means launch ownership is uncertain.
+                    require(active is not None,'Launch interrupted without a reliable process handle')
                     if owner:
                         shutdown=owner.stop(active.pid);row['shutdown']=shutdown
-                        cleanup_ok=shutdown['status']=='stopped' and not owner.live()
-                        require(cleanup_ok,'Owned descendants remain')
+                        require(shutdown['status']=='stopped' and not owner.live(),'Owned descendants remain')
                     elif active.poll() is None:
                         require(os.getpgid(active.pid)==active.pid,'Process group identity changed')
                         os.killpg(active.pid,signal.SIGTERM)
@@ -65,7 +69,13 @@ def execute(args):
                         except subprocess.TimeoutExpired:os.killpg(active.pid,signal.SIGKILL)
                     active.wait(timeout=10)
                     row.update(exitCode=active.returncode,durationSeconds=round(time.monotonic()-start,3),logSha256=sha(out/(label+'.log')),status='passed' if active.returncode==0 else 'failed')
-                    active=None;owner=None;save()
+                    lifecycle.confirmed()
+                    active=None;owner=None
+                except BaseException as error:
+                    lifecycle.failed()
+                    row.update(status='cleanup_uncertain',cleanupErrorType=type(error).__name__)
+                    raise
+                finally:save()
         require(row['exitCode']==0,'Command failed without retry: '+label)
         return (out/(label+'.log')).read_text()
     def source_inventory():
@@ -124,6 +134,8 @@ def execute(args):
         source_guard.verify_source(stage,SOURCE,PIN['resolvedLockSha256'],pack,authority)
         atomic_json(out/'pack-inventory.json',closed_tree(pack));shutil.copy2(pack/'provider-pack.json',out/'provider-pack.json');shutil.copy2(daemon,out/'paperclip-runnerd')
         receipt.update(packVerification=verified,packManifestSha256=sha(out/'provider-pack.json'),packInventorySha256=sha(out/'pack-inventory.json'),daemonSha256=sha(daemon),nodeSha256=sha(node),buildInputsMatchLocal=True,outputDigestsAssumedEqual=False)
+        receipt['providerPackArchive']=retain_pack(pack,out/'provider-pack.tar.gz',authority['pack'])
+        save()
         test=stage/'packages/paperclip-runner/test/pi-closed-startup.test.mjs'
         require(sha(test)=='8967cf9c8cd130b68bf9d64abef8cb8d352af00646e2288b341d8c6ae758b47a','Closed startup test changed')
         receipt['testSourceSha256']={n:sha(stage/'packages/paperclip-runner/test'/n) for n in ['pi-closed-startup.test.mjs','pi-native-package-contract.test.mjs','pi-acp-package-contract.test.mjs']};save()
@@ -134,10 +146,8 @@ def execute(args):
           'PAPERCLIP_TEST_PI_RUNTIME_ROOT':str(pack/'provider-assets/pi/darwin-x64/runtime/node_modules/@earendil-works/pi-coding-agent'),
           'PAPERCLIP_TEST_PI_ACP_PACKAGE':str(pack/'provider-assets/pi/darwin-x64/runtime/node_modules/pi-acp/package.json')}
         # The observer is passed only to the test process; runtime children receive no NODE_OPTIONS.
-        failures=[]
-        for label,command in [('closed-startup',[node,'--import',HERE/'retain-test-state.mjs','--test',test]),('native-extension-contracts',[node,'--test',stage/'packages/paperclip-runner/test/pi-native-package-contract.test.mjs',stage/'packages/paperclip-runner/test/pi-acp-package-contract.test.mjs'])]:
-            try:run(command,label,180,command_env=testenv,owned=True)
-            except RuntimeError as e:failures.append(str(e))
+        cases=[('closed-startup',[node,'--import',HERE/'retain-test-state.mjs','--test',test]),('native-extension-contracts',[node,'--test',stage/'packages/paperclip-runner/test/pi-native-package-contract.test.mjs',stage/'packages/paperclip-runner/test/pi-acp-package-contract.test.mjs'])]
+        failures=run_test_cases(cases,lambda command,label:run(command,label,180,command_env=testenv,owned=True),lifecycle)
         source_guard.verify_source(stage,SOURCE,PIN['resolvedLockSha256'],pack,authority)
         require(source_inventory()==json.loads((out/'source-input-inventory.json').read_text()),'Tracked source changed')
         require(closed_tree(pack)==json.loads((out/'pack-inventory.json').read_text()),'Pack changed during tests')
@@ -149,8 +159,9 @@ def execute(args):
     finally:
         if scratch.exists():
             st=scratch.stat();require((st.st_dev,st.st_ino,st.st_uid)==identity and st.st_uid==os.getuid(),'Scratch ownership changed')
-            if cleanup_ok:shutil.rmtree(scratch);receipt['scratchCleanup']='removed_verified_owned_root'
+            if lifecycle.safe:shutil.rmtree(scratch);receipt['scratchCleanup']='removed_verified_owned_root'
             else:receipt['scratchCleanup']='retained_unresolved_processes'
+        receipt['cleanupUncertain']=not lifecycle.safe
         receipt['finishedAt']=datetime.datetime.now(datetime.timezone.utc).isoformat();save()
 
 if __name__=='__main__':
