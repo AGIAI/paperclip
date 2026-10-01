@@ -1489,4 +1489,12 @@ The receipt reader fails closed when the production native receipt projection is
 missing, partial, duplicated or outside its bounds (including 256 KiB for the
 whole native rawOutput, which may repeat text). This oracle depends on the new
 production semantic-receipt contract and does not regrade earlier failed runs.
+The bridge call hash identifies the invocation and its native receipt. It is not
+inferred from `run.result.proposed.itemId`, which can identify the run instead.
+Exactly one proposed body must hash to the receipt input and equal exactly one
+accepted body; identical duplicate proposals or receipts still fail. The shell
+result is one separate complete read lifecycle: pending and any progress name the
+started shell, and its successful terminal also names the original command. A
+completed-only read or a second shell read cannot inherit that exemption.
+
 Denial case version 5 and denial settlement schema v3 are unchanged.

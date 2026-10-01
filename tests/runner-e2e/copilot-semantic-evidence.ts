@@ -37,6 +37,13 @@ export function readCopilotSemanticCompletion(rows: readonly unknown[], expected
     return e;
   }
   frame(commandRows[0]!, "runner");
+  // Every operation admitted later must belong to this durable stream, including
+  // shell reads whose command identity is only known on their terminal notice.
+  for (const n of notices) {
+    const rs = all.filter(r => r.seq === n.seq);
+    if (rs.length !== 1) fail("duplicate native row");
+    frame(rs[0]!, "runner");
+  }
   if (expected.command.runId !== expected.runId || expected.command.turnId !== expected.turnId || expected.command.sessionId !== expected.nativeSessionId) fail("foreign command");
   const authorityRows = all.filter(r => rec(rec(rec(r.payload).prpEvent).payload).category === "paperclip_semantic_tool_receipt_v1");
   // This authored case asks for one finish, not arbitrary semantic actions.
@@ -72,7 +79,11 @@ export function readCopilotSemanticCompletion(rows: readonly unknown[], expected
     || all.some(r => r.eventType === "run.result.rejected")) fail("missing, rejected or ambiguous completion");
   const proposed = frame(proposedRows[0]!, "runner"), accepted = frame(acceptedRows[0]!, "control_plane"), terminal = frame(terminals[0]!, "runner");
   const result = rec(proposed.payload), acceptedResult = rec(rec(accepted.payload).result);
-  if (!id(proposed.itemId) || hash(proposed.itemId) !== fields.callIdentitySha256 || digest(result) !== fields.inputSha256
+  // Native correlation uses the invocation-captured callback call hash. The
+  // canonical proposal itemId may instead identify the run: never interpret it
+  // as a bridge call ID. Unique same-turn result bodies supply the independent
+  // acceptance proof, joined to that exact invocation's input digest.
+  if (digest(result) !== fields.inputSha256
     || result.schema !== "paperclip.run_result.v1" || result.reportedWorkDisposition !== "done" || result.summary !== expected.summary
     || canonical(result) !== canonical(acceptedResult)) fail("canonical accepted result does not match exact finish");
   const pendingFrame = frame(all.find(r => r.seq === pending[0]!.seq)!, "runner");
@@ -89,8 +100,37 @@ export function readCopilotSemanticCompletion(rows: readonly unknown[], expected
 
 /** Called only after the completion proof and bootstrap-read oracle succeed. */
 export function onlyCopilotAttachedOperations(notices: readonly CopilotToolNotice[], command: CopilotToolNotice, proof: CopilotSemanticCompletionProof): boolean {
-  return proof.runId === command.runId && proof.turnId === command.turnId && proof.nativeSessionId === command.sessionId
-    && proof.nativeToolCallId !== command.toolCallId && notices.every(n =>
-      n.runId === command.runId && n.sessionId === command.sessionId && n.turnId === command.turnId
-      && (n.toolCallId === command.toolCallId || n.commandToolCallId === command.toolCallId || n.toolCallId === proof.nativeToolCallId));
+  if (proof.runId !== command.runId || proof.turnId !== command.turnId || proof.nativeSessionId !== command.sessionId
+    || proof.nativeToolCallId === command.toolCallId || notices.length > 2048
+    || notices.some(n => n.runId !== command.runId || n.sessionId !== command.sessionId || n.turnId !== command.turnId
+      || !Number.isSafeInteger(n.seq) || n.seq < 1 || n.seq >= proof.turnCompletedSeq)
+    || new Set(notices.map(n => n.seq)).size !== notices.length) return false;
+  const groups = new Map<string, CopilotToolNotice[]>();
+  for (const n of notices) { const group = groups.get(n.toolCallId) ?? []; group.push(n); groups.set(n.toolCallId, group); }
+  // Exactly one command, one shell-result read, and the already-proven finish.
+  // A completed-only extra read cannot borrow the original command's identity.
+  if (groups.size !== 3 || !groups.has(proof.nativeToolCallId)) return false;
+  const complete = (group: CopilotToolNotice[]): boolean => {
+    group.sort((a, b) => a.seq - b.seq);
+    return group.length >= 2 && group[0]!.status === "pending" && group.at(-1)!.status === "completed"
+      && group.every((n, i) => n.stage === "tool" && (i === 0 ? n.status === "pending"
+        : i === group.length - 1 ? n.status === "completed" : n.status === "in_progress"));
+  };
+  const semanticFree = (n: CopilotToolNotice) => n.semanticOperationId === undefined && n.semanticCallIdentitySha256 === undefined
+    && n.semanticInputSha256 === undefined && n.semanticResultSha256 === undefined && n.semanticOutcome === undefined;
+  const commandGroup = groups.get(command.toolCallId) ?? [];
+  if (!complete(commandGroup) || commandGroup[0]!.seq !== command.seq) return false;
+  const started = commandGroup.at(-1)!;
+  if (!id(started.shellId) || started.shellState !== "started" || started.commandToolCallId !== command.toolCallId
+    || commandGroup.some(n => n.operation !== "execute" || n.commandSha256 !== command.commandSha256 || n.mode !== "async" || n.detach !== false
+      || n.target !== undefined || n.readTargetSha256 !== undefined || n.exitCode !== undefined || !semanticFree(n)
+      || (n !== started && (n.shellId !== undefined || n.shellState !== undefined || n.commandToolCallId !== undefined)))) return false;
+  const shellGroup = [...groups].find(([key]) => key !== command.toolCallId && key !== proof.nativeToolCallId)![1];
+  if (!complete(shellGroup)) return false;
+  const terminal = shellGroup.at(-1)!;
+  return shellGroup[0]!.seq > started.seq && terminal.seq < proof.turnCompletedSeq
+    && terminal.commandToolCallId === command.toolCallId && terminal.shellState === "completed" && terminal.exitCode === 0
+    && shellGroup.every(n => n.operation === "read" && n.shellId === started.shellId && n.target === undefined && n.readTargetSha256 === undefined
+      && n.commandSha256 === undefined && n.mode === undefined && n.detach === undefined && semanticFree(n)
+      && (n === terminal || (n.commandToolCallId === undefined && n.shellState === undefined && n.exitCode === undefined)));
 }
