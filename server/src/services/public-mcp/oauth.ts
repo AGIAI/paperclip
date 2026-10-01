@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lt, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Request } from "express";
 import {
@@ -102,7 +102,24 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
       const parsed = registrationSchema.safeParse(input);
       if (!parsed.success) throw new McpOAuthError("invalid_client_metadata", "Supply a client name, valid redirect URIs, and public-client PKCE authentication.");
       const client = { id: secret("pcmcp_client_"), name: parsed.data.client_name, redirectUris: parsed.data.redirect_uris };
-      await db.insert(mcpOauthClients).values(client);
+      await db.transaction(async (tx) => {
+        // Bound public DCR across replicas, not only per-IP in each process.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(736721042)`);
+        const now = new Date();
+        await tx.delete(mcpOauthRequests).where(lt(mcpOauthRequests.expiresAt, now));
+        await tx.delete(mcpOauthClients).where(and(
+          lt(mcpOauthClients.createdAt, new Date(now.getTime() - 24 * 60 * minute)),
+          notExists(tx.select({ id: mcpOauthGrants.id }).from(mcpOauthGrants).where(eq(mcpOauthGrants.clientId, mcpOauthClients.id))),
+          notExists(tx.select({ id: mcpOauthRequests.id }).from(mcpOauthRequests).where(eq(mcpOauthRequests.clientId, mcpOauthClients.id))),
+        ));
+        const [counts] = await tx.select({ total: sql<number>`count(*)::int`,
+          recent: sql<number>`(count(*) FILTER (WHERE ${mcpOauthClients.createdAt} > ${new Date(now.getTime() - minute).toISOString()}::timestamptz))::int`,
+        }).from(mcpOauthClients);
+        if (!counts || counts.total >= 10_000 || counts.recent >= 60) {
+          throw new McpOAuthError("temporarily_unavailable", "Registration capacity reached. Retry later.", 429);
+        }
+        await tx.insert(mcpOauthClients).values(client);
+      });
       return { ...parsed.data, client_id: client.id, client_id_issued_at: Math.floor(Date.now() / 1000) };
     },
     async authorize(input: unknown) {

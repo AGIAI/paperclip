@@ -85,6 +85,11 @@ not elevate a grant beyond that company's role. Consent/revocation require an
 authenticated browser and the configured origin. Client registration does not
 fetch redirect URLs or accept arbitrary tool destinations. Rate limiting at the
 public edge is required in addition to the bounded per-process auth limiter.
+Registration also has a database-enforced limit of 60 new clients per minute and
+10,000 retained clients shared across replicas. Expired authorization requests
+and never-consented clients older than 24 hours are collected during
+registration. Clients with grants are retained, preserving their connections and
+audit/mutation history.
 
 Revocation blocks future calls; it does not cancel already delegated work or
 undo in-flight mutations. Manage existing tasks and execution in Paperclip.

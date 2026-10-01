@@ -3,7 +3,7 @@ import express, { type Request } from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createDb, authUsers, companies, companyMemberships, mcpOauthTokens, mcpOauthGrants, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
+import { createDb, authUsers, companies, companyMemberships, mcpOauthTokens, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
 import { createPublicMcpOAuth, publicMcpConfig, hashMcpSecret } from "../services/public-mcp/oauth.js";
 import { createMcpApiDispatch, createPublicMcpExecutor, publicMcpCapabilities } from "../services/public-mcp/capabilities.js";
 import { publicMcpIngressRoutes, publicMcpManagementRoutes } from "../routes/public-mcp.js";
@@ -261,4 +261,23 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     expect((await request(app).delete(`/api/mcp/connections/${connection.id}`).set("Origin", config.origin)).status).toBe(204);
     expect((await db.select().from(mcpOauthGrants).where(eq(mcpOauthGrants.id, connection.id)))[0]?.revokedAt).not.toBeNull();
   });
+  it("shares registration quotas across replicas and preserves consented clients during retention", async () => {
+    const f = await fixture();
+    const stale = "stale-" + randomUUID();
+    const old = new Date(Date.now() - 2 * 86_400_000);
+    await db.insert(mcpOauthClients).values({ id: stale, name: "Never connected", redirectUris: [redirectUri], createdAt: old });
+    await db.update(mcpOauthClients).set({ createdAt: old });
+    const replica = createPublicMcpOAuth(db, config);
+    const registrations = await Promise.allSettled(Array.from({ length: 70 }, (_, index) => (index % 2 ? oauth : replica).register({ client_name: "Quota fixture", redirect_uris: [redirectUri] })));
+    const accepted = registrations.filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof oauth.register>>> => r.status === "fulfilled");
+    try {
+      expect(accepted).toHaveLength(60);
+      for (const rejected of registrations.filter(r => r.status === "rejected")) expect((rejected as PromiseRejectedResult).reason).toMatchObject({ status: 429 });
+      expect(await db.select().from(mcpOauthClients).where(eq(mcpOauthClients.id, stale))).toHaveLength(0);
+      expect(await oauth.authenticate(f.tokens.access_token)).toMatchObject({ grant: { clientId: f.client.client_id } });
+    } finally {
+      for (const row of accepted) await db.delete(mcpOauthClients).where(eq(mcpOauthClients.id, row.value.client_id));
+    }
+  });
+
 });
