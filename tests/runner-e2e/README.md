@@ -1448,6 +1448,15 @@ exact native write, observes its unanswered permission card, then sends the
 public Stop request with a freshly retained caller UUID. It never denies or
 approves that callback before Stop.
 
+Suite version 3 accepts a permission card before or after its correlated tool
+start. Both the exact native origin and canonical start must already exist with
+the unanswered permission when the fixture retains and rechecks the pre-Stop
+API snapshot. The v2 pending receipt binds all four rows by hash and source
+sequence through settlement. Missing, changed or replayed evidence cannot be
+filled in after Stop. This is a new grader definition; old v1 pending receipts
+and failed paid attempts are not regraded. No original provider wire order is
+inferred from API insertion or display order.
+
 Passage requires a canonical cancelled request and cancelled provider turn,
 exact caller-intent acknowledgement, an unfinished task, rejection of a later
 stale answer, no follow-up run, continuous target no-effect observation and
@@ -1457,7 +1466,7 @@ issue-interaction rows are not substituted for their authority. Pending and fina
 screenshots, `native-active-stop-pending.json`, `native-active-stop-settlement.json`
 and cleanup evidence retain the boundaries. Daytona also requires the exact
 owned lease and sealed remote observer proof before sandbox deletion. Suite
-version 2 records remote filesystem coverage only through verified retirement
+version 2 introduced remote filesystem coverage only through verified retirement
 of the owned runner/provider tree, with no target or workspace mutations; it
 does not call a later read of the seal a fresh observation. Local cases retain
 four filesystem phases through cleanup. Remote UI/stale-answer checks and final

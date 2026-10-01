@@ -43,6 +43,20 @@ function fixture(provider: ActiveStopProvider = "copilot") {
 }
 const frame = (row: Row) => row.payload.prpEvent;
 const payload = (row: Row) => frame(row).payload;
+const arrivalOrders = ["tool-first", "permission-first"] as const;
+function withArrivalOrder(provider: ActiveStopProvider, order: typeof arrivalOrders[number]) {
+  const f = fixture(provider);
+  if (order === "permission-first") {
+    // The card can be published while the provider callback is held. Native
+    // permission evidence still requires the later exact tool origin to flush.
+    f.events.unshift(f.events.pop()!);
+    f.events.forEach((row, index) => {
+      row.seq = frame(row).sourceSeq = index + 1;
+      frame(row).sourceEventId = `source:run:${index + 1}`;
+    });
+  }
+  return f;
+}
 function settled() { const f = fixture(); const pending = f.pending(); f.settle(); return { f, pending, read: () => readActiveStopSettlement({ ...f.state(), pending, dispatchMonotonicNs: (BigInt(pending.observedMonotonicNs) + 1n).toString() }) }; }
 function withSessionPrefix(provider: ActiveStopProvider = "cursor") {
   const f = fixture(provider);
@@ -65,6 +79,47 @@ function withSessionPrefix(provider: ActiveStopProvider = "cursor") {
 }
 
 describe("definitely active native permission Stop", () => {
+  describe.each(["cursor", "copilot"] as const)("%s pre-Stop arrival orders", provider => {
+    it.each(arrivalOrders)("accepts %s only after both exact origins exist and retains them through settlement", order => {
+      const f = withArrivalOrder(provider, order), pending = f.pending();
+      expect(pending.schema).toBe("paperclip.e2e.native-active-stop-pending.v2");
+      expect(pending.toolOriginRowSha256).toMatch(/^sha256:[a-f0-9]{64}$/u);
+      expect(pending.toolStartedRowSha256).toMatch(/^sha256:[a-f0-9]{64}$/u);
+      expect(pending.toolStartedSourceSeq < pending.requestSourceSeq).toBe(order === "tool-first");
+      f.settle();
+      expect(readActiveStopSettlement({ ...f.state(), pending, dispatchMonotonicNs: (BigInt(pending.observedMonotonicNs) + 1n).toString() }))
+        .toMatchObject({ branch: "pending_permission_cancelled", pending });
+    });
+    it.each([
+      ["missing native origin", (f: ReturnType<typeof fixture>) => { f.events.splice(1, 1); }],
+      ["missing canonical start", (f: ReturnType<typeof fixture>) => { f.events.splice(2, 1); }],
+      ["wrong native tool", (f: ReturnType<typeof fixture>) => { payload(f.events[1]!).details.find((d: Row) => d.name === "toolCallId").value = "other"; }],
+      ["wrong canonical tool", (f: ReturnType<typeof fixture>) => { payload(f.events[2]!).executionId = "other"; }],
+      ["wrong command or path", (f: ReturnType<typeof fixture>) => { payload(f.events[1]!).details.find((d: Row) => d.name === (provider === "cursor" ? "commandSha256" : "target")).value = provider === "cursor" ? `sha256:${"b".repeat(64)}` : "other.txt"; }],
+      ["wrong source", (f: ReturnType<typeof fixture>) => { frame(f.events[2]!).sourceInstanceId = "other"; frame(f.events[2]!).sourceEventId = "other:run:3"; }],
+      ["wrong turn", (f: ReturnType<typeof fixture>) => { frame(f.events[2]!).turnId = "other"; }],
+      ["wrong request", (f: ReturnType<typeof fixture>) => { payload(f.events[0]!).request.requestId = "other"; }],
+      ["replayed canonical start", (f: ReturnType<typeof fixture>) => { f.events.push(f.row(5, "tool.execution.started", payload(f.events[2]!))); }],
+      ["replayed native origin", (f: ReturnType<typeof fixture>) => { f.events.push(f.row(5, "provider.notice.recorded", payload(f.events[1]!))); }],
+      ["answered permission", (f: ReturnType<typeof fixture>) => { f.events.push(f.notice(5, "permission_delivered", { requestId: "request", outcome: "cancel" })); }],
+      ["terminal operation", (f: ReturnType<typeof fixture>) => { f.events.push(f.row(5, "tool.execution.completed", { schema: "paperclip.tool.execution.v1", transport: "builtin", executionId: "tool", status: "failed" })); }],
+    ] as const)("rejects permission-first %s before Stop", (_label, mutate) => {
+      const f = withArrivalOrder(provider, "permission-first"); mutate(f); expect(f.pending).toThrow();
+    });
+    it("cannot substitute a canonical start first observed after Stop", () => {
+      const f = withArrivalOrder(provider, "permission-first"), pending = f.pending();
+      const started = f.events.splice(2, 1)[0]!;
+      // A late row has a new durable identity even when every operation field
+      // is identical. Final evidence must not backfill the retained receipt.
+      started.seq = frame(started).sourceSeq = 5; frame(started).sourceEventId = "source:run:5";
+      f.events.push(started); f.settle();
+      for (const row of f.events.slice(-2)) {
+        row.seq += 1; frame(row).sourceSeq += 1; frame(row).sourceEventId = `source:run:${row.seq}`;
+      }
+      expect(() => readActiveStopSettlement({ ...f.state(), pending, dispatchMonotonicNs: (BigInt(pending.observedMonotonicNs) + 1n).toString() }))
+        .toThrow("observed pending request changed");
+    });
+  });
   it.each(["cursor", "copilot"] as const)("accepts the mixed v1/v2 session prefix before strict %s pending proof", provider => {
     const f = withSessionPrefix(provider);
     expect(f.pending()).toMatchObject({ requestId: "request", toolCallId: "tool", permissionSourceSeq: 6, requestSourceSeq: 7 });
@@ -141,6 +196,13 @@ describe("definitely active native permission Stop", () => {
     ["replay permitted", ({ f }: ReturnType<typeof settled>) => { payload(f.events[4]!).replayAllowed = true; }],
     ["tampered pending row", ({ f }: ReturnType<typeof settled>) => { payload(f.events[3]!).request.itemId = "changed"; }],
     ["missing pending receipt", (s: ReturnType<typeof settled>) => { s.pending.requestRowSha256 = ""; }],
+    ["legacy v1 pending receipt", (s: ReturnType<typeof settled>) => { (s.pending as Row).schema = "paperclip.e2e.native-active-stop-pending.v1"; }],
+    ["missing native origin binding", (s: ReturnType<typeof settled>) => { delete (s.pending as Row).toolOriginRowSha256; }],
+    ["missing tool start binding", (s: ReturnType<typeof settled>) => { delete (s.pending as Row).toolStartedRowSha256; }],
+    ["changed native origin", ({ f }: ReturnType<typeof settled>) => { frame(f.events[0]!).emittedAt = "2026-01-01T00:00:01Z"; }],
+    ["changed tool start", ({ f }: ReturnType<typeof settled>) => { frame(f.events[1]!).emittedAt = "2026-01-01T00:00:01Z"; }],
+    ["wrong origin sequence", (s: ReturnType<typeof settled>) => { s.pending.toolOriginSourceSeq += 1; }],
+    ["wrong start sequence", (s: ReturnType<typeof settled>) => { s.pending.toolStartedSourceSeq += 1; }],
     ["missing caller", ({ f }: ReturnType<typeof settled>) => { delete f.run.resultJson.startupCancellation.requestedBy; }],
     ["null caller", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.startupCancellation.requestedBy.userId = null; }],
     ["foreign caller", ({ f }: ReturnType<typeof settled>) => { f.run.resultJson.startupCancellation.requestedBy.userId = "another-board-user"; }],
@@ -178,8 +240,8 @@ describe("definitely active native permission Stop", () => {
 });
 
 describe("active Stop flow wiring", () => {
-  it("awaits retention and rechecks pending before issuing the single caller UUID request", async () => {
-    const f = fixture(); const order: string[] = []; let retainedId = "";
+  it.each(arrivalOrders)("awaits retention and rechecks %s evidence before issuing the single caller UUID request", async arrivalOrder => {
+    const f = withArrivalOrder("cursor", arrivalOrder); const order: string[] = []; let retainedId = "";
     const stop = vi.fn(async (runId: string, id: string) => { expect(runId).toBe("run"); expect(id).toBe(retainedId); order.push("stop"); return f.settle(id); });
     const result = await stopAtPendingPermission({ scope: f.scope, caller, deadlineAt: Date.now() + 1000,
       load: async () => { order.push("load"); return f.state(); },
@@ -192,6 +254,21 @@ describe("active Stop flow wiring", () => {
     await expect(stopAtPendingPermission({ scope: f.scope, caller, deadlineAt: Date.now() + 1000, load: async () => f.state(), stop,
       retain: async () => { if (mode === "retention failed") throw Error("disk failure"); if (mode === "competing Stop") f.run.resultJson.startupCancellation = { cancellationRequestId: "foreign" }; else f.events.push(f.row(5, "runtime_request.resolved", {})); },
     })).rejects.toThrow(); expect(stop).not.toHaveBeenCalled();
+  });
+  it.each(["native origin", "canonical start"])("never sends Stop when the retained %s changes before the fresh reread", async kind => {
+    const f = withArrivalOrder("cursor", "permission-first"), stop = vi.fn();
+    await expect(stopAtPendingPermission({ scope: f.scope, caller, deadlineAt: Date.now() + 1000, load: async () => f.state(), stop,
+      retain: async () => { frame(f.events[kind === "native origin" ? 1 : 2]!).emittedAt = "2026-01-01T00:00:01Z"; },
+    })).rejects.toThrow("pending boundary changed or expired");
+    expect(stop).not.toHaveBeenCalled();
+  });
+  it("never sends Stop to make a missing tool start arrive", async () => {
+    const f = withArrivalOrder("cursor", "permission-first");
+    const start = f.events.splice(2, 1)[0]!, retain = vi.fn();
+    const stop = vi.fn(async () => { f.events.push(start); return f.settle(); });
+    await expect(stopAtPendingPermission({ scope: f.scope, caller, deadlineAt: Date.now() + 1000, load: async () => f.state(), retain, stop }))
+      .rejects.toThrow("duplicate canonical operation lifecycle");
+    expect(retain).not.toHaveBeenCalled(); expect(stop).not.toHaveBeenCalled();
   });
   it("fails promptly on a definitive provider failure before calling a throwing evidence reader", async () => {
     const f = fixture(); const started = Date.now();
@@ -209,7 +286,8 @@ describe("explicit active Stop discovery", () => {
     expect(cells).toHaveLength(4); expect(suite.manualOnly).toBe(true);
     expect(cells.map(e => `${e.profile.qualificationCandidate}/${e.environment.id}`).sort()).toEqual(["copilot/daytona", "copilot/local", "cursor/daytona", "cursor/local"]);
     expect(cells.every(e => e.task.expectedRunCount === 1 && e.task.flow === "native_active_stop" && e.task.expectedTerminalState?.run === "cancelled")).toBe(true);
-    expect(suite.definitionMetadata).toMatchObject({ version: 2, normalCompletionAccepted: false, providerDeath: "not-covered" });
+    expect(suite.definitionMetadata).toMatchObject({ version: 3, normalCompletionAccepted: false, providerDeath: "not-covered" });
+    expect(suiteDefinitionHash(suite)).not.toBe(suiteDefinitionHash({ ...suite, definitionMetadata: { ...suite.definitionMetadata, version: 2 } }));
     expect(suiteDefinitionHash(suite)).not.toBe(suiteDefinitionHash({ ...suite, definitionMetadata: { ...suite.definitionMetadata, normalCompletionAccepted: true } }));
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"])).some(e => e.suite.id === suite.id)).toBe(false);
   });
