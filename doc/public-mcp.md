@@ -221,8 +221,8 @@ at least once, with up to six attempts and exponential backoff. IDs stay stable
 across retries while signatures receive fresh timestamps. HTTP 410 stops a
 monitor; 413 and other permanent failures are not retried. Secret rotation signs
 with both keys for five minutes. Expired subscriptions and their receipts are
-removed after seven days; retained quotas are 20 per grant, 100 per company and
-1,000 per instance. Unsubscribe frees the subscription and its receipts.
+removed on the next admission or after seven days; active quotas are 20 per
+grant, 100 per company and 1,000 per instance. Unsubscribe frees the subscription and its receipts.
 
 This release returns `cursor: null`: it does not offer protocol replay after an
 expired/stopped subscription. Use task history and document tools to recover

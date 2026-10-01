@@ -15083,7 +15083,7 @@ export function issueRoutes(
         action: "issue.checked_out",
         entityType: "issue",
         entityId: issue.id,
-        details: { agentId: req.body.agentId },
+        details: { agentId: req.body.agentId, status: updated.status, _previous: { status: issue.status } },
       });
 
       if (
@@ -15151,6 +15151,7 @@ export function issueRoutes(
       action: "issue.released",
       entityType: "issue",
       entityId: released.id,
+      details: { status: released.status, _previous: { status: existing.status } },
     });
 
     res.json(released);

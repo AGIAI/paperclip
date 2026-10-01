@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, asc, count, eq, gt, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { companies, activityLog, mcpEventDeliveries as deliveries, mcpEventSubscriptions as subscriptions, type Db } from "@paperclipai/db";
 import { ISSUE_STATUSES } from "@paperclipai/shared";
@@ -96,14 +96,18 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
       // Network verification holds only this subscription's lock. The global
       // quota lock covers short admission writes, never a remote callback.
       await tx.execute(sql`select pg_advisory_xact_lock(736721043)`);
-      if (!existing) {
+      const active = existing && !existing.stoppedAt && existing.expiresAt.getTime() > now();
+      // No replay is promised for expired/stopped subscriptions. Reclaim these
+      // rows (and their receipts) before admission so historical monitors cannot
+      // exhaust active capacity or grow storage without bound.
+      await tx.delete(subscriptions).where(or(lte(subscriptions.expiresAt, new Date(now())), isNotNull(subscriptions.stoppedAt)));
+      if (!active) {
         const [total] = await tx.select({ n: count() }).from(subscriptions);
         const [company] = await tx.select({ n: count() }).from(subscriptions).where(eq(subscriptions.companyId, principal.grant.companyId));
         const [grant] = await tx.select({ n: count() }).from(subscriptions).where(eq(subscriptions.grantId, principal.grant.id));
         if (total!.n >= 1000 || company!.n >= 100 || grant!.n >= 20) throw new McpEventError(-32602, "Subscription limit reached. Stop an existing monitor first.");
       }
       const expiresAt = new Date(Math.min(now() + Math.min(Math.max(input.ttlMs ?? lifetime, 30_000), lifetime), cloudOrigin ? Math.min(now() + rotationMs, cloud!.expiresAt) : Infinity));
-      const active = existing && !existing.stoppedAt && existing.expiresAt.getTime() > now();
       const destination: Destination = { url, secret, ...(cloudOrigin ? { cloud } : {}),
         ...(previous && previous.secret !== secret ? { previousSecret: previous.secret, previousUntil: now() + rotationMs }
           : previous?.previousUntil && previous.previousUntil > now() ? { previousSecret: previous.previousSecret, previousUntil: previous.previousUntil } : {}) };
@@ -141,7 +145,10 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
       .orderBy(asc(activityLog.createdAt), asc(activityLog.id)).limit(100);
     for (const { activity } of rows) {
       const details = activity.details ?? {};
-      const wanted = s.name === names[0] ? activity.action === "issue.updated" && ISSUE_STATUSES.includes(details.status as typeof ISSUE_STATUSES[number]) && (!Array.isArray(s.arguments.statuses) || s.arguments.statuses.includes(details.status))
+      const changes = details.changes && typeof details.changes === "object" ? details.changes as Record<string, unknown> : null;
+      const previous = details._previous && typeof details._previous === "object" ? details._previous as Record<string, unknown> : null;
+      const changedStatus = changes ? Object.hasOwn(changes, "status") : previous?.status !== details.status;
+      const wanted = s.name === names[0] ? ["issue.updated", "issue.checked_out", "issue.released"].includes(activity.action) && changedStatus && ISSUE_STATUSES.includes(details.status as typeof ISSUE_STATUSES[number]) && (!Array.isArray(s.arguments.statuses) || s.arguments.statuses.includes(details.status))
         : s.name === names[1] ? activity.action === "issue.comment_added" && z.uuid().safeParse(details.commentId).success
         : ["issue.document_created", "issue.document_updated"].includes(activity.action) && typeof details.key === "string" && typeof details.revisionNumber === "number";
       const data = { companyId: s.companyId, taskId: s.taskId, url: oauth.config.origin + "/" + encodeURIComponent(company.prefix) + "/issues/" + s.taskId,

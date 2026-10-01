@@ -456,6 +456,33 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     await f.service.unsubscribe(f.principal, f.input);
   });
 
+  it("reclaims stopped and expired monitors before admitting another subscription", async () => {
+    const f = await eventFixture();
+    const makeInput = (index: number) => ({ ...f.input, delivery: { ...f.input.delivery, url: f.input.delivery.url + "/" + index } });
+    for (let i = 0; i < 20; i++) await f.service.subscribe(f.principal, makeInput(i));
+    await expect(f.service.subscribe(f.principal, makeInput(20))).rejects.toMatchObject({ code: -32602 });
+    await db.update(mcpEventSubscriptions).set({ stoppedAt: new Date(f.now()) }).where(eq(mcpEventSubscriptions.grantId, f.principal.grant.id));
+    await expect(f.service.subscribe(f.principal, makeInput(20))).resolves.toHaveProperty("id");
+    expect(await db.select().from(mcpEventSubscriptions).where(eq(mcpEventSubscriptions.grantId, f.principal.grant.id))).toHaveLength(1);
+    await db.update(mcpEventSubscriptions).set({ expiresAt: new Date(f.now() - 1) }).where(eq(mcpEventSubscriptions.grantId, f.principal.grant.id));
+    await expect(f.service.subscribe(f.principal, makeInput(21))).resolves.toHaveProperty("id");
+    expect(await db.select().from(mcpEventSubscriptions).where(eq(mcpEventSubscriptions.grantId, f.principal.grant.id))).toHaveLength(1);
+    await f.service.unsubscribe(f.principal, makeInput(21));
+  });
+
+  it("filters unchanged statuses and includes native checkout and release transitions", async () => {
+    const f = await eventFixture();
+    const input = { ...f.input, arguments: { companyId: f.company.id, taskId: f.task.id } };
+    await f.service.subscribe(f.principal, input);
+    await f.activity("issue.updated", { status: "done", changes: { title: { from: "a", to: "b" } } });
+    await f.activity("issue.checked_out", { status: "in_progress", _previous: { status: "in_progress" } });
+    await f.activity("issue.checked_out", { status: "in_progress", _previous: { status: "todo" } });
+    await f.activity("issue.released", { status: "todo", _previous: { status: "in_progress" } });
+    await f.service.tick();
+    expect(f.received.filter(r => r.body.eventId).map(r => r.body.data.status)).toEqual(["in_progress", "todo"]);
+    await f.service.unsubscribe(f.principal, input);
+  });
+
   it("bounds lifetimes and retries without claiming unsupported replay", async () => {
     const f = await eventFixture();
     const short = await f.service.subscribe(f.principal, { ...f.input, ttlMs: 1 });
