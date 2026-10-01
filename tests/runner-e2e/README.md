@@ -1472,3 +1472,21 @@ older denial or cancellation results. Current live qualification is pending.
 Provider death during a pending callback remains a separate uncovered case:
 the existing chat worker-crash hook targets a runner worker and cannot establish
 safe ownership of the native provider process in both environments.
+
+### Copilot attached semantic completion evidence (suite 7)
+
+Attached settlement now requires one native `paperclip_finish` lifecycle joined
+to an invocation-captured, bounded Paperclip bridge receipt by exact call, input
+and result digests in the same run/turn/native session and durable source stream.
+A matching display title is not authority. The exact proposed completion input
+must match a control-plane `run.result.accepted` body and the requested summary.
+Transport `returned` alone, including a returned rejection, cannot pass. The
+visible exact terminal comment remains an independent assertion. Both local and
+Daytona cases reject extra native operations; existing attested bootstrap reads,
+command settlement, process retirement and marker checks remain required.
+
+The receipt reader fails closed when the production native receipt projection is
+missing, partial, duplicated or outside its bounds (including 256 KiB for the
+whole native rawOutput, which may repeat text). This oracle depends on the new
+production semantic-receipt contract and does not regrade earlier failed runs.
+Denial case version 5 and denial settlement schema v3 are unchanged.

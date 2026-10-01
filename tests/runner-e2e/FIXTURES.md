@@ -441,3 +441,21 @@ The existing `copilot-protection` denial remains distinct: rejecting a permissio
 before Stop does not exercise this pending-callback boundary. This new suite has
 pure calibration and wiring tests, not a paid qualification result. Provider
 process death is not simulated by substituting the chat runner-worker crash hook.
+
+### Copilot attached semantic completion evidence (suite 7)
+
+Attached settlement now requires one native `paperclip_finish` lifecycle joined
+to an invocation-captured, bounded Paperclip bridge receipt by exact call, input
+and result digests in the same run/turn/native session and durable source stream.
+A matching display title is not authority. The exact proposed completion input
+must match a control-plane `run.result.accepted` body and the requested summary.
+Transport `returned` alone, including a returned rejection, cannot pass. The
+visible exact terminal comment remains an independent assertion. Both local and
+Daytona cases reject extra native operations; existing attested bootstrap reads,
+command settlement, process retirement and marker checks remain required.
+
+The receipt reader fails closed when the production native receipt projection is
+missing, partial, duplicated or outside its bounds (including 256 KiB for the
+whole native rawOutput, which may repeat text). This oracle depends on the new
+production semantic-receipt contract and does not regrade earlier failed runs.
+Denial case version 5 and denial settlement schema v3 are unchanged.
