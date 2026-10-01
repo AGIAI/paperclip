@@ -342,8 +342,10 @@ async function withGalleryServerUrl<T>(
 ): Promise<T> {
   const definition = getConnectableAppDefinition(slug);
   const methods = definition?.methods ?? [];
-  const method = methodKey
-    ? methods.find((candidate) => candidate.key === methodKey)
+  // Legacy GitHub fixture callers model token auth, not managed OAuth.
+  const fixtureMethodKey = methodKey ?? (slug === "github" ? "mcp-key" : undefined);
+  const method = fixtureMethodKey
+    ? methods.find((candidate) => candidate.key === fixtureMethodKey)
     : definition
       ? getAvailableConnectionMethod(definition, null)
       : undefined;
@@ -16315,6 +16317,7 @@ describeEmbeddedPostgres("tool access service", () => {
           company.id,
           {
             galleryKey: "github",
+            connectionMethodKey: "mcp-key",
             name: "GitHub rollback",
             credentialValues: { "credentials.authorization": "github-secret" },
           },
@@ -16432,6 +16435,7 @@ describeEmbeddedPostgres("tool access service", () => {
           company.id,
           {
             galleryKey: "github",
+            connectionMethodKey: "mcp-key",
             name: "GitHub reconnect",
             credentialValues: { "credentials.authorization": "old-secret" },
           },
@@ -16634,6 +16638,7 @@ describeEmbeddedPostgres("tool access service", () => {
           company.id,
           {
             galleryKey: "github",
+            connectionMethodKey: "mcp-key",
             name: "Personal GitHub reconnect",
             grantKind: "user",
             credentialValues: {
@@ -16721,6 +16726,7 @@ describeEmbeddedPostgres("tool access service", () => {
           {
             applicationId: connected.application.id,
             galleryKey: "github",
+            connectionMethodKey: "mcp-key",
             name: "Personal GitHub reconnect",
             // No grantKind is sent on reconnect: the retained connection owns that
             // decision and must reactivate this same grant rather than insert a new
