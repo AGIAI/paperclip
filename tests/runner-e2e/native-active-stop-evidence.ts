@@ -147,9 +147,14 @@ export function readActiveStopSettlement(input: { events: readonly unknown[]; ru
   const closed = proof.rows.filter(x => closures.has(x.event.eventType)), terminal = proof.rows.filter(x => terminals.has(x.event.eventType));
   fail(closed.length === 1 && terminal.length === 1, "one closed request and one terminal required");
   const c = closed[0]!, t = terminal[0]!, cp = rec(c.event.payload), tp = rec(t.event.payload);
+  // Product persists the harness projection, not the raw runnerd backend
+  // payload. The terminal mapper closes pending permissions with turn_terminal
+  // and emits {status,error}. Bind that exact boundary to the retained native
+  // request and caller-owned Stop below; a generic terminal is insufficient.
   fail(proof.stream(c.event) && proof.stream(t.event) && c.event.eventType === "runtime_request.cancelled" && cp.requestId === before.requestId && cp.turnId === before.turnId
-    && cp.requestKind === "permission_approval" && cp.requestType === "permission" && cp.reason === "explicit_cancellation"
-    && cp.provider === "acpx" && cp.itemId === proof.request.itemId && cp.replayAllowed === false && t.event.eventType === "turn.cancelled" && tp.status === "cancelled" && tp.provider === "acpx" && tp.providerTurnId === before.turnId && tp.error === null
+    && cp.requestKind === "permission_approval" && cp.reason === "turn_terminal"
+    && cp.itemId === proof.request.itemId && cp.action === undefined && cp.response === undefined && cp.replayAllowed !== true
+    && t.event.eventType === "turn.cancelled" && tp.status === "cancelled" && tp.error === null
     && c.event.sourceSeq > Math.max(before.requestSourceSeq, before.permissionSourceSeq, before.toolOriginSourceSeq, before.toolStartedSourceSeq)
     && t.event.sourceSeq > c.event.sourceSeq,
   "pending callback did not close through cancellation");
@@ -166,7 +171,7 @@ export function readActiveStopSettlement(input: { events: readonly unknown[]; ru
     && Array.isArray(stop.effects) && stop.effects.length === 1 && stop.effects[0] === "release_run_resources"
     && id(stop.intentAuditId) && id(stop.acknowledgementAuditId) && stop.intentAuditId !== stop.acknowledgementAuditId,
   "same-scope caller Stop acknowledgement missing");
-  return { schema: "paperclip.e2e.native-active-stop-settlement.v1", pending: before, dispatchMonotonicNs: input.dispatchMonotonicNs,
+  return { schema: "paperclip.e2e.native-active-stop-settlement.v2", pending: before, dispatchMonotonicNs: input.dispatchMonotonicNs,
     branch: "pending_permission_cancelled" as const, closedRequestSourceSeq: c.event.sourceSeq, terminalSourceSeq: t.event.sourceSeq,
     closedRequestRowSha256: hash(c.row), terminalRowSha256: hash(t.row), intentId: stop.intentId as string,
     intentAuditId: stop.intentAuditId as string, acknowledgementAuditId: stop.acknowledgementAuditId as string,
