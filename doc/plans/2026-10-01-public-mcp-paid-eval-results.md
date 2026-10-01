@@ -189,6 +189,10 @@ Updated supporting verification:
   task is returned, preserving that path's response and avoiding a false event.
   The existing 12-test closed-workspace suite reproduces and verifies the fix.
   This narrow null-result correction follows the paid regression above.
+- An exact-start boundary calibration also reproduced a missed event at the
+  subscription's timestamp. Scanning now includes that timestamp; the existing
+  verification-window test requires delivery at the exact start. This correction
+  also follows the paid regression, and all 33 MCP tests pass afterward.
 - Repository-wide typecheck and production build pass after merging master.
 - The Core → Cloud → Core authority round trip passes real OAuth, MCP 2.0
   subscription, delivery, current Cloud membership loss, unsubscribe, legacy MCP

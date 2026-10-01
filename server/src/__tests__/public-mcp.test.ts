@@ -447,9 +447,9 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     }
   });
 
-  it("retains changes occurring while callback ownership is being verified", async () => {
+  it("retains changes at the subscription start while callback ownership is being verified", async () => {
     const f = await eventFixture();
-    f.duringVerification(async () => { await f.activity(); });
+    f.duringVerification(async () => { f.advance(-100); await f.activity(); });
     await f.service.subscribe(f.principal, f.input);
     await f.service.tick();
     expect(f.received.filter(r => r.body.eventId)).toHaveLength(1);

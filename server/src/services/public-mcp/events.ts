@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, asc, count, eq, gt, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, gte, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { companies, activityLog, mcpEventDeliveries as deliveries, mcpEventSubscriptions as subscriptions, type Db } from "@paperclipai/db";
 import { ISSUE_STATUSES } from "@paperclipai/shared";
@@ -141,7 +141,7 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
     const rows = await db.select({ activity: activityLog }).from(activityLog)
       .leftJoin(deliveries, and(eq(deliveries.subscriptionId, s.id), eq(deliveries.activityId, activityLog.id)))
       .where(and(eq(activityLog.companyId, s.companyId), eq(activityLog.entityType, "issue"), eq(activityLog.entityId, s.taskId),
-        gt(activityLog.createdAt, s.startsAt), lt(activityLog.createdAt, s.expiresAt), isNull(deliveries.id)))
+        gte(activityLog.createdAt, s.startsAt), lt(activityLog.createdAt, s.expiresAt), isNull(deliveries.id)))
       .orderBy(asc(activityLog.createdAt), asc(activityLog.id)).limit(100);
     for (const { activity } of rows) {
       const details = activity.details ?? {};
