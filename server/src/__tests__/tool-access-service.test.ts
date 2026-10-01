@@ -5124,7 +5124,7 @@ describeEmbeddedPostgres("tool access service", () => {
         "enterpret",
       ]),
     );
-    expect(res.body.apps).toHaveLength(58);
+    expect(res.body.apps).toHaveLength(59);
     expect(
       res.body.apps.find((app: { slug: string }) => app.slug === "gmail")
         .ownershipAvailability,
@@ -5229,6 +5229,7 @@ describeEmbeddedPostgres("tool access service", () => {
     const reconnectFetchMock = mockToolsList([
       { name: "get_organization_details", annotations: { readOnlyHint: true } },
       { name: "new_enterpret_tool", annotations: { readOnlyHint: true } },
+      { name: "reconnect_discovered_tool", annotations: { readOnlyHint: true } },
     ]);
     const reconnected = await service.connectGalleryApp(
       company.id,
@@ -5241,6 +5242,12 @@ describeEmbeddedPostgres("tool access service", () => {
       { actorType: "user", actorId: "board" },
     );
     expect(reconnected.connectionId).toBe(result.connectionId);
+    expect(reconnected.catalog).toEqual(expect.arrayContaining([
+      expect.objectContaining({ toolName: "get_organization_details", status: "active" }),
+      expect.objectContaining({ toolName: "new_enterpret_tool", status: "quarantined" }),
+      expect.objectContaining({ toolName: "reconnect_discovered_tool", status: "quarantined" }),
+    ]));
+
     expect(reconnected.connection.config).toMatchObject({ quarantineNewEntries: true });
     expect(JSON.stringify(reconnected.connection.config)).not.toContain("replacement-secret");
     await service.finishGalleryAppConnection(company.id, reconnected.connectionId, {

@@ -879,6 +879,8 @@ const apps = [
             docs: "https://enterpret.support.site/article/enterpret-mcp-server",
           },
           warnings: [
+            "The official Enterpret MCP is read-only. Enterpret previously reported broader OAuth scopes, including mcp:write and email, than Paperclip requested. Enterpret is correcting this scope reporting; it does not establish access to the separate beta Agent MCP.",
+            "After revocation, Enterpret may cache token validity for up to 24 hours. Disconnect this connection to stop Paperclip access immediately. Enterpret is reducing this delay.",
             "You need an Enterpret account with access to your organization's feedback.",
             "This connection reads customer feedback, including verbatim quotes with speaker attribution.",
           ],

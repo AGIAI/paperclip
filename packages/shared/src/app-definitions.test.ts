@@ -516,8 +516,8 @@ describe("AppDefinition catalog", () => {
     expect(app.methods[1].defaults?.authorizationEndpoint).toBeUndefined();
     expect(app.methods[1].defaults?.tokenEndpoint).toBeUndefined();
     expect(app.methods[1].label).toBe("Sign in with Enterpret");
-    expect(app.methods[1].warnings?.some((w) => /mcp:write/i.test(w))).toBe(
-      false,
+    expect(app.methods[1].warnings?.some((w) => /broader OAuth scopes/i.test(w))).toBe(
+      true,
     );
     // The definition records the placement of a credential, never a value.
     const serialized = JSON.stringify(app);

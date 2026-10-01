@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   CONNECTABLE_APP_DEFINITIONS,
@@ -28,6 +29,7 @@ import { ReconnectCard } from "@/pages/apps/app-detail/AdvancedPanel";
  */
 
 const COMPANY_ID = "company-storybook";
+const retryOAuth = fn();
 
 const ENTERPRET = CONNECTABLE_APP_DEFINITIONS.find(
   (app) => app.slug === "enterpret",
@@ -88,7 +90,7 @@ function OAuthStateHost({
         phase={phase}
         error={error}
         authorizationHost="oauth.enterpret.com"
-        onRetry={() => undefined}
+        onRetry={retryOAuth}
         onBack={() => undefined}
         onCancel={() => undefined}
       />
@@ -271,6 +273,13 @@ export const OAuthError: Story = {
       error="Paperclip could not reach Enterpret's authorization service. Check the connection and try again."
     />
   ),
+  play: async ({ canvasElement }) => {
+    retryOAuth.mockClear();
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(/could not reach Enterpret/)).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Try again" }));
+    await expect(retryOAuth).toHaveBeenCalledOnce();
+  },
 };
 
 export const OAuthReconnectRequired: Story = {
