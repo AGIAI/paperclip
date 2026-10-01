@@ -406,7 +406,7 @@ request can stop; it does not accept a no-op Stop of an already terminal run.
 
 `native-active-stop` / `pending-permission-stop` has four explicit-only cells:
 Cursor and Copilot, each local and Daytona. Its `native_active_stop` flow retains
-`paperclip.e2e.native-active-stop-pending.v1` from the public API while exactly one
+`paperclip.e2e.native-active-stop-pending.v2` from the public API while exactly one
 native permission remains pending, the exact controller run is running, and no
 Stop or answer marker exists. The receipt independently binds native session,
 normalized session, turn, source instance, request/tool IDs, source sequences and
@@ -415,6 +415,17 @@ Stop dispatch; process-monotonic timestamps describe only these local observer
 boundaries. Remote provider clocks and database transaction timestamps never
 establish that ordering. The atomic caller UUID fence rejects an earlier racing
 Stop instead of borrowing its acknowledgement.
+
+Suite version 3 accepts either canonical card/tool-start arrival order. The
+exact native origin, canonical tool start and unanswered permission must all
+exist in both pre-Stop API observations. The v2 pending receipt adds the native
+origin and tool-start row hashes and source sequences. The fresh reread and
+settlement must preserve those exact rows; a later tool start cannot backfill
+missing pre-Stop evidence. Command/path, request, tool, turn, session and source
+checks remain strict. The native evidence projector still requires the exact
+tool origin before it can emit correlated permission evidence; this does not
+claim the original ACP wire order. Old v1 receipts are not valid inputs to the
+new grader. Earlier paid failures retain their original definition and grade.
 
 `paperclip.e2e.native-active-stop-settlement.v1` accepts only
 `pending_permission_cancelled`: explicit-cancellation request closure with
@@ -427,7 +438,7 @@ absence through continuous observation, and all observed owned descendants
 retired. Local files require four fresh observations through cleanup. Daytona
 instead retains two live snapshots (baseline and pending) plus one automatic
 owned-process-retirement seal, with a continuous zero-mutation watcher and the
-same complete root/descendant journal. Suite version 2 retains this as
+same complete root/descendant journal. Since suite version 2, this is retained as
 `paperclip.e2e.native-active-stop-remote-retirement.v1`; it explicitly records
 `filesystemAfterRetirementObserved:false`. The per-turn observer seals itself
 when the owned tree retires, before the sandbox is released. Reading that receipt
