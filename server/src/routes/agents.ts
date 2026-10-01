@@ -1,3 +1,5 @@
+import { connectionIntentService } from "../services/connection-intents.js";
+import { completeConnectionIntentSchema } from "@paperclipai/shared";
 import { agentFileStore, agentFileTokenFromHash } from "../services/agent-file-store.js";
 import { pipeline } from "node:stream/promises";
 import { resolveAgentAppearance, agentAvatarUrl } from "@paperclipai/shared";
@@ -13,6 +15,7 @@ import { applyConnectorSkills, resolveConnectorAssignments, annotateConnectorSki
 import { getExecutionBlocker } from "../services/execution-blocker.js";
 import { paperclipRunnerTransitionConfig, normalizeLegacyRunnerProvider, isPaperclipRunnerProvider } from "@paperclipai/adapter-utils";
 import { executionProjectionForRun, executionProjectionsForRuns } from "../services/execution-projection.js";
+import { selectDashboardRunIds } from "../services/dashboard-run-selection.js";
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
@@ -5367,6 +5370,34 @@ export function agentRoutes(
     res.json(result.bundle);
   });
 
+  router.post("/agents/:id/connection-intents/:interactionId/adopt", validate(completeConnectionIntentSchema), async (req, res) => {
+    assertBoard(req);
+    const agent = await getAccessibleResource(req, res, svc.getById(req.params.id as string), "Agent not found");
+    if (!agent) return;
+    await assertCanUpdateAgent(req, agent);
+    const userId = responsibleUserForAiRequest(req);
+    const intents = connectionIntentService(db);
+    const interactionId = req.params.interactionId as string;
+    const loaded = await intents.loadIntent(interactionId);
+    if (loaded.issue.companyId !== agent.companyId || loaded.interaction.payload.requestingAgentId !== agent.id) throw notFound("Connection intent not found");
+    if (!userId || loaded.interaction.addresseeUserId !== userId) throw forbidden("Only the addressed user can adopt this connection");
+    const connectionId = req.body.connectionId as string;
+    if (loaded.interaction.status === "accepted" && loaded.interaction.result?.connectionId === connectionId) {
+      res.json(loaded.interaction);
+      return;
+    }
+    if (loaded.interaction.status !== "pending") throw conflict("Connection intent is already resolved");
+    const setup = await intents.setupOptions(interactionId);
+    if (!setup.aiConnectionRequiresAdoption || !setup.aiConnection) throw conflict("The agent’s AI configuration changed. Reload the task and try again.");
+    // Probe in the agent's execution environment without installing access.
+    // The binding, install, audit, and card resolution commit together below.
+    const validatedConnectionId = await validateManagedAgentBinding(req, agent.companyId, agent.id, agent.adapterType, agent.adapterConfig, setup.aiConnection, agent.defaultEnvironmentId, true, true);
+    if (validatedConnectionId !== connectionId) throw conflict("This is no longer the selected account. Reload the task and try again.");
+    res.json(await intents.complete(interactionId, connectionId, userId, {
+      validatedAdoption: { agentUpdatedAt: agent.updatedAt, binding: setup.aiConnection },
+    }));
+  });
+
   router.patch("/agents/:id", validate(updateAgentSchema), async (req, res) => {
     const id = req.params.id as string;
     const existing = await getAccessibleResource(req, res, svc.getById(id), "Agent not found");
@@ -6843,6 +6874,7 @@ export function agentRoutes(
     // padded in and renders bogus "live" counts.
     const minCount = readLiveRunsQueryInt(req.query.minCount, 50, 0);
     const limit = readLiveRunsQueryInt(req.query.limit, 50, 50);
+    const distinctTasks = req.query.distinctTasks === "true";
 
     const columns = {
       id: heartbeatRuns.id,
@@ -6858,7 +6890,7 @@ export function agentRoutes(
       createdAt: heartbeatRuns.createdAt,
       agentId: heartbeatRuns.agentId,
       agentName: agentsTable.name,
-        agentAppearance: agentsTable.appearance,
+      agentAppearance: agentsTable.appearance,
       adapterType: agentsTable.adapterType,
       logBytes: heartbeatRuns.logBytes,
       livenessState: heartbeatRuns.livenessState,
@@ -6886,10 +6918,25 @@ export function agentRoutes(
       )
       .orderBy(desc(heartbeatRuns.createdAt));
 
-    const liveRuns = await liveRunsQuery.limit(limit);
+    const liveRuns = distinctTasks ? [] : await liveRunsQuery.limit(limit);
+    let rows = liveRuns;
     const targetRunCount = Math.min(minCount, limit);
 
-    if (targetRunCount > 0 && liveRuns.length < targetRunCount) {
+    if (distinctTasks) {
+      // Return enough representatives for the dashboard to count cards beyond
+      // its visible four, rather than stopping at the minimum display count.
+      const selectedIds = await selectDashboardRunIds(db, companyId, limit);
+      const selectedRows = selectedIds.length === 0 ? [] : await db
+        .select(columns)
+        .from(heartbeatRuns)
+        .innerJoin(agentsTable, eq(heartbeatRuns.agentId, agentsTable.id))
+        .where(and(eq(heartbeatRuns.companyId, companyId), inArray(heartbeatRuns.id, selectedIds)));
+      const byId = new Map(selectedRows.map((run) => [run.id, run]));
+      rows = selectedIds.flatMap((id) => {
+        const run = byId.get(id);
+        return run ? [run] : [];
+      });
+    } else if (targetRunCount > 0 && liveRuns.length < targetRunCount) {
       const activeIds = liveRuns.map((r) => r.id);
       const recentRuns = await db
         .select(columns)
@@ -6905,24 +6952,15 @@ export function agentRoutes(
         .orderBy(desc(heartbeatRuns.createdAt))
         .limit(targetRunCount - liveRuns.length);
 
-      const rows = [...liveRuns, ...recentRuns];
-      const projections = await executionProjectionsForRuns(db, companyId, rows.map(run => run.id));
-      res.json(await runRedactions.redactForRuns(companyId, await Promise.all(rows.map(async (run) => ({
-        ...heartbeat.decorateActiveRunStatus(run),
-        agentAppearance: resolveAgentAppearance(run.agentAppearance, run.agentId),
-        avatarUrl: agentAvatarUrl(resolveAgentAppearance(run.agentAppearance, run.agentId), 512),
-        execution: projections.get(run.id) ?? null,
-        outputSilence: await heartbeat.buildRunOutputSilence(run),
-      })))));
-      return;
+      rows = [...liveRuns, ...recentRuns];
     }
 
-    const projections = await executionProjectionsForRuns(db, companyId, liveRuns.map(run => run.id));
-    res.json(await runRedactions.redactForRuns(companyId, await Promise.all(liveRuns.map(async (run) => ({
+    const projections = await executionProjectionsForRuns(db, companyId, rows.map(run => run.id));
+    res.json(await runRedactions.redactForRuns(companyId, await Promise.all(rows.map(async (run) => ({
       ...heartbeat.decorateActiveRunStatus(run),
-        agentAppearance: resolveAgentAppearance(run.agentAppearance, run.agentId),
-        avatarUrl: agentAvatarUrl(resolveAgentAppearance(run.agentAppearance, run.agentId), 512),
-        execution: projections.get(run.id) ?? null,
+      agentAppearance: resolveAgentAppearance(run.agentAppearance, run.agentId),
+      avatarUrl: agentAvatarUrl(resolveAgentAppearance(run.agentAppearance, run.agentId), 512),
+      execution: projections.get(run.id) ?? null,
       outputSilence: await heartbeat.buildRunOutputSilence(run),
     })))));
   });
