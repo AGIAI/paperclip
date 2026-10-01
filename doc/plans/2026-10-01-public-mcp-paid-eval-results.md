@@ -28,12 +28,18 @@ The oracle reads durable state through public APIs. It checks document contents/
 
 ## Retained reports
 
-- [public-mcp-pr-final-regression-20261001](../../tests/runner-e2e/results/public-mcp-pr-final-regression-20261001/report/index.html): 3/3 delegation/retrieval cells, one on each model, after the final pending-consent quota correction. [Source manifest](../../tests/runner-e2e/results/public-mcp-pr-final-regression-20261001/source-files.json).
+The paths below are local evidence paths in the implementation worktree, not
+repository links. `tests/runner-e2e/results/` is gitignored; these reports and logs
+are not included in a normal checkout or published on GitHub. The committed
+summary preserves measurements and provenance; the reproduce commands generate
+new evidence. Raw evidence is retained locally, with each original attempt.
 
-- [public-mcp-pr-final-20261001](../../tests/runner-e2e/results/public-mcp-pr-final-20261001/report/index.html): 21/21 after rebasing and review fixes. [Source manifest](../../tests/runner-e2e/results/public-mcp-pr-final-20261001/source-files.json).
+- public-mcp-pr-final-regression-20261001 (`tests/runner-e2e/results/public-mcp-pr-final-regression-20261001/report/index.html`): 3/3 delegation/retrieval cells, one on each model, after the final pending-consent quota correction. Source manifest (`tests/runner-e2e/results/public-mcp-pr-final-regression-20261001/source-files.json`).
 
-- [public-mcp-final-b-20261001](../../tests/runner-e2e/results/public-mcp-final-b-20261001/report/index.html): 21/21, with screenshots, checks, tool outcomes, cost coverage and cleanup. [Source manifest](../../tests/runner-e2e/results/public-mcp-final-b-20261001/source-files.json).
-- [public-mcp-final-c-20261001](../../tests/runner-e2e/results/public-mcp-final-c-20261001/report/index.html): 21/21, with screenshots, checks, tool outcomes, cost coverage and cleanup. [Source manifest](../../tests/runner-e2e/results/public-mcp-final-c-20261001/source-files.json).
+- public-mcp-pr-final-20261001 (`tests/runner-e2e/results/public-mcp-pr-final-20261001/report/index.html`): 21/21 after rebasing and review fixes. Source manifest (`tests/runner-e2e/results/public-mcp-pr-final-20261001/source-files.json`).
+
+- public-mcp-final-b-20261001 (`tests/runner-e2e/results/public-mcp-final-b-20261001/report/index.html`): 21/21, with screenshots, checks, tool outcomes, cost coverage and cleanup. Source manifest (`tests/runner-e2e/results/public-mcp-final-b-20261001/source-files.json`).
+- public-mcp-final-c-20261001 (`tests/runner-e2e/results/public-mcp-final-c-20261001/report/index.html`): 21/21, with screenshots, checks, tool outcomes, cost coverage and cleanup. Source manifest (`tests/runner-e2e/results/public-mcp-final-c-20261001/source-files.json`).
 
 These three complete campaigns contain 63 retained attempts for 63 cells and completed without retries. Earlier failed attempts remain visible in the history below; selecting a later successful attempt never deletes the earlier measurement. Reports are retained locally in this managed worktree and have not been published.
 
@@ -53,7 +59,7 @@ These three complete campaigns contain 63 retained attempts for 63 cells and com
 | PR qualification startup failures | Stale, detached PostgreSQL shared-memory segments exhausted the macOS host limit. The incomplete campaigns are retained; only unused segments with no live creator were reclaimed. A fresh complete campaign then passed all 21 cells. |
 | Review request-budget finding | Enforced the 16-request external-assistant cap across every conversation in the cell. Unit calibration and the fresh full matrix pass with the shared cap. |
 
-The earlier full matrices retain their original grades: [C: 20/21](../../tests/runner-e2e/results/public-mcp-matrix-c-20261001/report/index.html), [D: 20/21](../../tests/runner-e2e/results/public-mcp-matrix-d-20261001/report/index.html), [E: 19/21](../../tests/runner-e2e/results/public-mcp-matrix-e-20261001/report/index.html), and [final A: 19/21](../../tests/runner-e2e/results/public-mcp-final-a-20261001/report/index.html). Infrastructure failures also remain recorded, including embedded-Postgres startup limits, a host sleep interruption, and an Anthropic HTTP 529 retried by the existing launcher.
+The earlier full matrices retain their original grades: C: 20/21 (`tests/runner-e2e/results/public-mcp-matrix-c-20261001/report/index.html`), D: 20/21 (`tests/runner-e2e/results/public-mcp-matrix-d-20261001/report/index.html`), E: 19/21 (`tests/runner-e2e/results/public-mcp-matrix-e-20261001/report/index.html`), and final A: 19/21 (`tests/runner-e2e/results/public-mcp-final-a-20261001/report/index.html`). Infrastructure failures also remain recorded, including embedded-Postgres startup limits, a host sleep interruption, and an Anthropic HTTP 529 retried by the existing launcher.
 
 ## Provenance and validation
 
@@ -70,9 +76,9 @@ The earlier full matrices retain their original grades: [C: 20/21](../../tests/r
 - The final Core and Cloud code also passes a real tenant OAuth → Cloud broker → MCP SDK initialize/list/call round trip, then refresh and revocation; all ten tools and person/company attribution are verified. This is a local disposable fixture, not a production deployment.
 - Automatic consent traces/video/screenshots are disabled; explicit captures contain fixture task pages. Tool evidence and visible answers are retained, while the external assistant's hidden reasoning is omitted. The existing secret/evidence validator passed all final packages.
 
-Current verification logs: [Core build](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/core-build.log), [Core typecheck](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/core-typecheck.log), [881 eval-support tests](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/eval-unit.log), [15 MCP boundary tests](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/mcp-boundary.log), [Cloud root tests](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/cloud-tests.log), [seven PostgreSQL tests](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/cloud-postgres.log), and [real broker/tenant MCP SDK](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/cloud-tenant-mcp-sdk.log).
+Current verification logs: Core build (`tests/runner-e2e/results/public-mcp-pr-verification-20261001/core-build.log`), Core typecheck (`tests/runner-e2e/results/public-mcp-pr-verification-20261001/core-typecheck.log`), 881 eval-support tests (`tests/runner-e2e/results/public-mcp-pr-verification-20261001/eval-unit.log`), 15 MCP boundary tests (`tests/runner-e2e/results/public-mcp-pr-verification-20261001/mcp-boundary.log`), Cloud root tests (`tests/runner-e2e/results/public-mcp-pr-verification-20261001/cloud-tests.log`), seven PostgreSQL tests (`tests/runner-e2e/results/public-mcp-pr-verification-20261001/cloud-postgres.log`), and real broker/tenant MCP SDK (`tests/runner-e2e/results/public-mcp-pr-verification-20261001/cloud-tenant-mcp-sdk.log`).
 
-Initial verification logs (historical): [eval typecheck](../../tests/runner-e2e/results/public-mcp-verification-20261001/eval-typecheck.log), [470 unit tests](../../tests/runner-e2e/results/public-mcp-verification-20261001/eval-unit.log), [MCP boundaries](../../tests/runner-e2e/results/public-mcp-verification-20261001/mcp-boundary.log), [Cloud broker](../../tests/runner-e2e/results/public-mcp-verification-20261001/cloud-broker.log).
+Initial verification logs (historical): eval typecheck (`tests/runner-e2e/results/public-mcp-verification-20261001/eval-typecheck.log`), 470 unit tests (`tests/runner-e2e/results/public-mcp-verification-20261001/eval-unit.log`), MCP boundaries (`tests/runner-e2e/results/public-mcp-verification-20261001/mcp-boundary.log`), Cloud broker (`tests/runner-e2e/results/public-mcp-verification-20261001/cloud-broker.log`).
 
 The source manifests describe each measured working tree. The latest full matrix precedes the final pending-consent quota correction; that correction has dedicated shared-client protocol tests and a separate paid delegation regression. Historical runs keep their original grades and source fingerprints.
 
