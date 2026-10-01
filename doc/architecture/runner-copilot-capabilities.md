@@ -11,7 +11,11 @@ failed even though its owned processes, sandbox and IPC retired cleanly.
 Receipt v2 preserves the original `inputSha256` and separately records
 `normalizedInputSha256` at the same invocation's actual validated forwarding
 boundary. The capture commits only after that emission succeeds; absent or
-invalid capture remains null. Native result matching still requires the exact
+invalid capture remains null. The sidecar rejects an oversized frame or semantic
+body that its Unicode encoder would change before committing the digest.
+Rejected frames consume no stream sequence. Writable backpressure still means
+the bytes were accepted into the stream buffer; it does not prove semantic
+acceptance. Native result matching still requires the exact
 invocation-owned receipt and all original call/input/result hashes. Acceptance
 must independently match the normalized digest and the unique proposed/accepted
 result bodies. Transport return alone never proves acceptance. The server
