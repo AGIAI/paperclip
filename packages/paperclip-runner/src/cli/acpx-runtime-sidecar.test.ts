@@ -98,10 +98,24 @@ describe("qualified ACPX runtime sidecar", () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it.each(["codex", "claude", "grok", "pi", "copilot", null])("preserves existing non-Cursor sidecar identity policy: %s", agent => {
+    const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");
+    const start = source.indexOf("function stableProviderIdentity(");
+    const stable = new Function("createHash", "cursorToolIdentity", "openParams", `${stripTypeScriptTypes(source.slice(start, source.indexOf("\nfunction canonicalJson", start)))}; return stableProviderIdentity;`)(createHash, cursorToolIdentity, agent ? { agent } : null);
+    for (const kind of ["tool", "message"]) {
+      for (const raw of ["safe-tool", "tool/1", "native\u0080tool", "native\u0085tool", "native\u009ftool", "x".repeat(161)]) {
+        expect(stable(raw, kind)).toBe(raw);
+      }
+      for (const raw of ["native\u0000tool", "native\u007ftool", "x".repeat(241)]) {
+        const expected = `acpx-${kind}-${createHash("sha256").update("paperclip.acpx.provider-identity.v1\0").update(kind).update("\0").update(raw).digest("hex")}`;
+        expect(stable(raw, kind)).toBe(expected);
+      }
+    }
+  });
   it.each(["tool-first", "permission-first"])("uses the same Cursor identity in actual sidecar tool and pending permission paths: %s", async order => {
     const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");
     const identityStart = source.indexOf("function stableProviderIdentity(");
-    const stableIdentity = new Function("createHash", "cursorToolIdentity", `${stripTypeScriptTypes(source.slice(identityStart, source.indexOf("\nfunction canonicalJson", identityStart)))}; return stableProviderIdentity;`)(createHash, cursorToolIdentity);
+    const stableIdentity = new Function("createHash", "cursorToolIdentity", "openParams", `${stripTypeScriptTypes(source.slice(identityStart, source.indexOf("\nfunction canonicalJson", identityStart)))}; return stableProviderIdentity;`)(createHash, cursorToolIdentity, { agent: "cursor" });
     const boundStart = source.indexOf("function boundRuntimeEventForNormalization(");
     const bound = new Function("boundedOptionalText", "stableProviderIdentity", "safeAcpxLocations", "openParams", "safeOutput",
       `${stripTypeScriptTypes(source.slice(boundStart, source.indexOf("\nfunction sanitizeRuntimeEvent", boundStart)))}; return boundRuntimeEventForNormalization;`)(
