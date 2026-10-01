@@ -135,7 +135,7 @@ export function RemoteMcpConnectionSetup({ provider, state: s, actions: a, agent
             enabledIds={new Set(s.tools.filter((entry) => s.permissions[entry.id] !== "off").map((entry) => entry.id))}
             askFirstIds={new Set(s.tools.filter((entry) => s.permissions[entry.id] === "ask_first").map((entry) => entry.id))}
             disabled={!s.connected} refreshPending={s.refreshing} canConfigure
-            onSetPermission={(id, next) => change({ permissions: { ...s.permissions, [id]: next === "ask" ? "ask_first" : next } })}
+            onSetPermission={(ids, next) => change({ permissions: { ...s.permissions, ...Object.fromEntries(ids.map((id) => [id, next === "ask" ? "ask_first" : next])) } })}
             onReviewQuarantined={() => {}} onRefreshActions={a.refresh} />
         </>}
         <div className="mx-auto max-w-2xl space-y-6">

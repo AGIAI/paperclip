@@ -53,7 +53,7 @@ export function PermissionsPanel({
   connectionId: string;
   install: InstallState;
   onSaveAccess: (next: AccessDraft) => void;
-  onSetActionPermission: (id: string, next: ActionPermission) => void;
+  onSetActionPermission: (ids: string[], next: ActionPermission) => void;
   onReviewQuarantined: (enabledIds: string[]) => void;
   onRefreshActions: () => void;
   refreshPending: boolean;
@@ -222,7 +222,7 @@ export function ActionsSection({
   focusId?: string | null;
   canConfigure: boolean;
   permissionChangeWarning?: string;
-  onSetPermission: (id: string, next: ActionPermission) => void;
+  onSetPermission: (ids: string[], next: ActionPermission) => void;
   onReviewQuarantined: (enabledIds: string[]) => void;
   onRefreshActions: () => void;
 }) {
@@ -316,9 +316,9 @@ export function ActionsSection({
             disabled={disabled}
             focusId={focusId}
             canConfigure={canConfigure}
-            onSetPermission={(id, next) => {
+            onSetPermission={(ids, next) => {
               setShowPermissionChangeWarning(true);
-              onSetPermission(id, next);
+              onSetPermission(ids, next);
             }}
           />
           <ActionGroup
@@ -331,9 +331,9 @@ export function ActionsSection({
             disabled={disabled}
             focusId={focusId}
             canConfigure={canConfigure}
-            onSetPermission={(id, next) => {
+            onSetPermission={(ids, next) => {
               setShowPermissionChangeWarning(true);
-              onSetPermission(id, next);
+              onSetPermission(ids, next);
             }}
           />
         </div>
@@ -381,7 +381,7 @@ function ActionGroup({
   disabled: boolean;
   focusId?: string | null;
   canConfigure: boolean;
-  onSetPermission: (id: string, next: ActionPermission) => void;
+  onSetPermission: (ids: string[], next: ActionPermission) => void;
 }) {
   if (actions.length === 0) return null;
   const groupValue = (() => {
@@ -395,9 +395,9 @@ function ActionGroup({
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
         {canConfigure ? (
-          // PAP-659 C6b: set the whole group at once. Setting seventeen write
-          // actions one row at a time is the reason the armed default would
-          // otherwise be hard to live with; per-row overrides stay underneath.
+          // PAP-659 C6b: set the whole group at once, so narrowing a fresh
+          // connection's writes is one choice rather than one per action;
+          // per-row overrides stay underneath.
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="sr-only">{`Set every action in ${title}`}</span>
             <select
@@ -405,8 +405,10 @@ function ActionGroup({
               value={groupValue}
               disabled={disabled}
               onChange={(event) => {
-                const next = event.target.value as ActionPermission;
-                for (const action of actions) onSetPermission(action.id, next);
+                // One change for the whole group: each row's setter rebuilds the
+                // full permission set from the same render, so looping it lets
+                // the last call overwrite the others.
+                onSetPermission(actions.map((action) => action.id), event.target.value as ActionPermission);
               }}
               className="h-7 rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30"
             >
@@ -465,7 +467,7 @@ function ActionRow({
   disabled: boolean;
   focused: boolean;
   canConfigure: boolean;
-  onSetPermission: (id: string, next: ActionPermission) => void;
+  onSetPermission: (ids: string[], next: ActionPermission) => void;
 }) {
   const rowRef = useRef<HTMLDivElement | null>(null);
   const [testOpen, setTestOpen] = useState(false);
@@ -522,7 +524,7 @@ function ActionRow({
                         aria-checked={selected}
                         aria-label={`${title}: ${option.label}`}
                         disabled={disabled}
-                        onClick={() => onSetPermission(action.id, option.value)}
+                        onClick={() => onSetPermission([action.id], option.value)}
                         className={cn(
                           "flex h-8 w-8 items-center justify-center rounded-sm text-muted-foreground outline-none transition-colors",
                           "hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
