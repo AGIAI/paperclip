@@ -2,7 +2,7 @@
 
 Date: 2026-10-01
 
-Latest complete matrix: **21/21 cells passed**, without retries, after rebasing and PR fixes. All 21 evidence packages passed the existing report validator. A final focused delegation/retrieval regression then passed **3/3** on the pending-consent correction, again without retries and with all evidence validated. Earlier qualification also passed **42/42** across two complete campaigns. These measurements have separate source fingerprints below. They are real paid local Product E2E runs with browser authentication/consent, OAuth, MCP, an external assistant API, scheduling, and a CLI worker.
+Latest complete pre-Events matrix: **21/21 cells passed**, without retries, after rebasing and PR fixes. All 21 evidence packages passed the existing report validator. A final focused delegation/retrieval regression then passed **3/3** on the pending-consent correction, again without retries and with all evidence validated. Earlier qualification also passed **42/42** across two complete campaigns. These measurements have separate source fingerprints below. They are real paid local Product E2E runs with browser authentication/consent, OAuth, MCP, an external assistant API, scheduling, and a CLI worker.
 
 | Model | final-b-20261001 | final-c-20261001 | pr-final-20261001 |
 | --- | --- | --- | --- |
@@ -12,9 +12,11 @@ Latest complete matrix: **21/21 cells passed**, without retries, after rebasing 
 
 GPT-5.4 Mini resolved to `gpt-5.4-mini-2026-03-17` in external API responses. Requested and observed model IDs are retained separately. The worker also must report metered usage for the configured model.
 
+The subsequent MCP Events extension passed a three-model selection and a final Mini regression; see the separate qualification record below. The catalog now contains eight cases (24 selections).
+
 ## Coverage and implementation
 
-The explicit-only `public-mcp` suite adds seven cases to the existing `tests/runner-e2e` catalog, fixture registry, launcher, evidence validation, billing, and HTML report pipeline. `--all` does not silently include these paid cells. See [the runbook](../../tests/runner-e2e/PUBLIC-MCP.md).
+The initial explicit-only `public-mcp` suite added seven cases to the existing `tests/runner-e2e` catalog, fixture registry, launcher, evidence validation, billing, and HTML report pipeline. `--all` does not silently include these paid cells. See [the runbook](../../tests/runner-e2e/PUBLIC-MCP.md).
 
 - Delegate exactly one task, wait for one successful worker run, and retrieve the agent-authored report in a fresh connection and conversation.
 - Recover a withheld successful create response without a duplicate task or mutation identity.
@@ -106,4 +108,106 @@ pnpm test:e2e:runner:unit
 pnpm test:e2e:runner -- --list --suite public-mcp
 pnpm test:e2e:runner -- --id public-mcp.assistant-codex-mini.local.delegate-retrieve
 pnpm test:e2e:runner -- --suite public-mcp --max-parallel 1
+```
+
+## MCP Events qualification
+
+The added event-follow-up case passes **3/3 models** on clean commit
+`93056b8edea03ff20d0409fecdde92917cb36a25`. A final Mini regression passes on clean
+commit `5aa2a6e3ae6cb1ccf70efa05b14dacccc9d358a0`, after quota reclamation and native
+checkout/release status-event fixes. All four final evidence packages validate.
+These focused runs supplement the earlier 21-cell matrix; a new complete
+24-cell matrix has not been run.
+
+The catalog now has eight cases and 24 explicit paid selections. The new case
+uses browser consent, OAuth, the actual MCP 2.0 endpoint, a public HTTPS callback,
+independent HMAC verification, a paid external assistant and a paid worker. The
+host subscribes immediately after task creation, receives its completion event,
+and starts a fresh assistant conversation that must retrieve the saved document
+without creating tasks or comments. Callback credentials are host-owned and are
+never supplied to the model. The oracle requires the correct task/company,
+verified callback/signature, completion status, document read-back and no writes.
+
+| Campaign (all dated 20261001) | Result | Assistant estimate | Reported worker charges |
+| --- | --- | --- | --- |
+| `public-mcp-events-mini-pilot-20261001` | 1/1 | $0.014134 | Unpriced |
+| `public-mcp-events-model-matrix-20261001` | 2/3 | $0.246730 | $0.262921 |
+| `public-mcp-events-final-20261001` | 1/3 | $0.060270 | $0.084466 |
+| `public-mcp-events-qualified-20261001` | 3/3 | $0.257733 | $0.212634 |
+| `public-mcp-events-quota-regression-20261001` | 1/1 | $0.011218 | Unpriced |
+
+The qualified matrix passed GPT-5.4 Mini, Claude Haiku 4.5 and Claude Sonnet 4.6
+on their first paid cell attempt. Mini and Sonnet each needed two receiver startup
+attempts because the first temporary tunnel hostname returned `ENOTFOUND`; Haiku
+needed one. The final Mini regression also needed two receiver startup attempts.
+Setup retries are bounded to three and run before provider calls. Their count
+and failure categories remain in `snapshots/public-mcp-events.json`; they are not
+hidden paid retries.
+
+The first matrix retains a Mini callback-verification failure. The next selection
+retains Mini/Sonnet public-receiver readiness failures with zero observed external
+assistant requests. An independent probe reproduced temporary-tunnel DNS failure.
+The harness now checks public readiness and retries a fresh tunnel before paying
+for an assistant. Production callback verification and public-address checks were
+not weakened. All 11 original attempts and their original grades remain; every
+report's evidence packages validate, including failed attempts.
+
+Source provenance (each campaign retains `source-files.json`):
+
+- Pilot: base `dd27f4dea0040646d3e96b2cbf92086b421389fd`, working-tree digest
+  `9f96066a4f1fb0374954a0e4e5b54eb0b37aca64f65e4343cf802d96152c05e3`.
+- First matrix: same base, working-tree digest
+  `f5ac7563a382e3e5c963e6986469242d492f58c4a677f70882714fba28969466`.
+- Readiness selection: clean `fed6d7bab8831d5b62558cdaced3e45f3898184b`.
+- Qualified matrix and final regression: clean commits stated above. Their empty
+  working-tree manifests have SHA-256
+  `44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a`.
+- Suite definition for these runs:
+  `013825c29cb522cbdc98cc07b6f6954a0d59c1d7c6d52e30f5b32e44bb0f7ca5`.
+  Grader: `public-mcp-durable-state-v9`, including 11 new positive/negative
+  event-oracle calibration cases.
+
+Each campaign's report is retained locally at
+`tests/runner-e2e/results/<campaign>/report/index.html`, alongside the original
+attempts and source manifest. These ignored files are not published on GitHub.
+The Events extension adds **$0.5901** of observed external-assistant estimates
+and **$0.5600** of worker-reported charges across 11 attempts. Together with the
+previous 200 attempts, the retained totals are **$9.6760** and **$13.2727**
+respectively. These remain partial observations, not an invoice total; OpenAI
+worker token usage is unpriced and interrupted usage may be unavailable.
+
+Updated supporting verification:
+
+- All 33 real MCP/OAuth tests and 892 eval-support tests pass, along with eval
+  typecheck and server typecheck. The preceding combined MCP, log-redaction,
+  private-address and DNS-rebinding run passed 129 tests; two subsequent MCP
+  regressions cover quota reuse and unchanged-status suppression.
+- All 28 adjacent issue-tree/stale-lock route tests pass after checkout/release
+  activity gained previous/current status for event delivery.
+- Repository-wide typecheck and production build pass after merging master.
+- The Core → Cloud → Core authority round trip passes real OAuth, MCP 2.0
+  subscription, delivery, current Cloud membership loss, unsubscribe, legacy MCP
+  tools, refresh and revocation. Its callback transport is injected and verifies
+  HMAC independently; the paid campaigns separately prove public HTTPS delivery.
+- Cloud's full root suite passes 2,095 tests with 64 opt-in skips. Root typecheck,
+  smoke QA and all seven opt-in durable PostgreSQL tests pass after migration
+  renumbering to `0055_assistant_mcp.sql`.
+
+The delivery tests additionally cover persistence/restart, retries and stable IDs,
+key rotation, expiration, revocation, company isolation, SSRF/log redaction,
+changes during callback verification and late-committed activity. Stopped/expired
+monitors release quota on the next admission; no replay after reclamation is
+promised. Hosted monitors refresh within five minutes and never exceed their
+Cloud authorization proof's expiry.
+
+Actual ChatGPT Work Cloud/dot UI behavior, a deployed plugin rescan and hosted
+staging acceptance remain release gates. The Anthropic paid cells exercise model
+behavior through the same host fixture; they do not claim Claude product support
+for OpenAI MCP Events. Legacy tool-based follow-up remains available.
+
+To reproduce a cheap Events cell, install `cloudflared`, provide the existing
+ignored eval credentials, then run:
+
+```sh
+pnpm test:e2e:runner -- --id public-mcp.assistant-codex-mini.local.event-follow-up
 ```

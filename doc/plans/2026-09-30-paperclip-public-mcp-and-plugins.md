@@ -355,7 +355,7 @@ Current local qualification:
   exact source fingerprints and costs.
 
 This is a usable opt-in first release for existing teams. Applying Core updates
-adds migrations 0294 and 0295 plus disabled MCP code. An operator must enable
+adds migrations 0294, 0295 and 0296 plus disabled MCP code. An operator must enable
 `PAPERCLIP_PUBLIC_MCP_ENABLED`, configure `PAPERCLIP_PUBLIC_URL`, and expose the
 authenticated instance over HTTPS. A team member can then connect Codex or Claude
 Code directly, consent to a company, review work, delegate tasks as themselves,
@@ -379,3 +379,5 @@ Add user-requested task monitoring using [OpenAI MCP Events](https://developers.
 Subscriptions and pending deliveries persist in PostgreSQL. Callback ownership verification and event deliveries use Standard Webhooks signatures, encrypted signing material, HTTPS with pinned public-address resolution, finite lifetimes, bounded retries, and current authorization checks. Hosted delivery additionally checks Cloud account/stack membership through its fixed broker, with a subscription lifetime bounded by its authorization proof. No replay cursor is advertised in this first implementation; use task/history tools to recover missed work after an expired subscription.
 
 Add restart, retry, isolation, revocation, callback verification and protocol compatibility tests. Extend the existing paid evaluation infrastructure with event-driven follow-up across the qualified models, retaining source/cost/evidence. A real ChatGPT Work Cloud subscription and plugin rescan against staging remain rollout acceptance gates until exercised. Claude and older clients retain tool-based follow-up.
+
+Implementation and paid verification are complete for this addition: the three-model event-follow-up selection passed, followed by a Mini regression on the final quota/status changes. All evidence validates. The updated [results record](2026-10-01-public-mcp-paid-eval-results.md#mcp-events-qualification) retains the source fingerprints, setup failures, costs and remaining client rollout gates. Core persists finite subscriptions and signed deliveries; Cloud forwards MCP 2.0 metadata and preserves current hosted authority. Deployment and actual ChatGPT Work Cloud acceptance remain separate steps.
