@@ -1438,9 +1438,9 @@ function stableRequestId(
 }
 
 function stableProviderIdentity(value: string, kind: string): string {
-  // Keep native Cursor permission/evidence IDs identical to tool activity.
-  // This helper implements the same existing transform for all tool events.
-  if (kind === "tool") return cursorToolIdentity(value);
+  // Cursor alone uses the richer permission/evidence identity policy. Other
+  // providers and message identities retain their existing sidecar mapping.
+  if (kind === "tool" && openParams?.agent === "cursor") return cursorToolIdentity(value);
   if (Buffer.byteLength(value) <= 240 && !/[\u0000-\u001f\u007f]/.test(value)) {
     return value;
   }
