@@ -23,6 +23,10 @@ on:
         description: "Run the complete offline Runner verify command on GitHub-hosted Ubuntu without building an image"
         type: boolean
         default: false
+      verify_pi_intel:
+        description: "Verify frozen Pi 1.0 closed startup and SDK contracts on native Intel macOS (no provider prompts)"
+        type: boolean
+        default: false
       diagnose_ajv_pack:
         description: "Diagnose only pinned AJV npm directory packing on Linux (no Runner build/tests)"
         type: boolean
@@ -57,7 +61,7 @@ permissions: {}
 
 concurrency:
   # Publishing a newer image must not discard an earlier verification's evidence.
-  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.source_root_tests_only && 'source-root-tests' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
+  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.verify_pi_intel && 'pi-native-intel' || inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.source_root_tests_only && 'source-root-tests' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
   cancel-in-progress: true
 
 jobs:
@@ -110,8 +114,9 @@ jobs:
           VERIFY_SOURCE: ${{ inputs.verify_source }}
           SOURCE_ROOT_TESTS_ONLY: ${{ inputs.source_root_tests_only }}
           IMAGE_MODE: ${{ inputs.publish_eval_image || inputs.verify_public_install || inputs.build_eval_viewer }}
+          VERIFY_PI_INTEL: ${{ inputs.verify_pi_intel }}
           DIAGNOSE_AJV: ${{ inputs.diagnose_ajv_pack }}
-          OTHER_MODE: ${{ inputs.publish_eval_image || inputs.verify_source || inputs.verify_public_install || inputs.build_eval_viewer }}
+          OTHER_MODE: ${{ inputs.publish_eval_image || inputs.verify_source || inputs.verify_public_install || inputs.build_eval_viewer || inputs.verify_pi_intel }}
         run: |
           set -euo pipefail
           test "$REPOSITORY" = paperclipai/paperclip
@@ -143,10 +148,68 @@ jobs:
             test "$EXPECTED_SOURCE_SHA" = 34f49a201a804564cfae81e425266b3f9f987e30
             test "$EXPECTED_LOCK_SHA256" = 5ae57d1ddd475691dac1f1cfbd4836e54f7da1956b47e6e705b218ae3070ae2e
           fi
+          if [ "$VERIFY_PI_INTEL" = true ]; then
+            test "$VERIFY_RUNNER" != true
+            test "$VERIFY_SOURCE" != true
+            test "$SOURCE_ROOT_TESTS_ONLY" != true
+            test "$DIAGNOSE_AJV" != true
+            test "$IMAGE_MODE" != true
+            test "$EXPECTED_SOURCE_SHA" = 5eba61ece929dcfb2b0c1761825a2d9e557c2554
+            test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
+            # Standard hosted runner minutes are free for this public repository.
+            # Artifact storage and unrelated resource costs are not inferred here.
+            test "$(gh api "repos/$REPOSITORY" --jq '.visibility')" = public
+          fi
           if [ -n "$EXPECTED_SOURCE_SHA" ]; then
             test "$target_sha" = "$EXPECTED_SOURCE_SHA"
           fi
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+
+  manual_pi_intel:
+    name: Frozen Pi 1.0 native Intel startup and SDK contracts
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_pi_intel
+    needs: authorize_manual
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted CI helpers independently of candidate source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted-ci
+          persist-credentials: false
+      - name: Checkout exact frozen production source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.authorize_manual.outputs.target_sha }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24.21.0
+          architecture: x64
+          package-manager-cache: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 9.15.4
+          package_json_file: candidate/package.json
+      - name: Build frozen pack and run unchanged no-provider contracts once
+        timeout-minutes: 55
+        run: |
+          set -euo pipefail
+          python3 -B trusted-ci/scripts/ci/pi-intel/verify.py \
+            --source "$GITHUB_WORKSPACE/candidate" \
+            --output "$GITHUB_WORKSPACE/pi-intel-evidence"
+      - name: Retain exact input, independent output, test, and cleanup evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pi-native-intel-${{ github.run_id }}
+          path: pi-intel-evidence/
+          retention-days: 7
+          if-no-files-found: error
 
   manual_runner_verify:
     name: Full offline Runner verification on GitHub-hosted Ubuntu
@@ -434,7 +497,7 @@ jobs:
 
   manual_image:
     name: Build and verify on EC2
-    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner && !inputs.verify_source && !inputs.diagnose_ajv_pack
+    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner && !inputs.verify_source && !inputs.diagnose_ajv_pack && !inputs.verify_pi_intel
     needs: authorize_manual
     runs-on: runs-on/fleet=paperclip-public-pr-x64/env=public-ci
     timeout-minutes: 90

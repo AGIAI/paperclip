@@ -1,0 +1,190 @@
+{
+  "profiles": {
+    "cursor": {
+      "path": "packages/paperclip-runner/test/fixtures/cursor-acp/profile-v10-identity.json",
+      "sha256": "86fbb9653fe2bfc911ed55af57cc461216197f070f504dc22a9a8dd325c0f3d9",
+      "version": 10,
+      "digest": "sha256:1df2a15b93bc3a14fa47fa3315344ba023fe2412048047cdc6f32096a6336564"
+    },
+    "copilot": {
+      "path": "packages/paperclip-runner/test/fixtures/copilot-profile-v12-identity.json",
+      "sha256": "5d9dc0d3cf2385315b13180af5431a3e1d90ccaa5653b7093a749ef12c2dfe3c",
+      "version": 12,
+      "digest": "sha256:48cecd8dc77a5533240fcf2f29d19be05380da4a79f8e5061480f94241db75a8"
+    },
+    "pi": {
+      "path": "packages/paperclip-runner/test-fixtures/pi-acp/profile-v11-identity.json",
+      "sha256": "7b253e94b1672dff0e7a4f4a50f3bb2270038d14f1ef27857f8bef67b9800a7f",
+      "version": 11,
+      "digest": "sha256:5e276f48c8a87b3e6165369faac62d3925282c84b98934575b1b7b97ad50b309"
+    }
+  },
+  "candidateClosureDigests": {
+    "cursor": {
+      "darwin-arm64": "sha256:257424bd48e35412091c6adfc61e4648e836757ec1d240d890bba81a24918c30",
+      "darwin-x64": "sha256:6f28c799c5afdc64fbdff8a2157f565f17ae7615efe014ac389d63bf70cf2be2",
+      "linux-x64": "sha256:eadb8bb8ffb0450455b15b88c9b230307a9e149958a0c452d16dd157b4633d74"
+    },
+    "copilot": {
+      "darwin-arm64": "sha256:362f2663e967fb9e34a814bac4619cbf89e6b23069c4051ab1f2f686852d0a32",
+      "darwin-x64": "sha256:c08b7c3dd4e7bcf9a3e16ec6eba29cfa10308e865d196c5f120a3a15f6b3116a",
+      "linux-x64": "sha256:a3d8f4367cfa1694d79e3f8b7930b6fbfe42a229c272b375b11951d631db8d07"
+    },
+    "pi": {
+      "darwin-arm64": "sha256:a3e43c23f9603983a59fd256ca1dcf8bbd5cc2728dad095f7bcd3b3e62278597",
+      "darwin-x64": "sha256:8c6e7802d47da9410af56e367f6cf7af572fcbf3e361627cee026e8cffc9bdd3",
+      "linux-x64": "sha256:40e186c53db60d1ab5673ba34f33002e93cea518725a93395d241393b984caef"
+    }
+  },
+  "additionalSourceFiles": {
+    "packages/paperclip-runner/test/fixtures/copilot-message-identity-distributions-1.0.88.json": "7e1534d668a3db7acae15377b67d86fa80cc21ce699d021709b0b52ad314cfb2",
+    "patches/pi-acp@0.0.33.patch": "429184a462f9acef5bef890f3537db3ef385ee7c06d9fe0c335158590005ab0a",
+    "packages/paperclip-runner/scripts/pi-distribution/package.json": "c14f4050ef27dca91d3650e7446bc9927296a926224dba50a0e02f5d9fd4d95b",
+    "packages/paperclip-runner/scripts/pi-distribution/package-lock.json": "f4b04d51c4d91a6529dc97af2f3f84c28a220d93a54b5555826c4d9fd30f0939",
+    "packages/paperclip-runner/scripts/materialize-pi-distribution.mjs": "39bd8cc48791f8e54a953c7803334b965b9998943b0402008438d565ea2230be",
+    "packages/paperclip-runner/scripts/build-node-startup-timeout.mjs": "545dbaf7062b1cd54176dafe3feb8877e5ccf19406f791172a3ad47dbfd73fc4",
+    "packages/paperclip-runner/src/drivers/acpx/pi-acp-runtime.ts": "a0ec66a03cd9fa32e9aaafc4ac6840115883333000fd079ccba230706b763ac0",
+    "packages/paperclip-runner/src/drivers/acpx/pi-runtime-extension.ts": "f3446be10d984c368c52202e768aefe9b4a25968e09922e98e3f016c9dc0198e",
+    "packages/paperclip-runner/src/drivers/acpx/pi-verified-runtime.ts": "6a08420964ac3f8c91a248b90098cd025a47612ed4060de43db30d1ef80be296",
+    "packages/paperclip-runner/src/drivers/acpx/pi-node-pins.ts": "ffc822aff64db315e461cbe44f03d704695de4a4296f643af79386c3556a1d46",
+    "packages/paperclip-runner/src/drivers/acpx/pi-closure-pins.ts": "0941f56ea13b8eb309a345d2a1513e0ec53d201c81c755b356565505bc1df905",
+    "packages/paperclip-runner/src/drivers/acpx/qualified-profiles.ts": "20185223c77ce6d5b67b270abdc0debc26166c7d3dd412a1ecea83f980429027",
+    "packages/paperclip-runner/package.json": "a87426b0184e114e46c6f4ddbf3f4a9727cd591cf0a5ca900efde42198190fd1"
+  },
+  "permissionPolicySources": {
+    "packages/paperclip-runner/src/drivers/acpx/copilot-permission-context.ts": {
+      "declarationField": "permissionContextSourceSha256",
+      "sha256": "fe1bb611bea289d81b1c7c973fbb01b93de133a7caa8fe78b7ff4ee1f485b224"
+    },
+    "packages/paperclip-runner/src/drivers/acpx/acp-permission-adapter.ts": {
+      "declarationField": "permissionAdapterSourceSha256",
+      "sha256": "49421a779c76e286ce65d75052026eab9630b1995af9ccf045a2d43d284633ce"
+    },
+    "packages/paperclip-runner/src/drivers/acpx/safe-locations.ts": {
+      "declarationField": "permissionLocationsSourceSha256",
+      "sha256": "f39a81da395b6e23aa2a1a45572a28846e5e81bfd3d764d9a456f74a79c752e9"
+    },
+    "packages/paperclip-runner/src/semantic-tools/redaction.ts": {
+      "declarationField": "permissionRedactionSourceSha256",
+      "sha256": "687270d7bbe3dccce6c2fed8664e76cda724b43e545cb153b9f54b018de52927"
+    },
+    "packages/paperclip-runner/src/drivers/acpx/generated-sidecar-contract.ts": {
+      "declarationField": "permissionClassifierSourceSha256",
+      "sha256": "1161eabd82e26133e3b3db3ab567f65d52808b03f176e93497e02c8330349fb4"
+    },
+    "packages/paperclip-runner/src/drivers/acpx/cursor-plan-tool-identity.ts": {
+      "declarationField": "permissionIdentitySourceSha256",
+      "sha256": "770b47305e571a81f344883057d0e4a482a1cd59ac77d045836593a8e739deb1"
+    }
+  },
+  "semanticReceiptSources": {
+    "packages/paperclip-runner/src/drivers/semantic-tool-receipt.ts": {
+      "declarationField": "semanticReceiptSourceSha256",
+      "sha256": "b2795726b2234a663fec1a6ca11f0551ae69882fe9e82aa39686e952d036e791"
+    },
+    "packages/paperclip-runner/src/drivers/runner-tool-bridge.ts": {
+      "declarationField": "semanticBridgeSourceSha256",
+      "sha256": "8a43ebafb7a85dd1714ed6945670472666dcb63e8af32b4a74644163fa0e370d"
+    },
+    "packages/paperclip-runner/src/drivers/acpx/copilot-tool-evidence.ts": {
+      "declarationField": "toolEvidenceSourceSha256",
+      "sha256": "4b517eed447615b3cc820af348ccc360978175149caa0bbc838d1f78332abe75"
+    },
+    "packages/paperclip-runner/src/cli/acpx-runtime-sidecar.ts": {
+      "declarationField": "semanticSidecarSourceSha256",
+      "sha256": "d58076d59ec23fe2261cba3aa0dca3e9f189105f0a5fa7ca3eeaac05cb338f31"
+    },
+    "packages/paperclip-runner/src/drivers/acpx/sidecar-protocol.ts": {
+      "declarationField": "semanticSidecarProtocolSourceSha256",
+      "sha256": "165cad76f224d60f0dc7928736d47a16787eaa8ab9e4c2222488da5fc8ad632e"
+    },
+    "packages/paperclip-runner/src/drivers/acpx/codex-acpx-driver.ts": {
+      "declarationField": "semanticDirectDriverSourceSha256",
+      "sha256": "31e36917ee3592fa6d8f4b86632129fdffae20c45aed2e0e367ccf523e064f88"
+    },
+    "packages/paperclip-runner/src/protocol/replay-contract.ts": {
+      "declarationField": "semanticValidationSourceSha256",
+      "sha256": "039fca52266fe21ba74ca64660d21228314d8ed737b19ba67941bfb25086e4d5"
+    },
+    "packages/paperclip-runner/src/protocol/result-normalization.ts": {
+      "declarationField": "semanticNormalizationSourceSha256",
+      "sha256": "b1ce59251bf9c671f66e0e5173646190b9a2d1bfc5bdb7fb123824213986b92b"
+    },
+    "packages/paperclip-runner/src/contracts/completion-result.ts": {
+      "declarationField": "semanticCompletionContractSourceSha256",
+      "sha256": "00a684f9aea87f68eabf0974681c52461bc308631a1252a89c4ed087d7158b28"
+    },
+    "packages/paperclip-runner/src/protocol/generated/standalone-validators.ts": {
+      "declarationField": "semanticValidatorsSourceSha256",
+      "sha256": "950b49b233d8dd62ff858398becfc55f0a181160cb8a434d9221b5c17816867c"
+    },
+    "packages/paperclip-runner/src/protocol/generated/schema-bundle.ts": {
+      "declarationField": "semanticSchemaBundleSourceSha256",
+      "sha256": "bb55e18c5563bf5ec226e301c3399229304f295e986865e96554f193535368f2"
+    }
+  },
+  "cursorIdentitySources": {
+    "packages/paperclip-runner/src/drivers/acpx/cursor-plan-tool-identity.ts": {
+      "declarationField": "toolIdentitySourceSha256",
+      "sha256": "770b47305e571a81f344883057d0e4a482a1cd59ac77d045836593a8e739deb1"
+    },
+    "packages/paperclip-runner/src/drivers/acpx/acp-permission-adapter.ts": {
+      "declarationField": "permissionAdapterSourceSha256",
+      "sha256": "49421a779c76e286ce65d75052026eab9630b1995af9ccf045a2d43d284633ce"
+    },
+    "packages/paperclip-runner/src/drivers/acpx/cursor-tool-evidence.ts": {
+      "declarationField": "toolEvidenceSourceSha256",
+      "sha256": "8310308ed9605415cb28b7c350d83defef68e90cd30bc2f0491d3d09825e8cd9"
+    }
+  },
+  "cursorDistribution": {
+    "path": "packages/paperclip-runner/cursor-distributions.json",
+    "sha256": "b8a56cc54b8f5ab7a21451a3b9083726d93dd018fff0c4a0dbce851a6b1949ec",
+    "value": {
+      "schema": "paperclip.cursor_distribution.v1",
+      "version": "2026.09.26-dd393fe",
+      "platforms": {
+        "darwin-arm64": {
+          "url": "https://downloads.cursor.com/lab/2026.09.26-dd393fe/darwin/arm64/agent-cli-package.tar.gz",
+          "archiveSha256": "538827d96a779bab854a865c8e42859e8e87db34b5f69770261b90fc8cfff191",
+          "closureSha256": "257424bd48e35412091c6adfc61e4648e836757ec1d240d890bba81a24918c30",
+          "executable": "node",
+          "entrypoint": "index.js",
+          "vendorClosureSha256": "77394184a89b0e7384971181da19c3c82d83a399b04e7944b3f94fe3d7e62b25"
+        },
+        "darwin-x64": {
+          "url": "https://downloads.cursor.com/lab/2026.09.26-dd393fe/darwin/x64/agent-cli-package.tar.gz",
+          "archiveSha256": "ed1771c44cbf0f8059c67cac0d939e6a60eb730bd066d7dc4cbb14de314cfb6e",
+          "closureSha256": "6f28c799c5afdc64fbdff8a2157f565f17ae7615efe014ac389d63bf70cf2be2",
+          "executable": "node",
+          "entrypoint": "index.js",
+          "vendorClosureSha256": "7c8775160af74e5fb8d25a30e8412c1a6476b0661529078a686e5118fd1c5e5f"
+        },
+        "linux-x64": {
+          "url": "https://downloads.cursor.com/lab/2026.09.26-dd393fe/linux/x64/agent-cli-package.tar.gz",
+          "archiveSha256": "8085fd120f5c71f4eae7fea26a043718e5644e3071e4fab3220a0e58c51f9593",
+          "closureSha256": "eadb8bb8ffb0450455b15b88c9b230307a9e149958a0c452d16dd157b4633d74",
+          "executable": "node",
+          "entrypoint": "index.js",
+          "vendorClosureSha256": "bf04ef8ea6a63191067a6b3e15139aa2c793d8419daab246aa3f0a012e1bbcd9"
+        }
+      },
+      "patchVersion": "paperclip-cursor-usage-v4"
+    }
+  },
+  "localComparison": {
+    "sourceRevision": "5eba61ece929dcfb2b0c1761825a2d9e557c2554",
+    "sourceArchiveSha256": "f751f86b19701757d30501e39d47fe7d20a102e32f9e4c4df585074393e85237",
+    "trackedLockSha256": "e11d69fa8702a906c293c1cb307c71df90d3b1f1617b3c23ebf17fa9a87fec79",
+    "resolvedLockSha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
+    "nodeSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49",
+    "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+    "piRuntimeVersion": "1.0.0",
+    "piServerVersion": "0.0.33",
+    "acpxVersion": "0.13.1",
+    "localPackDigest": "sha256:a7ae16b680c6fcaa9438faa46562ba31519bb0fb42e21b0a4b00e8936c462d89",
+    "localDaemonSha256": "c0e9acdd461d5efe4a10f9fd751e8a67beceede4d43593951d7079edad657044",
+    "localBuildReceiptSha256": "f9bdef008c11d30e89da20588e750df7689d4f5f7400ce3723fb467d82c53581",
+    "note": "CI pack/daemon are fresh outputs; compare frozen inputs and native closure, not local output digests."
+  }
+}
