@@ -422,9 +422,12 @@ exist in both pre-Stop API observations. The v2 pending receipt adds the native
 origin and tool-start row hashes and source sequences. The fresh reread and
 settlement must preserve those exact rows; a later tool start cannot backfill
 missing pre-Stop evidence. Command/path, request, tool, turn, session and source
-checks remain strict. The native evidence projector still requires the exact
-tool origin before it can emit correlated permission evidence; this does not
-claim the original ACP wire order. Old v1 receipts are not valid inputs to the
+checks remain strict. Cursor's native evidence projector still requires the
+exact tool origin before it can emit correlated permission evidence. Copilot
+emits permission evidence immediately, so its permission notice may also precede
+the native tool notice. Calibration tests exercise both actual projectors in
+both input orders. Neither policy claims the original ACP wire order of a live
+attempt. Old v1 receipts are not valid inputs to the
 new grader. Earlier paid failures retain their original definition and grade.
 
 `paperclip.e2e.native-active-stop-settlement.v1` accepts only

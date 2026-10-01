@@ -1479,6 +1479,9 @@ sequence through settlement. Missing, changed or replayed evidence cannot be
 filled in after Stop. This is a new grader definition; old v1 pending receipts
 and failed paid attempts are not regraded. No original provider wire order is
 inferred from API insertion or display order.
+Native notice ordering follows each real projector: Cursor waits for its exact
+command origin before emitting permission evidence; Copilot can emit the
+permission notice first. Both still require the exact tool origin before Stop.
 
 Passage requires a canonical cancelled request and cancelled provider turn,
 exact caller-intent acknowledgement, an unfinished task, rejection of a later
