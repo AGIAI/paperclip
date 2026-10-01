@@ -7,6 +7,7 @@ from owned_processes import OwnedProcesses,atomic_json
 import source_guard
 from lifecycle import Lifecycle, run_test_cases
 from retain_pack import retain_pack
+from native_daemon_reuse import import_daemon
 
 HERE=Path(__file__).resolve().parent
 INPUTS=json.loads((HERE/'profile-inputs.json').read_text())
@@ -44,8 +45,7 @@ def execute(args):
     inherited_path=os.environ['PATH']
     node=Path(shutil.which('node')).resolve(strict=True)
     pnpm=Path(shutil.which('pnpm')).resolve(strict=True)
-    rustup,rustup_audit=tool_invocation('rustup')
-    receipt['rustupTool']=rustup_audit;save()
+    # Reused daemon bytes retain their original compiler provenance; no new compiler is invoked.
     env={'PATH':inherited_path,'HOME':str(scratch/'home'),'TMPDIR':str(scratch),'LANG':'en_US.UTF-8','CI':'true',
          'PAPERCLIP_TELEMETRY_ENABLED':'false','PAPERCLIP_RUNNER_SOURCE_REVISION':SOURCE,
          'CARGO_HOME':str(scratch/'cargo'),'RUSTUP_HOME':str(scratch/'rustup'),'CARGO_TARGET_DIR':str(scratch/'target'),
@@ -57,7 +57,6 @@ def execute(args):
     signal.signal(signal.SIGTERM,stop_signal)
     def run(command,label,timeout,cwd=stage,command_env=None,owned=False):
         nonlocal active,owner
-        if str(command[0])==str(rustup):verify_tool_invocation(rustup,rustup_audit)
         lifecycle.begin()
         row={'label':label,'startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'command':list(map(str,command)),'deadlineSeconds':timeout,'status':'running'}
         receipt['commands'].append(row);save();start=time.monotonic()
@@ -130,17 +129,13 @@ def execute(args):
         run([pnpm,'install','--frozen-lockfile','--ignore-scripts','--package-import-method','copy'],'install',600)
         source_guard.verify_source(stage,SOURCE,PIN['resolvedLockSha256'])
         run([pnpm,'--filter','@paperclipai/paperclip-runner','build:typescript'],'typescript',600)
-        run([rustup,'toolchain','install','1.97.1','--profile','minimal','--component','rustfmt'],'rust-install',600)
-        cargo=run([rustup,'which','--toolchain','1.97.1','cargo'],'cargo-path',30).strip()
-        rustc=run([rustup,'which','--toolchain','1.97.1','rustc'],'rustc-path',30).strip();env['RUSTC']=rustc
-        require(run([rustc,'--version'],'rust-version',30).startswith('rustc 1.97.1 '),'Wrong Rust')
-        receipt['compiler']={'rustcSha256':sha(rustc),'cargoSha256':sha(cargo),'versionVerbose':run([rustc,'--version','--verbose'],'rust-version-verbose',30),'jobs':2}
-        run([cargo,'build','--release','--target','x86_64-apple-darwin','--manifest-path','packages/paperclip-runner/runner/Cargo.toml','--locked','-p','paperclip-runner-core','--bin','paperclip-runnerd','-j','2'],'daemon-build',1500)
-        daemon=stage/'packages/paperclip-runner/dist/bin/paperclip-runnerd';daemon.parent.mkdir(parents=True,exist_ok=True)
-        shutil.copy2(scratch/'target/x86_64-apple-darwin/release/paperclip-runnerd',daemon)
-        run(['/usr/bin/codesign','--force','--sign','-',daemon],'daemon-sign',30)
+        daemon=stage/'packages/paperclip-runner/dist/bin/paperclip-runnerd'
+        receipt['nativeDaemonReuse']=import_daemon(args.daemon_archive,out/'source.tar',out/'reused-native-evidence',daemon,INPUTS['nativeDaemonReuse']);save()
+        run(['/usr/bin/codesign','--verify','--strict',daemon],'daemon-signature-verify',30)
+        require(sha(daemon)==INPUTS['nativeDaemonReuse']['selectedFiles']['paperclip-runnerd']['sha256'],'Daemon changed during signature verification')
         require('Mach-O 64-bit executable x86_64' in run(['/usr/bin/file',daemon],'daemon-architecture',30),'Wrong daemon architecture')
         receipt['daemonBuildMetadata']=json.loads(run([daemon,'--build-metadata'],'daemon-metadata',30))
+        require(receipt['daemonBuildMetadata']==INPUTS['nativeDaemonReuse']['daemonBuildMetadata'],'Reused daemon metadata changed')
         pack=scratch/'provider-pack'
         run([node,'packages/paperclip-runner/scripts/build-provider-pack.mjs',pack,'--candidate-providers=pi,copilot,cursor'],'pack-build',600)
         verified=json.loads(run([node,HERE/'verify-pack.mjs',pack,SOURCE,'darwin','x64'],'pack-verify',180))
@@ -148,7 +143,7 @@ def execute(args):
         authority=source_guard.capture_authority(stage,pack)
         source_guard.verify_source(stage,SOURCE,PIN['resolvedLockSha256'],pack,authority)
         atomic_json(out/'pack-inventory.json',closed_tree(pack));shutil.copy2(pack/'provider-pack.json',out/'provider-pack.json');shutil.copy2(daemon,out/'paperclip-runnerd')
-        receipt.update(packVerification=verified,packManifestSha256=sha(out/'provider-pack.json'),packInventorySha256=sha(out/'pack-inventory.json'),daemonSha256=sha(daemon),nodeSha256=sha(node),buildInputsMatchLocal=True,outputDigestsAssumedEqual=False)
+        receipt.update(packVerification=verified,packManifestSha256=sha(out/'provider-pack.json'),packInventorySha256=sha(out/'pack-inventory.json'),daemonSha256=sha(daemon),nodeSha256=sha(node),declaredNativeInputsMatchOriginal=True,outputDigestsAssumedEqual=False)
         receipt['providerPackArchive']=retain_pack(pack,out/'provider-pack.tar.gz',authority['pack'])
         save()
         test=stage/'packages/paperclip-runner/test/pi-closed-startup.test.mjs'
@@ -180,4 +175,4 @@ def execute(args):
         receipt['finishedAt']=datetime.datetime.now(datetime.timezone.utc).isoformat();save()
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--source',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);execute(parser.parse_args())
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--source',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);parser.add_argument('--daemon-archive',type=Path,required=True);execute(parser.parse_args())

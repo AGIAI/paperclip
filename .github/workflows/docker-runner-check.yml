@@ -170,7 +170,7 @@ jobs:
             test "$SOURCE_ROOT_TESTS_ONLY" != true
             test "$DIAGNOSE_AJV" != true
             test "$IMAGE_MODE" != true
-            test "$EXPECTED_SOURCE_SHA" = 5eba61ece929dcfb2b0c1761825a2d9e557c2554
+            test "$EXPECTED_SOURCE_SHA" = 586af4d7f3b07aa683338aedb4e5182603b70401
             test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
             # Standard hosted runner minutes are free for this public repository.
             # Artifact storage and unrelated resource costs are not inferred here.
@@ -189,6 +189,7 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
+      actions: read
     steps:
       - name: Checkout trusted CI helpers independently of candidate source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -211,13 +212,24 @@ jobs:
         with:
           version: 9.15.4
           package_json_file: candidate/package.json
+      - name: Download exact historical native daemon evidence
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/paperclipai/paperclip/actions/artifacts/11197947432/zip \
+            > "$RUNNER_TEMP/pi-native-daemon-36933598154.zip"
+          printf '%s  %s\n' 2f9892bfa65318e3a61fd39f09fbe26374098eff6cfc3126fa1cba8df31b85c1 \
+            "$RUNNER_TEMP/pi-native-daemon-36933598154.zip" | shasum -a 256 --check
       - name: Build frozen pack and run unchanged no-provider contracts once
         timeout-minutes: 55
         run: |
           set -euo pipefail
           python3 -B trusted-ci/scripts/ci/pi-intel/verify.py \
             --source "$GITHUB_WORKSPACE/candidate" \
-            --output "$GITHUB_WORKSPACE/pi-intel-evidence"
+            --output "$GITHUB_WORKSPACE/pi-intel-evidence" \
+            --daemon-archive "$RUNNER_TEMP/pi-native-daemon-36933598154.zip"
       - name: Admit complete evidence within the reserved storage bound
         if: always()
         id: pi_intel_evidence
