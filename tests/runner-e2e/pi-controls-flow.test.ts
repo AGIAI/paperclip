@@ -5,6 +5,8 @@ import { expect, it, vi } from "vitest";
 import { piControlTasks } from "./pi-controls-cases.js";
 import { piControlFixture } from "./pi-controls-test-fixture.js";
 import { runPiControlsFlow } from "./pi-controls-flow.js";
+import { persistedFinalRunMessage } from "./matchers.js";
+import { readPiSteeringSettlement } from "./pi-controls-evidence.js";
 
 const harness = vi.hoisted(() => ({ target: "", prompt: "", message: "", mutation: false, incomplete: false }));
 vi.mock("./user-actions.js", () => ({
@@ -24,13 +26,15 @@ vi.mock("@playwright/test", () => ({ expect: (actual: any, message?: string) => 
   toHaveCount: async (value: number) => { if (typeof actual.count === "function") expect(actual.count()).toBe(value); },
 }) }));
 
-async function exercise(taskId: string, remote: boolean, failure?: "mutation" | "incomplete" | "missing-ack") {
+async function exercise(taskId: string, remote: boolean, failure?: "mutation" | "incomplete" | "missing-ack" | "missing-comment" | "foreign-comment") {
   harness.target = ""; harness.prompt = ""; harness.message = ""; harness.mutation = failure === "mutation"; harness.incomplete = failure === "incomplete";
   const task = piControlTasks.find(t => t.id === taskId)!, stopCase = taskId === "pending-permission-stop";
   const workspacePath = await mkdtemp(join(tmpdir(), "pi-controls-fixture-"));
   const saved = new Map<string, any>(), localCleanup: Array<() => Promise<any>> = [], remoteCleanup: Array<() => Promise<any>> = [];
   let f = piControlFixture(`pi-control-fixture.txt`), stops = 0, staleDeclines = 0, browserSteers = 0, browserDeclines = 0;
   let steeringMarker = "", published = false, remoteSequence = 0;
+  let cleaningUp = false;
+  const publicComments: any[][] = [];
   const sync = () => {
     const target = remote ? "pi-control-fixture.txt" : harness.target;
     f.scope.target = target; f.tool.target = target; f.issue.title = task.buildTitle("fixture");
@@ -54,7 +58,15 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
       if (path === "/api/heartbeat-runs/run") return f.run;
       if (path.includes("/events?")) return f.events;
       if (path.endsWith("/queued-comments")) return queue();
-      if (path.endsWith("/comments")) return f.run.status === "succeeded" ? [{ id: "final", createdByRunId: "run", body: steeringMarker }] : [];
+      if (path.endsWith("/comments")) {
+        const comments = f.run.status !== "succeeded" ? [] : [
+          { id: "decoy", createdByRunId: "other-run", body: steeringMarker, authorAgentId: "other-agent" },
+          ...cleaningUp && failure === "missing-comment" ? [] : [{ id: "final", companyId: "company", issueId: "issue",
+            createdByRunId: cleaningUp && failure === "foreign-comment" ? "other-run" : "run", body: steeringMarker,
+            authorAgentId: "agent", createdAt: "2026-10-01T00:00:02Z", updatedAt: "2026-10-01T00:00:02Z", observedRead: publicComments.length }],
+        ];
+        publicComments.push(structuredClone(comments)); return comments;
+      }
       throw new Error(`Unexpected read ${path}`);
     },
     request: { post: async (path: string, options: any) => {
@@ -84,6 +96,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
         postBrowser("/api/issues/issue/queued-comments/comment/steer", { queueId: "queue", targetRunId: "run", revision: "revision" });
       } else if (kind === "deny") {
         browserDeclines++; expect(browserSteers).toBe(1); expect(stopCase).toBe(false); f.finish();
+        f.run.resultJson.presentationDecision = { commentId: "final", reason: "fixture-public-presentation" };
         postBrowser("/api/heartbeat-runs/run/runtime-requests/request/resolve", { turnId: "turn", requestKind: "permission_approval", resolution: { action: "decline" } });
       } else throw new Error(`Unexpected click ${kind}`);
     },
@@ -114,16 +127,35 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
       observe: () => {}, capture: async () => {}, evidence: async (name: string, value: unknown) => saved.set(name, structuredClone(value)), remoteBootstrap,
       registerCleanupAssertion: (fn: () => Promise<any>) => localCleanup.push(fn), registerBeforeEnvironmentTeardownAssertion: (fn: () => Promise<any>) => remoteCleanup.push(fn) } as any);
     if (failure === "missing-ack") { await expect(call).rejects.toThrow("acknowledgement"); expect(browserDeclines).toBe(0); }
-    else if (remote && failure) await expect(call).rejects.toThrow();
+    else if (remote && (failure === "mutation" || failure === "incomplete")) await expect(call).rejects.toThrow();
     else {
       const result = await call; expect(result.checks.every(c => c.passed)).toBe(true); expect(saved.has("api-state.json")).toBe(true);
       expect(stops).toBe(stopCase ? 1 : 0); expect(staleDeclines).toBe(stopCase ? 1 : 0);
       expect(browserSteers).toBe(stopCase ? 0 : 1); expect(browserDeclines).toBe(stopCase ? 0 : 1);
+      if (!stopCase) {
+        const receipt = saved.get("pi-steering-presentation.json");
+        expect(receipt).toMatchObject({ schema: "paperclip.e2e.pi-steering-presentation.v1", phase: "final", companyId: "company", issueId: "issue", runId: "run", commentsApiPath: "/api/issues/issue/comments" });
+        expect(receipt.comments).toEqual(publicComments.at(-1));
+        expect(receipt.run.resultJson.presentationDecision).toEqual(f.run.resultJson.presentationDecision);
+        expect(receipt).not.toHaveProperty("finalMessage");
+        expect(readPiSteeringSettlement({ ...receipt, ...saved.get("api-state.json").steered,
+          finalMessage: persistedFinalRunMessage(receipt.comments, receipt.run) })).toEqual(saved.get("pi-steering-settlement.json"));
+      }
     }
     expect(remote ? localCleanup : remoteCleanup).toHaveLength(0);
     const cleanups = remote ? remoteCleanup : localCleanup; expect(cleanups).toHaveLength(1);
+    cleaningUp = true;
     if (failure) await expect(cleanups[0]!()).rejects.toThrow();
     else expect((await cleanups[0]!())[0].passed).toBe(true);
+    if (!stopCase && (!failure || failure === "missing-comment" || failure === "foreign-comment")) {
+      const receipt = saved.get("pi-steering-presentation-after-cleanup.json");
+      expect(receipt.phase).toBe("after-cleanup"); expect(receipt.comments).toEqual(publicComments.at(-1));
+      expect(receipt.comments).not.toEqual(saved.get("pi-steering-presentation.json").comments);
+      const replay = () => readPiSteeringSettlement({ ...receipt, ...saved.get("api-state.json").steered,
+        finalMessage: persistedFinalRunMessage(receipt.comments, receipt.run) });
+      if (failure) { expect(persistedFinalRunMessage(receipt.comments, receipt.run)).toBe(""); expect(replay).toThrow(); }
+      else expect(replay()).toEqual(saved.get("pi-steering-settlement.json"));
+    }
     if (remote) { expect(fixture.close).toHaveBeenCalledOnce(); expect(saved.get("pi-control-cleanup.json").retirement?.filesystemAfterRetirementObserved ?? false).toBe(false); }
   } finally { await rm(workspacePath, { recursive: true, force: true }); }
 }
@@ -133,3 +165,4 @@ for (const task of ["pending-permission-stop", "same-turn-steering"]) {
 it.each(["mutation", "incomplete"] as const)("fails local cleanup on %s despite an absent final target", failure => exercise("pending-permission-stop", false, failure));
 it.each(["mutation", "incomplete"] as const)("fails remote lifetime proof on %s despite an absent target", failure => exercise("same-turn-steering", true, failure));
 it("never denies the native write before the steering acknowledgement exists", () => exercise("same-turn-steering", false, "missing-ack"));
+it.each(["missing-comment", "foreign-comment"] as const)("retains and rejects %s during cleanup without fabricating persisted output", failure => exercise("same-turn-steering", false, failure));

@@ -75,11 +75,26 @@ export async function runPiControlsFlow(input: {
     observeProcesses(); input.observe(issue, runs); return { run: runs[0] ?? {}, issue, events };
   };
   const scope = (): PiControlScope => ({ companyId: fixtures.company.id, issueId: issue.id, runId: runs[0]!.id, target });
-  const finalMessage = async () => persistedFinalRunMessage(await api.get<Array<{ id: string; createdByRunId?: string | null; body?: string | null }>>(`/api/issues/${issue.id}/comments`), runs[0] as Row & { id: string });
-  const assertSettled = async () => {
+  const readPresentation = async (state: PiControlState) => {
+    const commentsApiPath = `/api/issues/${state.issue.id}/comments`;
+    const comments = await api.get<Array<{ id: string; createdByRunId?: string | null; body?: string | null }>>(commentsApiPath);
+    return { ...state, commentsApiPath, comments };
+  };
+  const finalMessage = (presentation: Awaited<ReturnType<typeof readPresentation>>) => persistedFinalRunMessage(presentation.comments, presentation.run as Row & { id: string });
+  const assertSettled = async (phase: "final" | "after-cleanup" = "final") => {
     const state = await load();
     if (stopped) return readPiStopSettlement({ ...state, ...stopped });
-    if (steered) return readPiSteeringSettlement({ ...state, ...steered, finalMessage: await finalMessage() });
+    if (steered) {
+      const presentation = await readPresentation(state);
+      // Retain the public source records, including the run's presentation
+      // decision, before grading. A marker or derived string cannot replace
+      // the persisted comment selected by the Product.
+      await input.evidence(`pi-steering-presentation${phase === "after-cleanup" ? "-after-cleanup" : ""}.json`, {
+        schema: "paperclip.e2e.pi-steering-presentation.v1", phase,
+        companyId: fixtures.company.id, issueId: state.issue.id, runId: state.run.id, ...presentation,
+      });
+      return readPiSteeringSettlement({ ...presentation, ...steered, finalMessage: finalMessage(presentation) });
+    }
     throw new Error("Pi controls settlement is missing");
   };
   const sample = async (phase: string) => {
@@ -109,7 +124,7 @@ export async function runPiControlsFlow(input: {
       retirement = assertActiveStopRetirement({ completed, identityChanged: processError, processes, watcher: remote ? sealed!.watcher : local!.watcher.finish(),
         ...(remote ? { environment: "daytona" as const, remote: { scope: scope(), observations: remoteObservations } }
           : { environment: "local" as const, samples: samples.map(s => ({ ...s, phase: s.phase === "after-control" ? "after-stop" : s.phase })) }) });
-      await assertSettled();
+      await assertSettled("after-cleanup");
       return [{ id: "pi-control-retired-no-effects", passed: true, detail: remote ? "Owned remote tree retired with continuous no-effects proof through its lifetime seal" : "Owned local tree retired; no target mutation through cleanup" }];
     } finally {
       if (timer) clearInterval(timer);
@@ -181,7 +196,7 @@ export async function runPiControlsFlow(input: {
       const decision = (await declined).postDataJSON();
       check("exact-browser-decline", decision.turnId === pending.turnId && decision.requestKind === "permission_approval" && decision.resolution?.action === "decline", "Browser denied the still-pending original native write");
       await pollUntil({ label: "Pi consumed same-turn steering", deadlineAt: input.deadlineAt, intervalMs: 200,
-        load: async () => { const state = await load(); if (["cancelled", "failed", "timed_out"].includes(state.run.status)) throw new Error("Stopped waiting for Pi consumed same-turn steering: provider failed"); return { ...state, finalMessage: await finalMessage() }; },
+        load: async () => { const state = await load(); if (["cancelled", "failed", "timed_out"].includes(state.run.status)) throw new Error("Stopped waiting for Pi consumed same-turn steering: provider failed"); const presentation = await readPresentation(state); return { ...state, finalMessage: finalMessage(presentation) }; },
         accept: state => { readPiSteeringSettlement({ ...state, ...steered! }); return true; } });
       await input.evidence("pi-steering-settlement.json", await assertSettled());
     }
