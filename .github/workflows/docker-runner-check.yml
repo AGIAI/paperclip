@@ -194,7 +194,7 @@ jobs:
           printf '%s  pnpm-lock.yaml\n' "$EXPECTED_LOCK_SHA256" | sha256sum --check --strict
           pnpm install --frozen-lockfile --ignore-scripts
       - name: Select pinned Rust and install browser dependencies
-        timeout-minutes: 8
+        timeout-minutes: 15
         run: |
           set -euo pipefail
           cd packages/paperclip-runner
