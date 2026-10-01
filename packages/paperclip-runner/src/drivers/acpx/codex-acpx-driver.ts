@@ -1185,6 +1185,7 @@ class CodexAcpxSession implements HarnessSession {
         this.#semanticFingerprint === null ||
         (claimsLaterTurn && !repeatsPendingTransfer)
       ) {
+        const commitNormalizedInput = call.captureNormalizedInput?.(validation.result);
         if (
           !this.#emit("run.result.proposed", validation.result, {
             turnId,
@@ -1196,6 +1197,7 @@ class CodexAcpxSession implements HarnessSession {
             "the event consumer must drain provider events before a semantic result can be accepted",
           );
         }
+        commitNormalizedInput?.();
         if (claimsLaterTurn) {
           // A reaffirming retry does not own the durable result until its
           // provider turn completes successfully. A failed or interrupted

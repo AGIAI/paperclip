@@ -1,4 +1,6 @@
-import { appendSemanticToolReceipt } from "../drivers/semantic-tool-receipt.js";
+import { appendSemanticToolReceipt, readNativeSemanticReceipt, semanticInputSha256 } from "../drivers/semantic-tool-receipt.js";
+import { startRunnerToolBridge, type RunnerToolCall } from "../drivers/runner-tool-bridge.js";
+import { validatePrpStructuredRunResult } from "../protocol/replay-contract.js";
 import { acpxUsageEstimateNotice, persistedAcpxTurnUsage, persistedCursorUsageNotice } from "../drivers/acpx/usage-accounting.js";
 import { stripTypeScriptTypes } from "node:module";
 import { cursorPlanToolIdentity, cursorToolIdentity } from "../drivers/acpx/cursor-plan-tool-identity.js";
@@ -225,9 +227,57 @@ describe("qualified ACPX runtime sidecar", () => {
     const receipt = appendSemanticToolReceipt({ tool: "get_task_context", callId: "1", arguments: {} }, { content: [{ type: "text", text: "{}" }] }).receipt;
     captured(receipt);
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ payload: { category: "paperclip_semantic_tool_receipt_v1", provenance: { sessionId: "session-a", turnId: "turn-a" } } });
+    expect(events[0]).toMatchObject({ payload: { category: "paperclip_semantic_tool_receipt_v2", provenance: { sessionId: "session-a", turnId: "turn-a" } } });
     active = false; captured(receipt); expect(events).toHaveLength(1);
     for (const agent of ["cursor", "codex", "pi"]) expect(create({ agent, tools: [] }, evidence, () => undefined).captureSemanticReceipt).toBeUndefined();
+  });
+
+  it.each(["forwarded", "emit-failed"])("binds native v2 receipts to actual sidecar-normalized input: %s", async mode => {
+    const raw = { reportedWorkDisposition: "done", summary: "Complete", evidence: [], verification: [],
+      completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [], remainingWork: [] } };
+    const validated = validatePrpStructuredRunResult(raw);
+    if (!validated.ok) throw new Error("Invalid fixture");
+    const tools = new Map<string, any>(), emitted: any[] = [], notices: any[] = [];
+    const projector = createCopilotToolEvidence({ sessionId: "session", turnId: "test-turn", workingDirectory: "/workspace",
+      active: () => true, emit: event => { validateAcpxRichEvent(event); notices.push(event); } });
+    const handler = loadWaitForTool({ tools, emitted, validate: validatePrpStructuredRunResult,
+      ...(mode === "emit-failed" ? { emit: () => { throw new Error("fixture emission failed"); } } : {}) });
+    const bridge = await startRunnerToolBridge({ handler, captureSemanticReceipt: () => projector.captureSemanticReceipt() });
+    try {
+      projector.tool({ type: "tool_call", tag: "tool_call", toolCallId: "native-call", kind: "other", status: "pending", rawInput: raw });
+      const response = fetch(bridge.url, { method: "POST", headers: { Authorization: `Bearer ${bridge.secret}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "paperclip_finish", arguments: raw } }) });
+      if (mode === "forwarded") {
+        await vi.waitFor(() => expect(tools.has("3")).toBe(true));
+        expect(emitted).toEqual([{ callId: "3", operationId: "paperclip_finish", input: validated.result }]);
+        // The receipt hashes the actual emitted input, not a second normalization.
+        tools.get("3").settle({ accepted: true });
+      }
+      const body = await (await response).json();
+      const receipt = readNativeSemanticReceipt({ contents: body.result.content });
+      expect(receipt).toMatchObject({ schema: "paperclip.semantic_tool_receipt.v2", inputSha256: semanticInputSha256(raw),
+        normalizedInputSha256: mode === "forwarded" ? semanticInputSha256(emitted[0].input) : null,
+        outcome: mode === "forwarded" ? "returned" : "error" });
+      expect(semanticInputSha256(raw)).not.toBe(semanticInputSha256(validated.result));
+      projector.tool({ type: "tool_call", tag: "tool_call_update", toolCallId: "native-call", status: mode === "forwarded" ? "completed" : "failed",
+        rawOutput: { contents: body.result.content } });
+      const details = Object.fromEntries(notices.at(-1).payload.details.map((d: any) => [d.name, d.value]));
+      expect(details).toMatchObject({ semanticInputSha256: semanticInputSha256(raw),
+        semanticNormalizedInputSha256: mode === "forwarded" ? semanticInputSha256(emitted[0].input) : "null" });
+      expect(notices.find(event => event.payload.category === "paperclip_semantic_tool_receipt_v2").payload.details).toHaveLength(8);
+    } finally {
+      for (const pending of tools.values()) pending.cleanup();
+      await bridge.close();
+    }
+  });
+
+  it("does not capture normalized authority when actual sidecar validation fails", async () => {
+    const emitted: unknown[] = [], capture = vi.fn(() => vi.fn());
+    const wait = loadWaitForTool({ tools: new Map(), emitted, validate: validatePrpStructuredRunResult });
+    await expect(wait({ tool: "paperclip_finish", callId: "bad", arguments: {}, signal: new AbortController().signal,
+      captureNormalizedInput: capture })).rejects.toThrow("ACPX semantic result failed PRP schema validation");
+    expect(capture).not.toHaveBeenCalled();
+    expect(emitted).toEqual([]);
   });
 
   it("passes only validated Pi native boundaries and history through the real text sanitizer", () => {
@@ -1011,7 +1061,9 @@ class SidecarProcess {
 function loadWaitForTool(input: {
   tools: Map<string, unknown>;
   emitted: unknown[];
-}): (call: { callId: string; tool: string; arguments: Record<string, unknown>; signal: AbortSignal }) => Promise<unknown> {
+  validate?: typeof validatePrpStructuredRunResult;
+  emit?: () => void;
+}): (call: RunnerToolCall) => Promise<unknown> {
   const source = readFileSync(
     fileURLToPath(new URL("./acpx-runtime-sidecar.ts", import.meta.url)),
     "utf8",
@@ -1034,13 +1086,13 @@ function loadWaitForTool(input: {
     (value: string) => value,
     input.tools,
     "test-turn",
-    (_eventType: string, payload: unknown) => input.emitted.push(payload),
+    (_eventType: string, payload: unknown) => { input.emit?.(); input.emitted.push(payload); },
     "paperclip_finish",
     "paperclip_block",
-    (argumentsValue: unknown) => ({
+    input.validate ?? ((argumentsValue: unknown) => ({
       ok: true,
       result: argumentsValue,
-    }),
+    })),
     (value: unknown) => value,
     (value: unknown) => value,
     512,

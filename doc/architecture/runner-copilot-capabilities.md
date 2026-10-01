@@ -1,6 +1,26 @@
 # Copilot 1.0.88 rich ACP capability audit
 
-Current source candidate (2026-10-01): **Copilot profile v10 is unqualified**.
+Current source candidate (2026-10-01): **Copilot profile v11 is unqualified**.
+The authenticated Daytona v10 attempt exposed two independent receipt-boundary
+failures. Generic JWT redaction removed the public receipt schema name from a
+notice detail. Separately, a legitimate completion omitted optional fields that
+the strict result validator fills before forwarding; its original argument hash
+therefore differed from the proposed canonical result. The failed attempt remains
+failed even though its owned processes, sandbox and IPC retired cleanly.
+
+Receipt v2 preserves the original `inputSha256` and separately records
+`normalizedInputSha256` at the same invocation's actual validated forwarding
+boundary. The capture commits only after that emission succeeds; absent or
+invalid capture remains null. Native result matching still requires the exact
+invocation-owned receipt and all original call/input/result hashes. Acceptance
+must independently match the normalized digest and the unique proposed/accepted
+result bodies. Transport return alone never proves acceptance. The server
+preserves only the fixed schema literal inside a validated receipt notice;
+adjacent credentials and JWT-shaped values remain redacted. Retained v10 warm
+sessions are incompatible. Native executable bytes are unchanged; new runtime
+packs and fresh local/Daytona qualification are required.
+
+Historical source candidate (2026-10-01): **Copilot profile v10 was unqualified**.
 Admitted Paperclip MCP calls append a bounded `paperclip.semantic_tool_receipt.v1`
 text block after the original result blocks. It records the operation, call-ID
 hash, canonical argument hash, result hash and transport outcome. An invocation

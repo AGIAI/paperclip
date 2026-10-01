@@ -717,6 +717,7 @@ async function waitForTool(call: RunnerToolCall): Promise<unknown> {
     // This is the same roundtrip used by ordinary dynamic tools; emitting a
     // local semantic_result here would let an invalid review handoff appear
     // accepted before the server has checked it.
+    const commitNormalizedInput = call.captureNormalizedInput?.(validation.result);
     emit(
       "runtime.tool_called",
       {
@@ -726,6 +727,7 @@ async function waitForTool(call: RunnerToolCall): Promise<unknown> {
       },
       activeTurnId,
     );
+    commitNormalizedInput?.();
     return await new Promise((settle, reject) => {
       const abort = () => {
         const pending = tools.get(callId);

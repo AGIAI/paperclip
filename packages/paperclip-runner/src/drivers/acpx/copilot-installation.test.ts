@@ -23,6 +23,13 @@ const SEMANTIC_RECEIPT_SOURCES = [
   ["../semantic-tool-receipt.ts", "semanticReceiptSourceSha256"],
   ["../runner-tool-bridge.ts", "semanticBridgeSourceSha256"],
   ["copilot-tool-evidence.ts", "toolEvidenceSourceSha256"],
+  ["../../cli/acpx-runtime-sidecar.ts", "semanticSidecarSourceSha256"],
+  ["codex-acpx-driver.ts", "semanticDirectDriverSourceSha256"],
+  ["../../protocol/replay-contract.ts", "semanticValidationSourceSha256"],
+  ["../../protocol/result-normalization.ts", "semanticNormalizationSourceSha256"],
+  ["../../contracts/completion-result.ts", "semanticCompletionContractSourceSha256"],
+  ["../../protocol/generated/standalone-validators.ts", "semanticValidatorsSourceSha256"],
+  ["../../protocol/generated/schema-bundle.ts", "semanticSchemaBundleSourceSha256"],
 ] as const;
 
 // Walk executable imports, not just the projector's immediate dependencies.
@@ -51,12 +58,13 @@ async function permissionPolicyClosure(extraClassifierImport = false): Promise<S
 vi.mock("./installation-integrity.js", () => ({ verifyNativeAcpxInstallation: vi.fn() }));
 
 describe("Copilot build-owned installation", () => {
-  it("admits the current v10 declaration and binds its source policy, receipts and patch hashes", () => {
-    const identity = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v10-identity.json", import.meta.url), "utf8"));
+  it("admits the current v11 declaration and binds its source policy, receipts and patch hashes", () => {
+    const identity = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v11-identity.json", import.meta.url), "utf8"));
     expect(identity.declaration.systemInstructionDelivery).toBe(COPILOT_SYSTEM_INSTRUCTION_DELIVERY);
     expect(identity.declaration.sharedRuntimeContract).toBe("paperclip.acpx-runtime-contract.v1");
     expect(identity.declaration.permissionContextContract).toBe(COPILOT_PERMISSION_CONTEXT_CONTRACT);
-    expect(identity.declaration.semanticToolReceiptContract).toBe("paperclip.semantic_tool_receipt.v1");
+    expect(identity.declaration.semanticToolReceiptContract).toBe("paperclip.semantic_tool_receipt.v2");
+    expect(identity.declaration.semanticNormalizedInputContract).toBe("validated-forwarded-input-commit-v1");
     expect(identity.declaration.messageIdentityContract).toBe("copilot-native-message-id-v1");
     expect(identity.declaration.ownedDistributionDelivery).toBe("COPILOT_CLI_DIST_DIR:lease-owned-guarded-inner-distribution:v1");
     const inventory = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-message-identity-distributions-1.0.88.json", import.meta.url), "utf8"));
@@ -81,7 +89,7 @@ describe("Copilot build-owned installation", () => {
     expect([...closure].filter(path => !bound.has(path))).toEqual(["negative-control:unbound-policy"]);
   });
   it.each([...PERMISSION_POLICY_SOURCES, ...SEMANTIC_RECEIPT_SOURCES])("changing %s changes the candidate identity", (_path, field) => {
-    const identity = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v10-identity.json", import.meta.url), "utf8"));
+    const identity = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v11-identity.json", import.meta.url), "utf8"));
     identity.declaration[field] = "0".repeat(64);
     const sorted = Object.fromEntries(Object.entries(identity.declaration).sort(([a], [b]) => a.localeCompare(b)));
     expect(`sha256:${createHash("sha256").update(JSON.stringify(sorted)).digest("hex")}`).not.toBe(identity.commandDigest);
@@ -122,7 +130,7 @@ describe("Copilot build-owned installation", () => {
   });
   it("rejects changed profile identities before native file access", async () => {
     vi.mocked(verifyNativeAcpxInstallation).mockClear();
-    for (const override of [{ agentServerVersion: "latest" }, { commandDigest: "sha256:untrusted" }, { commandDigest: "sha256:ed39259990cb0efda48d6105d2fa3599aac76873eb75cd80b4d0b179ce0579a6" }, { agent: "cursor" }, { agentProfileVersion: 1 }, { agentProfileVersion: 2 }, { agentProfileVersion: 3 }, { agentProfileVersion: 4 }, { agentProfileVersion: 5 }, { agentProfileVersion: 6 }, { agentProfileVersion: 7 }, { agentProfileVersion: 8 }, { agentProfileVersion: 9 }]) {
+    for (const override of [{ agentServerVersion: "latest" }, { commandDigest: "sha256:untrusted" }, { commandDigest: "sha256:ed39259990cb0efda48d6105d2fa3599aac76873eb75cd80b4d0b179ce0579a6" }, { agent: "cursor" }, { agentProfileVersion: 1 }, { agentProfileVersion: 2 }, { agentProfileVersion: 3 }, { agentProfileVersion: 4 }, { agentProfileVersion: 5 }, { agentProfileVersion: 6 }, { agentProfileVersion: 7 }, { agentProfileVersion: 8 }, { agentProfileVersion: 9 }, { agentProfileVersion: 10 }]) {
       await expect(verifyCopilotInstallation({ ...QUALIFIED_ACPX_PROFILES.copilot, ...override } as never)).rejects.toThrow("exact pinned");
     }
     expect(verifyNativeAcpxInstallation).not.toHaveBeenCalled();

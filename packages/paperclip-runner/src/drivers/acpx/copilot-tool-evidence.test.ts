@@ -132,13 +132,13 @@ describe("Copilot authoritative semantic receipt correlation", () => {
     h.projector.tool({ ...tool("native", args, "other"), title: "unrelated display" });
     h.projector.captureSemanticReceipt()!(bound.receipt);
     h.projector.tool(terminal("native", bound.result.content));
-    const authoritative = h.events.find(e => e.payload.category === "paperclip_semantic_tool_receipt_v1")!;
+    const authoritative = h.events.find(e => e.payload.category === "paperclip_semantic_tool_receipt_v2")!;
     expect(details(authoritative)).toMatchObject({ operationId: operation, callIdentitySha256: bound.receipt.callIdentitySha256, outcome: "returned" });
     expect(authoritative.payload.provenance).toMatchObject({ method: "paperclip/semantic_tool_result", sessionId: "session", turnId: "turn" });
     expect(details(h.events.at(-1)!)).toMatchObject({ semanticOperationId: operation, semanticOutcome: "returned", semanticResultSha256: bound.receipt.resultSha256 });
     expect(JSON.stringify(h.events)).not.toMatch(/PRIVATE|accepted|completionClaim/);
   });
-  it.each(["untrusted", "different-input", "different-result", "foreign-session", "foreign-turn", "duplicate-native", "duplicate-authority", "early-terminal", "wrong-status"])("rejects %s authority", scenario => {
+  it.each(["untrusted", "different-input", "different-normalized-input", "different-result", "foreign-session", "foreign-turn", "duplicate-native", "duplicate-authority", "early-terminal", "wrong-status"])("rejects %s authority", scenario => {
     const h = harness(), other = harness(scenario === "foreign-turn" ? "session" : "foreign", scenario === "foreign-turn" ? "other-turn" : "turn"); const bound = make();
     h.projector.tool({ ...tool("native", scenario === "different-input" ? {} : args, "other"), title: "paperclip_finish" });
     if (scenario === "early-terminal") h.projector.tool(terminal("native", bound.result.content));
@@ -151,6 +151,7 @@ describe("Copilot authoritative semantic receipt correlation", () => {
     }
     const output = structuredClone(bound.result.content);
     if (scenario === "different-result") output[0]!.text = "changed";
+    if (scenario === "different-normalized-input") output.at(-1)!.text = JSON.stringify({ ...bound.receipt, normalizedInputSha256: "a".repeat(64) });
     h.projector.tool(terminal(scenario === "duplicate-native" ? "second" : "native", output, scenario === "wrong-status" ? "failed" : "completed"));
     expect(details(h.events.at(-1)!)).not.toHaveProperty("semanticOperationId");
     if (scenario === "duplicate-native") expect(h.events.map(details)).toContainEqual(expect.objectContaining({ reason: "semantic_receipt_conflict" }));

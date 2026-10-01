@@ -26,6 +26,48 @@ import type {
 import type { AcpxRecoveryWorkspaceLease } from "./runtime-sandbox.js";
 
 describe("Codex ACPX harness driver", () => {
+  it("captures the direct driver's normalized input only when the exact proposal is retained", async () => {
+    const fixture = driverFixture({ agent: "copilot", model: "explicit-test-model", providerPolicy: { readOnly: true } }, { runtimeEvents: [] });
+    const session = await fixture.driver.openSession({ runId: "run-normalized-receipt", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
+    await session.startTurn({ message: { text: "Complete" } });
+    const { schema: _, attentionRequests: __, artifacts: ___, ...raw } = completedResult();
+    const commit = vi.fn(), capture = vi.fn((value: unknown) => { expect(commit).not.toHaveBeenCalled(); return commit; });
+    const handler = fixture.hostOptions!.semanticTools!.handler;
+    await expect(handler({ tool: PRP_COMPLETION_TOOL_NAME, callId: "finish", arguments: raw, signal: new AbortController().signal,
+      captureNormalizedInput: capture })).resolves.toMatchObject({ accepted: true });
+    expect(capture).toHaveBeenCalledExactlyOnceWith(completedResult());
+    expect(commit).toHaveBeenCalledOnce();
+    const repeatedCapture = vi.fn(() => vi.fn());
+    await expect(handler({ tool: PRP_COMPLETION_TOOL_NAME, callId: "different-call-same-result", arguments: raw, signal: new AbortController().signal,
+      captureNormalizedInput: repeatedCapture })).resolves.toMatchObject({ accepted: true });
+    expect(repeatedCapture).not.toHaveBeenCalled();
+    const invalidCapture = vi.fn(() => vi.fn());
+    await expect(handler({ tool: PRP_COMPLETION_TOOL_NAME, callId: "invalid", arguments: {}, signal: new AbortController().signal,
+      captureNormalizedInput: invalidCapture })).rejects.toThrow("Invalid semantic run result");
+    expect(invalidCapture).not.toHaveBeenCalled();
+    fixture.finishTurn({ status: "completed" });
+    const events = await collectUntil(session.events(), "turn.completed");
+    expect(events.find(event => event.eventType === "run.result.proposed")?.payload).toEqual(capture.mock.calls[0]![0]);
+    await session.close({ reason: "same-invocation normalization verified" });
+  });
+  it("does not commit a direct normalized input digest when proposal retention is backpressured", async () => {
+    const fixture = driverFixture({ agent: "copilot", model: "explicit-test-model", providerPolicy: { readOnly: true } }, {
+      maxBufferedEvents: 4, terminalEventReserve: 0,
+      runtimeEvents: Array.from({ length: 8 }, (_, n) => ({ type: "text_delta" as const, stream: "output" as const, text: `bounded-${n}` })),
+    });
+    const session = await fixture.driver.openSession({ runId: "run-normalized-pressure", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
+    await session.startTurn({ message: { text: "Complete" } });
+    await vi.waitFor(async () => expect((await session.transcript!()).eventCount).toBeGreaterThanOrEqual(4));
+    const commit = vi.fn(), capture = vi.fn(() => commit);
+    await expect(fixture.hostOptions!.semanticTools!.handler({ tool: PRP_COMPLETION_TOOL_NAME, callId: "finish", arguments: completedResult(),
+      signal: new AbortController().signal, captureNormalizedInput: capture })).rejects.toThrow("event consumer must drain");
+    expect(capture).toHaveBeenCalledOnce();
+    expect(commit).not.toHaveBeenCalled();
+    fixture.finishTurn({ status: "completed" });
+    const events = await collectUntil(session.events(), "turn.completed");
+    expect(events.some(event => event.eventType === "run.result.proposed")).toBe(false);
+    await session.close({ reason: "unretained input has no digest" });
+  });
   it.each(["copilot", "cursor", "pi", "codex"] as const)("scopes optional semantic receipts to the actual %s invocation turn", async agent => {
     const fixture = driverFixture({ agent, model: "explicit-test-model", providerPolicy: { readOnly: true } }, { runtimeEvents: [] });
     const session = await fixture.driver.openSession({ runId: "run-receipt", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
@@ -37,17 +79,17 @@ describe("Codex ACPX harness driver", () => {
     oldCallback?.(bound.receipt);
     fixture.finishTurn({ status: "completed" });
     const firstEvents = await collectUntil(session.events(), "turn.completed");
-    const receipts = firstEvents.filter(e => e.eventType === "provider.notice.recorded" && e.payload.category === "paperclip_semantic_tool_receipt_v1");
+    const receipts = firstEvents.filter(e => e.eventType === "provider.notice.recorded" && e.payload.category === "paperclip_semantic_tool_receipt_v2");
     expect(receipts).toHaveLength(agent === "copilot" ? 1 : 0);
     if (agent === "copilot") expect(receipts[0]).toMatchObject({ runId: "run-receipt", turnId: first.turnId, payload: { provenance: { sessionId: "backend-1", turnId: first.turnId } } });
     const transcript = JSON.parse(JSON.stringify(await session.transcript!()));
     for (const event of transcript.events) validatePrpEvent(event);
-    expect(transcript.events.filter((e: PrpEvent) => e.payload.category === "paperclip_semantic_tool_receipt_v1")).toEqual(receipts);
+    expect(transcript.events.filter((e: PrpEvent) => e.payload.category === "paperclip_semantic_tool_receipt_v2")).toEqual(receipts);
     await session.startTurn({ message: { role: "user", text: "Second" } });
     oldCallback?.(bound.receipt);
     fixture.finishTurn({ status: "completed" });
     const secondEvents = await collectUntil(session.events(), "turn.completed");
-    expect(secondEvents.filter(e => e.payload.category === "paperclip_semantic_tool_receipt_v1")).toEqual([]);
+    expect(secondEvents.filter(e => e.payload.category === "paperclip_semantic_tool_receipt_v2")).toEqual([]);
     await session.close({ reason: "receipt turn scope verified" });
   });
 
