@@ -1,6 +1,33 @@
 # Copilot 1.0.88 rich ACP capability audit
 
-Current qualification checkpoint (2026-09-30): **Copilot profile v8 remains unqualified.** The a8df warm attempt passed all nine Product matchers and daemon invariants, but the supervisor failed final-pack cleanup on an extra executable; the exact orphan was later retired safely and the original failure remains. The earlier 5c69 warm-PID failure is a separate unchanged historical grade. Sidecar rotation per `attach_run` is ACPX authority rotation, separate from daemon continuity. The Daytona denial observed no write but failed its original cancellation fixture after receiving normal provider completion; later checks were not graded. Its database timestamp does not establish that completion was durably observable before Stop, so the earlier ordering inference is withdrawn.
+Current source candidate (2026-09-30): **Copilot profile v9 is unqualified**.
+Typed edit permission callbacks now put a single bounded workspace-relative target
+in the first canonical prompt (`Change file: path`). The same pure projector is
+used by both runner paths and the bounded diagnostic notice. It checks `path`,
+`fileName`, and every supplied location for agreement; it never displays file
+contents, diffs, commands, or arbitrary raw input. This is display context, not a
+filesystem authorization or symlink-containment guarantee.
+
+If the target is missing, outside the workspace, conflicting, malformed, too
+large, contains control/direction-format characters, or would be redacted, the
+request offers only the provider's one-time denial (when present) and cancellation.
+Forged once/session grants are rejected. Raw `kind: edit` is required; titles do
+not infer operation type. Non-edit permissions retain their existing behavior.
+Default/full-auto selection is unchanged: callbacks handled by Paperclip receive
+this check before any permission-mode fallback; no new automatic grant is added.
+The existing transport policy still applies before permission handling.
+
+The declaration binds this context contract and its source hashes. Copilot's
+native executable, patched inner distribution, and shared ACPX patch are unchanged;
+the sidecar assets and runner's embedded admission digest change. Older profile
+identities cannot be admitted as v9 or reused as matching warm sessions. Fresh
+runtime packs/images and exact-revision local/Daytona qualification are pending.
+Earlier denial cases establish their own no-write behavior; their generic
+`Create file` card did not prove complete decision context. Deterministic adapter,
+sidecar and direct-driver tests cover safe and denied context; no new live claim
+or native USD/accounting capability is implied.
+
+Historical v8 qualification checkpoint (2026-09-30): **Copilot profile v8 remains unqualified.** The a8df warm attempt passed all nine Product matchers and daemon invariants, but the supervisor failed final-pack cleanup on an extra executable; the exact orphan was later retired safely and the original failure remains. The earlier 5c69 warm-PID failure is a separate unchanged historical grade. Sidecar rotation per `attach_run` is ACPX authority rotation, separate from daemon continuity. The Daytona denial observed no write but failed its original cancellation fixture after receiving normal provider completion; later checks were not graded. Its database timestamp does not establish that completion was durably observable before Stop, so the earlier ordering inference is withdrawn.
 
 Shutdown ownership [#14730](https://github.com/paperclipai/paperclip/pull/14730), head `d09ed62b6`, has Apex 5/5 and all 52 checks green. Denial settlement [#14733](https://github.com/paperclipai/paperclip/pull/14733), head `1b47b30be`, passes 220 focused tests and E2E typecheck; fresh review and CI are pending. Suite v4 requires a retained pre-dispatch API observation for the normal-completion branch. Neither accepted branch proves Stop reached active work. Neither change has a live qualification pass; final-source verification remains pending. V8 binds the shared ACPX patch under a new digest, rejects v7 sessions, and adds no usage/cost capability. Native per-run USD is unknown.
 
