@@ -86,8 +86,8 @@ authenticated browser and the configured origin. Client registration does not
 fetch redirect URLs or accept arbitrary tool destinations. Rate limiting at the
 public edge is required in addition to the bounded per-process auth limiter.
 Registration also has a database-enforced limit of 60 new clients per minute and
-10,000 retained clients shared across replicas. Expired authorization requests
-and never-consented clients older than 24 hours are collected during
+10,000 unconsented clients shared across replicas. Expired authorization requests
+and never-consented clients older than one hour are collected during
 registration. Clients with grants are retained, preserving their connections and
 audit/mutation history.
 
@@ -168,3 +168,10 @@ CLI login and local package validation do not replace these release gates.
 External sessions acting as agents, task leases and third-party granted tools
 remain the second/third releases; do not add generic executors to this public
 catalog to implement them.
+
+Registration also enforces shared source quotas (6 per minute and 30 unconsented
+clients) using a resource-bound hash of the trusted request IP; raw addresses are
+not stored. Configure trusted proxies correctly. Authorization starts atomically
+remove expired requests and enforce 10 retained requests per client and 1,000
+instance-wide, independently of further client registrations. Existing grants
+remain usable when anonymous registration or authorization is throttled.

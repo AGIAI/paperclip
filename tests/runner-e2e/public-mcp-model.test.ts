@@ -69,4 +69,15 @@ describe("external assistant evidence and billing", () => {
     expect(snapshots).toEqual([{ calls: 0, requests: 1 }, { calls: 1, requests: 1 }, { calls: 1, requests: 1 }]);
     expect(usage.estimatedCostUsd).toBeGreaterThan(0);
   });
+  it("shares the 16-request ceiling across fresh conversations in one cell", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => Response.json({ model: "gpt-5.4-mini", usage: { input_tokens: 10, output_tokens: 10 }, output: [{ type: "message", content: [{ type: "output_text", text: "Done." }] }] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const usage = assistantUsage("openai", "gpt-5.4-mini");
+    const input = { usage, credential: "unit-test-key", prompt: "Fresh conversation", tools: [], call: vi.fn(), deadlineAt: Date.now() + 10_000, observe: vi.fn() };
+    for (let i = 0; i < 16; i++) await runAssistant(input);
+    await expect(runAssistant(input)).rejects.toThrow("shared 16-request per-cell budget");
+    expect(fetchMock).toHaveBeenCalledTimes(16);
+    expect(usage.requests).toBe(16);
+  });
+
 });

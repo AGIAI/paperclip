@@ -98,24 +98,26 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
 
   return {
     config,
-    async register(input: unknown) {
+    async register(input: unknown, source = "unknown") {
       const parsed = registrationSchema.safeParse(input);
       if (!parsed.success) throw new McpOAuthError("invalid_client_metadata", "Supply a client name, valid redirect URIs, and public-client PKCE authentication.");
-      const client = { id: secret("pcmcp_client_"), name: parsed.data.client_name, redirectUris: parsed.data.redirect_uris };
+      const client = { id: secret("pcmcp_client_"), name: parsed.data.client_name, registrationSourceHash: hashMcpSecret(config.resource + ":" + source), redirectUris: parsed.data.redirect_uris };
       await db.transaction(async (tx) => {
         // Bound public DCR across replicas, not only per-IP in each process.
         await tx.execute(sql`SELECT pg_advisory_xact_lock(736721042)`);
         const now = new Date();
         await tx.delete(mcpOauthRequests).where(lt(mcpOauthRequests.expiresAt, now));
         await tx.delete(mcpOauthClients).where(and(
-          lt(mcpOauthClients.createdAt, new Date(now.getTime() - 24 * 60 * minute)),
+          lt(mcpOauthClients.createdAt, new Date(now.getTime() - 60 * minute)),
           notExists(tx.select({ id: mcpOauthGrants.id }).from(mcpOauthGrants).where(eq(mcpOauthGrants.clientId, mcpOauthClients.id))),
           notExists(tx.select({ id: mcpOauthRequests.id }).from(mcpOauthRequests).where(eq(mcpOauthRequests.clientId, mcpOauthClients.id))),
         ));
         const [counts] = await tx.select({ total: sql<number>`count(*)::int`,
+          sourceTotal: sql<number>`(count(*) FILTER (WHERE ${mcpOauthClients.registrationSourceHash} = ${client.registrationSourceHash}))::int`,
+          sourceRecent: sql<number>`(count(*) FILTER (WHERE ${mcpOauthClients.registrationSourceHash} = ${client.registrationSourceHash} AND ${mcpOauthClients.createdAt} > ${new Date(now.getTime() - minute).toISOString()}::timestamptz))::int`,
           recent: sql<number>`(count(*) FILTER (WHERE ${mcpOauthClients.createdAt} > ${new Date(now.getTime() - minute).toISOString()}::timestamptz))::int`,
-        }).from(mcpOauthClients);
-        if (!counts || counts.total >= 10_000 || counts.recent >= 60) {
+        }).from(mcpOauthClients).where(notExists(tx.select({ id: mcpOauthGrants.id }).from(mcpOauthGrants).where(eq(mcpOauthGrants.clientId, mcpOauthClients.id))));
+        if (!counts || counts.total >= 10_000 || counts.recent >= 60 || counts.sourceTotal >= 30 || counts.sourceRecent >= 6) {
           throw new McpOAuthError("temporarily_unavailable", "Registration capacity reached. Retry later.", 429);
         }
         await tx.insert(mcpOauthClients).values(client);
@@ -136,9 +138,20 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
         throw new McpOAuthError("invalid_scope", "Unsupported Paperclip scope.");
       }
       const id = secret("pcmcp_request_");
-      await db.insert(mcpOauthRequests).values({
-        id, clientId: client.id, redirectUri: p.redirect_uri, resource: p.resource, scopes,
-        state: p.state ?? null, challenge: p.code_challenge, expiresAt: new Date(Date.now() + 10 * minute),
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(736721042)`);
+        const now = new Date();
+        await tx.delete(mcpOauthRequests).where(lt(mcpOauthRequests.expiresAt, now));
+        const [counts] = await tx.select({ total: sql<number>`count(*)::int`,
+          client: sql<number>`(count(*) FILTER (WHERE ${mcpOauthRequests.clientId} = ${client.id}))::int`,
+        }).from(mcpOauthRequests);
+        if (!counts || counts.total >= 1000 || counts.client >= 10) {
+          throw new McpOAuthError("temporarily_unavailable", "Too many pending connection requests. Retry later.", 429);
+        }
+        await tx.insert(mcpOauthRequests).values({
+          id, clientId: client.id, redirectUri: p.redirect_uri, resource: p.resource, scopes,
+          state: p.state ?? null, challenge: p.code_challenge, expiresAt: new Date(now.getTime() + 10 * minute),
+        });
       });
       return config.origin + "/mcp-connect/" + id;
     },

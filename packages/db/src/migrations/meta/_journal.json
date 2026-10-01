@@ -2052,6 +2052,13 @@
       "when": 1790866454887,
       "tag": "0294_nervous_caretaker",
       "breakpoints": true
+    },
+    {
+      "idx": 295,
+      "version": "7",
+      "when": 1790867992285,
+      "tag": "0295_slimy_thunderbird",
+      "breakpoints": true
     }
   ]
 }

@@ -50,6 +50,7 @@ export async function runAssistant(input: {
   const responseItems: any[] = [{ role: "user", content: input.prompt }];
   try {
     for (let step = 0; step < 16; step++) {
+      if (input.usage.requests >= 16) throw new Error("Assistant exceeded its shared 16-request per-cell budget");
       if (Date.now() >= input.deadlineAt) throw new Error("Assistant workflow exceeded its bounded deadline");
       const anthropic = input.usage.provider === "anthropic";
       const response = await fetch(anthropic ? "https://api.anthropic.com/v1/messages" : "https://api.openai.com/v1/responses", {

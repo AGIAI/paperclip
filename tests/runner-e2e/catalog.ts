@@ -1102,7 +1102,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
         extraConfig: { engine: "cli", maxTurnsPerRun: 16 },
       })),
     ],
-    definitionMetadata: { version: 4, grader: publicMcpGraderVersion, workflowDigest: publicMcpWorkflowDigest, workerSkillDigest: publicMcpWorkerSkillDigest, workerInstructions: publicMcpWorkerInstructions, assistantMaxRequests: 16, assistantMaxEstimatedUsd: 2, instructions: "shipped-plugin-skills", scheduling: "explicit-only" },
+    definitionMetadata: { version: 5, grader: publicMcpGraderVersion, workflowDigest: publicMcpWorkflowDigest, workerSkillDigest: publicMcpWorkerSkillDigest, workerInstructions: publicMcpWorkerInstructions, assistantMaxRequests: 16, assistantMaxEstimatedUsd: 2, instructions: "shipped-plugin-skills", scheduling: "explicit-only" },
   },
   {
     id: "blocker-guidance", label: "Direct blocker handling", manualOnly: true,

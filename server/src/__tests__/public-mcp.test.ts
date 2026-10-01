@@ -3,7 +3,7 @@ import express, { type Request } from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createDb, authUsers, companies, companyMemberships, mcpOauthTokens, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
+import { createDb, authUsers, companies, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
 import { createPublicMcpOAuth, publicMcpConfig, hashMcpSecret } from "../services/public-mcp/oauth.js";
 import { createMcpApiDispatch, createPublicMcpExecutor, publicMcpCapabilities } from "../services/public-mcp/capabilities.js";
 import { publicMcpIngressRoutes, publicMcpManagementRoutes } from "../routes/public-mcp.js";
@@ -51,7 +51,7 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     const [company] = await db.insert(companies).values({ name: "Team", issuePrefix: "M" + randomBytes(4).toString("hex") }).returning();
     const [membership] = await db.insert(companyMemberships).values({ companyId: company!.id, principalType: "user", principalId: userId, membershipRole: role, status: "active" }).returning();
     const actor: Request["actor"] = { type: "board", source: "session", userId };
-    const client = await oauth.register({ client_name: "Test client", redirect_uris: [redirectUri] });
+    const client = await oauth.register({ client_name: "Test client", redirect_uris: [redirectUri] }, randomUUID());
     const url = await oauth.authorize({ client_id: client.client_id, redirect_uri: redirectUri, resource: config.resource, scope: "paperclip:read paperclip:write offline_access", state: "state", response_type: "code", code_challenge: challenge, code_challenge_method: "S256" });
     const id = url.split("/").at(-1)!;
     const consent = await oauth.consent(id, actor, { decision: "approve", companyId: company!.id, allowWrites: write });
@@ -268,7 +268,7 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     await db.insert(mcpOauthClients).values({ id: stale, name: "Never connected", redirectUris: [redirectUri], createdAt: old });
     await db.update(mcpOauthClients).set({ createdAt: old });
     const replica = createPublicMcpOAuth(db, config);
-    const registrations = await Promise.allSettled(Array.from({ length: 70 }, (_, index) => (index % 2 ? oauth : replica).register({ client_name: "Quota fixture", redirect_uris: [redirectUri] })));
+    const registrations = await Promise.allSettled(Array.from({ length: 70 }, (_, index) => (index % 2 ? oauth : replica).register({ client_name: "Quota fixture", redirect_uris: [redirectUri] }, `quota-source-${index}`)));
     const accepted = registrations.filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof oauth.register>>> => r.status === "fulfilled");
     try {
       expect(accepted).toHaveLength(60);
@@ -278,6 +278,35 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     } finally {
       for (const row of accepted) await db.delete(mcpOauthClients).where(eq(mcpOauthClients.id, row.value.client_id));
     }
+  });
+
+  it("limits one registration source without denying another source", async () => {
+    const source = randomUUID();
+    const sourceHash = hashMcpSecret(config.resource + ":" + source);
+    const replica = createPublicMcpOAuth(db, config);
+    try {
+      const batch = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => (i % 2 ? oauth : replica).register({ client_name: "Source quota", redirect_uris: [redirectUri] }, source)));
+      expect(batch.filter(r => r.status === "fulfilled")).toHaveLength(6);
+      await expect(replica.register({ client_name: "Other source", redirect_uris: [redirectUri] }, randomUUID())).resolves.toHaveProperty("client_id");
+      for (let batch = 0; batch < 4; batch++) {
+        await db.update(mcpOauthClients).set({ createdAt: new Date(Date.now() - 2 * 60_000) }).where(eq(mcpOauthClients.registrationSourceHash, sourceHash));
+        for (let i = 0; i < 6; i++) await replica.register({ client_name: "Source quota", redirect_uris: [redirectUri] }, source);
+      }
+      await db.update(mcpOauthClients).set({ createdAt: new Date(Date.now() - 2 * 60_000) }).where(eq(mcpOauthClients.registrationSourceHash, sourceHash));
+      await expect(oauth.register({ client_name: "Source quota", redirect_uris: [redirectUri] }, source)).rejects.toMatchObject({ status: 429 });
+    } finally { await db.delete(mcpOauthClients).where(eq(mcpOauthClients.registrationSourceHash, sourceHash)); }
+  });
+
+  it("bounds authorization starts across replicas and reclaims expired requests without another registration", async () => {
+    const client = await oauth.register({ client_name: "Request quota", redirect_uris: [redirectUri] }, randomUUID());
+    const input = { client_id: client.client_id, redirect_uri: redirectUri, response_type: "code", resource: config.resource, code_challenge: challenge, code_challenge_method: "S256" };
+    const replica = createPublicMcpOAuth(db, config);
+    const starts = await Promise.allSettled(Array.from({ length: 12 }, (_, i) => (i % 2 ? oauth : replica).authorize(input)));
+    expect(starts.filter(r => r.status === "fulfilled")).toHaveLength(10);
+    expect(starts.filter(r => r.status === "rejected").map(r => r.reason.status)).toEqual([429, 429]);
+    await db.update(mcpOauthRequests).set({ expiresAt: new Date(0) }).where(eq(mcpOauthRequests.clientId, client.client_id));
+    await expect(replica.authorize(input)).resolves.toContain("/mcp-connect/");
+    expect(await db.select().from(mcpOauthRequests).where(eq(mcpOauthRequests.clientId, client.client_id))).toHaveLength(1);
   });
 
 });

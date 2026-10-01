@@ -55,7 +55,7 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
     code_challenge_methods_supported: ["S256"], scopes_supported: PUBLIC_MCP_SCOPES,
   }));
   router.use("/mcp/oauth", authRateLimit(), express.urlencoded({ extended: false, limit: "16kb" }));
-  router.post("/mcp/oauth/register", async (req, res) => res.status(201).json(await oauth.register(req.body)));
+  router.post("/mcp/oauth/register", async (req, res) => res.status(201).json(await oauth.register(req.body, req.ip ?? req.socket.remoteAddress ?? "unknown")));
   router.get("/mcp/oauth/authorize", async (req, res) => res.redirect(303, await oauth.authorize(req.query)));
   router.post("/mcp/oauth/token", async (req, res) => res.json(await oauth.token(req.body ?? {})));
   router.post("/mcp/oauth/revoke", async (req, res) => {

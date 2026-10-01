@@ -7,6 +7,7 @@ import { companies } from "./companies.js";
 export const mcpOauthClients = pgTable("mcp_oauth_clients", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  registrationSourceHash: text("registration_source_hash"),
   redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
