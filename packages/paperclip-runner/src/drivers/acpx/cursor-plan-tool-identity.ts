@@ -3,7 +3,7 @@ import type { AcpxExtensionInput } from "./profile-extensions.js";
 
 // Match the sidecar's provider identity boundary before Rust's opaque tool ID.
 export function cursorToolIdentity(value: string): string {
-  if (Buffer.byteLength(value) <= 240 && !/[\u0000-\u001f\u007f]/.test(value)) return value;
+  if (Buffer.byteLength(value) <= 240 && !/[\u0000-\u001f\u007f-\u009f]/.test(value)) return value;
   return `acpx-tool-${createHash("sha256").update("paperclip.acpx.provider-identity.v1\0tool\0").update(value).digest("hex")}`;
 }
 

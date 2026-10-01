@@ -1,9 +1,15 @@
 # Cursor ACP capability inventory
 
 Current source candidate (2026-10-01): **Cursor profile v10 is unqualified**.
-Native tool IDs containing control characters now use the same bounded hash in
-tool activity, permission details and correlated evidence. Safe IDs stay unchanged;
-distinct native IDs stay distinct. The original ACP request and option identity
+Native tool IDs containing C0, C1 or DEL control characters now use the same
+bounded hash in permission details, passive evidence and the sidecar tool event.
+Blank permission IDs are rejected because ACPX drops blank tool-event identity.
+Other admitted IDs stay unchanged at this boundary; distinct IDs stay distinct.
+Canonical tool execution then applies the existing Rust opaque-ID conversion.
+For example, `tool/1` remains the native permission/evidence key while its
+execution ID is the deterministic opaque hash. Lifecycle readers explicitly
+convert between these keys; they must not compare them directly. Both-order
+bridge tests cover this distinction, including 161-character IDs. The original ACP request and option identity
 remain intact for response delivery. The declaration binds the identity helper,
 permission adapter and evidence projector. Retained v9 sessions are incompatible.
 The native distribution and its usage limits are unchanged. Deterministic tests

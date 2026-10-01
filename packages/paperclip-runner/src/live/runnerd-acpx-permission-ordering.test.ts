@@ -48,13 +48,22 @@ vi.mock("../control-plane/durable-prp-control-plane.js", async (importOriginal) 
     },
   };
 });
+import { cursorToolIdentity, cursorToolExecutionId } from "../drivers/acpx/cursor-plan-tool-identity.js";
+import { normalizeAcpxPermission } from "../drivers/acpx/acp-permission-adapter.js";
 import { createCapabilityRunnerdCodexTransport } from "./runnerd-codex-transport.js";
 import { makeDriver, WORKSPACE } from "../drivers/codex/codex-app-server-driver.test-support.js";
 import type { PrpEvent } from "../protocol/replay-contract.js";
 
 
 describe("permission and tool order through the actual transport and harness", () => {
-  it.each(["tool-first", "permission-first"])("preserves committed batch order with an unanswered permission: %s", async order => {
+  it.each(["tool-first", "permission-first"].flatMap(order => ["native-tool-7", "native\u0080tool", "native\u0085tool", "native\u009ftool", "tool/1", "x".repeat(161)].map(rawId => ({ order, rawId }))))("preserves committed batch order and native identity with an unanswered permission: $order $rawId", async ({ order, rawId }) => {
+    const toolCallId = cursorToolIdentity(rawId);
+    const executionId = cursorToolExecutionId(rawId);
+    const normalized = normalizeAcpxPermission({ sessionId: "provider-session-1", inferredKind: "execute", raw: {
+      sessionId: "provider-session-1", toolCall: { toolCallId: rawId, kind: "execute" },
+      options: [{ kind: "reject_once", optionId: "original-native-denial", name: "Deny" }],
+    } }, { provider: "cursor" });
+    expect(normalized.toolCallId).toBe(toolCallId);
     const root = mkdtempSync(join(tmpdir(), "permission-ordering-"));
     const binary = join(root, "unexecuted-runner");
     writeFileSync(binary, "not executable: process boundary is mocked");
@@ -75,14 +84,14 @@ describe("permission and tool order through the actual transport and harness", (
         if (seen.some(e => e.eventType === "runtime_request.created") && seen.some(e => e.eventType === "tool.execution.started")) break;
       } })();
       const tool = () => peer.current!.emit("tool.execution.started", {
-        schema: "paperclip.tool.execution.v1", executionId: "native-tool-7", transport: "builtin", namespace: null,
+        schema: "paperclip.tool.execution.v1", executionId, transport: "builtin", namespace: null,
         name: "Run command", operation: "execute", target: null, status: "running", readOnly: false,
         inputUpdated: true, output: null, outputBytes: 0, outputTruncated: false, outputDigest: null,
         durationMs: null, exitCode: null, progress: [],
       });
       const permission = () => peer.current!.emit("runtime_request.created", { request: {
         requestId: "permission-7", type: "permission", requestKind: "permission_approval",
-        itemId: "opaque-item-7", prompt: "Run command", details: { toolCallId: "native-tool-7" },
+        itemId: "opaque-item-7", prompt: "Run command", details: { toolCallId: normalized.toolCallId },
         choices: [{ key: "decline", label: "Deny" }, { key: "cancel", label: "Cancel" }],
         origin: { adapter: "acpx-runtime-sidecar", provider: "cursor", method: "session/request_permission" },
       } });
@@ -92,8 +101,12 @@ describe("permission and tool order through the actual transport and harness", (
       await vi.waitFor(() => expect(seen.filter(e => ["tool.execution.started", "runtime_request.created"].includes(e.eventType))).toHaveLength(2), { timeout: 1_000, interval: 5 });
       const nativeOrder = peer.current!.store.state.committedEvents.filter(e => ["tool.execution.started", "runtime_request.created"].includes(e.eventType)).map(e => e.eventType);
       const projectedOrder = seen.filter(e => ["tool.execution.started", "runtime_request.created"].includes(e.eventType)).map(e => e.eventType);
-      expect(session.pendingRuntimeRequests!()).toMatchObject([{ requestId: "permission-7", turnId, status: "pending" }]);
+      expect(session.pendingRuntimeRequests!()).toMatchObject([{ requestId: "permission-7", turnId, status: "pending", details: { toolCallId } }]);
       expect(projectedOrder).toEqual(nativeOrder);
+      // Permission details retain bounded native identity; activity retains
+      // Rust's opaque execution ID. Their deterministic join is intentional.
+      expect(seen.find(e => e.eventType === "tool.execution.started")?.payload).toMatchObject({ executionId });
+      if (rawId === "tool/1" || rawId.length === 161) expect(executionId).not.toBe(toolCallId);
     } finally {
       // This test owns no actual process or database. Retire the mocked peer
       // and its controller timer without inventing a provider terminal event.

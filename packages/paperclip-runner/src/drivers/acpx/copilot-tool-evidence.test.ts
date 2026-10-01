@@ -167,3 +167,42 @@ describe("Copilot authoritative semantic receipt correlation", () => {
     expect(details(next.events.at(-1)!)).not.toHaveProperty("semanticOperationId");
   });
 });
+
+
+describe("captured Copilot 1.0.88 native MCP receipt carrier", () => {
+  const bytes = readFileSync(new URL("./fixtures/copilot-1.0.88-mcp-receipt-captured.json", import.meta.url));
+  const captured = JSON.parse(bytes.toString());
+  const provenance = JSON.parse(readFileSync(new URL("./fixtures/copilot-1.0.88-mcp-receipt-captured.provenance.json", import.meta.url), "utf8"));
+  const nativeEvent = (frame: any) => ({ ...frame.params.update, type: "tool_call", tag: frame.params.update.sessionUpdate });
+  it("replays native frames with the separately owned receipt and preserves rejection content", () => {
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(provenance.fixtureSha256);
+    expect(provenance).toMatchObject({ nativeVersion: "1.0.88", paidProviderCalls: 0, qualification: false });
+    expect(captured.pending.params.sessionId).toBe(captured.completed.params.sessionId);
+    const h = harness(captured.pending.params.sessionId);
+    h.projector.tool(nativeEvent(captured.pending));
+    h.projector.captureSemanticReceipt()!(captured.authoritativeReceipt);
+    h.projector.tool(nativeEvent(captured.completed));
+    const output = captured.completed.params.update.rawOutput;
+    expect(output.content).toBe(output.contents.map((block: { text: string }) => block.text).join(""));
+    expect(output.detailedContent).toBe(output.content);
+    expect(JSON.parse(output.contents[0].text)).toMatchObject({ accepted: false });
+    expect(details(h.events.at(-1)!)).toMatchObject({ stage: "tool", status: "completed",
+      semanticOperationId: captured.authoritativeReceipt.operationId,
+      semanticCallIdentitySha256: captured.authoritativeReceipt.callIdentitySha256,
+      semanticInputSha256: captured.authoritativeReceipt.inputSha256,
+      semanticResultSha256: captured.authoritativeReceipt.resultSha256, semanticOutcome: "returned" });
+    expect(JSON.stringify(h.events)).not.toContain("known-small-result");
+  });
+  it.each(["missing-authority", "altered-block", "different-input", "missing-contents", "duplicate-terminal"])("does not trust captured native output alone: %s", scenario => {
+    const value = structuredClone(captured), h = harness(value.pending.params.sessionId);
+    if (scenario === "different-input") value.pending.params.update.rawInput = { changed: true };
+    if (scenario === "altered-block") value.completed.params.update.rawOutput.contents[0].text = '{"accepted":true}';
+    if (scenario === "missing-contents") delete value.completed.params.update.rawOutput.contents;
+    h.projector.tool(nativeEvent(value.pending));
+    if (scenario !== "missing-authority") h.projector.captureSemanticReceipt()!(value.authoritativeReceipt);
+    h.projector.tool(nativeEvent(value.completed));
+    if (scenario === "duplicate-terminal") h.projector.tool(nativeEvent(value.completed));
+    expect(details(h.events.at(-1)!)).not.toHaveProperty("semanticOperationId");
+    if (scenario === "duplicate-terminal") expect(details(h.events.at(-1)!)).toMatchObject({ stage: "evidence_incomplete", reason: "reused_semantic_lifecycle" });
+  });
+});

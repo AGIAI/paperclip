@@ -1,8 +1,9 @@
 # Rich ACP integration and qualification report
 
 Current source checkpoint (2026-10-01): **Cursor v10, Copilot v10 and Pi v10
-remain unqualified**. Cursor now shares the exact opaque native tool-ID mapping
-across activity and permissions. Copilot correlates native tool results with
+remain unqualified**. Cursor now shares the bounded native tool-ID mapping
+across sidecar activity and permissions, then deterministically joins that key
+to the canonical opaque execution ID. Copilot correlates native tool results with
 authenticated, turn-bound semantic receipts instead of display names. Both new
 profile identities reject v9 warm sessions. Their native distribution bytes
 are unchanged; new sidecar assets, runner admission digests and fresh local/Daytona

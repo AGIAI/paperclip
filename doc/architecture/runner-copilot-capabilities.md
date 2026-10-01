@@ -15,7 +15,12 @@ its repeated text fields. Large and chunked bridge results still carry a receipt
 but output above that bound has no native correlation evidence. Error results
 retain `isError`; deterministic tests cover errors, while the actual pinned
 ARM64 executable has only been checked with a small two-block success response
-and a local mock model. This is not paid or cross-platform qualification.
+and a local mock model. The captured pending/completed ACP frames are retained
+in `src/drivers/acpx/fixtures/copilot-1.0.88-mcp-receipt-captured.json`, with
+executable/capture hashes and sanitization recorded alongside. A regression
+replays those frames through the production projector with the separately
+owned receipt, plus missing-authority, altered-input/result, missing-content
+and duplicate-terminal negatives. This is not paid or cross-platform qualification.
 Native executable and distribution bytes are unchanged. The profile binds the
 receipt, bridge and projector sources plus the complete permission-policy import
 closure; retained v9 sessions are incompatible. Fresh packs and local/Daytona

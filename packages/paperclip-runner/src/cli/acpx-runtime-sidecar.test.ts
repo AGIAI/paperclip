@@ -111,7 +111,7 @@ describe("qualified ACPX runtime sidecar", () => {
     const start = source.indexOf("  const { signal } = context;", source.indexOf("async function waitForPermission"));
     const end = source.indexOf("\nasync function waitForInput", start);
     const observedIds: string[] = [];
-    for (const rawId of ["native\u0000tool", "native\u007ftool", "safe-tool-1"]) {
+    for (const rawId of ["native\u0000tool", "native\u007ftool", "native\u0085tool", "tool/1", "x".repeat(161), "safe-tool-1"]) {
       const permissions = new Map<string, any>(); const emitted: any[] = []; const notices: any[] = [];
       const evidence = createCursorToolEvidence({ sessionId: "session", turnId: "turn-1", workingDirectory: "/workspace", active: () => true,
         emit: event => { validateAcpxRichEvent(event); notices.push(event); },
@@ -122,7 +122,10 @@ describe("qualified ACPX runtime sidecar", () => {
         return async function(activeTurnId, agent, request, context, toolEvidence) { ${source.slice(start, end)}
       `)(permissions, normalizeAcpxPermission, (_event: string, payload: unknown) => emitted.push(payload));
       const origin = { type: "tool_call", tag: "tool_call", toolCallId: rawId, kind: "execute", status: "pending", rawInput: { command: "printf private-command" } };
-      const activity = canonicalProviderEventsFromAcpxRuntimeEvent(bound(origin), "unrelated-fallback")[0]!;
+      // The sidecar emits this bounded runtime event; Rust applies the opaque
+      // execution-ID transform later. The direct TS driver normalizer is not
+      // this boundary and has a different fallback policy.
+      const activity = bound(origin);
       const native = { sessionId: "session", inferredKind: "execute", raw: { sessionId: "session", toolCall: { toolCallId: rawId, kind: "execute" },
         options: [{ kind: "reject_once", optionId: "native-original-denial", name: "Deny" }],
       } };
@@ -133,7 +136,7 @@ describe("qualified ACPX runtime sidecar", () => {
       if (order === "permission-first") { expect(notices).toEqual([]); evidence.tool(origin); }
       const projectedId = emitted[0].toolCallId;
       observedIds.push(projectedId);
-      expect(projectedId).toBe(activity.payload.executionId);
+      expect(projectedId).toBe(activity.toolCallId);
       expect(notices.map(event => Object.fromEntries(event.payload.details.map((field: any) => [field.name, field.value])))).toEqual([
         expect.objectContaining({ stage: "tool", toolCallId: projectedId }),
         expect.objectContaining({ stage: "permission_requested", toolCallId: projectedId, requestId: "request-1" }),
@@ -146,8 +149,8 @@ describe("qualified ACPX runtime sidecar", () => {
       expect(native.raw.toolCall.toolCallId).toBe(rawId);
       expect(JSON.stringify([activity, emitted, notices])).not.toContain("private-command");
     }
-    expect(new Set(observedIds).size).toBe(3);
-    expect(observedIds[2]).toBe("safe-tool-1");
+    expect(new Set(observedIds).size).toBe(6);
+    expect(observedIds.at(-1)).toBe("safe-tool-1");
   });
   it("emits the native plan tool identity from the actual sidecar input boundary", async () => {
     const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");

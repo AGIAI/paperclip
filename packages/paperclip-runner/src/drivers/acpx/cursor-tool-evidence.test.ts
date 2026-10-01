@@ -25,13 +25,13 @@ it("waits for the original iterator event when permission arrives before the que
   const s = setup(); const delivered = s.p.permission(request, "request", ["decline"]); expect(s.events).toHaveLength(0);
   s.p.tool(initial); delivered!("reject_once"); expect(s.fields().map(x => x.stage)).toEqual(["tool", "permission_requested", "permission_delivered"]);
 });
-it.each(["tool-first", "permission-first"])("correlates opaque C0/DEL native identities in %s order without changing native requests", order => {
+it.each(["tool-first", "permission-first"])("correlates opaque C0/C1/DEL native identities in %s order without changing native requests", order => {
   const s = setup();
-  const rawIds = ["native\u0000tool", "native\u007ftool", "safe-tool-1"];
+  const rawIds = ["native\u0000tool", "native\u007ftool", "native\u0085tool", "tool/1", "x".repeat(161), "safe-tool-1"];
   const expectedIds = rawIds.map(cursorToolIdentity);
-  expect(new Set(expectedIds).size).toBe(3);
-  expect(expectedIds.slice(0, 2).every(value => /^acpx-tool-[a-f0-9]{64}$/.test(value))).toBe(true);
-  expect(expectedIds[2]).toBe("safe-tool-1");
+  expect(new Set(expectedIds).size).toBe(rawIds.length);
+  expect(expectedIds.slice(0, 3).every(value => /^acpx-tool-[a-f0-9]{64}$/.test(value))).toBe(true);
+  expect(expectedIds.at(-1)).toBe("safe-tool-1");
   for (const [index, toolCallId] of rawIds.entries()) {
     const native = { sessionId: "session", inferredKind: "execute" as const, raw: {
       sessionId: "session", toolCall: { toolCallId, kind: "execute" },

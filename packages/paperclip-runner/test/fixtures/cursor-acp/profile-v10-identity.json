@@ -1,5 +1,5 @@
 {
-  "commandDigest": "sha256:e4ffecec5a7d43252f7f79cd681df582492b41a40dd33c1ad1a8354a178ccddb",
+  "commandDigest": "sha256:1df2a15b93bc3a14fa47fa3315344ba023fe2412048047cdc6f32096a6336564",
   "declaration": {
     "schema": "paperclip.acpx_profile_declaration.v1",
     "agent": "cursor",
@@ -52,8 +52,8 @@
     "sharedRuntimeContract": "paperclip.acpx-runtime-contract.v1",
     "nativePlanToolIdentity": "request-item-id-bound-lifecycle-v1",
     "nativePermissionToolIdentity": "opaque-native-tool-id-sha256-v1",
-    "toolIdentitySourceSha256": "a23ea952e6d760b2692c85c4d5bf0c620682ff2efb62ac5c2e3af0cf0d95eafc",
-    "permissionAdapterSourceSha256": "cef0777f90837bc87748de1dff5b17ab03b89e7e5df115037e82318baf4e02ff",
+    "toolIdentitySourceSha256": "770b47305e571a81f344883057d0e4a482a1cd59ac77d045836593a8e739deb1",
+    "permissionAdapterSourceSha256": "49421a779c76e286ce65d75052026eab9630b1995af9ccf045a2d43d284633ce",
     "toolEvidenceSourceSha256": "8310308ed9605415cb28b7c350d83defef68e90cd30bc2f0491d3d09825e8cd9"
   }
 }

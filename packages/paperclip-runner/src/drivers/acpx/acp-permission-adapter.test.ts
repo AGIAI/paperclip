@@ -13,7 +13,7 @@ describe("ACP permission normalization", () => {
     const native = request(); native.raw.toolCall.toolCallId = "native\u0000tool";
     expect(normalizeAcpxPermission(native, { provider }).toolCallId).toBe("native\u0000tool");
   });
-  it.each([undefined, null, "", "x".repeat(241)])("rejects missing or oversized Cursor identities without deriving one from other fields", toolCallId => {
+  it.each([undefined, null, "", "   ", "x".repeat(241)])("rejects missing or oversized Cursor identities without deriving one from other fields", toolCallId => {
     const native = request();
     Object.assign(native.raw.toolCall, { toolCallId, itemId: "fallback", title: "safe-tool" });
     expect(() => normalizeAcpxPermission(native, { provider: "cursor" })).toThrow("tool identity");

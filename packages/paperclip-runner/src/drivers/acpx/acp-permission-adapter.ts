@@ -33,7 +33,8 @@ export function normalizeAcpxPermission(request: AcpPermissionRequest, options: 
     byKind.set(option.kind, { optionId: option.optionId, name: option.name });
   }
   const call = raw.toolCall;
-  if (!call || typeof call.toolCallId !== "string" || !call.toolCallId || call.toolCallId.length > 240) {
+  if (!call || typeof call.toolCallId !== "string" || !call.toolCallId || call.toolCallId.length > 240
+    || (options.provider === "cursor" && !call.toolCallId.trim())) {
     throw new Error("ACP permission request omitted its tool identity");
   }
   const needsEditContext = options.provider === "copilot" && call.kind === "edit";

@@ -9,11 +9,11 @@ import { cursorToolIdentity } from "./cursor-plan-tool-identity.js";
 import { createCursorToolEvidence } from "./cursor-tool-evidence.js";
 import { validateAcpxRichEvent } from "./profile-extensions.js";
 
-const rawIds = ["native\u0000tool", "native\u007ftool", "safe-tool-1"];
+const rawIds = ["native\u0000tool", "native\u007ftool", "native\u0085tool", "tool/1", "x".repeat(161), "safe-tool-1"];
 // Synthetic protocol fixture, not a claim about the unretained paid wire bytes.
 // Native permission deliberately omits rawInput, matching pinned Cursor's shape.
 const peer = String.raw`
-const ids=['native\u0000tool','native\u007ftool','safe-tool-1'];
+const ids=['native\u0000tool','native\u007ftool','native\u0085tool','tool/1','x'.repeat(161),'safe-tool-1'];
 const send=x=>process.stdout.write(JSON.stringify({jsonrpc:'2.0',...x})+'\n');
 let promptId, index=0;
 function next() {
@@ -87,7 +87,7 @@ it.each(["tool-first", "permission-first"])("real ACPX streams Cursor tool origi
     }
     await expect(turn.result).resolves.toMatchObject({ status: "completed" });
     await drain;
-    expect(new Set(fields.map(row => row.toolCallId)).size).toBe(3);
+    expect(new Set(fields.map(row => row.toolCallId)).size).toBe(rawIds.length);
     expect(fields.some(row => row.stage === "evidence_incomplete")).toBe(false);
   } finally {
     pending.forEach(value => value.release());
