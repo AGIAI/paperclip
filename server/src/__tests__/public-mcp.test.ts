@@ -334,6 +334,7 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     let status = 204;
     let cloudAllowed = true;
     let goodChallenge = true;
+    let duringVerification: (() => Promise<void>) | undefined;
     const fetcher: EventFetch = async (url, init) => {
       if (cloudOrigin && url === cloudOrigin + "/mcp/paperclip") return cloudAllowed
         ? Response.json({ result: { structuredContent: { user: { id: f.actor.userId }, companyId: f.company.id, connectionId: principal.grant.id } } })
@@ -344,7 +345,7 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
       const expected = "v1," + createHmac("sha256", Buffer.from(secret.slice(6), "base64")).update(`${headers.get("webhook-id")}.${headers.get("webhook-timestamp")}.${String(init.body)}`).digest("base64");
       // A rotation test may use another secret; initial deliveries must be independently verifiable.
       if (!String(headers.get("webhook-signature")).includes(expected) && body.type !== "verification") throw new Error("Invalid signature");
-      if (body.type === "verification") return Response.json({ challenge: goodChallenge ? body.challenge : "wrong" });
+      if (body.type === "verification") { await duringVerification?.(); duringVerification = undefined; return Response.json({ challenge: goodChallenge ? body.challenge : "wrong" }); }
       return new Response(null, { status });
     };
     const dispatch = async (p: typeof principal, _method: string, path: string) => {
@@ -361,7 +362,7 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
       return row!;
     };
     return { ...f, principal, task: task!, service, input, received, secret, activity, dispatch, options,
-      advance(ms: number) { clock += ms; }, setStatus(value: number) { status = value; }, denyCloud() { cloudAllowed = false; }, badChallenge() { goodChallenge = false; }, now: () => clock };
+      advance(ms: number) { clock += ms; }, setStatus(value: number) { status = value; }, denyCloud() { cloudAllowed = false; }, duringVerification(fn: () => Promise<void>) { duringVerification = fn; }, badChallenge() { goodChallenge = false; }, now: () => clock };
   }
 
   it("discovers MCP 2.0 events, validates metadata/headers, and preserves legacy tools", async () => {
@@ -444,6 +445,15 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
       await g.service.tick(); expect(g.received.filter(r => r.body.eventId)).toHaveLength(0);
       await g.service.unsubscribe(g.principal, g.input);
     }
+  });
+
+  it("retains changes occurring while callback ownership is being verified", async () => {
+    const f = await eventFixture();
+    f.duringVerification(async () => { await f.activity(); });
+    await f.service.subscribe(f.principal, f.input);
+    await f.service.tick();
+    expect(f.received.filter(r => r.body.eventId)).toHaveLength(1);
+    await f.service.unsubscribe(f.principal, f.input);
   });
 
   it("bounds lifetimes and retries without claiming unsupported replay", async () => {

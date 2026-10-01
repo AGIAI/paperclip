@@ -107,7 +107,11 @@ export async function mcpEventRpc(tokens: Tokens, method: string, args: Record<s
 }
 
 export interface ReceivedTaskEvent { eventId: string; name: string; timestamp: string; data: { companyId: string; taskId: string; status?: string }; cursor: null }
-export async function eventReceiver(secrets: string[]) {
+interface EventReceiver {
+  url: string; secret: string; events: ReceivedTaskEvent[]; readonly verified: number;
+  readonly duplicateCount: number; startupAttempts: number; startupFailures: string[]; close: () => Promise<void>;
+}
+export async function eventReceiver(secrets: string[], startupFailures: string[] = []): Promise<EventReceiver> {
   const key = randomBytes(32);
   const secret = "whsec_" + key.toString("base64");
   const path = "/events/" + randomUUID();
@@ -144,7 +148,12 @@ export async function eventReceiver(secrets: string[]) {
   if (!address || typeof address === "string") throw new Error("Event receiver did not start");
   const tunnel = spawn(process.env.PAPERCLIP_EVAL_CLOUDFLARED ?? "cloudflared", ["tunnel", "--no-autoupdate", "--protocol", "http2", "--url", `http://127.0.0.1:${address.port}`], { stdio: ["ignore", "pipe", "pipe"] });
   const close = async () => {
-    if (tunnel.exitCode === null && !tunnel.killed) tunnel.kill("SIGTERM");
+    if (tunnel.pid && tunnel.exitCode === null && tunnel.signalCode === null) {
+      const exited = once(tunnel, "exit").catch(() => {});
+      tunnel.kill("SIGTERM");
+      const timer = setTimeout(() => tunnel.kill("SIGKILL"), 5000);
+      try { await exited; } finally { clearTimeout(timer); }
+    }
     server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
   };
   secrets.push(secret);
@@ -163,15 +172,26 @@ export async function eventReceiver(secrets: string[]) {
     // Prove that this exact fixture receiver is reachable before paying for work.
     const readyBy = Date.now() + 60_000;
     let ready = false;
+    let lastFailure = "unreachable";
     while (Date.now() < readyBy) {
       try {
         const response = await fetch(origin + path, { redirect: "error", signal: AbortSignal.timeout(5000) });
         if (response.ok && (await response.json() as { nonce?: string }).nonce === readinessNonce) { ready = true; break; }
+        lastFailure = `http_${response.status}`;
         await response.body?.cancel();
-      } catch { /* retry temporary tunnel propagation only, before a model call */ }
+      } catch (error) {
+        const cause = (error as { cause?: { code?: string } }).cause?.code;
+        lastFailure = cause === "ENOTFOUND" ? "dns_not_found" : "network_unavailable";
+      }
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    if (!ready) throw new Error("HTTPS event receiver did not become publicly reachable");
-    return { url: origin + path, secret, events, get verified() { return verified; }, get duplicateCount() { return duplicateCount; }, close };
-  } catch (error) { await close(); throw error; }
+    if (!ready) throw new Error(`HTTPS event receiver did not become publicly reachable (${lastFailure})`);
+    return { url: origin + path, secret, events, startupAttempts: startupFailures.length + 1, startupFailures, get verified() { return verified; }, get duplicateCount() { return duplicateCount; }, close };
+  } catch (error) {
+    await close();
+    const reason = error instanceof Error && error.message.includes("dns_not_found") ? "dns_not_found" : "tunnel_startup_unavailable";
+    const failures = [...startupFailures, reason];
+    if (failures.length < 3) return eventReceiver(secrets, failures);
+    throw new Error(`HTTPS event receiver failed after ${failures.length} setup attempts (${reason}); no model call started`);
+  }
 }

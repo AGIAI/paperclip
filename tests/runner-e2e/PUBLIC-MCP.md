@@ -125,6 +125,11 @@ verification, wrong company/task/status, absent read-back and feedback loops.
 The host owns subscription transport; this case does not claim that raw provider
 APIs perform ChatGPT's event-subscription UI workflow themselves.
 
+The harness verifies public DNS/HTTP readiness before provider calls. It allows
+at most three fresh tunnel setup attempts, retains their count and failure
+categories in event evidence, and reports exhausted setup independently of model
+behavior. It does not retry a paid cell automatically.
+
 The receiver exposes only a random signed callback path, carries only synthetic
 evaluation data, never exposes the Paperclip server, and closes its tunnel during
 cleanup. Callback secrets and OAuth material stay out of model prompts, logs and

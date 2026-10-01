@@ -75,6 +75,7 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
   }
 
   async function subscribe(principal: McpPrincipal, raw: unknown, cloud?: CloudEventAuthority) {
+    const requestedAt = new Date(now());
     const input = subscribeSchema.parse(raw);
     validate(input);
     if (!input.delivery.secret) throw new McpEventError(-32602, "A webhook signing secret is required.");
@@ -109,7 +110,7 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
       if (existing && !active) await tx.delete(deliveries).where(eq(deliveries.subscriptionId, id));
       const value = { companyId: principal.grant.companyId, grantId: principal.grant.id, name: input.name, taskId: input.arguments.taskId,
         arguments: input.arguments, deliveryMaterial: await encrypt(destination), expiresAt, stoppedAt: null,
-        verifiedAt: verify ? new Date(now()) : existing!.verifiedAt, startsAt: active ? existing.startsAt : new Date(now()), scannedAt: new Date(now()) };
+        verifiedAt: verify ? new Date(now()) : existing!.verifiedAt, startsAt: active ? existing.startsAt : requestedAt, scannedAt: new Date(now()) };
       await tx.insert(subscriptions).values({ id, ...value }).onConflictDoUpdate({ target: subscriptions.id, set: value });
       await logActivity(tx as unknown as Db, { companyId: principal.grant.companyId, actorType: "user", actorId: principal.grant.userId,
         action: "mcp.event_subscribed", entityType: "mcp_subscription", entityId: id, details: { name: input.name, taskId: input.arguments.taskId, expiresAt: expiresAt.toISOString() } });
