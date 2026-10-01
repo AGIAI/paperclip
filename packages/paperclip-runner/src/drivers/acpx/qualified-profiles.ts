@@ -48,7 +48,6 @@ export const QUALIFIED_ACPX_PROFILES: Readonly<
     acpxVersion: QUALIFIED_ACPX_VERSION,
     agent: "pi",
     agentProfileVersion: 11,
-    qualificationStatus: "pending",
     agentServerPackage: "pi-acp",
     agentServerVersion: "0.0.33",
     agentRuntimePackage: "@earendil-works/pi-coding-agent",
