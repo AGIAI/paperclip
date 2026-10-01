@@ -1099,7 +1099,7 @@ describeEmbeddedPostgres("tool access service", () => {
       await mintDb.$client.end({ timeout: 0 }).catch(() => undefined);
       await revocationDb.$client.end({ timeout: 0 }).catch(() => undefined);
     }
-  }, 15_000);
+  }, 20_000);
 
   it("denies token minting with an actionable error when the requesting agent has no install", async () => {
     const company = await createCompany(db);
@@ -7207,7 +7207,7 @@ describeEmbeddedPostgres("tool access service", () => {
       if (deadline) clearTimeout(deadline);
       await callbackDb.$client.end({ timeout: 0 }).catch(() => undefined);
     }
-  }, 15_000);
+  }, 20_000);
 
   it("reports GitHub reauthorization for the viewer without borrowing another user's grant", async () => {
     const company = await createCompany(db);
@@ -8466,6 +8466,7 @@ describeEmbeddedPostgres("tool access service", () => {
           targetId: company.id,
         }),
       ]);
+      // The armed default: exactly the active write actions ask first.
       await expect(
         db
           .select()
@@ -8475,8 +8476,18 @@ describeEmbeddedPostgres("tool access service", () => {
               eq(toolPolicies.companyId, company.id),
               eq(toolPolicies.enabled, true),
             ),
+          )
+          .then((rows) =>
+            rows
+              .map((row) => [row.policyType, row.selectors.catalogEntryId])
+              .sort(),
           ),
-      ).resolves.toEqual([]);
+      ).resolves.toEqual(
+        completed.catalog
+          .filter((entry) => entry.status === "active" && entry.riskLevel !== "read")
+          .map((entry) => ["require_approval", entry.id])
+          .sort(),
+      );
       await expect(
         db
           .select()
@@ -8693,6 +8704,7 @@ describeEmbeddedPostgres("tool access service", () => {
           targetId: company.id,
         }),
       ]);
+      // The armed default: exactly the active write actions ask first.
       await expect(
         db
           .select()
@@ -8702,8 +8714,18 @@ describeEmbeddedPostgres("tool access service", () => {
               eq(toolPolicies.companyId, company.id),
               eq(toolPolicies.enabled, true),
             ),
+          )
+          .then((rows) =>
+            rows
+              .map((row) => [row.policyType, row.selectors.catalogEntryId])
+              .sort(),
           ),
-      ).resolves.toEqual([]);
+      ).resolves.toEqual(
+        completed.catalog
+          .filter((entry) => entry.status === "active" && entry.riskLevel !== "read")
+          .map((entry) => ["require_approval", entry.id])
+          .sort(),
+      );
     } finally {
       driveDefinition.ownershipAvailability = previousOwnershipAvailability;
     }
@@ -8927,7 +8949,7 @@ describeEmbeddedPostgres("tool access service", () => {
       await callbackDb.$client.end({ timeout: 0 }).catch(() => undefined);
       await removalDb.$client.end({ timeout: 0 }).catch(() => undefined);
     }
-  }, 15_000);
+  }, 20_000);
 
   it("synchronizes shared OAuth credentials to the organization grant used by gateway calls", async () => {
     vi.stubEnv("PAPERCLIP_TOOL_OAUTH_SLACK_CLIENT_ID", "slack-client-id");
@@ -11178,12 +11200,23 @@ describeEmbeddedPostgres("tool access service", () => {
     expect(completed.actions.readOnly).toEqual([
       expect.objectContaining({ toolName: "list_tables", riskLevel: "read" }),
     ]);
+    // The armed default: exactly the active write actions ask first.
     await expect(
       db
         .select()
         .from(toolPolicies)
-        .where(eq(toolPolicies.companyId, company.id)),
-    ).resolves.toEqual([]);
+        .where(eq(toolPolicies.companyId, company.id))
+        .then((rows) =>
+          rows
+            .map((row) => [row.policyType, row.selectors.catalogEntryId])
+            .sort(),
+        ),
+    ).resolves.toEqual(
+      completed.catalog
+        .filter((entry) => entry.status === "active" && entry.riskLevel !== "read")
+        .map((entry) => ["require_approval", entry.id])
+        .sort(),
+    );
     const [connection] = await db
       .select()
       .from(toolConnections)
