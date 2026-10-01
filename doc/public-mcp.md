@@ -175,3 +175,63 @@ not stored. Configure trusted proxies correctly. Authorization starts atomically
 remove expired requests and enforce 10 pending-consent requests per client and 1,000
 instance-wide, independently of further client registrations. Existing grants
 remain usable when anonymous registration or authorization is throttled.
+
+## Task monitoring with MCP Events
+
+The same authenticated endpoint now supports MCP 2.0 (`2026-07-28`) alongside
+legacy MCP. It advertises `events` through `server/discover` and implements
+`events/list`, `events/subscribe`, and `events/unsubscribe`. MCP 2.0 requests
+include matching `MCP-Protocol-Version`/`Mcp-Method` headers, per-request version
+and client-capability metadata, and `Mcp-Name` for tool calls. Existing
+initialize-based clients keep the ten-tool connection.
+
+| Event | Required filters | Payload |
+| --- | --- | --- |
+| `paperclip.task.status_changed` | `companyId`, `taskId`; optional `statuses` | Task ID, status, company ID and task link |
+| `paperclip.task.comment_created` | `companyId`, `taskId` | Task/company IDs, comment ID and task link |
+| `paperclip.task.document_updated` | `companyId`, `taskId` | Task/company IDs, document key, revision and task link |
+
+In an Events-capable ChatGPT Work Cloud chat or dot, ask, for example:
+“Watch this task. When it finishes, read its report and tell me the result.”
+The host supplies a callback URL and signing secret and owns refresh/unsubscribe.
+Rescan the plugin's MCP server to discover the event catalog. Installing or
+connecting alone does not start monitoring. Claude and other clients without
+Events support can continue retrieving results through the read tools.
+
+Delivery uses a verified HTTPS callback, Standard Webhooks HMAC signatures,
+public-address DNS pinning on every connection, and no redirects. Callback URLs,
+current/previous signing keys and hosted authorization proofs are encrypted with
+the existing instance secrets master key. Back up that key with the database.
+Callback bodies contain bounded references, not comment/document text; clients
+must read current authorized state before responding or taking an action.
+
+Subscriptions last at most 24 hours (default), with a 30-second minimum. Hosted
+subscriptions last at most five minutes and never outlive the broker access
+proof: refresh the OAuth token before refreshing a subscription when necessary.
+The tenant verifies that proof through the fixed `PAPERCLIP_CLOUD_API_ORIGIN`
+broker before each delivery, checking current Cloud membership as well as local
+company membership, grant revocation and task access. A compatible Cloud broker
+must be deployed first for hosted Events. Direct connections to a Cloud tenant
+without a broker authority proof cannot create event subscriptions.
+
+Subscriptions and delivery receipts persist across restarts. Activity is scanned
+without a moving timestamp high-water mark; unique receipts prevent duplicate
+queue entries and concurrent workers claim deliveries atomically. Delivery is
+at least once, with up to six attempts and exponential backoff. IDs stay stable
+across retries while signatures receive fresh timestamps. HTTP 410 stops a
+monitor; 413 and other permanent failures are not retried. Secret rotation signs
+with both keys for five minutes. Expired subscriptions and their receipts are
+removed after seven days; retained quotas are 20 per grant, 100 per company and
+1,000 per instance. Unsubscribe frees the subscription and its receipts.
+
+This release returns `cursor: null`: it does not offer protocol replay after an
+expired/stopped subscription. Use task history and document tools to recover
+missed changes. In-flight requests may finish during unsubscribe/revocation;
+subsequent attempts recheck access. Events are data, and may be duplicated or
+out of order. Do not post comments merely to acknowledge comments or documents,
+which would risk a feedback loop. Approval decisions remain in Paperclip.
+
+See [OpenAI's MCP Events guide](https://developers.openai.com/plugins/build/mcp-events)
+for currently supported client surfaces. Actual staging ChatGPT subscription,
+plugin rescan and event-triggered response are still deployment acceptance gates;
+local protocol and paid model tests do not establish store/UI readiness.

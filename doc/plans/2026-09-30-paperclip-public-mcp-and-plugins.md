@@ -371,3 +371,11 @@ endpoint, or publish a store listing. Actual hosted newcomer provisioning,
 staging HTTPS application connections and public store installation remain
 release gates. Agent impersonation/external task claims and third-party tool
 access remain releases two and three.
+
+## MCP Events addition (2026-10-01)
+
+Add user-requested task monitoring using [OpenAI MCP Events](https://developers.openai.com/plugins/build/mcp-events), alongside the existing legacy MCP tool transport. Implement MCP 2.0 (`2026-07-28`) discovery and individually described task status, comment and document events. Start with an explicit company and task filter; monitoring never grants agent identity or approval authority.
+
+Subscriptions and pending deliveries persist in PostgreSQL. Callback ownership verification and event deliveries use Standard Webhooks signatures, encrypted signing material, HTTPS with pinned public-address resolution, finite lifetimes, bounded retries, and current authorization checks. Hosted delivery additionally checks Cloud account/stack membership through its fixed broker, with a subscription lifetime bounded by its authorization proof. No replay cursor is advertised in this first implementation; use task/history tools to recover missed work after an expired subscription.
+
+Add restart, retry, isolation, revocation, callback verification and protocol compatibility tests. Extend the existing paid evaluation infrastructure with event-driven follow-up across the qualified models, retaining source/cost/evidence. A real ChatGPT Work Cloud subscription and plugin rescan against staging remain rollout acceptance gates until exercised. Claude and older clients retain tool-based follow-up.

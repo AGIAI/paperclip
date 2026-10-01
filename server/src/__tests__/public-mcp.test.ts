@@ -1,11 +1,11 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHmac, createHash, randomBytes, randomUUID } from "node:crypto";
 import express, { type Request } from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createDb, authUsers, companies, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
+import { activityLog, mcpEventSubscriptions, createDb, authUsers, companies, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
 import { createPublicMcpOAuth, publicMcpConfig, hashMcpSecret } from "../services/public-mcp/oauth.js";
-import { createMcpApiDispatch, createPublicMcpExecutor, publicMcpCapabilities } from "../services/public-mcp/capabilities.js";
+import { McpApiError, createMcpApiDispatch, createPublicMcpExecutor, publicMcpCapabilities } from "../services/public-mcp/capabilities.js";
 import { publicMcpIngressRoutes, publicMcpManagementRoutes } from "../routes/public-mcp.js";
 import { authorizationService } from "../services/authorization.js";
 import { issueRoutes } from "../routes/issues.js";
@@ -18,6 +18,9 @@ import { assertCompanyAccess } from "../routes/authz.js";
 import { actorMiddleware } from "../middleware/auth.js";
 import { boardMutationGuard } from "../middleware/board-mutation-guard.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
+
+import { createPublicMcpEvents, publicMcpEventDefinitions } from "../services/public-mcp/events.js";
+import { eventFetch, signingKey, type EventFetch } from "../services/public-mcp/event-webhooks.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 const config = { origin: "https://paperclip.example", resource: "https://paperclip.example/mcp/paperclip" };
@@ -39,11 +42,12 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
   let db: ReturnType<typeof createDb>;
   let oauth: ReturnType<typeof createPublicMcpOAuth>;
   beforeAll(async () => {
+    vi.stubEnv("PAPERCLIP_SECRETS_MASTER_KEY", randomBytes(32).toString("base64"));
     temp = await startEmbeddedPostgresTestDatabase("paperclip-public-mcp-");
     db = createDb(temp.connectionString);
     oauth = createPublicMcpOAuth(db, config);
   }, 90000);
-  afterAll(async () => { await temp?.cleanup(); });
+  afterAll(async () => { await temp?.cleanup(); vi.unstubAllEnvs(); });
 
   async function fixture(role = "member", write = true) {
     const userId = randomUUID();
@@ -320,5 +324,158 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     }
     await expect(oauth.authorize(input)).resolves.toContain("/mcp-connect/");
   });
+  async function eventFixture(cloudOrigin?: string) {
+    const f = await fixture("member", false);
+    const principal = await oauth.authenticate(f.tokens.access_token);
+    const [task] = await db.insert(issues).values({ companyId: f.company.id, title: "Event fixture", status: "todo" }).returning();
+    let clock = Date.now();
+    const secret = "whsec_" + randomBytes(32).toString("base64");
+    const received: Array<{ headers: Headers; body: any }> = [];
+    let status = 204;
+    let cloudAllowed = true;
+    let goodChallenge = true;
+    const fetcher: EventFetch = async (url, init) => {
+      if (cloudOrigin && url === cloudOrigin + "/mcp/paperclip") return cloudAllowed
+        ? Response.json({ result: { structuredContent: { user: { id: f.actor.userId }, companyId: f.company.id, connectionId: principal.grant.id } } })
+        : new Response(null, { status: 403 });
+      const headers = new Headers(init.headers);
+      const body = JSON.parse(String(init.body));
+      received.push({ headers, body });
+      const expected = "v1," + createHmac("sha256", Buffer.from(secret.slice(6), "base64")).update(`${headers.get("webhook-id")}.${headers.get("webhook-timestamp")}.${String(init.body)}`).digest("base64");
+      // A rotation test may use another secret; initial deliveries must be independently verifiable.
+      if (!String(headers.get("webhook-signature")).includes(expected) && body.type !== "verification") throw new Error("Invalid signature");
+      if (body.type === "verification") return Response.json({ challenge: goodChallenge ? body.challenge : "wrong" });
+      return new Response(null, { status });
+    };
+    const dispatch = async (p: typeof principal, _method: string, path: string) => {
+      const [row] = await db.select().from(issues).where(eq(issues.id, path.split("/").at(-1)!));
+      if (!row || row.companyId !== p.grant.companyId) throw new McpApiError(404);
+      return row;
+    };
+    const options = { fetch: fetcher, now: () => clock, ...(cloudOrigin ? { cloudOrigin } : {}) };
+    const service = createPublicMcpEvents(db, oauth, dispatch, options);
+    const input = { name: "paperclip.task.status_changed", arguments: { companyId: f.company.id, taskId: task!.id, statuses: ["done"] }, delivery: { mode: "webhook", url: "https://receiver.example/events/" + randomUUID(), secret } };
+    const activity = async (action = "issue.updated", details: Record<string, unknown> = { status: "done" }) => {
+      clock += 100;
+      const [row] = await db.insert(activityLog).values({ companyId: f.company.id, actorType: "user", actorId: f.actor.userId!, action, entityType: "issue", entityId: task!.id, details, createdAt: new Date(clock) }).returning();
+      return row!;
+    };
+    return { ...f, principal, task: task!, service, input, received, secret, activity, dispatch, options,
+      advance(ms: number) { clock += ms; }, setStatus(value: number) { status = value; }, denyCloud() { cloudAllowed = false; }, badChallenge() { goodChallenge = false; }, now: () => clock };
+  }
 
+  it("discovers MCP 2.0 events, validates metadata/headers, and preserves legacy tools", async () => {
+    const f = await eventFixture();
+    const app = express(); app.use(express.json());
+    app.use(publicMcpIngressRoutes(oauth, createPublicMcpExecutor(db, oauth, f.dispatch), f.service));
+    const params = { _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} } };
+    const rpc = (method: string, extra = {}, headers: Record<string, string> = {}) => request(app).post("/mcp/paperclip")
+      .set({ Authorization: `Bearer ${f.tokens.access_token}`, "MCP-Protocol-Version": "2026-07-28", "Mcp-Method": method, ...headers })
+      .send({ jsonrpc: "2.0", id: 1, method, params: { ...params, ...extra } });
+    expect((await rpc("server/discover")).body.result).toMatchObject({ resultType: "complete", supportedVersions: ["2026-07-28"], capabilities: { tools: {}, events: {} } });
+    expect((await rpc("events/list")).body.result.events.map((e: { name: string }) => e.name)).toEqual(publicMcpEventDefinitions.map(e => e.name));
+    expect((await rpc("tools/list")).body.result.tools).toHaveLength(10);
+    expect((await rpc("tools/call", { name: "paperclip_connection", arguments: {} }, { "Mcp-Name": "=?base64?cGFwZXJjbGlwX2Nvbm5lY3Rpb24=?=" })).body.result.structuredContent.companyId).toBe(f.company.id);
+    expect((await rpc("events/list", {}, { "Mcp-Method": "tools/list" })).body.error.code).toBe(-32020);
+    expect((await rpc("events/list", { _meta: {} })).body.error.code).toBe(-32602);
+    expect((await rpc("events/list", { cursor: "unknown" })).body.error.code).toBe(-32602);
+    const subscribed = await rpc("events/subscribe", f.input);
+    expect(subscribed.status).toBe(200); expect(subscribed.body.result.id).toMatch(/^sub_/);
+    expect((await rpc("events/unsubscribe", { ...f.input, delivery: { mode: "webhook", url: f.input.delivery.url } })).body.result.resultType).toBe("complete");
+  });
+
+  it("persists verified subscriptions, deduplicates refresh and delivers signed filtered events after restart", async () => {
+    const f = await eventFixture();
+    const first = await f.service.subscribe(f.principal, f.input);
+    const reordered = { ...f.input, arguments: { statuses: ["done"], taskId: f.task.id, companyId: f.company.id } };
+    const concurrent = await Promise.all([f.service.subscribe(f.principal, reordered), f.service.subscribe(f.principal, f.input)]);
+    expect(concurrent.map(s => s.id)).toEqual([first.id, first.id]);
+    expect(f.received).toHaveLength(1);
+    const [stored] = await db.select().from(mcpEventSubscriptions).where(eq(mcpEventSubscriptions.id, first.id));
+    expect(JSON.stringify(stored)).not.toContain(f.secret);
+    expect(JSON.stringify(stored)).not.toContain(f.input.delivery.url);
+    await f.activity("issue.updated", { status: "in_progress" });
+    const matched = await f.activity();
+    const replica = createPublicMcpEvents(db, oauth, f.dispatch, f.options);
+    await Promise.all([f.service.tick(), replica.tick()]);
+    expect(f.received.filter(r => r.body.eventId)).toHaveLength(1);
+    expect(f.received.at(-1)!.body).toMatchObject({ eventId: "evt_" + matched.id, name: f.input.name, cursor: null, data: { companyId: f.company.id, taskId: f.task.id, status: "done" } });
+    expect(f.received.at(-1)!.headers.get("X-MCP-Subscription-Id")).toBe(first.id);
+    await replica.tick(); expect(f.received.filter(r => r.body.eventId)).toHaveLength(1);
+    await f.service.unsubscribe(f.principal, f.input);
+  });
+
+  it("retries a lost delivery with a stable ID and fresh signature, rotates keys and stops on unsubscribe", async () => {
+    const f = await eventFixture();
+    await f.service.subscribe(f.principal, f.input);
+    await f.activity(); f.setStatus(503); await f.service.tick();
+    const failed = f.received.at(-1)!;
+    const replacement = "whsec_" + randomBytes(32).toString("base64");
+    await f.service.subscribe(f.principal, { ...f.input, delivery: { ...f.input.delivery, secret: replacement } });
+    f.advance(10_000); f.setStatus(204); await f.service.tick();
+    const retried = f.received.at(-1)!;
+    expect(retried.body).toEqual(failed.body);
+    expect(retried.headers.get("webhook-timestamp")).not.toBe(failed.headers.get("webhook-timestamp"));
+    expect(retried.headers.get("webhook-signature")!.split(" ")).toHaveLength(2);
+    await f.service.unsubscribe(f.principal, f.input); await f.service.unsubscribe(f.principal, f.input);
+    await f.activity(); const before = f.received.length; await f.service.tick(); expect(f.received).toHaveLength(before);
+  });
+
+  it.each([410, 413, 400])("does not retry terminal callback HTTP %s", async status => {
+    const f = await eventFixture(); await f.service.subscribe(f.principal, f.input); await f.activity(); f.setStatus(status);
+    await f.service.tick(); const before = f.received.length; f.advance(60_000); await f.service.tick();
+    expect(f.received).toHaveLength(before); await f.service.unsubscribe(f.principal, f.input);
+  });
+
+  it("enforces expiry, fresh consent revocation, membership loss, task isolation and failed verification", async () => {
+    const f = await eventFixture();
+    await expect(f.service.subscribe(f.principal, { ...f.input, arguments: { ...f.input.arguments, companyId: randomUUID() } })).rejects.toThrow();
+    const foreign = await fixture();
+    const [foreignTask] = await db.insert(issues).values({ companyId: foreign.company.id, title: "Private" }).returning();
+    await expect(f.service.subscribe(f.principal, { ...f.input, arguments: { ...f.input.arguments, taskId: foreignTask!.id } })).rejects.toThrow();
+    expect(f.received).toHaveLength(0);
+    f.badChallenge(); await expect(f.service.subscribe(f.principal, f.input)).rejects.toMatchObject({ code: -32015, reason: "challenge_failed" });
+    expect(await db.select().from(mcpEventSubscriptions).where(eq(mcpEventSubscriptions.grantId, f.principal.grant.id))).toHaveLength(0);
+    for (const reason of ["expiry", "revocation", "membership"] as const) {
+      const g = await eventFixture(); await g.service.subscribe(g.principal, { ...g.input, ttlMs: 30000 }); await g.activity();
+      if (reason === "expiry") g.advance(31000);
+      if (reason === "revocation") await oauth.revokeConnection(g.principal.grant.id, g.principal.grant.userId);
+      if (reason === "membership") await db.update(companyMemberships).set({ status: "inactive" }).where(eq(companyMemberships.id, g.membership.id));
+      await g.service.tick(); expect(g.received.filter(r => r.body.eventId)).toHaveLength(0);
+      await g.service.unsubscribe(g.principal, g.input);
+    }
+  });
+
+  it("sends only comment/document references and checks hosted membership on each delivery", async () => {
+    const f = await eventFixture("https://cloud.example");
+    const authority = { token: "fixture-cloud-proof", expiresAt: f.now() + 60_000 };
+    await expect(f.service.subscribe(f.principal, f.input)).rejects.toThrow();
+    const subscription = await f.service.subscribe(f.principal, f.input, authority);
+    expect(new Date(subscription.refreshBefore).getTime()).toBe(authority.expiresAt);
+    await f.activity(); f.denyCloud(); await f.service.tick();
+    expect(f.received.filter(r => r.body.eventId)).toHaveLength(0);
+    await f.service.unsubscribe(f.principal, f.input);
+    const g = await eventFixture();
+    for (const [name, action, details] of [
+      ["paperclip.task.comment_created", "issue.comment_added", { commentId: randomUUID(), body: "private comment" }],
+      ["paperclip.task.document_updated", "issue.document_updated", { key: "report", revisionNumber: 2, body: "private report" }],
+    ] as const) {
+      const input = { ...g.input, name, arguments: { companyId: g.company.id, taskId: g.task.id } };
+      await g.service.subscribe(g.principal, input); await g.activity(action, details); await g.service.tick();
+      expect(g.received.at(-1)!.body.name).toBe(name); expect(JSON.stringify(g.received.at(-1)!.body)).not.toContain("private");
+      await g.service.unsubscribe(g.principal, input);
+    }
+  });
+
+});
+
+
+describe("MCP event outbound boundaries", () => {
+  it.each(["https://127.0.0.1/", "https://169.254.169.254/", "https://[::1]/", "https://localhost/"])("rejects callback destination %s before sending", async url => {
+    await expect(eventFetch(url, { method: "POST", body: "private" })).rejects.toMatchObject({ code: -32015, reason: "invalid_destination" });
+  });
+  it("rejects malformed, short and long signing material", () => {
+    for (const secret of ["bad", "whsec_%%%", "whsec_" + Buffer.alloc(23).toString("base64"), "whsec_" + Buffer.alloc(65).toString("base64")]) expect(() => signingKey(secret)).toThrow();
+    expect(signingKey("whsec_" + Buffer.alloc(32).toString("base64"))).toHaveLength(32);
+  });
 });

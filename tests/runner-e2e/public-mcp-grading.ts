@@ -1,5 +1,5 @@
 /** Independent durable-state oracle, calibrated against plausible wrong outcomes. */
-export const graderVersion = "public-mcp-durable-state-v8";
+export const graderVersion = "public-mcp-durable-state-v9";
 
 /** Both public retrieval operations return document bodies. Grade the returned
  * report and its quotation, rather than prescribing one valid tool sequence. */
@@ -96,4 +96,19 @@ export function gradeStableMutationIdentity(calls: ReportRetrievalEvidence["call
   }
   return submitted.length > 0 && submitted.every(call => typeof call.arguments.requestId === "string" && call.arguments.requestId.length > 0)
     && new Set(submitted.map(call => call.arguments.requestId)).size === 1;
+}
+
+
+export interface EventFollowUpEvidence extends ReportRetrievalEvidence {
+  callbackVerified: boolean;
+  signatureVerified: boolean;
+  event: { eventId: string; name: string; data: { companyId: string; taskId: string; status?: string }; cursor: null } | null;
+  humanCommentCount: number;
+}
+export function gradeEventFollowUp(input: EventFollowUpEvidence | null) {
+  return Boolean(input?.callbackVerified && input.signatureVerified && input.event?.eventId
+    && input.event.name === "paperclip.task.status_changed" && input.event.cursor === null
+    && input.event.data.companyId === input.companyId && input.event.data.taskId === input.taskId && input.event.data.status === "done"
+    && input.humanCommentCount === 0 && gradeReportRetrieval(input)
+    && input.calls.every(call => !["paperclip_create_task", "paperclip_add_comment"].includes(call.name)));
 }

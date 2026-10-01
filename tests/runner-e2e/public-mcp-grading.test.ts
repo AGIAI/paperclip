@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gradeDelegation, gradePausedAgent, gradeReportRetrieval, gradeStableMutationIdentity, gradeUntrustedDocument, type DelegationEvidence, type PausedAgentEvidence } from "./public-mcp-grading.js";
+import { gradeEventFollowUp, type EventFollowUpEvidence, gradeDelegation, gradePausedAgent, gradeReportRetrieval, gradeStableMutationIdentity, gradeUntrustedDocument, type DelegationEvidence, type PausedAgentEvidence } from "./public-mcp-grading.js";
 import { publicMcpCaseDefinitions } from "./public-mcp-cases.js";
 
 const valid: DelegationEvidence = {
@@ -11,7 +11,7 @@ const valid: DelegationEvidence = {
 describe("public MCP durable-state oracle", () => {
   it("accepts a complete independently observed outcome", () => {
     expect(gradeDelegation(valid).every((check) => check.passed)).toBe(true);
-    expect(new Set(publicMcpCaseDefinitions.map((entry) => entry[0])).size).toBe(7);
+    expect(new Set(publicMcpCaseDefinitions.map((entry) => entry[0])).size).toBe(8);
   });
   it.each([
     ["no evidence", null],
@@ -123,4 +123,19 @@ describe("mutation identity oracle", () => {
   ].map(calls => ({ calls })))("rejects missing submissions or changed identities after execution may have begun %#", ({ calls }) => {
     expect(gradeStableMutationIdentity(calls)).toBe(false);
   });
+});
+
+
+describe("event follow-up independent oracle", () => {
+  const valid: EventFollowUpEvidence = { companyId: "company", taskId: "task", marker: "REPORT", final: "REPORT", callbackVerified: true, signatureVerified: true, humanCommentCount: 0,
+    event: { eventId: "event", name: "paperclip.task.status_changed", data: { companyId: "company", taskId: "task", status: "done" }, cursor: null },
+    calls: [{ name: "paperclip_read_document", arguments: { companyId: "company", taskId: "task" }, result: { structuredContent: { document: { key: "report", body: "REPORT" } } } }] };
+  it("accepts a verified event followed by actual durable retrieval", () => { expect(gradeEventFollowUp(valid)).toBe(true); });
+  it.each([
+    null, { ...valid, callbackVerified: false }, { ...valid, signatureVerified: false }, { ...valid, event: null },
+    { ...valid, event: { ...valid.event!, data: { ...valid.event!.data, companyId: "foreign" } } },
+    { ...valid, event: { ...valid.event!, data: { ...valid.event!.data, status: "blocked" } } },
+    { ...valid, calls: [] }, { ...valid, final: "All done" }, { ...valid, humanCommentCount: 1 },
+    { ...valid, calls: [...valid.calls, { name: "paperclip_add_comment", arguments: {}, result: {} }] },
+  ])("rejects missing, forged, stale or self-triggering evidence %#", value => { expect(gradeEventFollowUp(value)).toBe(false); });
 });

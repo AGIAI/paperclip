@@ -1,6 +1,7 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createRequire } from "node:module";
 import { createServer } from "node:http";
+import { spawn } from "node:child_process";
 import { once } from "node:events";
 import path from "node:path";
 import { expect, type BrowserContext, type Page } from "@playwright/test";
@@ -93,4 +94,84 @@ export function content<T>(result: ToolResult): T {
   expect(result.isError === true, "MCP operation succeeded").toBe(false);
   expect(result.structuredContent, "MCP returned structured outcome").toBeTruthy();
   return result.structuredContent as T;
+}
+
+
+/** Host-owned Events transport. Models never see callback signing or OAuth material. */
+export async function mcpEventRpc(tokens: Tokens, method: string, args: Record<string, unknown> = {}) {
+  const response = await fetch(resource, { method: "POST", headers: { Authorization: `Bearer ${tokens.access_token}`, "Content-Type": "application/json", "MCP-Protocol-Version": "2026-07-28", "Mcp-Method": method },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: { ...args, _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} } } }) });
+  const body = await response.json() as { result?: Record<string, unknown>; error?: { code: number; data?: { reason?: string } } };
+  if (!response.ok || body.error || !body.result) throw new Error(`MCP Events ${method} failed: HTTP ${response.status}, code ${body.error?.code ?? "missing_result"}, reason ${body.error?.data?.reason ?? "unavailable"}; details withheld`);
+  return body.result;
+}
+
+export interface ReceivedTaskEvent { eventId: string; name: string; timestamp: string; data: { companyId: string; taskId: string; status?: string }; cursor: null }
+export async function eventReceiver(secrets: string[]) {
+  const key = randomBytes(32);
+  const secret = "whsec_" + key.toString("base64");
+  const path = "/events/" + randomUUID();
+  const readinessNonce = randomUUID();
+  const events: ReceivedTaskEvent[] = [];
+  const seen = new Set<string>();
+  let verified = 0;
+  let duplicateCount = 0;
+  const server = createServer(async (req, res) => {
+    try {
+      if (req.url === path && req.method === "GET") { res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }); res.end(JSON.stringify({ nonce: readinessNonce })); return; }
+      if (req.url !== path || req.method !== "POST") { res.writeHead(404); res.end(); return; }
+      const chunks: Buffer[] = []; let size = 0;
+      for await (const chunk of req) { size += Buffer.byteLength(chunk); if (size > 262144) throw new Error(); chunks.push(Buffer.from(chunk)); }
+      const raw = Buffer.concat(chunks).toString();
+      const id = req.headers["webhook-id"];
+      const timestamp = req.headers["webhook-timestamp"];
+      const signature = req.headers["webhook-signature"];
+      if (typeof id !== "string" || typeof timestamp !== "string" || typeof signature !== "string" || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) throw new Error();
+      const expected = createHmac("sha256", key).update(`${id}.${timestamp}.${raw}`).digest();
+      const valid = signature.split(" ").some(part => { const [version, encoded] = part.split(","); const actual = Buffer.from(encoded ?? "", "base64"); return version === "v1" && actual.length === expected.length && timingSafeEqual(actual, expected); });
+      if (!valid) throw new Error();
+      const body = JSON.parse(raw);
+      if (body.type === "verification" && typeof body.challenge === "string") {
+        verified++; res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ challenge: body.challenge })); return;
+      }
+      if (body.eventId !== id || !body.data || body.type) throw new Error();
+      if (seen.has(id)) duplicateCount++; else { seen.add(id); events.push(body); }
+      res.writeHead(204); res.end();
+    } catch { res.writeHead(400); res.end(); }
+  });
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Event receiver did not start");
+  const tunnel = spawn(process.env.PAPERCLIP_EVAL_CLOUDFLARED ?? "cloudflared", ["tunnel", "--no-autoupdate", "--protocol", "http2", "--url", `http://127.0.0.1:${address.port}`], { stdio: ["ignore", "pipe", "pipe"] });
+  const close = async () => {
+    if (tunnel.exitCode === null && !tunnel.killed) tunnel.kill("SIGTERM");
+    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+  };
+  secrets.push(secret);
+  try {
+    const origin = await new Promise<string>((resolve, reject) => {
+      let output = "";
+      const timer = setTimeout(() => { reject(new Error("HTTPS event tunnel startup timed out")); }, 60_000);
+      const finish = (error?: Error, url?: string) => { clearTimeout(timer); if (error) reject(error); else resolve(url!); };
+      tunnel.once("error", () => finish(new Error("cloudflared is required for the live HTTPS event receiver")));
+      tunnel.once("exit", () => finish(new Error("HTTPS event tunnel exited before startup")));
+      const read = (chunk: Buffer) => { output = (output + chunk.toString()).slice(-32768); const url = output.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/)?.[0]; if (url && output.includes("Registered tunnel connection")) finish(undefined, url); };
+      tunnel.stdout!.on("data", read); tunnel.stderr!.on("data", read);
+    });
+    secrets.push(origin + path);
+    // A registered tunnel connection can precede public DNS/edge readiness.
+    // Prove that this exact fixture receiver is reachable before paying for work.
+    const readyBy = Date.now() + 60_000;
+    let ready = false;
+    while (Date.now() < readyBy) {
+      try {
+        const response = await fetch(origin + path, { redirect: "error", signal: AbortSignal.timeout(5000) });
+        if (response.ok && (await response.json() as { nonce?: string }).nonce === readinessNonce) { ready = true; break; }
+        await response.body?.cancel();
+      } catch { /* retry temporary tunnel propagation only, before a model call */ }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    if (!ready) throw new Error("HTTPS event receiver did not become publicly reachable");
+    return { url: origin + path, secret, events, get verified() { return verified; }, get duplicateCount() { return duplicateCount; }, close };
+  } catch (error) { await close(); throw error; }
 }

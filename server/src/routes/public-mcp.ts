@@ -3,6 +3,8 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { publicMcpEventDefinitions, type PublicMcpEvents } from "../services/public-mcp/events.js";
+import { McpEventError } from "../services/public-mcp/event-webhooks.js";
 import { PUBLIC_MCP_PATH, PUBLIC_MCP_SCOPES, mcpConsentSchema } from "@paperclipai/shared";
 import { McpOAuthError, type PublicMcpOAuth } from "../services/public-mcp/oauth.js";
 import { McpApiError, McpCapabilityError, publicMcpCapabilities, type createPublicMcpExecutor } from "../services/public-mcp/capabilities.js";
@@ -33,7 +35,7 @@ function authRateLimit(): RequestHandler {
   };
 }
 
-export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnType<typeof createPublicMcpExecutor>) {
+export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnType<typeof createPublicMcpExecutor>, events?: PublicMcpEvents) {
   const router = Router();
   const { origin, resource } = oauth.config;
   const prefix = origin + "/mcp/oauth";
@@ -65,20 +67,20 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
   router.all(PUBLIC_MCP_PATH, async (req, res) => {
     if (req.headers.origin && req.headers.origin !== origin) { res.status(403).json({ error: "Invalid origin" }); return; }
     const token = /^Bearer (\S+)$/i.exec(req.headers.authorization ?? "")?.[1];
-    try { if (!token) throw new Error(); await oauth.authenticate(token); }
+    let principal;
+    try { if (!token) throw new Error(); principal = await oauth.authenticate(token); }
     catch {
       res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${resourceMetadata}", error="invalid_token"`);
       res.status(401).json({ error: "invalid_token" }); return;
     }
     if (req.method !== "POST") { res.setHeader("Allow", "POST"); res.status(405).end(); return; }
-    const server = new Server({ name: "paperclip", version: "0.1.0" }, { capabilities: { tools: {} } });
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    const listTools = async () => ({
       tools: publicMcpCapabilities.map((c) => ({
         name: c.name, description: c.description, inputSchema: z.toJSONSchema(c.schema) as { type: "object"; properties: Record<string, unknown> },
         annotations: { readOnlyHint: !c.write, destructiveHint: false, idempotentHint: true, openWorldHint: !!c.write },
       })),
-    }));
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    });
+    const callTool = async (request: z.infer<typeof CallToolRequestSchema>) => {
       try {
         const result = await execute(token!, request.params.name, request.params.arguments ?? {});
         return { isError: result.outcome === "unknown" || result.outcome === "rejected", content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result };
@@ -88,7 +90,59 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
           : "Paperclip could not confirm this operation. Before retrying a write, inspect the task and comments and keep the same requestId.";
         return { isError: true, content: [{ type: "text", text: message }] };
       }
-    });
+    };
+    const modern = req.headers["mcp-protocol-version"] === "2026-07-28"
+      || req.body?.params?._meta?.["io.modelcontextprotocol/protocolVersion"] === "2026-07-28"
+      || req.body?.method === "server/discover" || String(req.body?.method).startsWith("events/");
+    if (modern) {
+      const envelope = z.object({ jsonrpc: z.literal("2.0"), id: z.union([z.string(), z.number().int()]), method: z.string(), params: z.record(z.string(), z.unknown()) }).safeParse(req.body);
+      const fail = (code: number, message: string, data?: unknown) => res.status(code === -32601 ? 404 : code === -32603 ? 500 : 400)
+        .json({ jsonrpc: "2.0", id: envelope.success ? envelope.data.id : null, error: { code, message, ...(data ? { data } : {}) } });
+      if (!envelope.success) { fail(-32600, "Invalid MCP request."); return; }
+      const { method, params } = envelope.data;
+      const meta = params._meta as Record<string, unknown> | undefined;
+      if (!meta || typeof meta["io.modelcontextprotocol/protocolVersion"] !== "string"
+        || !meta["io.modelcontextprotocol/clientCapabilities"] || typeof meta["io.modelcontextprotocol/clientCapabilities"] !== "object"
+        || Array.isArray(meta["io.modelcontextprotocol/clientCapabilities"])) { fail(-32602, "Required per-request MCP metadata is missing."); return; }
+      const decodeHeader = (value: unknown) => typeof value === "string" && /^=\?base64\?.*\?=$/.test(value)
+        ? Buffer.from(value.slice(9, -2), "base64").toString("utf8") : value;
+      if (req.headers["mcp-protocol-version"] !== meta["io.modelcontextprotocol/protocolVersion"] || req.headers["mcp-method"] !== method
+        || (method === "tools/call" && decodeHeader(req.headers["mcp-name"]) !== params.name)) { fail(-32020, "MCP headers must match the request body."); return; }
+      if (meta["io.modelcontextprotocol/protocolVersion"] !== "2026-07-28") { fail(-32022, "Unsupported protocol version.", { supportedVersions: ["2026-07-28"] }); return; }
+      if (!req.is("application/json")) { fail(-32600, "Use application/json."); return; }
+      try {
+        let result: Record<string, unknown>;
+        switch (method) {
+          case "server/discover": result = { supportedVersions: ["2026-07-28"], capabilities: { tools: {}, ...(events ? { events: {} } : {}) } }; break;
+          case "tools/list": result = await listTools(); break;
+          case "tools/call": result = await callTool(CallToolRequestSchema.parse(envelope.data)); break;
+          case "events/list":
+            if (!events) { fail(-32601, "Events are unavailable."); return; }
+            if (params.cursor != null) { fail(-32602, "Invalid event catalog cursor."); return; }
+            result = { events: publicMcpEventDefinitions }; break;
+          case "events/subscribe": {
+            if (!events) { fail(-32601, "Events are unavailable."); return; }
+            // The broker supplies its original access proof only for hosted subscriptions.
+            // It is validated against the fixed Cloud origin before being retained encrypted.
+            const authority = z.object({ token: z.string().max(24000), expiresAt: z.number() }).safeParse(meta["ai.paperclip/cloudAuthority"]);
+            result = await events.subscribe(principal!, params, authority.success ? authority.data : undefined); break;
+          }
+          case "events/unsubscribe":
+            if (!events) { fail(-32601, "Events are unavailable."); return; }
+            result = await events.unsubscribe(principal!, params); break;
+          default: fail(-32601, "Method not found."); return;
+        }
+        res.json({ jsonrpc: "2.0", id: envelope.data.id, result: { ...result, resultType: "complete", _meta: { "io.modelcontextprotocol/serverInfo": { name: "paperclip", version: "0.1.0" } } } });
+      } catch (error) {
+        if (error instanceof McpEventError) fail(error.code, error.message, error.reason ? { reason: error.reason } : undefined);
+        else if (error instanceof z.ZodError || error instanceof McpApiError || error instanceof McpOAuthError) fail(-32602, "Invalid arguments or unavailable authority.");
+        else fail(-32603, "Paperclip could not complete the request.");
+      }
+      return;
+    }
+    const server = new Server({ name: "paperclip", version: "0.1.0" }, { capabilities: { tools: {} } });
+    server.setRequestHandler(ListToolsRequestSchema, listTools);
+    server.setRequestHandler(CallToolRequestSchema, callTool);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on("close", () => { void transport.close(); void server.close(); });
     await server.connect(transport);

@@ -11,6 +11,7 @@ export const publicMcpWorkerInstructions = [
 ];
 export const publicMcpCaseDefinitions = [
   ["delegate-retrieve", "Delegate once and retrieve the result in a new conversation"],
+  ["event-follow-up", "Receive a signed task completion webhook and retrieve its durable result"],
   ["uncertain-retry", "Recover a lost mutation response without duplicating work"],
   ["review-team", "Summarize blocked and completed work without mutations"],
   ["human-feedback", "Add feedback as the connected human"],

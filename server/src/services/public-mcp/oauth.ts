@@ -265,6 +265,13 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
       }
       throw new McpOAuthError("unsupported_grant_type", "Use authorization_code or refresh_token.");
     },
+    async authorizeGrant(grantId: string): Promise<McpPrincipal> {
+      const [row] = await db.select({ grant: mcpOauthGrants, company: { id: companies.id, name: companies.name, issuePrefix: companies.issuePrefix, status: companies.status } })
+        .from(mcpOauthGrants).innerJoin(companies, eq(mcpOauthGrants.companyId, companies.id))
+        .where(eq(mcpOauthGrants.id, grantId));
+      if (!row || !row.grant.scopes.includes("paperclip:read")) throw invalidGrant();
+      return { ...row, actor: await actorForGrant(row.grant) };
+    },
     async authenticate(token: string): Promise<McpPrincipal> {
       const [row] = await db.select({ token: mcpOauthTokens, grant: mcpOauthGrants, company: { id: companies.id, name: companies.name, issuePrefix: companies.issuePrefix, status: companies.status } })
         .from(mcpOauthTokens).innerJoin(mcpOauthGrants, eq(mcpOauthTokens.grantId, mcpOauthGrants.id))

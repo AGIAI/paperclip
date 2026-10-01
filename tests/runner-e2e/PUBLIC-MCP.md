@@ -110,3 +110,29 @@ without retries. After rebasing and review fixes, a fresh full matrix passed
 All packaged evidence validated. The results record distinguishes each measured
 source version and subsequent focused regression checks. See the [dated results and retained failure history](../../doc/plans/2026-10-01-public-mcp-paid-eval-results.md)
 for source hashes, costs, reports and limits.
+
+## MCP Events follow-up
+
+The additional `event-follow-up` case expands the catalog to eight cases / 24
+cells. It starts a temporary fixture-only HTTPS callback with `cloudflared`
+(`PAPERCLIP_EVAL_CLOUDFLARED` may select the binary), independently verifies the
+Standard Webhooks signatures, and subscribes through the production MCP 2.0
+endpoint immediately after the paid assistant creates the task. The real agent
+completes its report; the durable event worker delivers the completion webhook.
+A fresh paid model conversation receives that event and must read back the saved
+report without adding tasks or human comments. The grader rejects missing
+verification, wrong company/task/status, absent read-back and feedback loops.
+The host owns subscription transport; this case does not claim that raw provider
+APIs perform ChatGPT's event-subscription UI workflow themselves.
+
+The receiver exposes only a random signed callback path, carries only synthetic
+evaluation data, never exposes the Paperclip server, and closes its tunnel during
+cleanup. Callback secrets and OAuth material stay out of model prompts, logs and
+retained event evidence. `snapshots/public-mcp-events.json` retains verified
+fixture event payloads. Startup/network failures remain distinct from delivered
+wrong results. No private-address exemption is added to production delivery.
+
+```sh
+pnpm test:e2e:runner -- --id public-mcp.assistant-codex-mini.local.event-follow-up
+pnpm test:e2e:runner -- --suite public-mcp --case event-follow-up --max-parallel 1
+```

@@ -1,4 +1,4 @@
-import { index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { authUsers } from "./auth.js";
 import { companies } from "./companies.js";
 
@@ -72,4 +72,36 @@ export const mcpMutationReceipts = pgTable("mcp_mutation_receipts", {
 }, (t) => [
   uniqueIndex("mcp_mutation_receipts_request_uq").on(t.companyId, t.userId, t.operation, t.requestId),
   index("mcp_mutation_receipts_company_idx").on(t.companyId),
+]);
+
+
+export const mcpEventSubscriptions = pgTable("mcp_event_subscriptions", {
+  id: text("id").primaryKey(),
+  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  grantId: uuid("grant_id").notNull().references(() => mcpOauthGrants.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  taskId: uuid("task_id").notNull(),
+  arguments: jsonb("arguments").$type<Record<string, unknown>>().notNull(),
+  // URL, signing keys and optional Cloud authority, encrypted with the instance secret provider.
+  deliveryMaterial: jsonb("delivery_material").$type<Record<string, unknown>>().notNull(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+  scannedAt: timestamp("scanned_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("mcp_event_subscriptions_expiry_idx").on(t.expiresAt), index("mcp_event_subscriptions_company_idx").on(t.companyId)]);
+
+export const mcpEventDeliveries = pgTable("mcp_event_deliveries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subscriptionId: text("subscription_id").notNull().references(() => mcpEventSubscriptions.id, { onDelete: "cascade" }),
+  activityId: uuid("activity_id").notNull(),
+  event: jsonb("event").$type<Record<string, unknown>>().notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  // Category/status only; never a URL, secret or response body.
+  outcome: text("outcome"),
+}, (t) => [
+  uniqueIndex("mcp_event_deliveries_activity_uq").on(t.subscriptionId, t.activityId),
+  index("mcp_event_deliveries_due_idx").on(t.nextAttemptAt),
 ]);
