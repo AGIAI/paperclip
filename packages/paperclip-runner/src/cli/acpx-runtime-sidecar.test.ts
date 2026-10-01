@@ -15,7 +15,7 @@ import { deliverAcpxResponse } from "../drivers/acpx/response-delivery.js";
 import { normalizeAcpxPermission } from "../drivers/acpx/acp-permission-adapter.js";
 import { ACPX_CAPABILITY_PROFILES } from "../drivers/acpx/capability-profiles.js";
 import { resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.js";
-import { ACPX_SIDECAR_PROTOCOL_VERSION } from "../drivers/acpx/sidecar-protocol.js";
+import { ACPX_SIDECAR_PROTOCOL_VERSION, ACPX_SIDECAR_MAX_FRAME_BYTES, stringifyAcpxSidecarFrame } from "../drivers/acpx/sidecar-protocol.js";
 import { canonicalProviderEventsFromAcpxRuntimeEvent } from "../provider-events.js";
 import { createPiMessageProjection } from "../drivers/acpx/pi-message-projection.js";
 import { createCopilotToolEvidence } from "../drivers/acpx/copilot-tool-evidence.js";
@@ -278,6 +278,67 @@ describe("qualified ACPX runtime sidecar", () => {
       captureNormalizedInput: capture })).rejects.toThrow("ACPX semantic result failed PRP schema validation");
     expect(capture).not.toHaveBeenCalled();
     expect(emitted).toEqual([]);
+  });
+
+  it("rejects normalized/envelope expansion at the actual frame writer before committing a receipt", async () => {
+    const raw = { reportedWorkDisposition: "done", summary: "Complete", evidence: [{ ref: "" }], verification: [],
+      completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [], remainingWork: [] } };
+    const request = { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "paperclip_finish", arguments: raw } };
+    raw.evidence[0]!.ref = "x".repeat(ACPX_SIDECAR_MAX_FRAME_BYTES - 1 - Buffer.byteLength(JSON.stringify(request)));
+    expect(Buffer.byteLength(JSON.stringify(request))).toBe(ACPX_SIDECAR_MAX_FRAME_BYTES - 1);
+    const validation = validatePrpStructuredRunResult(raw);
+    if (!validation.ok) throw new Error("Invalid fixture");
+    expect(Buffer.byteLength(JSON.stringify(validation.result))).toBeLessThanOrEqual(ACPX_SIDECAR_MAX_FRAME_BYTES);
+    const wire = loadActualSidecarWriter();
+    const tools = new Map<string, unknown>(), emitted: unknown[] = [];
+    const handler = loadWaitForTool({ tools, emitted, validate: validatePrpStructuredRunResult, emit: wire.emit });
+    const bridge = await startRunnerToolBridge({ handler, captureSemanticReceipt: () => () => {} });
+    try {
+      const body = await (await fetch(bridge.url, { method: "POST", headers: { Authorization: `Bearer ${bridge.secret}`, "Content-Type": "application/json" },
+        body: JSON.stringify(request) })).json();
+      expect(body.result.isError).toBe(true);
+      expect(body.result.content[0].text).toBe("ACPX semantic tool call exceeds the sidecar frame limit");
+      expect(readNativeSemanticReceipt({ contents: body.result.content })).toMatchObject({ outcome: "error", normalizedInputSha256: null });
+      expect(tools.size).toBe(0);
+      expect(emitted).toEqual([]);
+      expect(wire.writes).toEqual([]);
+      expect(wire.errors).toEqual(["[paperclip-acpx-sidecar] output_frame_too_large\n"]);
+      expect(wire.sequence()).toBe(0);
+      expect(wire.emit("runtime.diagnostic", { code: "bounded", message: "rejected" })).toBe(true);
+      expect(JSON.parse(wire.writes[0]!)).toMatchObject({ sequence: 1, eventType: "runtime.diagnostic" });
+    } finally { await bridge.close(); }
+  });
+
+  it.each(["backpressure", "throws"])("uses actual writer acceptance, preserving %s semantics", async mode => {
+    const wire = loadActualSidecarWriter(mode);
+    const tools = new Map<string, any>(), emitted: any[] = [], commit = vi.fn(), capture = vi.fn((_input: unknown) => commit);
+    const raw = { reportedWorkDisposition: "done", summary: "Complete", evidence: [], verification: [],
+      completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [], remainingWork: [] } };
+    const handler = loadWaitForTool({ tools, emitted, validate: validatePrpStructuredRunResult, emit: wire.emit });
+    const pending = handler({ tool: "paperclip_finish", callId: "3", arguments: raw, signal: new AbortController().signal, captureNormalizedInput: capture });
+    if (mode === "throws") {
+      await expect(pending).rejects.toThrow("fixture write failed");
+      expect(commit).not.toHaveBeenCalled(); expect(tools.size).toBe(0); expect(wire.sequence()).toBe(0);
+    } else {
+      expect(commit).toHaveBeenCalledOnce(); expect(tools.has("3")).toBe(true); expect(wire.sequence()).toBe(1);
+      expect(JSON.parse(wire.writes[0]!).payload.input).toEqual(capture.mock.calls[0]![0]);
+      tools.get("3").settle({ accepted: true }); tools.get("3").cleanup();
+      await expect(pending).resolves.toEqual({ accepted: true });
+    }
+  });
+
+  it.each(["value", "property", "collision"])("rejects semantic %s Unicode rewriting before capture or write", async kind => {
+    const raw = { reportedWorkDisposition: "done", summary: kind === "value" ? "\ud800" : "Complete", evidence: [{ ref: "fixture" } as Record<string, string>], verification: [],
+      completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [], remainingWork: [] } };
+    if (kind !== "value") raw.evidence[0]!["\udc00"] = "one";
+    if (kind === "collision") raw.evidence[0]!["\ufffd"] = "two";
+    expect(validatePrpStructuredRunResult(raw).ok).toBe(true);
+    const wire = loadActualSidecarWriter(), tools = new Map<string, unknown>(), emitted: unknown[] = [], capture = vi.fn(() => vi.fn());
+    const handler = loadWaitForTool({ tools, emitted, validate: validatePrpStructuredRunResult, emit: wire.emit });
+    await expect(handler({ tool: "paperclip_finish", callId: "3", arguments: raw, signal: new AbortController().signal,
+      captureNormalizedInput: capture })).rejects.toThrow("cannot be encoded without changing its identity");
+    expect(capture).not.toHaveBeenCalled(); expect(tools.size).toBe(0); expect(emitted).toEqual([]);
+    expect(wire.writes).toEqual([]); expect(wire.sequence()).toBe(0);
   });
 
   it("passes only validated Pi native boundaries and history through the real text sanitizer", () => {
@@ -1062,7 +1123,7 @@ function loadWaitForTool(input: {
   tools: Map<string, unknown>;
   emitted: unknown[];
   validate?: typeof validatePrpStructuredRunResult;
-  emit?: () => void;
+  emit?: (eventType: string, payload: unknown) => boolean;
 }): (call: RunnerToolCall) => Promise<unknown> {
   const source = readFileSync(
     fileURLToPath(new URL("./acpx-runtime-sidecar.ts", import.meta.url)),
@@ -1079,14 +1140,14 @@ function loadWaitForTool(input: {
     );
   const factory = new Function(
     "boundedIdentity", "tools", "turnId", "emit", "PRP_COMPLETION_TOOL_NAME",
-    "PRP_BLOCK_TOOL_NAME", "validatePrpStructuredRunResult", "boundedSidecarValue", "record", "MAX_PENDING_TOOLS",
+    "PRP_BLOCK_TOOL_NAME", "validatePrpStructuredRunResult", "boundedSidecarValue", "record", "MAX_PENDING_TOOLS", "stringifyAcpxSidecarFrame",
     `return (${functionSource});`,
   );
   return factory(
     (value: string) => value,
     input.tools,
     "test-turn",
-    (_eventType: string, payload: unknown) => { input.emit?.(); input.emitted.push(payload); },
+    (eventType: string, payload: unknown) => { const accepted = input.emit?.(eventType, payload) ?? true; if (accepted) input.emitted.push(payload); return accepted; },
     "paperclip_finish",
     "paperclip_block",
     input.validate ?? ((argumentsValue: unknown) => ({
@@ -1096,5 +1157,26 @@ function loadWaitForTool(input: {
     (value: unknown) => value,
     (value: unknown) => value,
     512,
+    stringifyAcpxSidecarFrame,
   );
+}
+
+/** Actual producer and encoder, with only the destination stream replaced. */
+function loadActualSidecarWriter(mode: "normal" | "backpressure" | "throws" = "normal"): {
+  emit: (eventType: string, payload: unknown) => boolean; sequence: () => number; writes: string[]; errors: string[];
+} {
+  const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");
+  const emitStart = source.indexOf("function emit("), emitEnd = source.indexOf("\nfunction diagnostic", emitStart);
+  const writeStart = source.indexOf("function writeFrame("), writeEnd = source.indexOf("\nfunction requireHost", writeStart);
+  if (emitStart < 0 || emitEnd < 0 || writeStart < 0 || writeEnd < 0) throw new Error("Actual sidecar writer source not found");
+  const writes: string[] = [], errors: string[] = [];
+  const process = { stdout: { write: (line: string) => { if (mode === "throws") throw new Error("fixture write failed"); writes.push(line); return mode !== "backpressure"; } },
+    stderr: { write: (line: string) => { errors.push(line); return true; } } };
+  const writer = new Function("process", "stringifyAcpxSidecarFrame", "ACPX_SIDECAR_PROTOCOL_VERSION", "ACPX_SIDECAR_MAX_FRAME_BYTES", `
+    let sequence=0; const runId="test-run", turnId="test-turn";
+    ${stripTypeScriptTypes(source.slice(emitStart, emitEnd))}
+    ${stripTypeScriptTypes(source.slice(writeStart, writeEnd))}
+    return { emit, sequence: () => sequence };
+  `)(process, stringifyAcpxSidecarFrame, ACPX_SIDECAR_PROTOCOL_VERSION, ACPX_SIDECAR_MAX_FRAME_BYTES);
+  return { ...writer, writes, errors };
 }

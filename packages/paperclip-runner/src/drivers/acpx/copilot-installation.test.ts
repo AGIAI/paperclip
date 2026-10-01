@@ -24,6 +24,7 @@ const SEMANTIC_RECEIPT_SOURCES = [
   ["../runner-tool-bridge.ts", "semanticBridgeSourceSha256"],
   ["copilot-tool-evidence.ts", "toolEvidenceSourceSha256"],
   ["../../cli/acpx-runtime-sidecar.ts", "semanticSidecarSourceSha256"],
+  ["sidecar-protocol.ts", "semanticSidecarProtocolSourceSha256"],
   ["codex-acpx-driver.ts", "semanticDirectDriverSourceSha256"],
   ["../../protocol/replay-contract.ts", "semanticValidationSourceSha256"],
   ["../../protocol/result-normalization.ts", "semanticNormalizationSourceSha256"],

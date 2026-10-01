@@ -4,6 +4,8 @@ Current source checkpoint (2026-10-01): **Cursor v10, Copilot v11 and Pi v10
 remain unqualified**. Copilot receipt v2 distinguishes original provider arguments
 from the strictly validated input actually forwarded for completion. A same-call
 capture binds both hashes without reconstructing omitted defaults in the grader.
+Oversized frames and semantic bodies changed by Unicode repair fail before
+capture commitment, and dropped frames do not consume stream sequence numbers.
 The server's JWT heuristic now preserves only the fixed schema literal in a
 validated semantic-receipt notice. Native call/result correlation and independent
 canonical acceptance remain required. The failed v10 Daytona attempt is retained;
