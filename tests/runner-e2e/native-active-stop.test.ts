@@ -4,6 +4,9 @@ import { assertActiveStopRetirement, readActiveStopRemoteRetirement, type Active
 import { stopAtPendingPermission } from "./native-active-stop-flow.js";
 import { runnerMatrix, runnerSuites, suiteDefinitionHash } from "./catalog.js";
 import { selectRunnerExecutions, parseRunnerSelectors } from "./selectors.js";
+import { createCursorToolEvidence } from "../../packages/paperclip-runner/src/drivers/acpx/cursor-tool-evidence.js";
+import { createCopilotToolEvidence } from "../../packages/paperclip-runner/src/drivers/acpx/copilot-tool-evidence.js";
+import type { CanonicalProviderEvent } from "../../packages/paperclip-runner/src/provider-events.js";
 
 const caller = readActiveStopCaller({ deploymentMode: "local_trusted" }, { session: { userId: "local-board", id: "paperclip:local_implicit:local-board" } });
 const cancellationRequestId = "11111111-2222-4333-8444-555555555555";
@@ -47,8 +50,8 @@ const arrivalOrders = ["tool-first", "permission-first"] as const;
 function withArrivalOrder(provider: ActiveStopProvider, order: typeof arrivalOrders[number]) {
   const f = fixture(provider);
   if (order === "permission-first") {
-    // The card can be published while the provider callback is held. Native
-    // permission evidence still requires the later exact tool origin to flush.
+    // Isolate canonical card/start order in these synthetic mutation cases.
+    // Actual provider-specific notice ordering is exercised by the projectors.
     f.events.unshift(f.events.pop()!);
     f.events.forEach((row, index) => {
       row.seq = frame(row).sourceSeq = index + 1;
@@ -56,6 +59,36 @@ function withArrivalOrder(provider: ActiveStopProvider, order: typeof arrivalOrd
     });
   }
   return f;
+}
+function withProjectedArrivalOrder(provider: ActiveStopProvider, order: typeof arrivalOrders[number]) {
+  const f = fixture(provider), start = payload(f.events[1]!), card = payload(f.events[3]!);
+  const command = "printf MUST_NOT_EXIST > target.txt";
+  if (provider === "cursor") {
+    f.scope.commandSha256 = `sha256:${createHash("sha256").update(command).digest("hex")}`;
+    start.commandSha256 = f.scope.commandSha256;
+  }
+  f.events.length = 0;
+  const append = (eventType: string, value: Row) => f.events.push(f.row(f.events.length + 1, eventType, value));
+  const projector = (provider === "cursor" ? createCursorToolEvidence : createCopilotToolEvidence)({
+    sessionId: "native-session", turnId: "turn", workingDirectory: "/fixture", active: () => true,
+    emit: (event: CanonicalProviderEvent) => { append(event.eventType, event.payload); },
+  });
+  const tool = { type: "tool_call", tag: "tool_call", toolCallId: "tool", status: "pending",
+    ...(provider === "cursor" ? { kind: "execute", rawInput: { command } } : { kind: "edit", rawInput: { fileName: "target.txt" } }),
+  };
+  let delivered: ((outcome: string) => void) | undefined, beforeTool: Row[] | undefined;
+  const permission = () => {
+    delivered = projector.permission({ raw: { sessionId: "native-session", toolCall: provider === "cursor"
+      ? { toolCallId: "tool", kind: "execute" } : { toolCallId: "tool", kind: "edit", rawInput: tool.rawInput } } }, "request", ["decline", "cancel"]);
+    // Match the sidecar: invoke the evidence projector before publishing the
+    // permission request; project each iterator tool before its canonical row.
+    append("runtime_request.created", card);
+  };
+  const notification = () => { projector.tool(tool); append("tool.execution.started", start); };
+  if (order === "permission-first") { permission(); beforeTool = structuredClone(f.events); notification(); }
+  else { notification(); permission(); }
+  if (!delivered) throw new Error("Native permission projector rejected the fixture");
+  return { ...f, beforeTool, delivered, nativeStageOrder: () => f.events.filter(row => row.eventType === "provider.notice.recorded").map(row => payload(row).provenance.eventType) };
 }
 function settled() { const f = fixture(); const pending = f.pending(); f.settle(); return { f, pending, read: () => readActiveStopSettlement({ ...f.state(), pending, dispatchMonotonicNs: (BigInt(pending.observedMonotonicNs) + 1n).toString() }) }; }
 function withSessionPrefix(provider: ActiveStopProvider = "cursor") {
@@ -81,7 +114,9 @@ function withSessionPrefix(provider: ActiveStopProvider = "cursor") {
 describe("definitely active native permission Stop", () => {
   describe.each(["cursor", "copilot"] as const)("%s pre-Stop arrival orders", provider => {
     it.each(arrivalOrders)("accepts %s only after both exact origins exist and retains them through settlement", order => {
-      const f = withArrivalOrder(provider, order), pending = f.pending();
+      const f = withProjectedArrivalOrder(provider, order), pending = f.pending();
+      expect(f.nativeStageOrder()).toEqual(provider === "copilot" && order === "permission-first"
+        ? ["permission_requested", "tool"] : ["tool", "permission_requested"]);
       expect(pending.schema).toBe("paperclip.e2e.native-active-stop-pending.v2");
       expect(pending.toolOriginRowSha256).toMatch(/^sha256:[a-f0-9]{64}$/u);
       expect(pending.toolStartedRowSha256).toMatch(/^sha256:[a-f0-9]{64}$/u);
@@ -89,6 +124,19 @@ describe("definitely active native permission Stop", () => {
       f.settle();
       expect(readActiveStopSettlement({ ...f.state(), pending, dispatchMonotonicNs: (BigInt(pending.observedMonotonicNs) + 1n).toString() }))
         .toMatchObject({ branch: "pending_permission_cancelled", pending });
+    });
+    it("cannot retain permission-only projector output before its exact origin arrives", () => {
+      const f = withProjectedArrivalOrder(provider, "permission-first");
+      expect(() => observeActiveStopPending({ ...f.state(), events: f.beforeTool!, scope: f.scope, caller, cancellationRequestId })).toThrow();
+    });
+    it.each(arrivalOrders)("rejects a delivered answer in real-projector %s evidence", order => {
+      const f = withProjectedArrivalOrder(provider, order); f.delivered("cancel"); expect(f.pending).toThrow("permission already answered");
+    });
+    it("does not accept a permission-first request for a different native origin", () => {
+      const f = withProjectedArrivalOrder(provider, "permission-first");
+      const tool = f.events.find(row => row.eventType === "provider.notice.recorded" && payload(row).provenance.eventType === "tool")!;
+      payload(tool).details.find((d: Row) => d.name === "toolCallId").value = "another-tool";
+      expect(f.pending).toThrow("native operation origin missing");
     });
     it.each([
       ["missing native origin", (f: ReturnType<typeof fixture>) => { f.events.splice(1, 1); }],
@@ -119,6 +167,14 @@ describe("definitely active native permission Stop", () => {
       expect(() => readActiveStopSettlement({ ...f.state(), pending, dispatchMonotonicNs: (BigInt(pending.observedMonotonicNs) + 1n).toString() }))
         .toThrow("observed pending request changed");
     });
+  });
+  it("still rejects a Cursor permission notice before the origin its projector requires", () => {
+    const f = withProjectedArrivalOrder("cursor", "permission-first");
+    [f.events[1], f.events[2]] = [f.events[2]!, f.events[1]!];
+    f.events.forEach((row, index) => {
+      row.seq = frame(row).sourceSeq = index + 1; frame(row).sourceEventId = `source:run:${index + 1}`;
+    });
+    expect(f.pending).toThrow("duplicate native operation lifecycle");
   });
   it.each(["cursor", "copilot"] as const)("accepts the mixed v1/v2 session prefix before strict %s pending proof", provider => {
     const f = withSessionPrefix(provider);
@@ -240,8 +296,11 @@ describe("definitely active native permission Stop", () => {
 });
 
 describe("active Stop flow wiring", () => {
-  it.each(arrivalOrders)("awaits retention and rechecks %s evidence before issuing the single caller UUID request", async arrivalOrder => {
-    const f = withArrivalOrder("cursor", arrivalOrder); const order: string[] = []; let retainedId = "";
+  it.each([
+    ["cursor", "tool-first"], ["cursor", "permission-first"],
+    ["copilot", "tool-first"], ["copilot", "permission-first"],
+  ] as const)("awaits retention and rechecks real %s %s evidence before issuing the single caller UUID request", async (provider, arrivalOrder) => {
+    const f = withProjectedArrivalOrder(provider, arrivalOrder); const order: string[] = []; let retainedId = "";
     const stop = vi.fn(async (runId: string, id: string) => { expect(runId).toBe("run"); expect(id).toBe(retainedId); order.push("stop"); return f.settle(id); });
     const result = await stopAtPendingPermission({ scope: f.scope, caller, deadlineAt: Date.now() + 1000,
       load: async () => { order.push("load"); return f.state(); },

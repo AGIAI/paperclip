@@ -93,7 +93,10 @@ function origin(events: readonly unknown[], scope: ActiveStopScope, bootstrap?: 
   const tools = selected.filter(n => n.stage === "tool");
   fail(tools.filter(n => n.status === "pending").length === 1
     && tools.filter(n => n.status === "failed").length <= 1
-    && tools[0]!.status === "pending" && tools[0]!.seq < notice.seq
+    && tools[0]!.status === "pending"
+    // Cursor queues permission evidence until its exact command origin exists.
+    // Copilot projects the request immediately, including permission-first ACP.
+    && (scope.provider !== "cursor" || tools[0]!.seq < notice.seq)
     && selected.filter(n => n.stage === "permission_delivered").length <= 1, "duplicate native operation lifecycle");
   const executions = rows.filter(x => x.event.eventType.startsWith("tool.execution.") && rec(x.event.payload).executionId === bootstrapReadExecutionId(notice.toolCallId));
   fail(executions.filter(x => x.event.eventType === "tool.execution.started").length === 1
