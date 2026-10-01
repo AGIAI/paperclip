@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ASK_FIRST_RISK_LEVELS } from "@paperclipai/shared";
 import { askFirstCatalogEntryIdsFor } from "./connection-defaults";
 
 const action = (catalogEntryId: string, riskLevel: string) =>
@@ -15,7 +14,7 @@ describe("askFirstCatalogEntryIdsFor", () => {
         action("odd-1", "medium"),
       ],
     },
-    suggestedDefaults: { askFirstRiskLevels: [...DEFAULT_ASK_FIRST_RISK_LEVELS] },
+    suggestedDefaults: { askFirstRiskLevels: ["write", "destructive", "high", "critical"] },
   };
 
   it("gates the write and destructive actions the server named", () => {

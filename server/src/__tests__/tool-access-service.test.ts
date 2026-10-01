@@ -1099,7 +1099,7 @@ describeEmbeddedPostgres("tool access service", () => {
       await mintDb.$client.end({ timeout: 0 }).catch(() => undefined);
       await revocationDb.$client.end({ timeout: 0 }).catch(() => undefined);
     }
-  }, 20_000);
+  }, 15_000);
 
   it("denies token minting with an actionable error when the requesting agent has no install", async () => {
     const company = await createCompany(db);
@@ -7207,7 +7207,7 @@ describeEmbeddedPostgres("tool access service", () => {
       if (deadline) clearTimeout(deadline);
       await callbackDb.$client.end({ timeout: 0 }).catch(() => undefined);
     }
-  }, 20_000);
+  }, 15_000);
 
   it("reports GitHub reauthorization for the viewer without borrowing another user's grant", async () => {
     const company = await createCompany(db);
@@ -8048,7 +8048,7 @@ describeEmbeddedPostgres("tool access service", () => {
     }
   });
 
-  it("activates Drive write actions behind ask-first defaults after a managed callback", async () => {
+  it("activates allowed Drive write actions without approval defaults after a managed callback", async () => {
     const company = await createCompany(db);
     const userId = `drive-write-member-${randomUUID()}`;
     await grantBoardUser(db, company.id, userId, [], "owner");
@@ -8148,9 +8148,8 @@ describeEmbeddedPostgres("tool access service", () => {
       const createEntry = callback.body.catalog.find(
         (entry: { toolName: string }) => entry.toolName === "create_file",
       );
-      // The armed default: writes ask first, reads stay allowed.
-      const drivePolicies = JSON.stringify(
-        await db
+      await expect(
+        db
           .select()
           .from(toolPolicies)
           .where(
@@ -8159,9 +8158,7 @@ describeEmbeddedPostgres("tool access service", () => {
               eq(toolPolicies.enabled, true),
             ),
           ),
-      );
-      expect(drivePolicies).toContain(createEntry.id);
-      expect(drivePolicies).not.toContain(searchEntry.id);
+      ).resolves.toEqual([]);
       await expect(
         db
           .select()
@@ -8276,20 +8273,12 @@ describeEmbeddedPostgres("tool access service", () => {
       ).resolves.toEqual([
         expect.objectContaining({ targetType: "agent", targetId: agent.id }),
       ]);
-      // Reconnecting neither adds nor drops the ask-first defaults.
-      expect(
-        JSON.stringify(
-          await db
-            .select()
-            .from(toolPolicies)
-            .where(
-              and(
-                eq(toolPolicies.companyId, company.id),
-                eq(toolPolicies.enabled, true),
-              ),
-            ),
-        ),
-      ).toBe(drivePolicies);
+      await expect(
+        db
+          .select()
+          .from(toolPolicies)
+          .where(eq(toolPolicies.companyId, company.id)),
+      ).resolves.toEqual([]);
     } finally {
       driveDefinition.ownershipAvailability = previousOwnershipAvailability;
     }
@@ -8466,7 +8455,6 @@ describeEmbeddedPostgres("tool access service", () => {
           targetId: company.id,
         }),
       ]);
-      // The armed default: exactly the active write actions ask first.
       await expect(
         db
           .select()
@@ -8476,18 +8464,8 @@ describeEmbeddedPostgres("tool access service", () => {
               eq(toolPolicies.companyId, company.id),
               eq(toolPolicies.enabled, true),
             ),
-          )
-          .then((rows) =>
-            rows
-              .map((row) => [row.policyType, row.selectors.catalogEntryId])
-              .sort(),
           ),
-      ).resolves.toEqual(
-        completed.catalog
-          .filter((entry) => entry.status === "active" && entry.riskLevel !== "read")
-          .map((entry) => ["require_approval", entry.id])
-          .sort(),
-      );
+      ).resolves.toEqual([]);
       await expect(
         db
           .select()
@@ -8704,7 +8682,6 @@ describeEmbeddedPostgres("tool access service", () => {
           targetId: company.id,
         }),
       ]);
-      // The armed default: exactly the active write actions ask first.
       await expect(
         db
           .select()
@@ -8714,18 +8691,8 @@ describeEmbeddedPostgres("tool access service", () => {
               eq(toolPolicies.companyId, company.id),
               eq(toolPolicies.enabled, true),
             ),
-          )
-          .then((rows) =>
-            rows
-              .map((row) => [row.policyType, row.selectors.catalogEntryId])
-              .sort(),
           ),
-      ).resolves.toEqual(
-        completed.catalog
-          .filter((entry) => entry.status === "active" && entry.riskLevel !== "read")
-          .map((entry) => ["require_approval", entry.id])
-          .sort(),
-      );
+      ).resolves.toEqual([]);
     } finally {
       driveDefinition.ownershipAvailability = previousOwnershipAvailability;
     }
@@ -8949,7 +8916,7 @@ describeEmbeddedPostgres("tool access service", () => {
       await callbackDb.$client.end({ timeout: 0 }).catch(() => undefined);
       await removalDb.$client.end({ timeout: 0 }).catch(() => undefined);
     }
-  }, 20_000);
+  }, 15_000);
 
   it("synchronizes shared OAuth credentials to the organization grant used by gateway calls", async () => {
     vi.stubEnv("PAPERCLIP_TOOL_OAUTH_SLACK_CLIENT_ID", "slack-client-id");
@@ -9528,9 +9495,8 @@ describeEmbeddedPostgres("tool access service", () => {
       const sendMessageEntry = completed.catalog.find(
         (entry) => entry.toolName === "send_message",
       )!;
-      // The armed default: writes ask first, reads stay allowed.
-      const callbackPolicies = JSON.stringify(
-        await db
+      await expect(
+        db
           .select()
           .from(toolPolicies)
           .where(
@@ -9539,9 +9505,7 @@ describeEmbeddedPostgres("tool access service", () => {
               eq(toolPolicies.enabled, true),
             ),
           ),
-      );
-      expect(callbackPolicies).toContain(sendMessageEntry.id);
-      expect(callbackPolicies).not.toContain(searchMessagesEntry.id);
+      ).resolves.toEqual([]);
       const callbackPolicy = toolAccessPolicyService(db);
       const decide = (
         entry: (typeof completed.catalog)[number],
@@ -9557,14 +9521,13 @@ describeEmbeddedPostgres("tool access service", () => {
             arguments: {},
           },
         });
-      await expect(decide(searchMessagesEntry)).resolves.toMatchObject(
-        host === "task"
-          ? { decision: "deny" }
-          : { decision: "allow", reasonCode: "allow_profile" },
-      );
-      await expect(decide(sendMessageEntry)).resolves.toMatchObject(
-        host === "task" ? { decision: "deny" } : { decision: "require_approval" },
-      );
+      for (const entry of [searchMessagesEntry, sendMessageEntry]) {
+        await expect(decide(entry)).resolves.toMatchObject(
+          host === "task"
+            ? { decision: "deny" }
+            : { decision: "allow", reasonCode: "allow_profile" },
+        );
+      }
       if (host === "task") {
         await expect(
           db
@@ -11200,23 +11163,12 @@ describeEmbeddedPostgres("tool access service", () => {
     expect(completed.actions.readOnly).toEqual([
       expect.objectContaining({ toolName: "list_tables", riskLevel: "read" }),
     ]);
-    // The armed default: exactly the active write actions ask first.
     await expect(
       db
         .select()
         .from(toolPolicies)
-        .where(eq(toolPolicies.companyId, company.id))
-        .then((rows) =>
-          rows
-            .map((row) => [row.policyType, row.selectors.catalogEntryId])
-            .sort(),
-        ),
-    ).resolves.toEqual(
-      completed.catalog
-        .filter((entry) => entry.status === "active" && entry.riskLevel !== "read")
-        .map((entry) => ["require_approval", entry.id])
-        .sort(),
-    );
+        .where(eq(toolPolicies.companyId, company.id)),
+    ).resolves.toEqual([]);
     const [connection] = await db
       .select()
       .from(toolConnections)

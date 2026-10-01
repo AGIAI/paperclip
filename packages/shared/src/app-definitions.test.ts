@@ -609,12 +609,12 @@ describe("AppDefinition catalog", () => {
       APP_DEFINITIONS.find((app) => app.slug === "hugging-face")?.methods[0]
         ?.defaults?.scopesHint,
     ).toEqual(["read-mcp", "read-repos", "contribute-repos", "jobs"]));
-  it("defaults reads to allowed and state-changing actions to ask first", () => {
+  it("defaults every action, reads and writes, to allowed", () => {
     for (const app of APP_DEFINITIONS)
       for (const method of app.methods)
         expect(recommendedDefaultsForApp(app, method.key)).toEqual({
           access: "all_agents",
-          askFirstRiskLevels: ["write", "destructive", "high", "critical"],
+          askFirstRiskLevels: [],
         });
   });
   it("defaults explicit read/write capability groups to their write-capable method", () => {

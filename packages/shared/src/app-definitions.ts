@@ -252,33 +252,18 @@ export function resolveConnectionMethodServerUrl(
   }
 }
 
-/**
- * Risk levels a fresh connection gates behind human approval (PAP-659 C6a).
- *
- * The runtime gate and its approval card already exist; what was missing was a
- * default with anything behind it. Reads stay Allowed so the constant read
- * traffic an agent does is never interrupted; anything that changes the
- * provider's state asks first, and one click on the Permissions tab turns that
- * off per connection.
- *
- * Two risk vocabularies are in use — `read|write|destructive` from the tool
- * classifier and `low|medium|high|critical` from curated catalogs — so both
- * are named rather than assuming callers normalise them.
- */
-export const DEFAULT_ASK_FIRST_RISK_LEVELS = [
-  "write",
-  "destructive",
-  "high",
-  "critical",
-] as const;
-
 export function recommendedDefaultsForApp(app: AppDefinition, methodKey?: string | null): Record<string, unknown> {
   // Keep the parameters in the public contract: callers resolve defaults for a
-  // concrete app/method even though the initial policy is uniform.
+  // concrete app/method even though the initial policy is uniform. This is
+  // an open default, not an approval bypass: connection finalization remains a
+  // configure-authorized, audited operation, and Ask first stays available as
+  // an operator-selected policy for any action after the connection is made.
+  // The connect flow lands on the Permissions tab so that choice is the very
+  // next screen (PAP-659: agents get full permissions unless someone narrows them).
   void app;
   void methodKey;
   return {
     access: "all_agents",
-    askFirstRiskLevels: [...DEFAULT_ASK_FIRST_RISK_LEVELS],
+    askFirstRiskLevels: [],
   };
 }
