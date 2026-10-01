@@ -15,6 +15,10 @@ on:
         description: "Run broad source checks on GitHub-hosted Ubuntu without building an image"
         type: boolean
         default: false
+      source_root_tests_only:
+        description: "With verify_source, run only the complete pnpm test:run suite (180-minute bound)"
+        type: boolean
+        default: false
       verify_runner:
         description: "Run the complete offline Runner verify command on GitHub-hosted Ubuntu without building an image"
         type: boolean
@@ -53,7 +57,7 @@ permissions: {}
 
 concurrency:
   # Publishing a newer image must not discard an earlier verification's evidence.
-  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
+  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.source_root_tests_only && 'source-root-tests' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
   cancel-in-progress: true
 
 jobs:
@@ -104,6 +108,7 @@ jobs:
           EXPECTED_LOCK_SHA256: ${{ inputs.expected_resolved_lock_sha256 }}
           VERIFY_RUNNER: ${{ inputs.verify_runner }}
           VERIFY_SOURCE: ${{ inputs.verify_source }}
+          SOURCE_ROOT_TESTS_ONLY: ${{ inputs.source_root_tests_only }}
           IMAGE_MODE: ${{ inputs.publish_eval_image || inputs.verify_public_install || inputs.build_eval_viewer }}
           DIAGNOSE_AJV: ${{ inputs.diagnose_ajv_pack }}
           OTHER_MODE: ${{ inputs.publish_eval_image || inputs.verify_source || inputs.verify_public_install || inputs.build_eval_viewer }}
@@ -118,6 +123,9 @@ jobs:
           done
           target_sha="$(gh api "repos/$REPOSITORY/git/ref/heads/$TARGET_BRANCH" --jq '.object.sha')"
           [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          if [ "$SOURCE_ROOT_TESTS_ONLY" = true ]; then
+            test "$VERIFY_SOURCE" = true
+          fi
           if [ "$VERIFY_RUNNER" = true ] || [ "$VERIFY_SOURCE" = true ]; then
             [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
             [[ "$EXPECTED_LOCK_SHA256" =~ ^[0-9a-f]{64}$ ]]
@@ -220,7 +228,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.verify_source
     needs: authorize_manual
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: ${{ inputs.source_root_tests_only && 195 || 290 }}
     permissions:
       contents: read
     env:
@@ -238,6 +246,7 @@ jobs:
         env:
           SOURCE_SHA: ${{ needs.authorize_manual.outputs.target_sha }}
           EXPECTED_LOCK_SHA256: ${{ inputs.expected_resolved_lock_sha256 }}
+          SOURCE_ROOT_TESTS_ONLY: ${{ inputs.source_root_tests_only }}
         run: |
           set -euo pipefail
           mkdir -p remote-source-verification
@@ -255,6 +264,9 @@ jobs:
             'pnpm build' \
             'if [ -f scripts/verify-grok-npm-install.mjs ]; then node scripts/verify-grok-npm-install.mjs; fi' \
             > remote-source-verification/commands.txt
+          if [ "$SOURCE_ROOT_TESTS_ONLY" = true ]; then
+            printf '%s\n' 'pnpm test:run' > remote-source-verification/commands.txt
+          fi
           index=0
           while IFS= read -r _check; do
             index=$((index + 1))
@@ -295,17 +307,37 @@ jobs:
           phase=install
           pnpm install --frozen-lockfile --ignore-scripts > remote-source-verification/install.log 2>&1
       - name: Run every source check and retain each result
-        timeout-minutes: 108
+        timeout-minutes: ${{ inputs.source_root_tests_only && 182 || 273 }}
         run: |
           set -uo pipefail
           status=0
           index=0
+          progress_pid=
+          trap 'if [ -n "$progress_pid" ]; then kill "$progress_pid" 2>/dev/null || true; fi' EXIT
           while IFS= read -r check; do
             index=$((index + 1))
             echo "Starting $check"
             printf 'running\n' > "remote-source-verification/check-$index.status"
+            # test:run executes all groups serially. Recorded server durations
+            # alone exceed 85 minutes; ordinary CI distributes them across shards.
+            check_timeout=15m
+            if [ "$check" = 'pnpm test:run' ]; then check_timeout=180m; fi
+            date -u +%FT%TZ > "remote-source-verification/check-$index.started-at"
+            started_at=$(date +%s)
+            (
+              while sleep 60; do
+                echo "Still running $check ($(( $(date +%s) - started_at ))s elapsed)"
+                tail -n 2 "remote-source-verification/check-$index.log"
+              done
+            ) &
+            progress_pid=$!
             check_status=0
-            timeout --signal=TERM --kill-after=15s 15m bash -c "$check" > "remote-source-verification/check-$index.log" 2>&1 || check_status=$?
+            timeout --verbose --signal=TERM --kill-after=15s "$check_timeout" bash -c "$check" > "remote-source-verification/check-$index.log" 2>&1 || check_status=$?
+            kill "$progress_pid" 2>/dev/null || true
+            wait "$progress_pid" 2>/dev/null || true
+            progress_pid=
+            printf '%s\n' "$(( $(date +%s) - started_at ))" > "remote-source-verification/check-$index.elapsed-seconds"
+            date -u +%FT%TZ > "remote-source-verification/check-$index.finished-at"
             printf '%s\n' "$check_status" > "remote-source-verification/check-$index.status"
             printf '%s\t%s\n' "$check_status" "$check" >> remote-source-verification/check-status.tsv
             if [ "$check_status" -ne 0 ]; then status=1; fi
@@ -325,7 +357,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: source-full-verification-${{ github.run_id }}
+          name: ${{ inputs.source_root_tests_only && 'source-root-tests' || 'source-full-verification' }}-${{ github.run_id }}
           path: remote-source-verification/
           retention-days: 14
 

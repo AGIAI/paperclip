@@ -59,6 +59,15 @@ and resolved locks, the lock diff, and command logs/statuses even on failure.
 A failed check does not skip the remaining checks. No image is published and no
 provider credentials are supplied.
 
+To repeat only the full root test suite, also set `source_root_tests_only=true`.
+This modifier requires `verify_source=true` and the same source/lock guards. It
+runs the exact `pnpm test:run` command without test filters and retains a
+`source-root-tests-<run-id>` artifact. Root tests have a 180-minute command
+limit in both modes: they execute the server groups serially, while ordinary
+PR CI distributes those groups across many shards. Other checks keep their
+15-minute limits. Per-command timestamps and elapsed seconds distinguish a
+bounded timeout from a test failure.
+
 ## Start Dev
 
 From repo root:
