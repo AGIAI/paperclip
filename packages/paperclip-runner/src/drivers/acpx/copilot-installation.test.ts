@@ -59,13 +59,14 @@ async function permissionPolicyClosure(extraClassifierImport = false): Promise<S
 vi.mock("./installation-integrity.js", () => ({ verifyNativeAcpxInstallation: vi.fn() }));
 
 describe("Copilot build-owned installation", () => {
-  it("admits the current v11 declaration and binds its source policy, receipts and patch hashes", () => {
-    const identity = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v11-identity.json", import.meta.url), "utf8"));
+  it("admits the current v12 declaration and binds its source policy, receipts and patch hashes", () => {
+    const identity = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v12-identity.json", import.meta.url), "utf8"));
     expect(identity.declaration.systemInstructionDelivery).toBe(COPILOT_SYSTEM_INSTRUCTION_DELIVERY);
     expect(identity.declaration.sharedRuntimeContract).toBe("paperclip.acpx-runtime-contract.v1");
     expect(identity.declaration.permissionContextContract).toBe(COPILOT_PERMISSION_CONTEXT_CONTRACT);
     expect(identity.declaration.semanticToolReceiptContract).toBe("paperclip.semantic_tool_receipt.v2");
     expect(identity.declaration.semanticNormalizedInputContract).toBe("validated-forwarded-input-commit-v1");
+    expect(identity.declaration.semanticSidecarReceiptCommitContract).toBe("correlated-tool-resolve-v1");
     expect(identity.declaration.messageIdentityContract).toBe("copilot-native-message-id-v1");
     expect(identity.declaration.ownedDistributionDelivery).toBe("COPILOT_CLI_DIST_DIR:lease-owned-guarded-inner-distribution:v1");
     const inventory = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-message-identity-distributions-1.0.88.json", import.meta.url), "utf8"));
@@ -90,7 +91,7 @@ describe("Copilot build-owned installation", () => {
     expect([...closure].filter(path => !bound.has(path))).toEqual(["negative-control:unbound-policy"]);
   });
   it.each([...PERMISSION_POLICY_SOURCES, ...SEMANTIC_RECEIPT_SOURCES])("changing %s changes the candidate identity", (_path, field) => {
-    const identity = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v11-identity.json", import.meta.url), "utf8"));
+    const identity = JSON.parse(readFileSync(new URL("../../../test/fixtures/copilot-profile-v12-identity.json", import.meta.url), "utf8"));
     identity.declaration[field] = "0".repeat(64);
     const sorted = Object.fromEntries(Object.entries(identity.declaration).sort(([a], [b]) => a.localeCompare(b)));
     expect(`sha256:${createHash("sha256").update(JSON.stringify(sorted)).digest("hex")}`).not.toBe(identity.commandDigest);

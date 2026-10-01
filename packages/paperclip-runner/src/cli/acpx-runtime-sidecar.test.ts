@@ -15,7 +15,7 @@ import { deliverAcpxResponse } from "../drivers/acpx/response-delivery.js";
 import { normalizeAcpxPermission } from "../drivers/acpx/acp-permission-adapter.js";
 import { ACPX_CAPABILITY_PROFILES } from "../drivers/acpx/capability-profiles.js";
 import { resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.js";
-import { ACPX_SIDECAR_PROTOCOL_VERSION, ACPX_SIDECAR_MAX_FRAME_BYTES, stringifyAcpxSidecarFrame } from "../drivers/acpx/sidecar-protocol.js";
+import { ACPX_SIDECAR_PROTOCOL_VERSION, ACPX_SIDECAR_MAX_FRAME_BYTES, stringifyAcpxSidecarFrame, parseAcpxSidecarRequest, record, text } from "../drivers/acpx/sidecar-protocol.js";
 import { canonicalProviderEventsFromAcpxRuntimeEvent } from "../provider-events.js";
 import { createPiMessageProjection } from "../drivers/acpx/pi-message-projection.js";
 import { createCopilotToolEvidence } from "../drivers/acpx/copilot-tool-evidence.js";
@@ -23,6 +23,7 @@ import { createCursorToolEvidence } from "../drivers/acpx/cursor-tool-evidence.j
 import { validateAcpxRichEvent } from "../drivers/acpx/profile-extensions.js";
 import {
   awaitSidecarCleanupWithin,
+  boundedIdentity,
   closeActiveSidecarHostWithin,
   closeSidecarHostForCommand,
   combineSidecarAdmissionCleanups,
@@ -251,7 +252,7 @@ describe("qualified ACPX runtime sidecar", () => {
         await vi.waitFor(() => expect(tools.has("3")).toBe(true));
         expect(emitted).toEqual([{ callId: "3", operationId: "paperclip_finish", input: validated.result }]);
         // The receipt hashes the actual emitted input, not a second normalization.
-        tools.get("3").settle({ accepted: true });
+        await loadActualToolCommands(tools).resolve({ callId: "3", turnId: "test-turn", result: { accepted: true }, error: null });
       }
       const body = await (await response).json();
       const receipt = readNativeSemanticReceipt({ contents: body.result.content });
@@ -320,12 +321,69 @@ describe("qualified ACPX runtime sidecar", () => {
       await expect(pending).rejects.toThrow("fixture write failed");
       expect(commit).not.toHaveBeenCalled(); expect(tools.size).toBe(0); expect(wire.sequence()).toBe(0);
     } else {
-      expect(commit).toHaveBeenCalledOnce(); expect(tools.has("3")).toBe(true); expect(wire.sequence()).toBe(1);
+      expect(commit).not.toHaveBeenCalled(); expect(tools.has("3")).toBe(true); expect(wire.sequence()).toBe(1);
       expect(JSON.parse(wire.writes[0]!).payload.input).toEqual(capture.mock.calls[0]![0]);
-      tools.get("3").settle({ accepted: true }); tools.get("3").cleanup();
+      await loadActualToolCommands(tools).resolve({ callId: "3", turnId: "test-turn", result: { accepted: true }, error: null });
       await expect(pending).resolves.toEqual({ accepted: true });
+      expect(commit).toHaveBeenCalledOnce();
     }
   });
+
+
+  it.each(["success", "accepted-false", "error", "cancel", "timeout", "receiver-rejected"])(
+    "commits normalized delivery only after the actual tool.resolve handler succeeds: %s",
+    async mode => {
+      const raw = { reportedWorkDisposition: "done", summary: "Complete", evidence: [{ ref: mode === "receiver-rejected" ? "x".repeat(300 * 1024) : "fixture" }], verification: [],
+        completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [], remainingWork: [] } };
+      const validation = validatePrpStructuredRunResult(raw);
+      if (!validation.ok) throw new Error("Invalid fixture");
+      const wire = loadActualSidecarWriter(), tools = new Map<string, unknown>(), emitted: unknown[] = [], receipts: unknown[] = [];
+      const commands = loadActualToolCommands(tools);
+      const handler = loadWaitForTool({ tools, emitted, validate: validatePrpStructuredRunResult, emit: wire.emit });
+      const bridge = await startRunnerToolBridge({ handler, timeoutMs: 500, captureSemanticReceipt: () => receipt => receipts.push(receipt) });
+      const headers = { Authorization: `Bearer ${bridge.secret}`, "Content-Type": "application/json" };
+      const params = { callId: "3", turnId: "test-turn", result: { accepted: mode !== "accepted-false" }, error: null };
+      try {
+        const response = fetch(bridge.url, { method: "POST", headers,
+          body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "paperclip_finish", arguments: raw } }) });
+        await vi.waitFor(() => expect(tools.has("3")).toBe(true), { interval: 5, timeout: 400 });
+        expect(wire.writes).toHaveLength(1);
+        expect(JSON.parse(wire.writes[0]!).payload.input).toEqual(validation.result);
+        expect(receipts).toEqual([]);
+        // These all enter the actual parsed command handler. None may consume
+        // the pending call or attest delivery for a different request/turn.
+        await expect(commands.resolve({ ...params, callId: "missing" })).rejects.toThrow("stale or unknown");
+        await expect(commands.resolve({ ...params, turnId: "foreign" })).rejects.toThrow("stale or unknown");
+        commands.setTurn("foreign");
+        await expect(commands.resolve(params)).rejects.toThrow("stale or unknown");
+        commands.setTurn("test-turn");
+        expect(tools.has("3")).toBe(true);
+        if (mode === "success" || mode === "accepted-false") {
+          await expect(commands.resolve(params)).resolves.toEqual({ resolved: true });
+        } else if (mode === "error") {
+          await expect(commands.resolve({ ...params, result: undefined, error: { message: "Receiver rejected completion" } })).resolves.toEqual({ resolved: true });
+        } else if (mode === "cancel") {
+          const cancelled = await fetch(bridge.url, { method: "POST", headers,
+            body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/cancelled", params: { requestId: 3 } }) });
+          expect(cancelled.status).toBe(202);
+        } else if (mode === "receiver-rejected") {
+          // Actual writer acceptance is not receiver admission. This frame is
+          // over Rust's payload bound; no correlated resolution arrives.
+          expect(Buffer.byteLength(JSON.stringify(JSON.parse(wire.writes[0]!).payload))).toBeGreaterThan(256 * 1024);
+          expect(Buffer.byteLength(wire.writes[0]!)).toBeLessThan(ACPX_SIDECAR_MAX_FRAME_BYTES);
+        }
+        const body = await (await response).json();
+        const delivered = mode === "success" || mode === "accepted-false";
+        const receipt = readNativeSemanticReceipt({ contents: body.result.content });
+        expect(receipt).toMatchObject({ normalizedInputSha256: delivered ? semanticInputSha256(validation.result) : null,
+          inputSha256: semanticInputSha256(raw), outcome: delivered ? "returned" : "error" });
+        expect(receipts).toEqual([receipt]);
+        expect(tools.size).toBe(0);
+        await expect(commands.resolve(params)).rejects.toThrow("stale or unknown");
+        expect(receipts).toEqual([receipt]);
+      } finally { await bridge.close(); }
+    },
+  );
 
   it.each(["value", "property", "collision"])("rejects semantic %s Unicode rewriting before capture or write", async kind => {
     const raw = { reportedWorkDisposition: "done", summary: kind === "value" ? "\ud800" : "Complete", evidence: [{ ref: "fixture" } as Record<string, string>], verification: [],
@@ -1179,4 +1237,25 @@ function loadActualSidecarWriter(mode: "normal" | "backpressure" | "throws" = "n
     return { emit, sequence: () => sequence };
   `)(process, stringifyAcpxSidecarFrame, ACPX_SIDECAR_PROTOCOL_VERSION, ACPX_SIDECAR_MAX_FRAME_BYTES);
   return { ...writer, writes, errors };
+}
+
+/** Actual parsed command dispatcher; only the owned pending map/turn are supplied. */
+function loadActualToolCommands(tools: Map<string, unknown>): {
+  resolve: (params: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  setTurn: (turnId: string | null) => void;
+} {
+  const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");
+  const start = source.indexOf("async function dispatch("), end = source.indexOf("\nasync function pumpTurn(", start);
+  const safeStart = source.indexOf("function safeText("), safeEnd = source.indexOf("\nfunction safeMessage(", safeStart);
+  if (start < 0 || end < 0 || safeStart < 0 || safeEnd < 0) throw new Error("Actual sidecar command dispatcher not found");
+  const dispatcher = new Function("tools", "boundedIdentity", "record", "text", "parseAcpxSidecarRequest", "ACPX_SIDECAR_PROTOCOL_VERSION", `
+    let turnId="test-turn", requestId=0;
+    ${stripTypeScriptTypes(source.slice(safeStart, safeEnd))}
+    ${stripTypeScriptTypes(source.slice(start, end))}
+    return {
+      resolve: params => dispatch(parseAcpxSidecarRequest({ protocolVersion: ACPX_SIDECAR_PROTOCOL_VERSION, id: ++requestId, command: "tool.resolve", params })),
+      setTurn: value => { turnId=value; }
+    };
+  `)(tools, boundedIdentity, record, text, parseAcpxSidecarRequest, ACPX_SIDECAR_PROTOCOL_VERSION);
+  return dispatcher;
 }

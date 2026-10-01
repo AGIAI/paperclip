@@ -737,7 +737,6 @@ async function waitForTool(call: RunnerToolCall): Promise<unknown> {
       activeTurnId,
     );
     if (!forwarded) throw new Error("ACPX semantic tool call exceeds the sidecar frame limit");
-    commitNormalizedInput?.();
     return await new Promise((settle, reject) => {
       const abort = () => {
         const pending = tools.get(callId);
@@ -748,7 +747,13 @@ async function waitForTool(call: RunnerToolCall): Promise<unknown> {
       call.signal.addEventListener("abort", abort, { once: true });
       tools.set(callId, {
         turnId: activeTurnId,
-        settle,
+        settle: (result) => {
+          // A pipe write alone does not prove receiver admission. Only this
+          // call's turn-bound tool.resolve success confirms runnerd accepted
+          // the validated body; rejection, cancellation and timeout stay null.
+          commitNormalizedInput?.();
+          settle(result);
+        },
         reject,
         cleanup: () => call.signal.removeEventListener("abort", abort),
       });

@@ -1,16 +1,21 @@
 # Rich ACP integration and qualification report
 
-Current source checkpoint (2026-10-01): **Cursor v10, Copilot v11 and Pi v10
-remain unqualified**. Copilot receipt v2 distinguishes original provider arguments
-from the strictly validated input actually forwarded for completion. A same-call
-capture binds both hashes without reconstructing omitted defaults in the grader.
-Oversized frames and semantic bodies changed by Unicode repair fail before
-capture commitment, and dropped frames do not consume stream sequence numbers.
-The server's JWT heuristic now preserves only the fixed schema literal in a
-validated semantic-receipt notice. Native call/result correlation and independent
-canonical acceptance remain required. The failed v10 Daytona attempt is retained;
-fresh v11 runtime packaging and local/Daytona evidence are still required.
-The [Copilot inventory](runner-copilot-capabilities.md) records both boundaries.
+Current source checkpoint (2026-10-01): **Cursor v10, Copilot v12 and Pi v10
+remain unqualified**. Copilot receipt v2 distinguishes original provider
+arguments from the validated outgoing completion input. The sidecar commits
+the captured normalized digest only after its exact pending call receives a
+successful, turn-bound `tool.resolve`. Pipe-write success alone is insufficient:
+Rust may reject a frame at its smaller payload admission limit. Errors,
+cancellation, timeout and stale responses cannot attest delivery.
+
+Delivery remains separate from canonical equality and acceptance. The grader
+still requires the normalized digest to match the unique proposed and accepted
+result bodies. Oversized frames and Unicode repair fail before commitment;
+dropped frames do not consume stream sequence numbers. The server preserves
+only the fixed schema literal inside a validated semantic-receipt notice.
+The failed v10 Daytona attempt and held v11 builds remain historical. Fresh
+v12 runtime packaging and local/Daytona evidence are required. The
+[Copilot inventory](runner-copilot-capabilities.md) records these boundaries.
 
 Historical source checkpoint (2026-10-01): **Cursor v10, Copilot v10 and Pi v10
 remain unqualified**. Cursor now shares the bounded native tool-ID mapping
