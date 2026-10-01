@@ -1,3 +1,4 @@
+import { appendSemanticToolReceipt } from "../drivers/semantic-tool-receipt.js";
 import { acpxUsageEstimateNotice, persistedAcpxTurnUsage, persistedCursorUsageNotice } from "../drivers/acpx/usage-accounting.js";
 import { stripTypeScriptTypes } from "node:module";
 import { cursorPlanToolIdentity, cursorToolIdentity } from "../drivers/acpx/cursor-plan-tool-identity.js";
@@ -175,10 +176,10 @@ describe("qualified ACPX runtime sidecar", () => {
     const emitted: unknown[] = [];
     const create = new Function("createCopilotToolEvidence", "createCursorToolEvidence", "validateAcpxRichEvent", "emit", "agent", `
       const activeHost = { identity: () => ({ backendSessionId: "session" }) };
-      let host = activeHost, turnId = "turn";
+      let host = activeHost, turnId = "turn", activeCopilotEvidence;
       const currentTurnId = "turn", openParams = { agent, workingDirectory: "/workspace" };
       const diagnostic = () => {};
-      ${source.slice(start, end).replaceAll("openParams!", "openParams")}
+      ${stripTypeScriptTypes(source.slice(start, end))}
       return { evidence: toolEvidence, retire: () => { turnId = null; } };
     `)(createCopilotToolEvidence, createCursorToolEvidence, validateAcpxRichEvent, (...args: unknown[]) => emitted.push(args), agent);
     const tool = { type: "tool_call", tag: "tool_call", toolCallId: "tool", kind: "execute", status: "pending", rawInput: { command: "printf private-value" } };
@@ -191,6 +192,25 @@ describe("qualified ACPX runtime sidecar", () => {
     create.retire();
     create.evidence?.tool({ ...tool, tag: "tool_call_update", status: "failed" });
     expect(emitted).toHaveLength(agent === "pi" ? 0 : 1);
+  });
+
+  it("captures the actual sidecar bridge's Copilot receipt callback before turn replacement", () => {
+    const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");
+    const start = source.indexOf("        semanticTools: {");
+    const end = source.indexOf("        onGoalUpdate:", start);
+    expect(start).toBeGreaterThan(0); expect(end).toBeGreaterThan(start);
+    const events: unknown[] = [];
+    let active = true;
+    const evidence = createCopilotToolEvidence({ sessionId: "session-a", turnId: "turn-a", workingDirectory: "/workspace", active: () => active, emit: event => { validateAcpxRichEvent(event); events.push(event); } });
+    const create = new Function("params", "activeCopilotEvidence", "waitForTool", `return ({ ${source.slice(start, end)} }).semanticTools;`);
+    const options = create({ agent: "copilot", tools: [] }, evidence, () => undefined);
+    const captured = options.captureSemanticReceipt();
+    const receipt = appendSemanticToolReceipt({ tool: "get_task_context", callId: "1", arguments: {} }, { content: [{ type: "text", text: "{}" }] }).receipt;
+    captured(receipt);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ payload: { category: "paperclip_semantic_tool_receipt_v1", provenance: { sessionId: "session-a", turnId: "turn-a" } } });
+    active = false; captured(receipt); expect(events).toHaveLength(1);
+    for (const agent of ["cursor", "codex", "pi"]) expect(create({ agent, tools: [] }, evidence, () => undefined).captureSemanticReceipt).toBeUndefined();
   });
 
   it("passes only validated Pi native boundaries and history through the real text sanitizer", () => {

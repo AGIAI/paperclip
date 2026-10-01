@@ -1,3 +1,4 @@
+import { appendSemanticToolReceipt } from "../semantic-tool-receipt.js";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { cursorToolIdentity } from "./cursor-plan-tool-identity.js";
@@ -25,6 +26,31 @@ import type {
 import type { AcpxRecoveryWorkspaceLease } from "./runtime-sandbox.js";
 
 describe("Codex ACPX harness driver", () => {
+  it.each(["copilot", "cursor", "pi", "codex"] as const)("scopes optional semantic receipts to the actual %s invocation turn", async agent => {
+    const fixture = driverFixture({ agent, model: "explicit-test-model", providerPolicy: { readOnly: true } }, { runtimeEvents: [] });
+    const session = await fixture.driver.openSession({ runId: "run-receipt", normalizedSessionId: "session-1", workingDirectory: "/workspace" });
+    const first = await session.startTurn({ message: { role: "user", text: "First" } });
+    const capture = fixture.hostOptions!.semanticTools!.captureSemanticReceipt;
+    expect(typeof capture).toBe(agent === "copilot" ? "function" : "undefined");
+    const oldCallback = capture?.();
+    const bound = appendSemanticToolReceipt({ tool: "get_task_context", callId: "1", arguments: {} }, { content: [{ type: "text", text: "{}" }] });
+    oldCallback?.(bound.receipt);
+    fixture.finishTurn({ status: "completed" });
+    const firstEvents = await collectUntil(session.events(), "turn.completed");
+    const receipts = firstEvents.filter(e => e.eventType === "provider.notice.recorded" && e.payload.category === "paperclip_semantic_tool_receipt_v1");
+    expect(receipts).toHaveLength(agent === "copilot" ? 1 : 0);
+    if (agent === "copilot") expect(receipts[0]).toMatchObject({ runId: "run-receipt", turnId: first.turnId, payload: { provenance: { sessionId: "backend-1", turnId: first.turnId } } });
+    const transcript = JSON.parse(JSON.stringify(await session.transcript!()));
+    for (const event of transcript.events) validatePrpEvent(event);
+    expect(transcript.events.filter((e: PrpEvent) => e.payload.category === "paperclip_semantic_tool_receipt_v1")).toEqual(receipts);
+    await session.startTurn({ message: { role: "user", text: "Second" } });
+    oldCallback?.(bound.receipt);
+    fixture.finishTurn({ status: "completed" });
+    const secondEvents = await collectUntil(session.events(), "turn.completed");
+    expect(secondEvents.filter(e => e.payload.category === "paperclip_semantic_tool_receipt_v1")).toEqual([]);
+    await session.close({ reason: "receipt turn scope verified" });
+  });
+
   it.each(["cursor", "copilot"] as const)("emits partial Cursor metadata only for admitted Cursor, preserving %s settlement", async agent => {
     const fixture = driverFixture({ agent, model: "explicit-test-model", providerPolicy: { readOnly: true } }, { runtimeEvents: [] });
     const session = await fixture.driver.openSession({ runId: "run-native-usage", normalizedSessionId: "session-1", workingDirectory: "/workspace" });

@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { appendSemanticToolReceipt, semanticCanonicalJson as canonicalJson, type SemanticToolReceipt } from "./semantic-tool-receipt.js";
 import {
   createServer,
   type IncomingMessage,
@@ -33,6 +34,8 @@ export interface RunnerToolBridgeOptions {
   /** Runner-owned operations that are callable but never model-visible. */
   privateTools?: readonly Readonly<Record<string, unknown>>[];
   handler(call: RunnerToolCall): Promise<unknown>;
+  /** Copilot-only opt-in; capture the active invocation scope before dispatch. */
+  captureSemanticReceipt?: () => ((receipt: SemanticToolReceipt) => void) | undefined;
   timeoutMs?: number;
   privateToolTimeoutMs?: number;
   maxBodyBytes?: number;
@@ -58,6 +61,7 @@ interface RunnerToolTextContent {
 }
 
 interface RunnerToolCallResult {
+  isError?: boolean;
   content: RunnerToolTextContent[];
 }
 
@@ -121,6 +125,7 @@ export async function startRunnerToolBridge(
     calls,
     controllers,
     handler: options.handler,
+    captureSemanticReceipt: options.captureSemanticReceipt,
     timeoutMs: positiveBoundedInteger(
       options.timeoutMs,
       DEFAULT_TIMEOUT_MS,
@@ -190,6 +195,7 @@ async function handleRequest(
     calls: Map<string, AdmittedCall>;
     controllers: Map<string, AbortController>;
     handler: RunnerToolBridgeOptions["handler"];
+    captureSemanticReceipt: RunnerToolBridgeOptions["captureSemanticReceipt"];
     timeoutMs: number;
     privateToolTimeoutMs: number;
     privateToolNames: ReadonlySet<string>;
@@ -319,6 +325,16 @@ async function handleRequest(
     }
   }
   const controller = existing === undefined ? new AbortController() : undefined;
+  let observeReceipt: ((receipt: SemanticToolReceipt) => void) | undefined;
+  if (!existing) { try { observeReceipt = context.captureSemanticReceipt?.(); } catch { /* Optional evidence cannot prevent dispatch. */ } }
+  const withReceipt = (result: RunnerToolCallResult): RunnerToolCallResult => {
+    if (!context.captureSemanticReceipt) return result;
+    try {
+      const bound = appendSemanticToolReceipt({ tool, callId, arguments: args }, result);
+      try { observeReceipt?.(bound.receipt); } catch { /* Evidence cannot change the tool outcome. */ }
+      return bound.result;
+    } catch { return result; }
+  };
   const execution: Promise<RunnerToolCallResult> =
     existing?.promise ??
     withCancellationAndTimeout(
@@ -336,7 +352,10 @@ async function handleRequest(
       context.privateToolNames.has(tool)
         ? context.privateToolTimeoutMs
         : context.timeoutMs,
-    );
+    ).then(withReceipt, error => {
+      if (!context.captureSemanticReceipt) throw error;
+      return withReceipt({ isError: true, content: [{ type: "text", text: safeError(error) }] });
+    });
   if (!existing) {
     context.calls.set(callKey, { fingerprint, promise: execution });
     context.controllers.set(callKey, controller!);
@@ -811,16 +830,6 @@ function taggedObjectType(value: object): string {
     : "Object";
 }
 
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (isRecord(value)) {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "undefined";
-}
 
 function isJsonContentType(value: string | undefined): boolean {
   return value?.split(";", 1)[0]?.trim().toLowerCase() === "application/json";
