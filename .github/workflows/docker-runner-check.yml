@@ -228,7 +228,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.verify_source
     needs: authorize_manual
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ inputs.source_root_tests_only && 195 || 290 }}
+    timeout-minutes: ${{ inputs.source_root_tests_only && 200 || 295 }}
     permissions:
       contents: read
     env:
@@ -273,7 +273,7 @@ jobs:
             printf 'not-run\n' > "remote-source-verification/check-$index.status"
             : > "remote-source-verification/check-$index.log"
           done < remote-source-verification/commands.txt
-          for phase in resolution lock-check install; do
+          for phase in resolution lock-check install test-build-deps; do
             printf 'not-run\n' > "remote-source-verification/$phase.status"
             : > "remote-source-verification/$phase.log"
           done
@@ -306,6 +306,16 @@ jobs:
           printf '0\n' > remote-source-verification/lock-check.status
           phase=install
           pnpm install --frozen-lockfile --ignore-scripts > remote-source-verification/install.log 2>&1
+      - name: Build workspace prerequisites used by the root tests
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          # Match test:run:general and test:run:serialized on a clean checkout.
+          # The SDK exports dist files, which an ignore-scripts install cannot provide.
+          trap 'printf "%s\n" "$?" > remote-source-verification/test-build-deps.status' EXIT
+          timeout --verbose --signal=TERM --kill-after=15s 4m \
+            pnpm --filter @paperclipai/plugin-sdk ensure-build-deps \
+            > remote-source-verification/test-build-deps.log 2>&1
       - name: Run every source check and retain each result
         timeout-minutes: ${{ inputs.source_root_tests_only && 182 || 273 }}
         run: |

@@ -61,7 +61,9 @@ provider credentials are supplied.
 
 To repeat only the full root test suite, also set `source_root_tests_only=true`.
 This modifier requires `verify_source=true` and the same source/lock guards. It
-runs the exact `pnpm test:run` command without test filters and retains a
+builds the shared/plugin SDK prerequisites using the same `ensure-build-deps`
+helper as grouped CI, then runs the exact `pnpm test:run` command without test
+filters and retains a
 `source-root-tests-<run-id>` artifact. Root tests have a 180-minute command
 limit in both modes: they execute the server groups serially, while ordinary
 PR CI distributes those groups across many shards. Other checks keep their
