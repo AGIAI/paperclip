@@ -16,8 +16,17 @@ const packageRoot = process.env.PAPERCLIP_TEST_PI_RUNTIME_ROOT
 const metadata = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
 const extensionSource = await readFile(new URL("../src/drivers/acpx/pi-runtime-extension.ts", import.meta.url), "utf8");
 
+test("Pi 1 offline catalog retains the exact qualification model", async () => {
+  const { ModelRuntime } = await import(pathToFileURL(join(packageRoot, "dist/core/model-runtime.js")).href);
+  const { AuthStorage } = await import(pathToFileURL(join(packageRoot, "dist/core/auth-storage.js")).href);
+  const runtime = await ModelRuntime.create({ credentials: AuthStorage.inMemory({}), modelsPath: null, refreshOnCreate: false, allowModelNetwork: false });
+  const model = runtime.getModel("openrouter", "deepseek/deepseek-v4-flash-0731");
+  assert.equal(model?.provider, "openrouter");
+  assert.equal(model?.id, "deepseek/deepseek-v4-flash-0731");
+});
+
 test("owned gate authorizes the actual pinned SDK path expansions and read fallbacks", async () => {
-  assert.equal(metadata.version, "0.84.2");
+  assert.equal(metadata.version, "1.0.0");
   const { resolveToCwd, resolveReadPathAsync } = await import(pathToFileURL(join(packageRoot, "dist/core/tools/path-utils.js")).href);
   const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-native-paths-")));
   try {
@@ -50,7 +59,7 @@ test("owned gate authorizes the actual pinned SDK path expansions and read fallb
 
 for (const brokenCatalog of [false, true]) {
   test(`real pinned Pi ${brokenCatalog ? "withholds" : "registers"} readiness after MCP initialization`, { timeout: 20_000 }, async (t) => {
-    assert.equal(metadata.version, "0.84.2");
+    assert.equal(metadata.version, "1.0.0");
     const root = await realpath(await mkdtemp(join(tmpdir(), "paperclip-pi-native-contract-")));
     await mkdir(join(root, "workspace")); await mkdir(join(root, "agent"));
     const extension = join(root, "extension.mjs");
@@ -117,7 +126,7 @@ for (const brokenCatalog of [false, true]) {
 }
 
 test("real pinned Pi model iterations align owned identities across warm prompts", { timeout: 20_000 }, async () => {
-  assert.equal(metadata.version, "0.84.2");
+  assert.equal(metadata.version, "1.0.0");
   const load = (name) => import(pathToFileURL(join(packageRoot, `dist/core/${name}.js`)).href);
   const [{ createAgentSession }, { DefaultResourceLoader }, { ModelRuntime }, { SessionManager }, { SettingsManager }, { AuthStorage }] = await Promise.all(
     ["sdk", "resource-loader", "model-runtime", "session-manager", "settings-manager", "auth-storage"].map(load),
@@ -223,6 +232,10 @@ test("real pinned Pi executes all four owned native question methods without per
       notify() {}, setStatus() {}, setWidget() {}, setTitle() {}, setEditorText() {}, getEditorText: () => "", setWorkingMessage() {},
     };
     await session.bindExtensions({ uiContext, onError: error => errors.push(error.event) });
+    // Exercise the actual Pi 1 extension dispatch used immediately before a
+    // paid cache refresh; native economics cannot override Runner's policy.
+    assert.equal(await session.extensionRunner.emitCacheWarmingDecision({ type: "cache_warming_decision", action: "warm", warmCost: 0.01, missCost: 10, continuationProbability: 1 }), "stop");
+
     session.subscribe(event => { if (event.type === "tool_execution_end") results.push(event); });
     const requests = [
       { method: "select", title: "Color", options: [{ id: "blue", label: "Blue" }, { id: "red", label: "Red" }] },
@@ -246,6 +259,7 @@ test("real pinned Pi executes all four owned native question methods without per
 });
 
 test("real pinned Pi dispatches aliased MCP tools with their exact original names", { timeout: 20_000 }, async () => {
+  const { getCurrentTools } = await import(pathToFileURL(join(packageRoot, "node_modules/@earendil-works/pi-ai/dist/index.js")).href);
   const load = (name) => import(pathToFileURL(join(packageRoot, `dist/core/${name}.js`)).href);
   const [{ createAgentSession }, { DefaultResourceLoader }, { ModelRuntime }, { SessionManager }, { SettingsManager }, { AuthStorage }] = await Promise.all(
     ["sdk", "resource-loader", "model-runtime", "session-manager", "settings-manager", "auth-storage"].map(load),
@@ -274,7 +288,7 @@ test("real pinned Pi dispatches aliased MCP tools with their exact original name
     let streams = 0;
     session.agent.streamFunction = (_model, context) => {
       const index = streams++; const original = names[index];
-      const exposed = context.tools.filter(tool => names.includes(tool.description));
+      const exposed = getCurrentTools(context.messages).filter(tool => names.includes(tool.description));
       assert.equal(exposed.length, names.length);
       assert.equal(new Set(exposed.map(tool => tool.name)).size, names.length);
       assert.ok(exposed.every(tool => /^[A-Za-z0-9_-]{1,64}$/.test(tool.name)));
@@ -312,6 +326,10 @@ test("real pinned Pi tool dispatch admits registered agent files and rejects una
     const dialogs = []; const results = []; const errors = [];
     const uiContext = { select: async (title) => { dialogs.push(title); return "Allow once"; }, notify() {}, setStatus() {}, setWidget() {}, setTitle() {}, setEditorText() {}, getEditorText: () => "", setWorkingMessage() {} };
     await session.bindExtensions({ uiContext, onError: error => errors.push(error.event) });
+    // Exercise the actual Pi 1 extension dispatch used immediately before a
+    // paid cache refresh; native economics cannot override Runner's policy.
+    assert.equal(await session.extensionRunner.emitCacheWarmingDecision({ type: "cache_warming_decision", action: "warm", warmCost: 0.01, missCost: 10, continuationProbability: 1 }), "stop");
+
     session.subscribe(event => { if (event.type === "tool_execution_end") results.push(event); });
     const memory = join(agentHome, "memory.txt");
     const requests = [

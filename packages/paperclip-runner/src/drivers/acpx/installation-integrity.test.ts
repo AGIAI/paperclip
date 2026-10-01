@@ -197,7 +197,7 @@ describe("ACPX installation integrity", () => {
     await mkdir(nestedRuntimeDirectory, { recursive: true });
     await writeFile(
       join(nestedRuntimeDirectory, "package.json"),
-      JSON.stringify({ version: "0.84.2" }),
+      JSON.stringify({ version: "1.0.0" }),
     );
 
     await expect(
@@ -1309,7 +1309,7 @@ describe("ACPX installation integrity", () => {
         fixture.runtimePackageJsonPath,
         JSON.stringify({
           name: packageName,
-          version: "0.84.2",
+          version: "1.0.0",
           main: "index.js",
         }),
       ),
@@ -2109,7 +2109,7 @@ async function installationFixture() {
       serverPackageJsonPath,
       JSON.stringify({ version: "0.0.33", bin: "bin/server.js" }),
     ),
-    writeFile(runtimePackageJsonPath, JSON.stringify({ version: "0.84.2" })),
+    writeFile(runtimePackageJsonPath, JSON.stringify({ version: "1.0.0" })),
     writeFile(commandPath, command),
   ]);
   await chmod(commandPath, 0o755);

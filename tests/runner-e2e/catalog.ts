@@ -339,7 +339,7 @@ export const extendedHarnessProfiles: readonly RunnerProfileFixture[] = [
   nativeProfile({
     id: "runner-acpx-pi", label: "Runner Pi (candidate)", provider: "acpx", acpxAgent: "pi",
     qualificationCandidate: "pi", credential: "OPENROUTER_API_KEY", model: QUALIFIED_ACPX_PROFILES.pi.qualificationModel,
-    modelQualification: { source: "candidate_runner_profile", qualificationId: "pi:0.0.33:0.84.2:openrouter" },
+    modelQualification: { source: "candidate_runner_profile", qualificationId: "pi:0.0.33:1.0.0:openrouter" },
   }),
 ];
 

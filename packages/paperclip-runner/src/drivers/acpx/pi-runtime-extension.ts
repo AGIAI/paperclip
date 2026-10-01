@@ -55,6 +55,7 @@ export interface PiExtensionApi {
     event: PiToolEvent, context: PiExtensionContext,
   ) => Promise<{ block: true; reason: string } | undefined>): void;
   on(event: "user_bash", handler: () => { result: { output: string; exitCode: number; cancelled: boolean; truncated: boolean } }): void;
+  on(event: "cache_warming_decision", handler: () => { action: "stop" }): void;
   on(event: "project_trust", handler: () => { trusted: "no"; remember: false }): void;
   on(event: "before_agent_start", handler: (event: { systemPrompt: string }) => { systemPrompt: string } | undefined): void;
 }
@@ -149,7 +150,7 @@ async function physicalPath(path: string): Promise<string> {
   }
 }
 
-/** Match the pinned Pi 0.84.2 tools/path-utils.js before authorizing a path.
+/** Match the pinned Pi 1.0.0 tools/path-utils.js before authorizing a path.
  * Read may select any of its filename fallbacks; validate all of them so an
  * alternate spelling cannot select an unchecked symlink after approval.
  */
@@ -342,6 +343,9 @@ export async function installPiRuntimeExtension(
       }
     }
   }
+  // Pi 1 defaults to paid streaming cache refreshes. Runner admits only explicit
+  // turns; background inference must not outlive or bypass that cost authority.
+  pi.on("cache_warming_decision", () => ({ action: "stop" }));
   pi.on("project_trust", () => ({ trusted: "no", remember: false }));
   pi.on("user_bash", () => ({ result: { output: "Interactive shell commands are disabled in Paperclip Runner", exitCode: 1, cancelled: false, truncated: false } }));
   pi.on("before_agent_start", (event) => config.instructions

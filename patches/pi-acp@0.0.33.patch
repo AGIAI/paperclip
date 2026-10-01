@@ -643,8 +643,8 @@
 +    const session = this.sessions.maybeGet(params.sessionId);
 +    if (!session?.pendingTurn || session.cancelRequested) throw RequestError3.invalidParams("Pi continuation requires an active turn");
 +    const response = await session.proc.request({ type: method === "pi/steer" ? "steer" : "follow_up", message: params.message });
-+    if (!response.success) throw RequestError3.internalError({}, "Pi continuation was rejected");
-+    return { accepted: true, sessionId: session.sessionId, kind: method === "pi/steer" ? "steer" : "follow_up" };
++    if (!response.success || response.data?.disposition !== "queued") throw RequestError3.internalError({}, "Pi continuation was not queued by the native runtime");
++    return { accepted: true, sessionId: session.sessionId, kind: method === "pi/steer" ? "steer" : "follow_up", disposition: response.data.disposition };
    }
    async cancel(params) {
      const session = this.sessions.maybeGet(params.sessionId);
@@ -770,7 +770,7 @@
    try {
 --- /dev/null
 +++ b/dist/paperclip-runtime.js
-@@ -0,0 +1,468 @@
+@@ -0,0 +1,471 @@
 +/** Source for the helper embedded in patches/pi-acp@0.0.33.patch. */
 +import { createHash, randomUUID } from "node:crypto";
 +import { StringDecoder } from "node:string_decoder";
@@ -829,7 +829,10 @@
 +    if (!message || typeof message !== "object" || Array.isArray(message)) return this.fail();
 +    const native = message               ;
 +    if (native.role !== "assistant") {
-+      if (event.type === "message_update" || this.active || !["user", "toolResult"].includes(String(native.role))) return this.fail();
++      if (event.type === "message_update" || this.active || !["user", "toolResult", "system"].includes(String(native.role))) return this.fail();
++      // Pi 1 records prompt/tool declaration updates as structural system messages.
++      // They never receive an assistant occurrence or become final-answer content.
++      if (native.role === "system" && (typeof native.content !== "string" || !Number.isSafeInteger(native.timestamp) || (native.timestamp          ) < 0)) return this.fail();
 +      return event;
 +    }
 +    if (!Number.isSafeInteger(native.timestamp) || (native.timestamp          ) < 0 || !Array.isArray(native.content)) return this.fail();

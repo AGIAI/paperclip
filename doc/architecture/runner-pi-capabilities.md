@@ -1,6 +1,60 @@
 # Pi rich ACP runtime
 
-Current qualification checkpoint (2026-09-30): **Pi profile v10 remains unqualified.** The capped-key/login prerequisite remains blocked. Native USD is unknown. The optional private budget helper is not integrated; Cursor's account-cycle cap does not establish Pi's provider spending bound. V10 keeps the native wrapper and closures unchanged, binds the shared ACPX patch under a new digest, and rejects v9 sessions. Fresh exact-runtime admission and final controller verification remain pending.
+## Pi 1.0 candidate (2026-10-01, profile v11)
+
+The candidate now pins **`@earendil-works/pi-coding-agent@1.0.0`** with
+`pi-acp@0.0.33`, ACPX `0.13.1`, and portable Node `24.21.0`. Pi v10 and older
+sessions must reopen. Cursor v10, Copilot v12, and legacy adapters are unchanged.
+This is a new runtime candidate: historical Pi 0.84.2 passes do not qualify it.
+Local Product, Runner protocol, and Daytona paid qualification remain pending.
+
+The [official release](https://github.com/earendil-works/pi/releases/tag/v1.0.0)
+points to commit `a13d35a742c6ef8462812a28fbe1d8c8b7431c32`. The npm archive
+is verified against published SHA-512 integrity
+`/FtbxoSQU/mEv1QnichJjRjqteqaIaMWxmhB4G367+MwZfX7/DI5B9YAg5lqbN7nztFskBEtUSZ+FlmMBECtMw==`
+and has SHA-256 `638ed3abbe54ef70cbf8673ae4bc531e791613756aac04644cfcdcc4af0fafaf`.
+The isolated npm lock preserves the complete upstream shrinkwrap, supplementing
+seven Pi-family entries' omitted integrities from their exact npm 1.0.0 records.
+Upstream now pins Undici 8.10.2 itself; the previous 8.9.0 replacement is removed.
+
+Compatibility changes preserve the existing rich runtime surface:
+
+- Native steering and follow-up acknowledgements now carry `disposition`.
+  Only `queued` is accepted as delivery; `handled`, missing, or malformed
+  dispositions fail visibly. Settlement still waits for `agent_settled`.
+- Pi defaults streaming cache warming to enabled. The owned extension overrides
+  every `cache_warming_decision` with `stop`; no background model refresh is
+  authorized by an active or completed Runner turn.
+- Pi's new built-in extensions are disabled by the existing `--no-extensions`.
+  The explicitly loaded Paperclip extension still supplies assigned MCP tools,
+  native questions, permission decisions, instructions, and registered agent files.
+- Structural `system` message boundaries carry prompt/tool declaration changes.
+  They pass through without assistant IDs or final-answer authority; malformed
+  structural frames and overlap with an active assistant still fail closed.
+- Pi's transcript-context API replaces the old provider `context.tools` view.
+  Provider-free SDK tests read current declarations through Pi's canonical helper;
+  production RPC parsing keeps message/tool boundaries and usage intact.
+
+The upstream [changelog](https://github.com/earendil-works/pi/blob/v1.0.0/packages/coding-agent/CHANGELOG.md)
+and [RPC interface](https://github.com/earendil-works/pi/blob/v1.0.0/packages/coding-agent/docs/rpc.md)
+add capabilities which must not be confused with wrapper support:
+
+| Priority | Native Pi 1 capability | Runner status and reason |
+| --- | --- | --- |
+| P1 | Codemode, nested calls (`parentToolCallId`, `nestedCalls`), deferred tool search, exposure/annotations/output schema | Available upstream; built-in extensions remain disabled until nested provenance, permission checks, and output projection are qualified. Assigned semantic MCP tools retain direct exposure. |
+| P1 | Native MCP OAuth, provider-auth HTTP MCP, OAuth issuer/scope hardening | Available upstream; arbitrary MCP/auth discovery is outside the closed assigned bridge. Paperclip owns credential and company scope. |
+| P1 | Image generation and classifier calls through `ModelRuntime`/codemode | Available upstream; not exposed because separate model calls need budget attribution and artifact admission. Text/image tool-result transport remains supported. |
+| P1 | `clear_queue`, per-input queued/handled disposition | Disposition is checked now. Queue clearing still needs a durable Runner cancellation contract; Stop continues to abort the owned active process/turn. |
+| P2 | Append-only context edits, actionable `turn_end`/`agent_before_settle`, `context_with_system` | Available upstream; only existing observation hooks are installed. Host-directed edits need durable recovery semantics before exposure. |
+| P2 | Provider stream hooks, virtual models, per-model compaction/image sizing | Available upstream; no arbitrary provider extensions or virtual routing are admitted. Native compaction and existing model configuration remain supported. |
+| P2 | UI prompt lifecycle events and richer startup/fullscreen TUI | Native UI exists; Runner uses RPC and its existing question/wait states. No terminal TUI is advertised. |
+| P2 | Fork/clone/history export | Native RPC capabilities remain available upstream; durable branch lineage and contained exported-artifact handling remain required before Runner controls expose them. |
+
+Pi's published CLI mode union is `text | json | rpc`; no native ACP mode is
+present in this release. The reviewed `pi-acp` wrapper remains necessary.
+
+
+Historical v10 qualification checkpoint (2026-09-30): **Pi profile v10 remains unqualified.** The capped-key/login prerequisite remains blocked. Native USD is unknown. The optional private budget helper is not integrated; Cursor's account-cycle cap does not establish Pi's provider spending bound. V10 keeps the native wrapper and closures unchanged, binds the shared ACPX patch under a new digest, and rejects v9 sessions. Fresh exact-runtime admission and final controller verification remain pending.
 
 Historical v9 checkpoint (2026-09-30): **Pi profile v9 remains unqualified**. Current runtime source is `5b8e4454ef0bf12d0bb068c2e41d8c9df9356a1c`; controller/Product harness source is `40064d28522de25fea85c1297f35b41bb8a8897a`. Runtime builds for macOS ARM64/x64 and Linux x64 are complete. No paid profile-v9 pass is claimed. A credential with a verifiable spend limit is still needed for the remaining paid qualification. The optional transport-budget candidate is frozen on a separate branch and is not integrated or a live spending guarantee. See the [comparative capability report](runner-rich-acp-capabilities.md) for current qualification gates and the field audit. The dated observations below retain their original profile identities.
 

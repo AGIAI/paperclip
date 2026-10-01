@@ -30,6 +30,13 @@ function harness() {
 }
 
 describe("owned Pi runtime extension", () => {
+  it("stops Pi 1 cache warming even when native economics recommend a paid refresh", async () => {
+    const { config } = await workspace(); const h = harness();
+    await installPiRuntimeExtension(h.api, config);
+    for (const action of ["warm", "stop"]) {
+      expect(h.handlers.get("cache_warming_decision")!({ action, warmCost: 0.01, missCost: 10, continuationProbability: 1 })).toEqual({ action: "stop" });
+    }
+  });
   it("admits only the canonical registered agent-files root and revalidates it after approval", async () => {
     const { config, root } = await workspace(); const h = harness();
     const agentHome = join(await realpath(root), "agent-files"); await mkdir(agentHome);

@@ -13,7 +13,7 @@ import { QUALIFIED_ACPX_PROFILES, type QualifiedAcpxProfile } from "./qualified-
 
 const roots: string[] = [];
 afterEach(async () => { vi.unstubAllEnvs(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
-const candidate = (): QualifiedAcpxProfile => ({ ...QUALIFIED_ACPX_PROFILES.pi, agentProfileVersion: 10 });
+const candidate = (): QualifiedAcpxProfile => ({ ...QUALIFIED_ACPX_PROFILES.pi, agentProfileVersion: 11 });
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "pi-installation-test-")); roots.push(root);
@@ -30,7 +30,7 @@ describe("Pi installation factory", () => {
     const hash = (bytes: string | Uint8Array) => createHash("sha256").update(bytes).digest("hex");
     const canonical = (value: any): string => Array.isArray(value) ? `[${value.map(canonical).join(",")}]`
       : value && typeof value === "object" ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}` : JSON.stringify(value);
-    const identity = JSON.parse(await readFile(new URL("../../../test-fixtures/pi-acp/profile-v10-identity.json", import.meta.url), "utf8"));
+    const identity = JSON.parse(await readFile(new URL("../../../test-fixtures/pi-acp/profile-v11-identity.json", import.meta.url), "utf8"));
     const declaration = identity.declaration;
     expect(declaration.sharedRuntimeContract).toBe("paperclip.acpx-runtime-contract.v1");
     expect(identity.commandDigest).toBe(`sha256:${hash(canonical(declaration))}`);
@@ -52,20 +52,21 @@ describe("Pi installation factory", () => {
     expect(materializer).toContain(`helperSha256: "${declaration.helperSha256}"`);
     // This exact patch produced the independently verified v8 wrapper/closure.
     // Pin it separately so wrapper-only edits cannot keep an unchanged declaration.
-    expect(hash(await readFile(new URL("../../../../../patches/pi-acp@0.0.33.patch", import.meta.url)))).toBe("821896c48f23f0a1a5c5856d9d3b87c905e261b28c3ed8e1bbd3f7242ec48b22");
+    expect(hash(await readFile(new URL("../../../../../patches/pi-acp@0.0.33.patch", import.meta.url)))).toBe("429184a462f9acef5bef890f3537db3ef385ee7c06d9fe0c335158590005ab0a");
   });
 
   it("rejects legacy profiles and caller-selected identities", () => {
     expect(() => assertPiInstallationProfile(candidate())).not.toThrow();
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 1 })).toThrow("version 10");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 2 })).toThrow("version 10");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 3 })).toThrow("version 10");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 4 })).toThrow("version 10");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 5 })).toThrow("version 10");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 6 })).toThrow("version 10");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 7 })).toThrow("version 10");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 8 })).toThrow("version 10");
-    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 9 })).toThrow("version 10");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 1 })).toThrow("version 11");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 2 })).toThrow("version 11");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 3 })).toThrow("version 11");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 4 })).toThrow("version 11");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 5 })).toThrow("version 11");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 6 })).toThrow("version 11");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 7 })).toThrow("version 11");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 8 })).toThrow("version 11");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 9 })).toThrow("version 11");
+    expect(() => assertPiInstallationProfile({ ...candidate(), agentProfileVersion: 10 })).toThrow("version 11");
     for (const changed of [{ agentServerVersion: "latest" }, { commandDigest: `sha256:${"0".repeat(64)}` }, { reportedModelId: "different" }, { agentRuntimePackage: "ambient-pi" }]) {
       expect(() => assertPiInstallationProfile({ ...candidate(), ...changed })).toThrow("trusted declaration");
     }
@@ -75,7 +76,7 @@ describe("Pi installation factory", () => {
     await writeFile(join(assets, "pi-distribution.json"), JSON.stringify({
       schema: "paperclip.pi-distribution.v1", runtimeRoot: "runtime", nativeClosureSha256: "0".repeat(64),
       target: { platform: process.platform, architecture: process.arch, nodeVersion: "24.21.0" },
-      pins: { nodeVersion: "24.21.0", wrapper: "0.0.33", runtime: "0.84.2", sdk: "0.26.0", zod: "3.25.76" },
+      pins: { nodeVersion: "24.21.0", wrapper: "0.0.33", runtime: "1.0.0", sdk: "0.26.0", zod: "3.25.76" },
     }));
     await expect(verifyPiInstallation(candidate())).rejects.toThrow("trusted target pin");
   });

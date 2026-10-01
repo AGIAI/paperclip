@@ -56,7 +56,10 @@ export class PiAssistantMessages {
     if (!message || typeof message !== "object" || Array.isArray(message)) return this.fail();
     const native = message as RecordValue;
     if (native.role !== "assistant") {
-      if (event.type === "message_update" || this.active || !["user", "toolResult"].includes(String(native.role))) return this.fail();
+      if (event.type === "message_update" || this.active || !["user", "toolResult", "system"].includes(String(native.role))) return this.fail();
+      // Pi 1 records prompt/tool declaration updates as structural system messages.
+      // They never receive an assistant occurrence or become final-answer content.
+      if (native.role === "system" && (typeof native.content !== "string" || !Number.isSafeInteger(native.timestamp) || (native.timestamp as number) < 0)) return this.fail();
       return event;
     }
     if (!Number.isSafeInteger(native.timestamp) || (native.timestamp as number) < 0 || !Array.isArray(native.content)) return this.fail();

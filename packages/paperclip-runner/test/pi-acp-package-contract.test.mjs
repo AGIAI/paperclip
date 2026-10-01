@@ -202,11 +202,22 @@ test("actual patched ACP reports unsupported external UI as an error and stops t
 test("native steering is explicit and does not replace the active ACP turn", async (t) => {
   const f = await fixture(t); const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
   const prompt = f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "long" }] });
-  await f.call("pi/steer", { sessionId: session.sessionId, message: "focus" });
-  await f.call("pi/follow_up", { sessionId: session.sessionId, message: "then finish" });
+  assert.equal((await f.call("pi/steer", { sessionId: session.sessionId, message: "focus" })).disposition, "queued");
+  assert.equal((await f.call("pi/follow_up", { sessionId: session.sessionId, message: "then finish" })).disposition, "queued");
   assert.equal((await prompt).stopReason, "end_turn");
   await assert.rejects(f.call("pi/steer", { sessionId: session.sessionId, message: "too late" }), /active turn/);
 });
+
+for (const disposition of ["handled", "started", "missing", "malformed"]) for (const method of ["pi/steer", "pi/follow_up"]) {
+  test(`${method} never claims delivery for Pi 1 disposition ${disposition}`, async (t) => {
+    const f = await fixture(t, { PI_FIXTURE_INPUT_DISPOSITION: disposition });
+    const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
+    const prompt = f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text: "long" }] });
+    await assert.rejects(f.call(method, { sessionId: session.sessionId, message: "not queued" }), /not queued by the native runtime/);
+    f.notify("session/cancel", { sessionId: session.sessionId });
+    await prompt;
+  });
+}
 
 test("provider exit fails promptly and missing owned extension fails admission", async (t) => {
   const f = await fixture(t); const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
@@ -240,7 +251,7 @@ for (const [outcome, expected] of [
   });
 }
 
-test("manual and automatic compaction retain Pi 0.84.2 progress and usage", async (t) => {
+test("manual and automatic compaction retain native progress and usage", async (t) => {
   const f = await fixture(t); const session = await f.call("session/new", { cwd: join(f.root, "workspace"), mcpServers: [] });
   const prompt = (text) => f.call("session/prompt", { sessionId: session.sessionId, prompt: [{ type: "text", text }] });
   const manual = await prompt("/compact");

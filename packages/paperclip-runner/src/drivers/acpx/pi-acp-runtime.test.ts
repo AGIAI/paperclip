@@ -44,17 +44,28 @@ describe("Pi native assistant boundaries", () => {
     { type: "message_end", message: message(1, "invented") },
     { type: "message_update", message: { role: "assistant", content: [] } },
     { type: "message_start", message: { role: "toolResult" } },
+    { type: "message_start", message: { role: "system", content: "injected", timestamp: 1 } },
     { type: "agent_settled" },
   ])("rejects duplicate, reordered, malformed or missing ends: $type", event => {
     const messages = new PiAssistantMessages(namespace);
     messages.normalize({ type: "message_start", message: message() });
     expect(() => messages.normalize(event)).toThrow("boundary");
   });
+  it.each([
+    { type: "message_update", message: { role: "system", content: "x", timestamp: 1 } },
+    { type: "message_start", message: { role: "system", content: [], timestamp: 1 } },
+    { type: "message_start", message: { role: "system", content: "x" } },
+    { type: "message_start", message: { role: "unknown", content: "x", timestamp: 1 } },
+  ])("rejects malformed structural message boundaries", event => {
+    expect(() => new PiAssistantMessages(namespace).normalize(event)).toThrow("boundary");
+  });
   it("does not mint assistant identities for history, tools, retries or compaction", () => {
     const messages = new PiAssistantMessages(namespace);
     for (const event of [
       { type: "message_start", message: { role: "user" } },
       { type: "message_end", message: { role: "toolResult" } },
+      { type: "message_start", message: { role: "system", content: "instructions", timestamp: 1, toolsAdded: [] } },
+      { type: "message_end", message: { role: "system", content: "instructions", timestamp: 1 } },
       { type: "auto_retry_end" }, { type: "compaction_end" }, { type: "agent_settled" },
     ]) expect(messages.normalize(event)).toEqual(event);
     expect(() => piAssistantChunk({ messageId: "invented", phase: "start" })).toThrow("provenance");

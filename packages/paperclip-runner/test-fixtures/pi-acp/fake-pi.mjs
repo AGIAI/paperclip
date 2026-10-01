@@ -45,8 +45,9 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     { role: "assistant", content: [{ type: "text", text: "Historical reply" }] },
   ] : [] }); return; }
   if (request.type === "get_commands") { response({ commands: process.env.PI_FIXTURE_EXTENSION_FAIL ? [] : [{ name: "paperclip-runtime-ready-v1", description: "Paperclip runtime gate v1", source: "extension" }] }); return; }
-  if (request.type === "steer") { response(); output({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: `steered:${request.message}` } }); return; }
-  if (request.type === "follow_up") { response(); finish(`follow-up:${request.message}`); return; }
+  const inputDisposition = process.env.PI_FIXTURE_INPUT_DISPOSITION === "missing" ? {} : { disposition: process.env.PI_FIXTURE_INPUT_DISPOSITION === "malformed" ? { queued: true } : process.env.PI_FIXTURE_INPUT_DISPOSITION ?? "queued" };
+  if (request.type === "steer") { response(inputDisposition); if (inputDisposition.disposition !== "queued") return; output({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: `steered:${request.message}` } }); return; }
+  if (request.type === "follow_up") { response(inputDisposition); if (inputDisposition.disposition !== "queued") return; finish(`follow-up:${request.message}`); return; }
   if (request.type === "compact") { output({ type: "compaction_start", reason: "manual" }); const result = compaction(); output({ type: "compaction_end", reason: "manual", result, aborted: false, willRetry: false }); response(result); return; }
   if (request.type === "abort") { response(); if (active) { active = false; if (assistantActive) endMessage("aborted", {}); output({ type: "turn_end" }); output({ type: "agent_settled" }); } return; }
   if (request.type === "prompt") {

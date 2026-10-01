@@ -311,7 +311,7 @@ describe("NativeExecutionInputV1", () => {
         agentServerPackage: "pi-acp",
         agentServerVersion: "0.0.33",
         agentRuntimePackage: "@earendil-works/pi-coding-agent",
-        agentRuntimeVersion: "0.84.2",
+        agentRuntimeVersion: "1.0.0",
         commandDigest: "sha256:24ff73fda6e3c76ddce2d359a79f5c4b8f292eb290e4d2ab85aac94676b2c2dc",
       },
     } as const;
