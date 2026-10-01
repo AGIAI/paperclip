@@ -273,7 +273,26 @@ fn check_tool_receiver_admission(oversized: bool) {
         assert!(session.state().pending_tool("call-admission").is_some());
         session.deliver_tool_result(&result).unwrap();
         assert!(!session.state().has_pending_tools());
-        assert!(session.deliver_tool_result(&result).is_err());
+        session
+            .deliver_tool_result(&result)
+            .expect("an identical receipt retry must be idempotent");
+        let mut changed_payload = result.clone();
+        changed_payload.result = json!({"id":"another-issue"});
+        let mut changed_operation = result.clone();
+        changed_operation.operation_id = "issues.write".to_owned();
+        let mut changed_error = result.clone();
+        changed_error.is_error = true;
+        for conflicting in [changed_payload, changed_operation, changed_error] {
+            let error = session
+                .deliver_tool_result(&conflicting)
+                .unwrap_err()
+                .to_string();
+            assert!(
+                error.contains("conflicting duplicate tool result"),
+                "{error}"
+            );
+        }
+        assert!(!session.state().has_pending_tools());
     }
     session.shutdown("admission test complete").unwrap();
     let rows: Vec<serde_json::Value> = std::fs::read_to_string(&journal)
