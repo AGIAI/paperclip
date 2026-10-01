@@ -2,9 +2,13 @@ import { updateSingleReadEvidence, type SingleReadEvidence } from "./single-read
 import { createHash } from "node:crypto";
 import { redactPaperclipSemanticValue } from "../../semantic-tools/redaction.js";
 import type { CanonicalProviderEvent } from "../../provider-events.js";
+import { cursorToolIdentity } from "./cursor-plan-tool-identity.js";
 
 const rec = (v: unknown): Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
 const id = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 240 && !/[\u0000-\u001f\u007f]/u.test(v);
+// ACP tool identities are opaque provider strings. Apply the existing bounded
+// tool identity transform rather than rejecting IDs accepted by the ACP SDK.
+const nativeToolId = (v: unknown): string | undefined => typeof v === "string" && v.length > 0 && v.length <= 240 ? cursorToolIdentity(v) : undefined;
 const digest = (s: string) => createHash("sha256").update(s).digest("hex");
 type Fields = Record<string, string | boolean>;
 type Tool = { kind?: string; commandSha256?: string; read?: SingleReadEvidence };
@@ -72,8 +76,9 @@ export function createCursorToolEvidence(binding: {
   return {
     tool(event: unknown) { safely(() => {
       if (!binding.active()) return;
-      const call = rec(event); if (call.type !== "tool_call" || !id(call.toolCallId)) return;
-      const toolId = call.toolCallId; let state = tools.get(toolId);
+      const call = rec(event); if (call.type !== "tool_call") return;
+      const toolId = nativeToolId(call.toolCallId); if (toolId === undefined) return;
+      let state = tools.get(toolId);
       if (!state) {
         if (call.tag !== "tool_call") return;
         if (tools.size >= 256) throw new ProjectionFailure("tool_limit");
@@ -102,9 +107,9 @@ export function createCursorToolEvidence(binding: {
         if (!binding.active()) return;
         const raw = rec(rec(request).raw), call = rec(raw.toolCall);
         if (raw.sessionId !== binding.sessionId) throw new ProjectionFailure("permission_session_mismatch");
-        if (!id(call.toolCallId)) throw new ProjectionFailure("invalid_permission_tool_identity");
+        const toolId = nativeToolId(call.toolCallId);
+        if (toolId === undefined) throw new ProjectionFailure("invalid_permission_tool_identity");
         if (!id(requestId)) throw new ProjectionFailure("invalid_request_identity");
-        const toolId = call.toolCallId;
         if (permissions.has(toolId) || permissions.size >= 256) throw new ProjectionFailure("ambiguous_permission");
         if (call.kind !== undefined && (!id(call.kind) || call.kind.length > 64)) throw new ProjectionFailure("invalid_permission_kind");
         const state: Permission = { requestId, kind: call.kind as string | undefined, hasInput: call.rawInput !== undefined, commandSha256: command(call), declineOffered: offeredActions.includes("decline") };

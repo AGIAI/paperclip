@@ -1,6 +1,7 @@
 import { acpxUsageEstimateNotice, persistedAcpxTurnUsage, persistedCursorUsageNotice } from "../drivers/acpx/usage-accounting.js";
 import { stripTypeScriptTypes } from "node:module";
-import { cursorPlanToolIdentity } from "../drivers/acpx/cursor-plan-tool-identity.js";
+import { cursorPlanToolIdentity, cursorToolIdentity } from "../drivers/acpx/cursor-plan-tool-identity.js";
+import { createHash } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -96,6 +97,57 @@ describe("qualified ACPX runtime sidecar", () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it.each(["tool-first", "permission-first"])("uses the same Cursor identity in actual sidecar tool and pending permission paths: %s", async order => {
+    const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");
+    const identityStart = source.indexOf("function stableProviderIdentity(");
+    const stableIdentity = new Function("createHash", "cursorToolIdentity", `${stripTypeScriptTypes(source.slice(identityStart, source.indexOf("\nfunction canonicalJson", identityStart)))}; return stableProviderIdentity;`)(createHash, cursorToolIdentity);
+    const boundStart = source.indexOf("function boundRuntimeEventForNormalization(");
+    const bound = new Function("boundedOptionalText", "stableProviderIdentity", "safeAcpxLocations", "openParams", "safeOutput",
+      `${stripTypeScriptTypes(source.slice(boundStart, source.indexOf("\nfunction sanitizeRuntimeEvent", boundStart)))}; return boundRuntimeEventForNormalization;`)(
+      (value: unknown, fallback: string, max: number) => typeof value === "string" ? value.slice(0, max) : fallback,
+      stableIdentity, () => [], null, () => ({ output: null, outputBytes: 0, outputTruncated: false, outputDigest: null }),
+    );
+    const start = source.indexOf("  const { signal } = context;", source.indexOf("async function waitForPermission"));
+    const end = source.indexOf("\nasync function waitForInput", start);
+    const observedIds: string[] = [];
+    for (const rawId of ["native\u0000tool", "native\u007ftool", "safe-tool-1"]) {
+      const permissions = new Map<string, any>(); const emitted: any[] = []; const notices: any[] = [];
+      const evidence = createCursorToolEvidence({ sessionId: "session", turnId: "turn-1", workingDirectory: "/workspace", active: () => true,
+        emit: event => { validateAcpxRichEvent(event); notices.push(event); },
+      });
+      const wait = new Function("permissions", "normalizeAcpxPermission", "emit", `
+        let turnId="turn-1", requestSequence=0; const MAX_PENDING_INPUTS=512, openParams={agent:"cursor"};
+        const stableRequestId=()=>"request-1", requireAcpxResponseDelivery=c=>c.responseDelivery;
+        return async function(activeTurnId, agent, request, context, toolEvidence) { ${source.slice(start, end)}
+      `)(permissions, normalizeAcpxPermission, (_event: string, payload: unknown) => emitted.push(payload));
+      const origin = { type: "tool_call", tag: "tool_call", toolCallId: rawId, kind: "execute", status: "pending", rawInput: { command: "printf private-command" } };
+      const activity = canonicalProviderEventsFromAcpxRuntimeEvent(bound(origin), "unrelated-fallback")[0]!;
+      const native = { sessionId: "session", inferredKind: "execute", raw: { sessionId: "session", toolCall: { toolCallId: rawId, kind: "execute" },
+        options: [{ kind: "reject_once", optionId: "native-original-denial", name: "Deny" }],
+      } };
+      const before = structuredClone(native);
+      const abort = new AbortController();
+      if (order === "tool-first") evidence.tool(origin);
+      const pending = wait("turn-1", "cursor", native, { signal: abort.signal, responseDelivery: Promise.resolve() }, evidence);
+      if (order === "permission-first") { expect(notices).toEqual([]); evidence.tool(origin); }
+      const projectedId = emitted[0].toolCallId;
+      observedIds.push(projectedId);
+      expect(projectedId).toBe(activity.payload.executionId);
+      expect(notices.map(event => Object.fromEntries(event.payload.details.map((field: any) => [field.name, field.value])))).toEqual([
+        expect.objectContaining({ stage: "tool", toolCallId: projectedId }),
+        expect.objectContaining({ stage: "permission_requested", toolCallId: projectedId, requestId: "request-1" }),
+      ]);
+      const held = permissions.get("request-1")!;
+      const decision = held.normalized.resolve({ action: "decline" });
+      held.cleanup(); permissions.delete("request-1"); held.settle(decision);
+      await expect(pending).resolves.toEqual({ outcome: "reject_once" });
+      expect(native).toEqual(before);
+      expect(native.raw.toolCall.toolCallId).toBe(rawId);
+      expect(JSON.stringify([activity, emitted, notices])).not.toContain("private-command");
+    }
+    expect(new Set(observedIds).size).toBe(3);
+    expect(observedIds[2]).toBe("safe-tool-1");
+  });
   it("emits the native plan tool identity from the actual sidecar input boundary", async () => {
     const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");
     const start = source.indexOf("async function waitForExtensionInput(");

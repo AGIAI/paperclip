@@ -1,5 +1,6 @@
 import type { AcpPermissionDecision, AcpPermissionRequest } from "acpx/runtime";
 import type { HarnessRuntimeRequestResolution } from "../../contracts/harness-driver.js";
+import { cursorToolIdentity } from "./cursor-plan-tool-identity.js";
 
 import { safeCopilotEditTarget } from "./copilot-permission-context.js";
 
@@ -57,7 +58,9 @@ export function normalizeAcpxPermission(request: AcpPermissionRequest, options: 
       : typeof call.title === "string" && call.title.trim()
       ? call.title.slice(0, 4_000) : "Approve provider operation",
     kind: request.inferredKind ?? "other",
-    toolCallId: call.toolCallId,
+    // Display/durable identity must match the tool-event boundary. Leave the
+    // original request intact for ACPX's exact native response correlation.
+    toolCallId: options.provider === "cursor" ? cursorToolIdentity(call.toolCallId) : call.toolCallId,
     choices,
     resolve(resolution) {
       const outcome = bindings.get(resolution.action as AcpxPermissionAction);
