@@ -11,6 +11,10 @@ qualification are required. The [Cursor](runner-cursor-capabilities.md) and
 the Copilot 256 KiB output limit and the credential-free native proof scope.
 Pi remains blocked on a verifiable OpenRouter spending cap. Prior paid failures
 and case-specific passes remain historical; none is regraded by these fixes.
+The controller now dispatches bridged requests in durable notification order.
+It consumes earlier activity before presenting a request, while a pending human
+answer does not prevent later activity from streaming. A genuine permission-first
+provider sequence remains permission-first.
 
 Historical source checkpoint (2026-09-30): **Cursor v9, Copilot v8 and Pi v10
 remain unqualified**. All three declarations bind shared ACPX patch SHA-256
