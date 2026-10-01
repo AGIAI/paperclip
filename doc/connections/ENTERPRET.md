@@ -32,7 +32,9 @@ revocation cache window. This is a provider commitment relayed by the account
 holder, **not verified deployment evidence**. The earlier inference that an
 `mcp:write` scope name made this connector write-capable is withdrawn. Both
 methods are selectable on this draft branch; fresh OAuth authorization,
-refresh, real-agent allow/deny, and revocation checks remain release QA.
+refresh and real-agent allow/deny checks remain release QA. The account holder
+confirmed the provider fixes are fast follows after deployment, not prerequisites
+for shipping this connector.
 
 Several live read and gateway checks passed on the OAuth method. The primary
 token path passed connection, catalog, safe read, refresh, and reconnect checks;
@@ -158,8 +160,8 @@ Enterpret Agent MCP. No write tool was observed or invoked on this endpoint.
 The previous description of this as a verified write-capable connector was
 stronger than the evidence and is superseded by the 2026-10-01 product decision.
 
-The account holder relayed Vivek's commitment to fix OAuth behavior. Retest a
-fresh authorization and refresh after the provider confirms deployment, record
+The account holder relayed Vivek's commitment to fix OAuth behavior. Validate a
+fresh authorization and refresh against current provider behavior, record
 requested and reported scopes separately, and confirm the tool inventory still
 belongs to the official read-only service. Do not widen the scope request or
 add the beta write endpoint to this definition.
@@ -607,21 +609,26 @@ mechanical store-visibility flip for the token path is also done on this branch
    the immediate invalidation check; old-token invalidation after rotation was
    not tested.
 
-**OAuth method — release validation**
+**Both auth methods — release validation and provider follow-up**
 
 OAuth is supported for the official read-only MCP. Before calling the new
 revision release-ready:
 
-- Obtain confirmation that the OAuth fix is deployed, then test a fresh
-  authorization and refresh. Record requested and reported scopes without
+- Test a fresh OAuth authorization and refresh against the current provider.
+  Record requested and reported scopes without
   treating scope names as proof of access to the beta Agent MCP.
 - Exercise a safe allowed read and a denied call through a real agent session;
   the board Test endpoint does not prove agent authorization.
-- Obtain the deployed maximum revocation-cache delay and verify denial after
-  that window. Vivek explained the earlier result as a 24-hour cache and said
-  they are reducing it; the new window and deployment remain unverified.
+- Document the current revocation behavior: invalidated tokens can remain
+  active in Enterpret’s cache for up to 24 hours. Local disconnect removes
+  Paperclip’s stored credential and access, but does not immediately invalidate
+  copies elsewhere. The account holder accepted shipping with this known limit.
+- After deployment, follow up on Enterpret’s OAuth fix and reduced revocation
+  window. Confirm the new maximum delay and retest after the provider deploys
+  those fixes. These provider changes are fast follows, not release gates.
 - Keep Enterpret Agent's beta write MCP outside this PR. Adding it later needs
   separate endpoint, credential-boundary, action-risk, and write QA review.
 
-The provider commitment permits preparation of OAuth support; it does not
-replace live proof. Keep the PR draft until required checks and review pass.
+The connector can ship with current provider behavior once Paperclip’s
+functional QA, CI, and review pass. Keep the PR draft until those checks pass;
+do not block release on the provider’s fast-follow fixes.
