@@ -288,6 +288,15 @@ describe("runner E2E server port allocation", () => {
 });
 
 describe("runner E2E sensitive API boundary", () => {
+  it("uses the authenticated browser session for encrypted secret provisioning", async () => {
+    vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "43123");
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ id: "secret-id" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const api = new RunnerApi({} as never);
+    api.setBrowserSession("fixture.session=opaque");
+    await api.postSensitive("/api/companies/company/secrets", { value: "fixture-value" });
+    expect(fetchMock).toHaveBeenCalledWith(new URL("http://127.0.0.1:43123/api/companies/company/secrets"), expect.objectContaining({ headers: { "content-type": "application/json", Cookie: "fixture.session=opaque", Origin: "http://127.0.0.1:43123" } }));
+  });
   it("keeps secret request bodies out of Playwright API tracing", async () => {
     vi.stubEnv("PAPERCLIP_RUNNER_E2E_PORT", "43123");
     const playwrightPost = vi.fn();
