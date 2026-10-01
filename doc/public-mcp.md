@@ -1,0 +1,133 @@
+# Public Paperclip MCP connection
+
+The first-release implementation connects an external assistant **as a person**
+to one explicitly selected company. It exposes first-party task operations and
+keeps normal Paperclip authorization, scheduling, attribution, budgets and
+approvals. The existing named agent gateways and native runner checks remain
+separate. The accepted roadmap is in
+[the implementation plan](plans/2026-09-30-paperclip-public-mcp-and-plugins.md).
+
+## Enable an instance
+
+Apply database migrations with the normal instance upgrade workflow. Set:
+
+```sh
+PAPERCLIP_PUBLIC_MCP_ENABLED=true
+PAPERCLIP_PUBLIC_URL=https://YOUR-PAPERCLIP-HOST
+```
+
+The URL must be an origin without a path, credentials, query or fragment. HTTP
+is allowed only for localhost/loopback development. The feature is disabled by
+default. Use authenticated deployment with real user accounts and company
+memberships; local implicit board authority and agent/board API keys cannot
+approve user OAuth connections. Configure `TRUST_PROXY` correctly at your edge.
+
+The endpoint is `POST /mcp/paperclip`, using stateless Streamable HTTP with JSON
+responses. GET/SSE sessions are unnecessary. Each invocation verifies its bearer
+token again; normal API endpoints do not accept these OAuth tokens. Public
+installation requires a reachable HTTPS deployment. Private self-hosted
+instances require a directly reachable endpoint; no managed relay is included.
+
+## Identity and consent
+
+- Protected-resource discovery: `/.well-known/oauth-protected-resource/mcp/paperclip`.
+- Authorization-server discovery: `/.well-known/oauth-authorization-server`.
+- Public-client registration: `/mcp/oauth/register`.
+- Authorization, token and revocation endpoints: `/mcp/oauth/authorize`,
+  `/mcp/oauth/token`, `/mcp/oauth/revoke`.
+- Browser consent: `/mcp-connect/:requestId`.
+- User connection management: `/assistant-connections`.
+
+Dynamic registration uses public clients, exact registered HTTPS redirect URIs
+(or HTTP loopback), authorization code flow, S256 PKCE and exact resource
+binding to the endpoint. Authorization requests expire in ten minutes; codes
+expire one minute after consent and are single-use. Access tokens expire in
+fifteen minutes. `offline_access` issues a thirty-day rotating refresh token;
+replaying a consumed refresh token revokes its entire grant. Tokens and codes
+are hashed at rest. `paperclip:read` is required; `paperclip:write` adds only task
+creation and comments. Scope expansion requires a new consent flow.
+
+Each grant records the person, client, company, resource and scopes. Membership
+and company availability are rechecked at execution. Instance admin status does
+not elevate a grant beyond that company's role. Consent/revocation require an
+authenticated browser and the configured origin. Client registration does not
+fetch redirect URLs or accept arbitrary tool destinations. Rate limiting at the
+public edge is required in addition to the bounded per-process auth limiter.
+
+Revocation blocks future calls; it does not cancel already delegated work or
+undo in-flight mutations. Manage existing tasks and execution in Paperclip.
+Audit records identify the human caller and connection/client for mutations.
+OAuth credential bodies and redirect locations are redacted from HTTP logs.
+
+## Tool surface
+
+| Tool | Effect |
+| --- | --- |
+| `paperclip_connection` | Person, company, scopes, connection management link |
+| `paperclip_list_agents` | Safe agent summary and availability |
+| `paperclip_list_projects` | Safe project summary |
+| `paperclip_search_tasks` | Bounded task search with offset pagination |
+| `paperclip_read_task` | Current task plus recent comments/history |
+| `paperclip_create_task` | Assigned task, submitted to existing scheduling |
+| `paperclip_add_comment` | Human feedback; may wake or queue work |
+| `paperclip_list_deliverables` | Documents and work-product references |
+| `paperclip_read_document` | Durable document body |
+| `paperclip_pending_approvals` | Pending approvals and existing decision links |
+
+Every company-scoped call requires its explicit authorized company ID. The
+server emits bounded projections rather than agent configurations or upstream
+credentials. URLs include the company's prefix so unrelated browser company
+selection cannot redirect the user to a different team's approval interface.
+
+Writes require a UUID `requestId`, unique per intended action. A durable receipt
+is reserved before dispatch, keyed by person, company, operation and request ID (with the originating grant recorded for audit). Matching
+retries, including after a new authorization grant, replay the recorded result; changed arguments are rejected. A concurrent
+or unconfirmed result is reported as `outcome: unknown`. Inspect the task and
+comments before another action; never retry with a new ID to force success.
+A known HTTP rejection is recorded and replayed as `outcome: rejected`.
+
+The REST bridge dispatches only paths constructed by the closed tool catalog,
+with a request-local verified actor. Existing handlers enforce all domain checks
+and own their transaction/scheduling semantics. Receipts do not turn existing
+asynchronous scheduling into an exactly-once execution guarantee. Creating a
+task is not proof that an agent started or finished it.
+
+## Hosted onboarding and release gates
+
+When `PAPERCLIP_CLOUD_API_ORIGIN` is present, consent links to the existing Cloud
+`/orgs/new` flow in a separate tab. Provisioning, mission/template selection,
+model credentials, execution capacity and spending remain owned by Cloud.
+Installing a plugin never provisions a company or starts paid agents.
+
+This repository implements the instance-side connection and vendor packages.
+The companion Cloud implementation supplies the stable public resource, an
+account-to-stack OAuth broker, explicit organization selection and a return from
+hosted organization creation. Its public connection screen resumes normal
+sign-in, lists authorized organizations, reports provisioning/sleeping states,
+and links to tenant setup for mission, templates, execution and spending.
+
+The Cloud broker forwards the original PKCE challenge to tenant OAuth, validates
+the resulting person, and wraps tenant credentials in encrypted tokens bound to
+client, workspace and resource. Every call rechecks current Cloud membership and
+verified routing; the tenant rechecks company permissions and revocation.
+Cloud stores request metadata and code hashes, not raw tenant tokens. Unknown
+mutation outcomes preserve the existing request-ID receipt contract.
+
+Deploy both sides before hosted use. Cloud's tenant front door forwards only
+exact discovery, OAuth protocol and MCP paths without minting human authority;
+consent and management retain normal browser entry. The Cloud broker remains
+opt-in and requires its own durable OAuth state and encryption key from the
+provider secret store. Installing these source packages does not deploy an
+endpoint, open signup, register a listing, or provision execution capacity.
+
+Before release, exercise actual ChatGPT/Codex and Claude connections against a
+staging HTTPS deployment, including client registration, consent, refresh,
+revocation, reconnect, task delegation and retrieval from another conversation.
+Prove scheduled execution on a controlled agent and the new-user Cloud return
+journey. Local OAuth interoperability has been verified with Codex CLI 0.153.4
+and Claude Code 2.1.245, using disposable Cloud/tenant fixtures. Protocol tests,
+CLI login and local package validation do not replace these release gates.
+
+External sessions acting as agents, task leases and third-party granted tools
+remain the second/third releases; do not add generic executors to this public
+catalog to implement them.
