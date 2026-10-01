@@ -8048,7 +8048,7 @@ describeEmbeddedPostgres("tool access service", () => {
     }
   });
 
-  it("activates allowed Drive write actions without approval defaults after a managed callback", async () => {
+  it("activates Drive write actions behind ask-first defaults after a managed callback", async () => {
     const company = await createCompany(db);
     const userId = `drive-write-member-${randomUUID()}`;
     await grantBoardUser(db, company.id, userId, [], "owner");
@@ -8148,8 +8148,9 @@ describeEmbeddedPostgres("tool access service", () => {
       const createEntry = callback.body.catalog.find(
         (entry: { toolName: string }) => entry.toolName === "create_file",
       );
-      await expect(
-        db
+      // The armed default: writes ask first, reads stay allowed.
+      const drivePolicies = JSON.stringify(
+        await db
           .select()
           .from(toolPolicies)
           .where(
@@ -8158,7 +8159,9 @@ describeEmbeddedPostgres("tool access service", () => {
               eq(toolPolicies.enabled, true),
             ),
           ),
-      ).resolves.toEqual([]);
+      );
+      expect(drivePolicies).toContain(createEntry.id);
+      expect(drivePolicies).not.toContain(searchEntry.id);
       await expect(
         db
           .select()
@@ -8273,12 +8276,20 @@ describeEmbeddedPostgres("tool access service", () => {
       ).resolves.toEqual([
         expect.objectContaining({ targetType: "agent", targetId: agent.id }),
       ]);
-      await expect(
-        db
-          .select()
-          .from(toolPolicies)
-          .where(eq(toolPolicies.companyId, company.id)),
-      ).resolves.toEqual([]);
+      // Reconnecting neither adds nor drops the ask-first defaults.
+      expect(
+        JSON.stringify(
+          await db
+            .select()
+            .from(toolPolicies)
+            .where(
+              and(
+                eq(toolPolicies.companyId, company.id),
+                eq(toolPolicies.enabled, true),
+              ),
+            ),
+        ),
+      ).toBe(drivePolicies);
     } finally {
       driveDefinition.ownershipAvailability = previousOwnershipAvailability;
     }
@@ -9495,8 +9506,9 @@ describeEmbeddedPostgres("tool access service", () => {
       const sendMessageEntry = completed.catalog.find(
         (entry) => entry.toolName === "send_message",
       )!;
-      await expect(
-        db
+      // The armed default: writes ask first, reads stay allowed.
+      const callbackPolicies = JSON.stringify(
+        await db
           .select()
           .from(toolPolicies)
           .where(
@@ -9505,7 +9517,9 @@ describeEmbeddedPostgres("tool access service", () => {
               eq(toolPolicies.enabled, true),
             ),
           ),
-      ).resolves.toEqual([]);
+      );
+      expect(callbackPolicies).toContain(sendMessageEntry.id);
+      expect(callbackPolicies).not.toContain(searchMessagesEntry.id);
       const callbackPolicy = toolAccessPolicyService(db);
       const decide = (
         entry: (typeof completed.catalog)[number],
@@ -9521,13 +9535,14 @@ describeEmbeddedPostgres("tool access service", () => {
             arguments: {},
           },
         });
-      for (const entry of [searchMessagesEntry, sendMessageEntry]) {
-        await expect(decide(entry)).resolves.toMatchObject(
-          host === "task"
-            ? { decision: "deny" }
-            : { decision: "allow", reasonCode: "allow_profile" },
-        );
-      }
+      await expect(decide(searchMessagesEntry)).resolves.toMatchObject(
+        host === "task"
+          ? { decision: "deny" }
+          : { decision: "allow", reasonCode: "allow_profile" },
+      );
+      await expect(decide(sendMessageEntry)).resolves.toMatchObject(
+        host === "task" ? { decision: "deny" } : { decision: "require_approval" },
+      );
       if (host === "task") {
         await expect(
           db
@@ -10115,9 +10130,31 @@ describeEmbeddedPostgres("tool access service", () => {
     );
     expect(state).toBeTruthy();
 
+    // The provider's redirect is a cross-site navigation: Paperclip commits a
+    // page at once (Railway's consent page otherwise replaces itself after ~2s)
+    // and leaves the state unconsumed for the same-origin repeat.
+    const interstitialRes = await request(app)
+      .get("/api/tools/oauth/callback")
+      .set("Accept", "text/html")
+      .set("Sec-Fetch-Site", "cross-site")
+      .set("Sec-Fetch-Mode", "navigate")
+      .query({ state, code: "notion-choice-code" });
+    expect(interstitialRes.status).toBe(200);
+    expect(interstitialRes.headers["cache-control"]).toBe("no-store");
+    expect(interstitialRes.text).toContain(
+      `<meta http-equiv="refresh" content="0;url=/api/tools/oauth/callback?state=${state}&amp;code=notion-choice-code">`,
+    );
+    const [pendingConnection] = await db
+      .select()
+      .from(toolConnections)
+      .where(eq(toolConnections.id, connectRes.body.connectionId));
+    expect(pendingConnection?.status).not.toBe("active");
+
     const callbackRes = await request(app)
       .get("/api/tools/oauth/callback")
       .set("Accept", "text/html")
+      .set("Sec-Fetch-Site", "same-origin")
+      .set("Sec-Fetch-Mode", "navigate")
       .query({ state, code: "notion-choice-code" });
 
     expect(callbackRes.status).toBe(303);
