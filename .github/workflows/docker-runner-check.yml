@@ -19,6 +19,10 @@ on:
         description: "With verify_source, run only the complete pnpm test:run suite (180-minute bound)"
         type: boolean
         default: false
+      source_e2e_support_only:
+        description: "Run only E2E support typecheck, complete unit suite and catalog on the exact reviewed coverage source"
+        type: boolean
+        default: false
       verify_runner:
         description: "Run the complete offline Runner verify command on GitHub-hosted Ubuntu without building an image"
         type: boolean
@@ -32,11 +36,11 @@ on:
         type: boolean
         default: false
       expected_source_sha:
-        description: "Require this immutable target commit (required for verify_runner or verify_source)"
+        description: "Require this immutable target commit (required for verify_runner, verify_source or source_e2e_support_only)"
         type: string
         required: false
       expected_resolved_lock_sha256:
-        description: "Require this reviewed resolved dependency lock (required for verify_runner or verify_source)"
+        description: "Require this reviewed resolved dependency lock (required for verify_runner, verify_source or source_e2e_support_only)"
         type: string
         required: false
       verify_public_install:
@@ -61,7 +65,7 @@ permissions: {}
 
 concurrency:
   # Publishing a newer image must not discard an earlier verification's evidence.
-  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.verify_pi_intel && 'pi-native-intel' || inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.source_root_tests_only && 'source-root-tests' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
+  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.verify_pi_intel && 'pi-native-intel' || inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.source_e2e_support_only && 'source-e2e-support' || inputs.source_root_tests_only && 'source-root-tests' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
   cancel-in-progress: true
 
 jobs:
@@ -113,10 +117,11 @@ jobs:
           VERIFY_RUNNER: ${{ inputs.verify_runner }}
           VERIFY_SOURCE: ${{ inputs.verify_source }}
           SOURCE_ROOT_TESTS_ONLY: ${{ inputs.source_root_tests_only }}
+          SOURCE_E2E_SUPPORT_ONLY: ${{ inputs.source_e2e_support_only }}
           IMAGE_MODE: ${{ inputs.publish_eval_image || inputs.verify_public_install || inputs.build_eval_viewer }}
           VERIFY_PI_INTEL: ${{ inputs.verify_pi_intel }}
           DIAGNOSE_AJV: ${{ inputs.diagnose_ajv_pack }}
-          OTHER_MODE: ${{ inputs.publish_eval_image || inputs.verify_source || inputs.verify_public_install || inputs.build_eval_viewer || inputs.verify_pi_intel }}
+          OTHER_MODE: ${{ inputs.publish_eval_image || inputs.verify_source || inputs.verify_public_install || inputs.build_eval_viewer || inputs.verify_pi_intel || inputs.source_e2e_support_only }}
         run: |
           set -euo pipefail
           test "$REPOSITORY" = paperclipai/paperclip
@@ -131,9 +136,20 @@ jobs:
           if [ "$SOURCE_ROOT_TESTS_ONLY" = true ]; then
             test "$VERIFY_SOURCE" = true
           fi
-          if [ "$VERIFY_RUNNER" = true ] || [ "$VERIFY_SOURCE" = true ]; then
+          if [ "$VERIFY_RUNNER" = true ] || [ "$VERIFY_SOURCE" = true ] || [ "$SOURCE_E2E_SUPPORT_ONLY" = true ]; then
             [[ "$EXPECTED_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
             [[ "$EXPECTED_LOCK_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          fi
+          if [ "$SOURCE_E2E_SUPPORT_ONLY" = true ]; then
+            test "$VERIFY_SOURCE" != true
+            test "$SOURCE_ROOT_TESTS_ONLY" != true
+            test "$VERIFY_RUNNER" != true
+            test "$VERIFY_PI_INTEL" != true
+            test "$DIAGNOSE_AJV" != true
+            test "$IMAGE_MODE" != true
+            test "$EXPECTED_SOURCE_SHA" = 5cd6d3d5237e3e15394fcc1c7e754c30a63c5169
+            test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
+            test "$(gh api "repos/$REPOSITORY" --jq '.visibility')" = public
           fi
           if [ "$VERIFY_SOURCE" = true ]; then
             test "$VERIFY_RUNNER" != true
@@ -296,11 +312,11 @@ jobs:
           retention-days: 14
 
   manual_source_verify:
-    name: Full source verification on GitHub-hosted Ubuntu
-    if: github.event_name == 'workflow_dispatch' && inputs.verify_source
+    name: ${{ inputs.source_e2e_support_only && 'Focused E2E support verification on GitHub-hosted Ubuntu' || 'Full source verification on GitHub-hosted Ubuntu' }}
+    if: github.event_name == 'workflow_dispatch' && (inputs.verify_source || inputs.source_e2e_support_only)
     needs: authorize_manual
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ inputs.source_root_tests_only && 200 || 295 }}
+    timeout-minutes: ${{ inputs.source_e2e_support_only && 45 || inputs.source_root_tests_only && 200 || 295 }}
     permissions:
       contents: read
     env:
@@ -319,6 +335,7 @@ jobs:
           SOURCE_SHA: ${{ needs.authorize_manual.outputs.target_sha }}
           EXPECTED_LOCK_SHA256: ${{ inputs.expected_resolved_lock_sha256 }}
           SOURCE_ROOT_TESTS_ONLY: ${{ inputs.source_root_tests_only }}
+          SOURCE_E2E_SUPPORT_ONLY: ${{ inputs.source_e2e_support_only }}
         run: |
           set -euo pipefail
           mkdir -p remote-source-verification
@@ -338,6 +355,16 @@ jobs:
             > remote-source-verification/commands.txt
           if [ "$SOURCE_ROOT_TESTS_ONLY" = true ]; then
             printf '%s\n' 'pnpm test:run' > remote-source-verification/commands.txt
+          fi
+          if [ "$SOURCE_E2E_SUPPORT_ONLY" = true ]; then
+            printf '%s  pnpm-lock.yaml\n' e11d69fa8702a906c293c1cb307c71df90d3b1f1617b3c23ebf17fa9a87fec79 | sha256sum --check --strict
+            git ls-tree -r -z HEAD > remote-source-verification/source-tree.zlist
+            git archive --format=tar HEAD | sha256sum > remote-source-verification/source-archive.sha256
+            printf '%s\n' \
+              'pnpm test:e2e:runner:typecheck' \
+              'pnpm test:e2e:runner:unit' \
+              'node cli/node_modules/tsx/dist/cli.mjs tests/runner-e2e/launch.ts --list' \
+              > remote-source-verification/commands.txt
           fi
           index=0
           while IFS= read -r _check; do
@@ -389,12 +416,15 @@ jobs:
             pnpm --filter @paperclipai/plugin-sdk ensure-build-deps \
             > remote-source-verification/test-build-deps.log 2>&1
       - name: Run every source check and retain each result
-        timeout-minutes: ${{ inputs.source_root_tests_only && 182 || 273 }}
+        timeout-minutes: ${{ inputs.source_e2e_support_only && 28 || inputs.source_root_tests_only && 182 || 273 }}
+        env:
+          SOURCE_E2E_SUPPORT_ONLY: ${{ inputs.source_e2e_support_only }}
         run: |
           set -uo pipefail
           status=0
           index=0
           progress_pid=
+          checks_started_at=$(date +%s)
           trap 'if [ -n "$progress_pid" ]; then kill "$progress_pid" 2>/dev/null || true; fi' EXIT
           while IFS= read -r check; do
             index=$((index + 1))
@@ -404,6 +434,12 @@ jobs:
             # alone exceed 85 minutes; ordinary CI distributes them across shards.
             check_timeout=15m
             if [ "$check" = 'pnpm test:run' ]; then check_timeout=180m; fi
+            remaining=900
+            if [ "$SOURCE_E2E_SUPPORT_ONLY" = true ]; then
+              # Leave job time for final auditing and complete evidence upload.
+              remaining=$((1380 - $(date +%s) + checks_started_at))
+              if [ "$remaining" -lt 900 ] && [ "$remaining" -gt 0 ]; then check_timeout="${remaining}s"; fi
+            fi
             date -u +%FT%TZ > "remote-source-verification/check-$index.started-at"
             started_at=$(date +%s)
             (
@@ -414,7 +450,12 @@ jobs:
             ) &
             progress_pid=$!
             check_status=0
-            timeout --verbose --signal=TERM --kill-after=15s "$check_timeout" bash -c "$check" > "remote-source-verification/check-$index.log" 2>&1 || check_status=$?
+            if [ "$remaining" -gt 0 ]; then
+              timeout --verbose --signal=TERM --kill-after=15s "$check_timeout" bash -c "$check" > "remote-source-verification/check-$index.log" 2>&1 || check_status=$?
+            else
+              check_status=124
+              printf 'Not launched: focused command budget exhausted.\n' > "remote-source-verification/check-$index.log"
+            fi
             kill "$progress_pid" 2>/dev/null || true
             wait "$progress_pid" 2>/dev/null || true
             progress_pid=
@@ -426,6 +467,26 @@ jobs:
             echo "Finished $check (exit $check_status)"
           done < remote-source-verification/commands.txt
           exit "$status"
+      - name: Audit focused source and lock closure even on check failure
+        if: always() && inputs.source_e2e_support_only
+        timeout-minutes: 2
+        env:
+          SOURCE_SHA: ${{ needs.authorize_manual.outputs.target_sha }}
+          EXPECTED_LOCK_SHA256: ${{ inputs.expected_resolved_lock_sha256 }}
+        run: |
+          set -uo pipefail
+          mkdir -p remote-source-verification
+          status=0
+          date -u +%FT%TZ > remote-source-verification/final-audit.started-at
+          git rev-parse HEAD > remote-source-verification/final-source.txt
+          test "$(cat remote-source-verification/final-source.txt)" = "$SOURCE_SHA" || status=1
+          git status --porcelain=v1 --untracked-files=no > remote-source-verification/final-source-status.txt
+          git diff -- . ':(exclude)pnpm-lock.yaml' > remote-source-verification/final-source.diff
+          git diff --quiet -- . ':(exclude)pnpm-lock.yaml' || status=1
+          printf '%s  pnpm-lock.yaml\n' "$EXPECTED_LOCK_SHA256" | sha256sum --check --strict > remote-source-verification/final-overlay-check.log 2>&1 || status=1
+          date -u +%FT%TZ > remote-source-verification/final-audit.finished-at
+          printf '%s\n' "$status" > remote-source-verification/final-audit.status
+          exit "$status"
       - name: Capture the final lock state even on resolution failure
         if: always()
         run: |
@@ -435,13 +496,37 @@ jobs:
             sha256sum pnpm-lock.yaml > remote-source-verification/final-lock.sha256
             git diff -- pnpm-lock.yaml > remote-source-verification/final-lock.diff
           fi
+      - name: Admit complete focused evidence within the storage bound
+        if: always() && inputs.source_e2e_support_only
+        id: source_e2e_evidence
+        timeout-minutes: 2
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib, json, os, pathlib
+          root = pathlib.Path('remote-source-verification')
+          files, size, limit = [], 0, 256 * 1024 * 1024
+          for path in sorted(root.rglob('*')):
+              if path.is_symlink(): raise RuntimeError('Evidence symlink is not allowed')
+              if path.is_dir(): continue
+              if not path.is_file(): raise RuntimeError('Nonregular evidence is not allowed')
+              size += path.stat().st_size
+              if size > limit: raise RuntimeError('Complete evidence exceeds 256 MiB bound')
+              digest = hashlib.sha256()
+              with path.open('rb') as source:
+                  for chunk in iter(lambda: source.read(1024 * 1024), b''): digest.update(chunk)
+              files.append({'path': str(path.relative_to(root)), 'bytes': path.stat().st_size, 'sha256': digest.hexdigest()})
+          inventory = json.dumps({'bytes': size, 'files': files}, indent=2) + '\n'
+          if not files or size + len(inventory.encode()) > limit: raise RuntimeError('Complete evidence exceeds bound or is absent')
+          (root / 'evidence-inventory.json').write_text(inventory)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output: output.write('admitted=true\n')
+          PYTHON
       - name: Retain source verification evidence even on failure
-        if: always()
+        if: always() && (!inputs.source_e2e_support_only || steps.source_e2e_evidence.outputs.admitted == 'true')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: ${{ inputs.source_root_tests_only && 'source-root-tests' || 'source-full-verification' }}-${{ github.run_id }}
+          name: ${{ inputs.source_e2e_support_only && 'source-e2e-support' || inputs.source_root_tests_only && 'source-root-tests' || 'source-full-verification' }}-${{ github.run_id }}
           path: remote-source-verification/
-          retention-days: 14
+          retention-days: ${{ inputs.source_e2e_support_only && 7 || 14 }}
 
   manual_ajv_pack_diagnostic:
     name: Pinned AJV directory-pack diagnostic on Linux
@@ -506,7 +591,7 @@ jobs:
 
   manual_image:
     name: Build and verify on EC2
-    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner && !inputs.verify_source && !inputs.diagnose_ajv_pack && !inputs.verify_pi_intel
+    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner && !inputs.verify_source && !inputs.diagnose_ajv_pack && !inputs.verify_pi_intel && !inputs.source_e2e_support_only
     needs: authorize_manual
     runs-on: runs-on/fleet=paperclip-public-pr-x64/env=public-ci
     timeout-minutes: 90
