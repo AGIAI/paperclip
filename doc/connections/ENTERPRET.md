@@ -20,14 +20,19 @@ primary connection method. Generate a Bearer token under Enterpret
 read-only today; the token path does not depend on Enterpret honouring a
 narrowed OAuth grant.
 
-**OAuth (`mcp-oauth`) stays in the definition as draft copy but is not
-connectable.** Live validation found that Enterpret grants `mcp:write` against
-an `mcp:read` request and omits `scope` from the token response (see
-[Scope decision](#scope-decision); tracked as CP-7154). The definition sets
-`ownershipAvailability.dcr: false`, so `getAvailableConnectionMethods` hides
-browser sign-in while the organization auth token path remains available.
-Prefer the organization auth token until Enterpret fixes scopes, then re-enable
-DCR.
+**Current product decision — 2026-10-01:** support both organization tokens
+and browser OAuth for the official **read-only Enterpret MCP** at
+`https://wisdom-api.enterpret.com/server/mcp`. The account holder reported a
+live conversation with Vivek confirming that Enterpret Agent's write MCP is a
+separate beta service with known bugs. That service is outside this connector's
+scope and will be reviewed separately when ready.
+
+Vivek committed to fixing OAuth scope behavior and reducing the token
+revocation cache window. This is a provider commitment relayed by the account
+holder, **not verified deployment evidence**. The earlier inference that an
+`mcp:write` scope name made this connector write-capable is withdrawn. Both
+methods are selectable on this draft branch; fresh OAuth authorization,
+refresh, real-agent allow/deny, and revocation checks remain release QA.
 
 Several live read and gateway checks passed on the OAuth method. The primary
 token path passed connection, catalog, safe read, refresh, and reconnect checks;
@@ -70,11 +75,9 @@ incremental. Treat the generic path as the baseline, not as a lesser fallback.
 - Endpoint: `https://wisdom-api.enterpret.com/server/mcp`. The bare and
   trailing-slash forms behave identically — `401`, no redirect.
 - Auth modes: **API key / organization auth token** (`mcp-api-key`, primary)
-  and **OAuth** (`mcp-oauth`, draft / not connectable). Both remain on one
-  catalog entry; only the token method is selectable.
+  and **OAuth** (`mcp-oauth`). Both methods are selectable on one catalog entry.
 - OAuth scopes: requested `mcp:read`. Advertised by the provider: `email`,
-  `mcp:read`, `mcp:write`. See [Scope decision](#scope-decision). The OAuth
-  over-grant keeps DCR ownership unavailable; it does not block the token path.
+  `mcp:read`, `mcp:write`. See [Scope decision](#scope-decision). Fresh OAuth authorization and refresh checks are pending provider deployment.
 - Key scope: the Enterpret auth token is generated per Enterpret organization
   and carries that organization's access. Enterpret does not document a
   restricted or read-only token variant. Public tools remain read-only.
@@ -140,83 +143,30 @@ current.
 
 ### Scope decision
 
-The `401` challenge advertises `scope="mcp:read mcp:write"`. The definition
-requests `mcp:read` alone.
+Paperclip requests `mcp:read` for the official read-only endpoint. The live
+2026-09-25 observation is preserved:
 
-Every documented tool is read-shaped, and nothing observed establishes a write
-need. The narrower request is the reviewed minimum the runbook asks for.
-
-`email` is deliberately not requested. A connector is a plane P2 resource
-credential and never a sign-in authenticator ([README](./README.md)).
-
-**The narrowing works on the request and is defeated at the grant.** Measured
-2026-09-25 against the live provider:
-
-```
-Paperclip requested       scope=mcp:read           (on the authorization URL)
-Enterpret token response  no `scope` parameter at all
-Enterpret introspection   openid email profile mcp:read mcp:write
+```text
+Paperclip authorization request  mcp:read
+Enterpret token response         no scope field
+Enterpret token introspection    openid email profile mcp:read mcp:write
 ```
 
-The token Paperclip holds is write-capable, and `email` — explicitly not
-requested — is in the grant too. The request-side narrowing is real and still
-worth having, but on its own it does **not** deliver a read-only token from this
-vendor. Do not cite `scope=mcp:read` on the authorization URL as evidence of a
-read-only grant.
+This proves a mismatch between requested and reported scopes. It does **not**
+prove the token can invoke write tools or authenticate to the separate beta
+Enterpret Agent MCP. No write tool was observed or invoked on this endpoint.
+The previous description of this as a verified write-capable connector was
+stronger than the evidence and is superseded by the 2026-10-01 product decision.
 
-How this was established, because the method matters for the next vendor:
+The account holder relayed Vivek's commitment to fix OAuth behavior. Retest a
+fresh authorization and refresh after the provider confirms deployment, record
+requested and reported scopes separately, and confirm the tool inventory still
+belongs to the official read-only service. Do not widen the scope request or
+add the beta write endpoint to this definition.
 
-- The access token is opaque, so it cannot be inspected. Enterpret advertises an
-  `introspection_endpoint`, and RFC 7662 defines its `scope` field as the scope
-  *of that token*.
-- Negative control: a bogus token presented with the same `client_id` returned
-  `{"active": false}` with **no** `scope` field. The scope is therefore bound to
-  the token, not echoed back from the client registration.
-
-Two consequences, one for this connector and one for the product:
-
-1. **This connector (OAuth method).** Requesting `mcp:read` cannot be described
-   to operators as obtaining a read-only OAuth grant. Until the vendor honours
-   the narrowing, the honest description for browser sign-in is "Paperclip asks
-   for read-only; Enterpret issues a token that can also write", and the
-   operator's containment control is Paperclip's own per-tool authorization, not
-   the OAuth scope. The organization auth-token method is unaffected and is the
-   primary release path.
-2. **The product.** Paperclip stored the grant as `["mcp:read"]`, because it
-   fell back to the request when the provider omitted `scope`. RFC 6749 §5.1
-   permits that omission only when the grant equals the request, so the fallback
-   is the specified reading — but it means a provider that over-grants and omits
-   `scope` makes Paperclip record a scope the provider never asserted. The
-   widening guard runs on the request only; there is no matching check on the
-   grant. Tracked separately as #14059 for OAuth honesty across connectors. It
-   is **not** a store-visibility gate for Enterpret's organization auth-token
-   path. Note the limit of that fix:
-   it labels the stored scope as inferred rather than asserted, and flags any
-   scope a provider asserts unasked. Against a provider that omits `scope`
-   entirely, as Enterpret does, the extra scopes remain unknown to Paperclip —
-   the fix removes a false assurance, it does not supply the missing one.
-   Discovering `mcp:write` required RFC 7662 introspection by hand, which
-   Paperclip does not do.
-
-Widening the request to `mcp:write` would change nothing about the token
-Enterpret issues. Paperclip will not promote **browser OAuth** as a verified
-read-only method while a fresh `mcp:read` request still produces an unreviewed
-`mcp:write` grant. That gate applies to the OAuth method only. The organization
-auth-token method is the primary, store-ready path: public tools are read-only,
-and landing the connector no longer waits on Enterpret fixing OAuth scopes. A
-connector that intentionally markets write-capable OAuth tokens would still
-require a separate product and security review.
-
-Questions for Enterpret before retesting:
-
-1. Can a dynamically registered public client receive a token without
-   `mcp:write` when its authorization request contains only `mcp:read`?
-2. If the granted scope differs from the request, can the token response
-   report the actual scope? What happens after refresh?
-3. How can an operator invalidate a specific OAuth grant or organization auth
-   token before expiry? Does issuing a new organization token retire an old one?
-4. Can `run_graph_query` execute a mutation? What server-side rule enforces its
-   advertised `readOnlyHint: true`?
+#14059 independently records whether scopes are provider-asserted or inferred
+from the request. That improves Paperclip's reporting; it cannot prove a
+provider's actual endpoint or capability boundary.
 
 ### Revocation gap
 
@@ -230,7 +180,7 @@ earlier one is untested.
 
 An `introspection_endpoint` *is* advertised, and Paperclip calls neither. That
 is worth separating: introspection tells you what a token can do, which is how
-the scope over-grant above was found, but it cannot take a token away.
+the scope mismatch above was found, but it cannot take a token away.
 
 Consequence: the OAuth **Revoke and reconnect** scenario cannot reach
 `verified` through a provider-side revocation call — confirmed by the live
@@ -254,8 +204,8 @@ can hand you. The two methods differ, and they must not be described as one:
   On 2026-09-30 it confirmed "Your token has been revoked," but that same
   token immediately connected again and completed `get_organization_details`
   through an isolated Paperclip instance. Provider-side invalidation therefore
-  **failed the immediate check**; whether it takes effect after a delay is
-  unknown. Do not treat the dashboard confirmation, generating another token,
+  **failed the immediate check**. Vivek later explained a 24-hour validity
+  cache and committed to reducing it; the new delay and deployment are unverified. Do not treat the dashboard confirmation, generating another token,
   or local disconnect as proof of revocation. Confirm the old token is denied.
 
 Any runbook or teardown that treats "disconnect in Paperclip" as provider-side
@@ -310,9 +260,9 @@ above also carried `mcp:write`.
 - docsUrl: `https://enterpret.support.site/article/enterpret-mcp-server`
 - Methods:
 
-| | `mcp-api-key` (primary) | `mcp-oauth` (draft) |
+| | `mcp-api-key` (primary) | `mcp-oauth` (OAuth) |
 | --- | --- | --- |
-| label | Use an auth token | Sign in with Enterpret (draft) |
+| label | Use an auth token | Sign in with Enterpret |
 | transport | `mcp_remote` | `mcp_remote` |
 | auth | `api_key` | `oauth` |
 | ownershipModes | `["customer"]` | `["dcr"]` |
@@ -321,7 +271,7 @@ above also carried `mcp:write`.
 | credentialFields | `authorization`, password, required, secret | — |
 | keyPlacement | header `Authorization`, prefix `Bearer ` | — |
 | riskTier | S3 | S3 |
-| release role | Primary / store-ready | Secondary until Enterpret fixes mcp:write over-grant |
+| release role | Primary / store-ready | Personal browser sign-in; fresh release QA pending |
 
   `ownershipModes` omits `customer` on the OAuth method on purpose: Enterpret
   documents no way for a customer to register their own OAuth application, and
@@ -347,14 +297,10 @@ above also carried `mcp:write`.
 - setupPrerequisite: not used; the account requirement is carried in method
   warnings.
 - redirectConstraints: `https-or-loopback-http` (unprobed).
-- availability: omitted (setup allowed for the token path). The previous
-  `{ available: false }` gate treated the OAuth `mcp:write` over-grant as a
-  blocker for the whole connector. That gate is removed: organization auth
-  token is the primary method and may connect. `"enterpret"` is also removed
-  from `APP_STORE_HIDDEN_SLUGS`, and `catalogVisible` is `true` in the brand
-  manifest, so the card can appear in Browse. OAuth stays in the definition
-  with draft labels, but `ownershipAvailability.dcr: false` keeps it out of
-  setup until Enterpret fixes scopes.
+- availability: omitted; organization-token and DCR OAuth methods are selectable
+  on this draft branch. Browse visibility is enabled. Release readiness still
+  requires the account-bound QA recorded below; selectable setup does not mean
+  the provider's pending fixes have been verified.
 
 ## Actions
 
@@ -392,13 +338,12 @@ Legacy aliases `get_schema` and `search_knowledge_graph` remain served for the
 lifetime of an existing session and are dropped when the host refreshes its tool
 list. `execute_cypher_query` is no longer served at all.
 
-`run_graph_query` is classified **write** in Paperclip (provider
-`readOnlyHint` ignored) and was held **denied** for the whole live run. Four things say it cannot be assumed read-only: it is the rename of
-`execute_cypher_query`, Cypher is not a read-only language, the advertised scope
-set includes `mcp:write` — and the live run proved the issued token actually
-carries `mcp:write`. Its own `readOnlyHint: true` annotation is the provider
-asserting the opposite, which is not evidence. Do not infer a permission from a
-tool name, and do not infer one from a self-reported annotation either.
+`run_graph_query` currently retains Paperclip's conservative **write** risk
+classification and Ask first default because it accepts general Cypher. This
+is a Paperclip policy safeguard, not evidence that Enterpret permits mutations.
+Vivek's read-only clarification applies to this official MCP. A scope name or
+tool name does not establish write access. A later risk-policy change can cite
+Enterpret's server-side read-only contract and safe live query proof.
 
 Denial was verified on the live connection: a granted agent calling
 `run_graph_query` through the gateway got **HTTP 403 `deny_default`**, and the
@@ -416,14 +361,13 @@ decision, and outcome without copying the payload.
 
 - User path (auth token, primary): gallery card → paste the token from
   **Settings → Enterpret MCP** → access defaults.
-- User path (OAuth, draft / not connectable): method remains in the definition
-  for when Enterpret fixes scopes, but DCR ownership is disabled so setup does
-  not offer browser sign-in today. Prefer the auth token.
+- User path (OAuth): gallery card → **Sign in with Enterpret** → browser
+  authorization using instance-local DCR → access defaults.
 - Configuration steps: none beyond credentials. There is no tenant field to
   fill.
 - Error states: expired auth token (check the dashboard expiry); an account with no
   access to the organization's feedback. A scope *rejection* turned out not to
-  be one of them — Enterpret accepts the `mcp:read` request and then over-grants
+  be one of them — Enterpret accepts the `mcp:read` request and reports broader scopes
   (see [Scope decision](#scope-decision)), so the flow completes and the failure
   is silent rather than visible in the wizard.
 - Also observed on the live run, and not an Enterpret problem: a headless agent
@@ -483,7 +427,7 @@ from this record.
 | Refresh and reconnect | Catalog refresh retained 8 actions. Reconnecting with the same valid token preserved the connection and catalog quarantine setting. An intentionally invalid replacement failed, then reconnecting with the valid token restored `active`/`ok`. This is **not** evidence that an expired token was renewed or that rotating a token revokes its predecessor. |
 | Activity | The safe call produced an explicit-grant decision and completed-call event. Connection activity remained queryable. |
 | Local disable and removal | Disabling the QA connection exposed zero actions in the agent access summary. Archiving it cleared the local secret, grant, install, and catalog entries. |
-| Provider-side revocation | After the Enterpret dashboard said the QA token was revoked, the same token immediately connected again and completed the same bounded organization read. Immediate provider-side invalidation **failed**. Whether this is an eventual-consistency delay remains unknown. The reconnection was a QA-only check and must be removed too. |
+| Provider-side revocation | After the Enterpret dashboard said the QA token was revoked, the same token immediately connected again and completed the same bounded organization read. Immediate provider-side invalidation **failed**. Vivek later explained invalidated tokens remain cached for 24 hours and committed to reducing the window. The new delay and deployment are unverified. Both QA connections were removed. |
 | Actual agent execution | Not exercised on this token path. An earlier OAuth QA run proved agent-session denies through the real gateway, but it does not substitute for a token-path agent process. |
 
 The board's `POST /tool-connections/:id/test-calls` is **not** an agent-policy
@@ -534,7 +478,7 @@ the token withheld:
 
 ```sh
 # RFC 7662. `scope` here is the scope OF THIS TOKEN, which is the only place
-# the over-grant is visible: the token is opaque and the token response omitted
+# the scope mismatch is visible: the token is opaque and the token response omitted
 # `scope` entirely.
 curl -s https://oauth.enterpret.com/introspect \
   -d "token=$ACCESS_TOKEN" -d "client_id=$DCR_CLIENT_ID"
@@ -569,10 +513,10 @@ never inferred from a self-hosted result.
 | Allowed execution | **pass** — `get_organization_details` resolved to the intended organization; one further bounded metadata read also succeeded | not run | not run |
 | Denied execution | **pass** — ungranted agent got HTTP 403 `deny_default` and saw 0 tools; `run_graph_query` stayed 403 for the *granted* agent | not run | not run |
 | Runtime delivery | **not proven** — gateway and policy were exercised by a real agent-authenticated session, but no agent process ever ran; see below | not run | not run |
-| Refresh and recovery | **not run** — refresh deliberately not exercised once the scope over-grant was found | not run | not run |
+| Refresh and recovery | **not run** — refresh deliberately not exercised once the scope mismatch was found | not run | not run |
 | Revoke and reconnect | **cannot pass** — no `revocation_endpoint` exists to call. Local disable verified: the connection was disabled and the gateway decision flips to deny | cannot pass — structural, not deployment-dependent | cannot pass |
 | Activity and secret handling | **pass** — invocations audited with correct decisions and actor attribution; tokens AES-256-GCM at rest with no plaintext in secret storage; API returns `secretId` references only | not run | not run |
-| **Granted scope (OAuth)** | **FAIL for OAuth method** — `mcp:write` granted against an `mcp:read` request. Keeps browser sign-in draft; does **not** block the organization auth-token release path | fails identically for OAuth — provider-side | fails identically for OAuth |
+| **Granted scope (OAuth)** | **scope mismatch observed** — reported scopes differed from the request; write capability was not established; fresh OAuth QA pending | fails identically for OAuth — provider-side | fails identically for OAuth |
 
 Self-hosted VPS and Cloud are `not run`, not "probably fine". Nothing in the
 same-machine column is carried across, and nothing here is carried over from the
@@ -624,9 +568,9 @@ Labels as defined in the connector skills' shared matrix.
 | Authenticated `tools/list` | `verified` — 8 tools on OAuth and the organization-token path | `untested` | `untested` |
 | Agent execution through the gateway | `verified` on OAuth — allowed and denied paths through an agent-authenticated session; token path used the board Test panel only | `untested` | `untested` |
 | Execution driven by an actual agent runtime | `untested` — the sessions above were minted against hand-inserted run rows; no agent process ran | `untested` | `untested` |
-| Granted scope matches the requested scope (OAuth) | **`failed` for OAuth** — `mcp:write` and `email` granted against an `mcp:read` request; OAuth method stays draft | `failed` for OAuth — provider-side | `failed` for OAuth — provider-side |
+| Granted scope matches the requested scope (OAuth) | `scope mismatch observed` — fresh OAuth QA pending; scope names do not establish write capability | `failed` for OAuth — provider-side | `failed` for OAuth — provider-side |
 | Provider-side revocation | OAuth has no advertised `revocation_endpoint`; the organization token's dashboard Revoke control failed an immediate denial check on 2026-09-30 | `untested` | `untested` |
-| Store visibility (token path) | `ready` — organization auth token is primary; OAuth over-grant no longer defers the card | `ready` — same definition | `ready` — same definition |
+| Store visibility (token path) | `ready` — organization auth token is primary; both auth methods target the official read-only MCP | `ready` — same definition | `ready` — same definition |
 
 ### What must happen before this is store-visible
 
@@ -651,7 +595,7 @@ mechanical store-visibility flip for the token path is also done on this branch
 4. ~~Catalog visibility for the token path.~~ **Done on this branch** —
    `availability` cleared, `"enterpret"` removed from `APP_STORE_HIDDEN_SLUGS`,
    `catalogVisible: true`, tests and Storybook updated so organization auth
-   token is primary. OAuth remains labelled draft in method copy.
+   token is primary. OAuth is now selectable for the official read-only MCP.
 5. **Partly done 2026-09-30:** `mcp-api-key` connected on an isolated
    self-hosted instance; authenticated catalog, bounded allowed read, refresh,
    failed replacement and valid reconnect, local disable, removal, and activity
@@ -663,23 +607,21 @@ mechanical store-visibility flip for the token path is also done on this branch
    the immediate invalidation check; old-token invalidation after rotation was
    not tested.
 
-**OAuth method (secondary / draft) — separate gate**
+**OAuth method — release validation**
 
-Browser sign-in stays draft until Enterpret fixes the scope over-grant. Do
-**not** treat the following as blockers for the organization auth-token
-connector:
+OAuth is supported for the official read-only MCP. Before calling the new
+revision release-ready:
 
-- Enterpret confirms a supported way to issue an OAuth token without
-  `mcp:write` for a client that requests only `mcp:read`, and reports the
-  actual grant when it differs from the request (CP-7154).
-- A fresh authorization and refresh are checked with token introspection.
-  Neither token may carry `mcp:write` or another unreviewed scope.
-- Paperclip scope-provenance work (#14059) lands. That PR is independent: it
-  marks a missing provider assertion as `requested_fallback` and does not
-  reveal Enterpret's hidden `mcp:write`. It improves honesty for every OAuth
-  connector; it is not required to ship the Enterpret token method.
-- Once scopes are fixed, drop the "(draft)" label / over-grant warnings on
-  `mcp-oauth` and re-run OAuth refresh/recovery scenarios.
+- Obtain confirmation that the OAuth fix is deployed, then test a fresh
+  authorization and refresh. Record requested and reported scopes without
+  treating scope names as proof of access to the beta Agent MCP.
+- Exercise a safe allowed read and a denied call through a real agent session;
+  the board Test endpoint does not prove agent authorization.
+- Obtain the deployed maximum revocation-cache delay and verify denial after
+  that window. Vivek explained the earlier result as a 24-hour cache and said
+  they are reducing it; the new window and deployment remain unverified.
+- Keep Enterpret Agent's beta write MCP outside this PR. Adding it later needs
+  separate endpoint, credential-boundary, action-risk, and write QA review.
 
-The OAuth over-grant is a **method-level** draft marker, not a catalog release
-blocker for the token-based connector.
+The provider commitment permits preparation of OAuth support; it does not
+replace live proof. Keep the PR draft until required checks and review pass.

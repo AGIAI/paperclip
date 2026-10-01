@@ -802,11 +802,10 @@ const apps = [
   // challenge (issuer https://oauth.enterpret.com, PKCE S256, registration
   // endpoint present, token_endpoint_auth_method "none"), so `defaults` ships
   // `serverUrl` only and the broker resolves endpoints at connect time.
-  // Primary method is the organization auth token (Bearer header). OAuth stays
-  // in the definition as a draft secondary method, but ownershipAvailability.dcr
-  // is false so getAvailableConnectionMethods hides it until Enterpret stops
-  // over-granting mcp:write for an mcp:read request (CP-7154). Public tools are
-  // read-only today; the over-grant is a scope bug, not a write tool surface.
+  // Both methods target the official read-only Enterpret MCP. Enterpret Agent's
+  // beta write MCP is a separate service and is outside this connector's scope.
+  // OAuth scope reporting and revocation-cache fixes await provider deployment
+  // and fresh live validation; scope names alone do not prove write capability.
   // The provider documents no customer-registered OAuth app, so OAuth stays
   // `dcr` only rather than `["customer", "dcr"]`.
   [
@@ -860,18 +859,17 @@ const apps = [
           scopesHint: ["mcp:read"],
         },
         "S3",
-        "Sign in to Enterpret in the browser. Each person connects with their own Enterpret account, and Enterpret attributes their queries individually. Prefer an organization auth token until Enterpret honors mcp:read without granting mcp:write.",
+        "Sign in to Enterpret in the browser to query the official read-only MCP. Each person connects with their own Enterpret account, and Enterpret attributes their queries individually.",
         {
-          label: "Sign in with Enterpret (draft)",
+          label: "Sign in with Enterpret",
           ownershipModes: ["dcr"],
           grantKinds: ["user"],
           whenToUse:
-            "Draft until Enterpret fixes OAuth scopes. Prefer an organization auth token. Use browser sign-in only when each person must run under their own Enterpret account.",
+            "Use browser sign-in when each person should query feedback under their own Enterpret account.",
           consoleLinks: {
             docs: "https://enterpret.support.site/article/enterpret-mcp-server",
           },
           warnings: [
-            "Draft: Enterpret currently grants mcp:write when Paperclip requests mcp:read. Prefer an organization auth token until Enterpret fixes this scope over-grant.",
             "You need an Enterpret account with access to your organization's feedback.",
             "This connection reads customer feedback, including verbatim quotes with speaker attribution.",
           ],
@@ -881,10 +879,6 @@ const apps = [
     {
       docsUrl: "https://enterpret.support.site/article/enterpret-mcp-server",
       redirectConstraints: "https-or-loopback-http",
-      // Organization auth token is the primary, store-ready path. Keep OAuth in
-      // the definition for when Enterpret fixes scopes, but disable DCR so the
-      // draft method is not connectable while the over-grant remains.
-      ownershipAvailability: { dcr: false },
     },
   ],
   [

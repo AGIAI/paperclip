@@ -21,12 +21,8 @@ import { ReconnectCard } from "@/pages/apps/app-detail/AdvancedPanel";
  * `AppDefinition`, so the copy, artwork and method labels below are the ones
  * the connector actually ships.
  *
- * Organization auth token is the primary, store-ready method. Browser OAuth
- * remains in the definition as draft copy but is not connectable
- * (`ownershipAvailability.dcr: false`) until Enterpret honors `mcp:read`
- * without granting `mcp:write`. Story 1 shows the current Browse card; story 2
- * is retained as a no-op mirror for review continuity. Later stories cover
- * OAuth (draft / future) and token recovery copy.
+ * Organization auth token is the primary method. Browser OAuth is supported for the same official read-only MCP. The separate
+ * beta Enterpret Agent write MCP is outside this connector's scope.
  *
  * No real sign-in, no real token, no provider call. Every value here is fake.
  */
@@ -233,7 +229,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "Design review for the Enterpret catalog connector using production components and the real generated definition. Organization auth token is primary; its account-bound QA is required before release. Browser OAuth remains draft and not connectable until Enterpret fixes the mcp:write over-grant. No real sign-in, token, or provider call.",
+          "Design review for the Enterpret catalog connector using production components and the real generated definition. Organization auth token is primary; its account-bound QA is required before release. Browser OAuth targets the same official read-only MCP; fresh live OAuth validation remains required. No real sign-in, token, or provider call.",
       },
     },
   },
@@ -258,17 +254,17 @@ export const MethodCopy: Story = {
 };
 
 export const OAuthEntry: Story = {
-  name: "4 — Browser sign-in (draft / gated), entry",
+  name: "4 — Browser sign-in (read-only MCP), entry",
   render: () => <OAuthStateHost phase="entry" />,
 };
 
 export const OAuthStarting: Story = {
-  name: "5 — Browser sign-in (draft / gated), in flight",
+  name: "5 — Browser sign-in (read-only MCP), in flight",
   render: () => <OAuthStateHost phase="starting" />,
 };
 
 export const OAuthError: Story = {
-  name: "6 — Browser sign-in (draft / gated), error",
+  name: "6 — Browser sign-in (read-only MCP), error",
   render: () => (
     <OAuthStateHost
       phase="error"

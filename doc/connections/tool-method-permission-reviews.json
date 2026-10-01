@@ -431,14 +431,14 @@
         "mcp:read"
       ],
       "capability": "read",
-      "supportedActions": "Query the organization's customer feedback and retrieve cited quotes. Browser OAuth remains gated because the provider also grants mcp:write for an mcp:read request.",
+      "supportedActions": "Query the organization's customer feedback and retrieve cited quotes. OAuth targets the same official read-only MCP; the separate beta Enterpret Agent write MCP is out of scope.",
       "evidence": [
         "https://helpcenter.enterpret.com/en/articles/12665166-enterpret-mcp-server",
         "https://github.com/paperclipai/paperclip/pull/13906"
       ],
       "reviewedAt": "2026-09-30",
-      "liveProof": "tool-list-verified-scope-overgrant",
-      "evidenceLimit": "OAuth scope over-grant is acknowledged by Enterpret and awaits its provider fix. Do not enable the OAuth method until a new token is verified without mcp:write."
+      "liveProof": "tool-list-verified-scope-mismatch",
+      "evidenceLimit": "On 2026-10-01 the account holder reported Vivek confirmed the official MCP is read-only and the Agent write MCP is separate. OAuth scope-reporting and token-revocation cache fixes are committed but deployment and fresh authorization/refresh remain unverified. Scope names alone do not establish write access."
     },
     {
       "app": "executor",

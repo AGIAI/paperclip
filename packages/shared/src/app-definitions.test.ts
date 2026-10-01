@@ -447,7 +447,7 @@ describe("AppDefinition catalog", () => {
     });
   });
 
-  it("ships Enterpret with organization auth token primary and OAuth gated unavailable", () => {
+  it("supports organization tokens and OAuth for the official read-only Enterpret MCP", () => {
     const app = CONNECTABLE_APP_DEFINITIONS.find(
       (entry) => entry.slug === "enterpret",
     )!;
@@ -455,9 +455,7 @@ describe("AppDefinition catalog", () => {
       getAppDefinitionForUrl("https://wisdom-api.enterpret.com/server/mcp")
         ?.slug,
     ).toBe("enterpret");
-    // Organization auth token is primary and store-ready. OAuth remains in the
-    // definition as draft copy, but ownershipAvailability.dcr=false keeps it
-    // out of getAvailableConnectionMethods until Enterpret honors mcp:read.
+    // Both methods target the official read-only MCP, not the beta Agent MCP.
     expect(app.methods.map((method) => method.key)).toEqual([
       "mcp-api-key",
       "mcp-oauth",
@@ -465,12 +463,13 @@ describe("AppDefinition catalog", () => {
     expect(app.redirectConstraints).toBe("https-or-loopback-http");
     expect(APP_STORE_HIDDEN_SLUGS.has("enterpret")).toBe(false);
     expect(app.availability?.available).not.toBe(false);
-    expect(app.ownershipAvailability).toMatchObject({ dcr: false });
+    expect(app.ownershipAvailability?.dcr).not.toBe(false);
     expect(getAvailableConnectionMethods(app).map((method) => method.key)).toEqual([
       "mcp-api-key",
+      "mcp-oauth",
     ]);
     expect(getAvailableConnectionMethod(app)?.key).toBe("mcp-api-key");
-    expect(getAvailableConnectionMethod(app, "mcp-oauth")).toBeNull();
+    expect(getAvailableConnectionMethod(app, "mcp-oauth")?.key).toBe("mcp-oauth");
     expect(app.methods[0]).toMatchObject({
       transport: "mcp_remote",
       auth: "api_key",
@@ -504,9 +503,9 @@ describe("AppDefinition catalog", () => {
     // complete endpoint pair would suppress discovery permanently.
     expect(app.methods[1].defaults?.authorizationEndpoint).toBeUndefined();
     expect(app.methods[1].defaults?.tokenEndpoint).toBeUndefined();
-    expect(app.methods[1].label).toMatch(/draft/i);
+    expect(app.methods[1].label).toBe("Sign in with Enterpret");
     expect(app.methods[1].warnings?.some((w) => /mcp:write/i.test(w))).toBe(
-      true,
+      false,
     );
     // The definition records the placement of a credential, never a value.
     const serialized = JSON.stringify(app);

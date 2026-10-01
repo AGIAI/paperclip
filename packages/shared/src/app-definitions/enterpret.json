@@ -63,16 +63,16 @@
       "ownershipModes": [
         "dcr"
       ],
-      "whenToUse": "Draft until Enterpret fixes OAuth scopes. Prefer an organization auth token. Use browser sign-in only when each person must run under their own Enterpret account.",
+      "whenToUse": "Use browser sign-in when each person should query feedback under their own Enterpret account.",
       "defaults": {
         "serverUrl": "https://wisdom-api.enterpret.com/server/mcp",
         "scopesHint": [
           "mcp:read"
         ]
       },
-      "guidanceMd": "Sign in to Enterpret in the browser. Each person connects with their own Enterpret account, and Enterpret attributes their queries individually. Prefer an organization auth token until Enterpret honors mcp:read without granting mcp:write.",
+      "guidanceMd": "Sign in to Enterpret in the browser to query the official read-only MCP. Each person connects with their own Enterpret account, and Enterpret attributes their queries individually.",
       "riskTier": "S3",
-      "label": "Sign in with Enterpret (draft)",
+      "label": "Sign in with Enterpret",
       "grantKinds": [
         "user"
       ],
@@ -80,15 +80,11 @@
         "docs": "https://enterpret.support.site/article/enterpret-mcp-server"
       },
       "warnings": [
-        "Draft: Enterpret currently grants mcp:write when Paperclip requests mcp:read. Prefer an organization auth token until Enterpret fixes this scope over-grant.",
         "You need an Enterpret account with access to your organization's feedback.",
         "This connection reads customer feedback, including verbatim quotes with speaker attribution."
       ]
     }
   ],
   "docsUrl": "https://enterpret.support.site/article/enterpret-mcp-server",
-  "redirectConstraints": "https-or-loopback-http",
-  "ownershipAvailability": {
-    "dcr": false
-  }
+  "redirectConstraints": "https-or-loopback-http"
 }
