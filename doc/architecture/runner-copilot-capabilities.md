@@ -1,12 +1,75 @@
 # Copilot 1.0.88 rich ACP capability audit
 
-Current source candidate (2026-09-30): **Copilot profile v9 is unqualified**.
+Current source candidate (2026-10-01): **Copilot profile v10 is unqualified**.
+Admitted Paperclip MCP calls append a bounded `paperclip.semantic_tool_receipt.v1`
+text block after the original result blocks. It records the operation, call-ID
+hash, canonical argument hash, result hash and transport outcome. An invocation
+callback bound to the active turn emits matching durable evidence. Native tool
+output alone is not authority: the projector requires that callback, exact
+arguments and result, and one native lifecycle. It rejects foreign, late,
+duplicate and conflicting receipts. Tool names and titles cannot grant a match.
+`returned` does not mean accepted; a returned `accepted:false` remains a rejection.
+
+The native reader accepts at most 256 KiB of the complete `rawOutput`, including
+its repeated text fields. Large and chunked bridge results still carry a receipt,
+but output above that bound has no native correlation evidence. Error results
+retain `isError`; deterministic tests cover errors, while the actual pinned
+ARM64 executable has only been checked with a small two-block success response
+and a local mock model. The captured pending/completed ACP frames are retained
+in `src/drivers/acpx/fixtures/copilot-1.0.88-mcp-receipt-captured.json`, with
+executable/capture hashes and sanitization recorded alongside. A regression
+replays those frames through the production projector with the separately
+owned receipt, plus missing-authority, altered-input/result, missing-content
+and duplicate-terminal negatives. This is not paid or cross-platform qualification.
+Native executable and distribution bytes are unchanged. The profile binds the
+receipt, bridge and projector sources plus the complete permission-policy import
+closure; retained v9 sessions are incompatible. Fresh packs and local/Daytona
+qualification remain required. Completion feedback also preserves an explicitly
+requested final-response format instead of overriding it with a summary request.
+
+Historical source candidate (2026-09-30): **Copilot profile v9 is unqualified**.
+
+Historical source candidate (2026-09-30): **Copilot profile v9 is unqualified**.
 Typed edit permission callbacks now put a single bounded workspace-relative target
 in the first canonical prompt (`Change file: path`). The same pure projector is
 used by both runner paths and the bounded diagnostic notice. It checks `path`,
 `fileName`, and every supplied location for agreement; it never displays file
 contents, diffs, commands, or arbitrary raw input. This is display context, not a
 filesystem authorization or symlink-containment guarantee.
+
+If the target is missing, outside the workspace, conflicting, malformed, too
+large, contains control/direction-format characters, or would be redacted, the
+request offers only the provider's one-time denial (when present) and cancellation.
+Forged once/session grants are rejected. Raw `kind: edit` is required; titles do
+not infer operation type. Non-edit permissions retain their existing behavior.
+Default/full-auto selection is unchanged: callbacks handled by Paperclip receive
+this check before any permission-mode fallback; no new automatic grant is added.
+The existing transport policy still applies before permission handling.
+
+The declaration binds the context projector, permission adapter, workspace path
+validator, semantic redaction policy, and generated tool-operation classifier.
+A recursive value-import test requires every non-builtin policy dependency to
+remain in this source hash set; type-only imports do not affect execution.
+The candidate v9 digest was refreshed before live admission to close this
+transitive policy binding. No retained v8 evidence is regraded. Copilot's
+native executable, patched inner distribution, and shared ACPX patch are unchanged;
+the sidecar assets and runner's embedded admission digest change. Older profile
+identities cannot be admitted as v9 or reused as matching warm sessions. Fresh
+runtime packs/images and exact-revision local/Daytona qualification are pending.
+Earlier denial cases establish their own no-write behavior; their generic
+`Create file` card did not prove complete decision context. Deterministic adapter,
+sidecar and direct-driver tests cover safe and denied context; no new live claim
+or native USD/accounting capability is implied.
+
+Historical v8 source candidate (2026-09-30): **Copilot profile v8 is unqualified**.
+Its native executable, owned mapper and native distribution closures are unchanged
+from v7, but its declaration binds the full shared ACPX patch. The patch's additive
+Cursor metadata persistence changes those bytes, so v8 has a distinct command
+digest and rejects v7 sessions. Copilot gains no usage or cost capability from this
+change. Retained v7 paid cases below remain exact historical evidence, not v8
+qualification. Fresh pack/image admission and the required exact-runtime local
+and Daytona qualification remain outstanding.
+
 
 If the target is missing, outside the workspace, conflicting, malformed, too
 large, contains control/direction-format characters, or would be redacted, the

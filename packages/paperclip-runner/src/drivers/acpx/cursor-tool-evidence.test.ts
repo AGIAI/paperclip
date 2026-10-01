@@ -1,6 +1,8 @@
 import { expect, it } from "vitest";
 import { validateAcpxRichEvent } from "./profile-extensions.js";
 import { createCursorToolEvidence } from "./cursor-tool-evidence.js";
+import { cursorToolIdentity } from "./cursor-plan-tool-identity.js";
+import { normalizeAcpxPermission } from "./acp-permission-adapter.js";
 
 const initial = { type: "tool_call", tag: "tool_call", toolCallId: "tool", kind: "execute", status: "pending", rawInput: { command: "printf 'secret-canary' > '/fixture/denied.txt'" } };
 const request = { raw: { sessionId: "session", toolCall: { toolCallId: "tool", kind: "execute" } } };
@@ -22,6 +24,52 @@ it("correlates omitted permission input with the original command and records on
 it("waits for the original iterator event when permission arrives before the queued tool", () => {
   const s = setup(); const delivered = s.p.permission(request, "request", ["decline"]); expect(s.events).toHaveLength(0);
   s.p.tool(initial); delivered!("reject_once"); expect(s.fields().map(x => x.stage)).toEqual(["tool", "permission_requested", "permission_delivered"]);
+});
+it.each(["tool-first", "permission-first"])("correlates opaque C0/C1/DEL native identities in %s order without changing native requests", order => {
+  const s = setup();
+  const rawIds = ["native\u0000tool", "native\u007ftool", "native\u0085tool", "tool/1", "x".repeat(161), "safe-tool-1"];
+  const expectedIds = rawIds.map(cursorToolIdentity);
+  expect(new Set(expectedIds).size).toBe(rawIds.length);
+  expect(expectedIds.slice(0, 3).every(value => /^acpx-tool-[a-f0-9]{64}$/.test(value))).toBe(true);
+  expect(expectedIds.at(-1)).toBe("safe-tool-1");
+  for (const [index, toolCallId] of rawIds.entries()) {
+    const native = { sessionId: "session", inferredKind: "execute" as const, raw: {
+      sessionId: "session", toolCall: { toolCallId, kind: "execute" },
+      options: [{ kind: "reject_once" as const, optionId: `native-denial-${index}`, name: "Deny" }],
+    } };
+    const before = structuredClone(native);
+    const normalized = normalizeAcpxPermission(native, { provider: "cursor" });
+    expect(normalized.toolCallId).toBe(expectedIds[index]);
+    if (order === "tool-first") s.p.tool({ ...initial, toolCallId });
+    const delivered = s.p.permission(native, `request-${index}`, normalized.choices.map(choice => choice.key));
+    if (order === "permission-first") {
+      expect(s.fields().filter(row => row.toolCallId === expectedIds[index])).toEqual([]);
+      s.p.tool({ ...initial, toolCallId });
+    }
+    const rows = () => s.fields().filter(row => row.toolCallId === expectedIds[index]);
+    expect(rows().map(row => row.stage)).toEqual(["tool", "permission_requested"]);
+    expect(rows()[1]).toMatchObject({ requestId: `request-${index}`, declineOffered: "true", operation: "execute", commandSha256: rows()[0].commandSha256 });
+    const response = normalized.resolve({ action: "decline" });
+    expect(response).toEqual({ outcome: "reject_once" });
+    delivered!(response.outcome);
+    expect(rows().map(row => row.stage)).toEqual(["tool", "permission_requested", "permission_delivered"]);
+    expect(native).toEqual(before);
+    expect(native.raw.toolCall.toolCallId).toBe(toolCallId);
+  }
+  expect(s.unavailable()).toBe(false);
+  expect(JSON.stringify(s.events)).not.toContain("secret-canary");
+  expect(JSON.stringify(s.events)).not.toContain("native\\u0000tool");
+});
+
+it("never associates different opaque native IDs through a matching title or command", () => {
+  const s = setup();
+  s.p.tool({ ...initial, toolCallId: "native\u0000tool", title: "same title" });
+  const delivered = s.p.permission({ raw: { sessionId: "session", toolCall: {
+    toolCallId: "native\u007ftool", title: "same title", kind: "execute", rawInput: initial.rawInput,
+  } } }, "request", ["decline"]);
+  delivered!("reject_once");
+  expect(s.fields().map(row => row.stage)).toEqual(["tool"]);
+  expect(s.fields()[0].toolCallId).toBe(cursorToolIdentity("native\u0000tool"));
 });
 it("cannot invent origin from permission or a terminal delta", () => {
   const s = setup(); const delivered = s.p.permission(request, "request", ["decline"]); delivered!("reject_once");
@@ -62,7 +110,7 @@ it("rejects commands missing from their original frame and bounded oversized inp
 });
 
 it.each([
-  ["invalid_permission_tool_identity", { raw: { ...request.raw, toolCall: { ...request.raw.toolCall, toolCallId: "private-argument\ncanary" } } }, "request"],
+  ["invalid_permission_tool_identity", { raw: { ...request.raw, toolCall: { ...request.raw.toolCall, toolCallId: "" } } }, "request"],
   ["invalid_request_identity", request, "private-request\ncanary"],
   ["invalid_permission_kind", { raw: { ...request.raw, toolCall: { ...request.raw.toolCall, kind: "private-kind\ncanary" } } }, "request"],
 ] as const)("distinguishes %s without retaining malformed provider input", (reason, nativeRequest, requestId) => {

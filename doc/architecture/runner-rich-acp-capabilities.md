@@ -1,5 +1,39 @@
 # Rich ACP integration and qualification report
 
+Current source checkpoint (2026-10-01): **Cursor v10, Copilot v10 and Pi v10
+remain unqualified**. Cursor now shares the bounded native tool-ID mapping
+across sidecar activity and permissions, then deterministically joins that key
+to the canonical opaque execution ID. Copilot correlates native tool results with
+authenticated, turn-bound semantic receipts instead of display names. Both new
+profile identities reject v9 warm sessions. Their native distribution bytes
+are unchanged; new sidecar assets, runner admission digests and fresh local/Daytona
+qualification are required. The [Cursor](runner-cursor-capabilities.md) and
+[Copilot](runner-copilot-capabilities.md) inventories describe the new contracts,
+the Copilot 256 KiB output limit and the credential-free native proof scope.
+Pi remains blocked on a verifiable OpenRouter spending cap. Prior paid failures
+and case-specific passes remain historical; none is regraded by these fixes.
+The controller now dispatches bridged requests in durable notification order.
+It consumes earlier activity before presenting a request, while a pending human
+answer does not prevent later activity from streaming. A genuine permission-first
+provider sequence remains permission-first.
+
+Historical source checkpoint (2026-09-30): **Cursor v9, Copilot v8 and Pi v10
+remain unqualified**. All three declarations bind shared ACPX patch SHA-256
+`bd5393058a218040d217fa85449d59a6f30507de54cd645bf0ef21422823f85e`.
+Cursor additionally binds newly materialized `paperclip-cursor-usage-v4` closures;
+Copilot and Pi native distribution bytes are unchanged. The new identities reject
+retained 7/7/9 sessions, plus Cursor v8 sessions. Claude, Codex and Grok profile declarations stay unchanged.
+The metadata is observation-only: native counters always remain partial, absent
+fields stay absent, and no token totals or dollar costs are inferred. A supported
+schema does not prove native counter aggregation semantics. No new paid pass,
+build, publication or production qualification is claimed for these identities.
+External eval definitions for 8/8/10 merged in [#35](https://github.com/paperclipai/paperclip-evals/pull/35)
+as `25303cf84953985b961b95f89aff0bdb864b2d65`, from head
+`b4ef1aa1296f8897714325d189e5a6f51dad9e01`: 136 deterministic tests,
+21 validated cells, passing CI and Apex 5/5. Models, pricing and graders are
+unchanged; this adds no paid proof. Those definitions remain the historical
+Cursor v8 checkpoint and require a separate reviewed Cursor v9 update.
+
 Current checkpoint (2026-09-30): **Cursor v9, Copilot v8 and Pi v10 remain unqualified.** The frozen runtime is `5c69b69ef2aeab8d8a367b25a8d894cc5308befa`; controller candidate is `a8df2064d68f40fbf4dec670c4b8478c4b1b1b3f`. All profiles bind shared ACPX patch SHA-256 `bd5393058a218040d217fa85449d59a6f30507de54cd645bf0ef21422823f85e`. No profile is promoted and no prior grade is changed.
 
 Current-profile protocol eval definitions merged in [paperclip-evals #36](https://github.com/paperclipai/paperclip-evals/pull/36) as `d987357461933baca0d4c10cc081f40e7eae5c1b`: 136 deterministic tests and 21 validated cells. These definitions do not supply paid qualification evidence.

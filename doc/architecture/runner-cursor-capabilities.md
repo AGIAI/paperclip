@@ -1,6 +1,34 @@
 # Cursor ACP capability inventory
 
-Current qualification checkpoint (2026-09-30): **Cursor profile v9 remains unqualified.** Draft PR #14724 at `3adee6f3fc652d5f5ee40b2061a16cea0c7341f5` passes Apex 5/5 and all 51 check runs plus one context; one unchanged-head failed-job retry is recorded. It fixes future eval-notice preservation but does not regrade the retained strict protocol-accounting failure or establish native USD. The verified fixed $25 account-cycle cap resets October 28 and applies to account on-demand fees, not per-cell costs. The separate 15-test helper proposal is unintegrated and grants no launch authority. Profile v9 binds usage-v4 and three native closures; counters remain partial with unverified semantics. Local and Daytona qualification remain pending.
+Current source candidate (2026-10-01): **Cursor profile v10 is unqualified**.
+Native tool IDs containing C0, C1 or DEL control characters now use the same
+bounded hash in permission details, passive evidence and the sidecar tool event.
+Blank permission IDs are rejected because ACPX drops blank tool-event identity.
+Other admitted IDs stay unchanged at this boundary; distinct IDs stay distinct.
+Canonical tool execution then applies the existing Rust opaque-ID conversion.
+For example, `tool/1` remains the native permission/evidence key while its
+execution ID is the deterministic opaque hash. Lifecycle readers explicitly
+convert between these keys; they must not compare them directly. Both-order
+bridge tests cover this distinction, including 161-character IDs. The original ACP request and option identity
+remain intact for response delivery. The declaration binds the identity helper,
+permission adapter and evidence projector. Retained v9 sessions are incompatible.
+The native distribution and its usage limits are unchanged. Deterministic tests
+cover both permission/tool arrival orders and an unresolved real ACPX callback;
+fresh local and Daytona qualification is still required.
+
+Historical source candidate (2026-09-30): **Cursor profile v9 is unqualified**.
+Its declaration binds `paperclip-cursor-usage-v4`, all three newly verified native
+closures and the shared ACPX patch that persists bounded diagnostic observations.
+Every native counter receipt remains partial with unverified semantics; it cannot
+satisfy token or dollar accounting. The exact model remains unpriced until a
+verified rate is available. Prior v7 source, builds and paid observations below
+are historical and do not qualify v9. Old v7/v8 sessions must be reopened.
+The v9 collector marks missing, invalid or reused child run ordinals as
+`child_run_attribution_unverified`. The offline proof executes the pinned
+vendor child creation and reuse methods on all three platforms; child counter
+aggregation semantics remain unverified.
+
+Historical qualification checkpoint (2026-09-30): **Cursor profile v9 remains unqualified.** Draft PR #14724 at `3adee6f3fc652d5f5ee40b2061a16cea0c7341f5` passes Apex 5/5 and all 51 check runs plus one context; one unchanged-head failed-job retry is recorded. It fixes future eval-notice preservation but does not regrade the retained strict protocol-accounting failure or establish native USD. The verified fixed $25 account-cycle cap resets October 28 and applies to account on-demand fees, not per-cell costs. The separate 15-test helper proposal is unintegrated and grants no launch authority. Profile v9 binds usage-v4 and three native closures; counters remain partial with unverified semantics. Local and Daytona qualification remain pending.
 
 A separate native-question attempt ended without a captured
 `cursor/ask_question` callback, and the model reported that AskQuestion was

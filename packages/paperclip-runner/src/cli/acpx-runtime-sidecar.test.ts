@@ -1,6 +1,8 @@
+import { appendSemanticToolReceipt } from "../drivers/semantic-tool-receipt.js";
 import { acpxUsageEstimateNotice, persistedAcpxTurnUsage, persistedCursorUsageNotice } from "../drivers/acpx/usage-accounting.js";
 import { stripTypeScriptTypes } from "node:module";
-import { cursorPlanToolIdentity } from "../drivers/acpx/cursor-plan-tool-identity.js";
+import { cursorPlanToolIdentity, cursorToolIdentity } from "../drivers/acpx/cursor-plan-tool-identity.js";
+import { createHash } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -96,6 +98,60 @@ describe("qualified ACPX runtime sidecar", () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it.each(["tool-first", "permission-first"])("uses the same Cursor identity in actual sidecar tool and pending permission paths: %s", async order => {
+    const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");
+    const identityStart = source.indexOf("function stableProviderIdentity(");
+    const stableIdentity = new Function("createHash", "cursorToolIdentity", `${stripTypeScriptTypes(source.slice(identityStart, source.indexOf("\nfunction canonicalJson", identityStart)))}; return stableProviderIdentity;`)(createHash, cursorToolIdentity);
+    const boundStart = source.indexOf("function boundRuntimeEventForNormalization(");
+    const bound = new Function("boundedOptionalText", "stableProviderIdentity", "safeAcpxLocations", "openParams", "safeOutput",
+      `${stripTypeScriptTypes(source.slice(boundStart, source.indexOf("\nfunction sanitizeRuntimeEvent", boundStart)))}; return boundRuntimeEventForNormalization;`)(
+      (value: unknown, fallback: string, max: number) => typeof value === "string" ? value.slice(0, max) : fallback,
+      stableIdentity, () => [], null, () => ({ output: null, outputBytes: 0, outputTruncated: false, outputDigest: null }),
+    );
+    const start = source.indexOf("  const { signal } = context;", source.indexOf("async function waitForPermission"));
+    const end = source.indexOf("\nasync function waitForInput", start);
+    const observedIds: string[] = [];
+    for (const rawId of ["native\u0000tool", "native\u007ftool", "native\u0085tool", "tool/1", "x".repeat(161), "safe-tool-1"]) {
+      const permissions = new Map<string, any>(); const emitted: any[] = []; const notices: any[] = [];
+      const evidence = createCursorToolEvidence({ sessionId: "session", turnId: "turn-1", workingDirectory: "/workspace", active: () => true,
+        emit: event => { validateAcpxRichEvent(event); notices.push(event); },
+      });
+      const wait = new Function("permissions", "normalizeAcpxPermission", "emit", `
+        let turnId="turn-1", requestSequence=0; const MAX_PENDING_INPUTS=512, openParams={agent:"cursor"};
+        const stableRequestId=()=>"request-1", requireAcpxResponseDelivery=c=>c.responseDelivery;
+        return async function(activeTurnId, agent, request, context, toolEvidence) { ${source.slice(start, end)}
+      `)(permissions, normalizeAcpxPermission, (_event: string, payload: unknown) => emitted.push(payload));
+      const origin = { type: "tool_call", tag: "tool_call", toolCallId: rawId, kind: "execute", status: "pending", rawInput: { command: "printf private-command" } };
+      // The sidecar emits this bounded runtime event; Rust applies the opaque
+      // execution-ID transform later. The direct TS driver normalizer is not
+      // this boundary and has a different fallback policy.
+      const activity = bound(origin);
+      const native = { sessionId: "session", inferredKind: "execute", raw: { sessionId: "session", toolCall: { toolCallId: rawId, kind: "execute" },
+        options: [{ kind: "reject_once", optionId: "native-original-denial", name: "Deny" }],
+      } };
+      const before = structuredClone(native);
+      const abort = new AbortController();
+      if (order === "tool-first") evidence.tool(origin);
+      const pending = wait("turn-1", "cursor", native, { signal: abort.signal, responseDelivery: Promise.resolve() }, evidence);
+      if (order === "permission-first") { expect(notices).toEqual([]); evidence.tool(origin); }
+      const projectedId = emitted[0].toolCallId;
+      observedIds.push(projectedId);
+      expect(projectedId).toBe(activity.toolCallId);
+      expect(notices.map(event => Object.fromEntries(event.payload.details.map((field: any) => [field.name, field.value])))).toEqual([
+        expect.objectContaining({ stage: "tool", toolCallId: projectedId }),
+        expect.objectContaining({ stage: "permission_requested", toolCallId: projectedId, requestId: "request-1" }),
+      ]);
+      const held = permissions.get("request-1")!;
+      const decision = held.normalized.resolve({ action: "decline" });
+      held.cleanup(); permissions.delete("request-1"); held.settle(decision);
+      await expect(pending).resolves.toEqual({ outcome: "reject_once" });
+      expect(native).toEqual(before);
+      expect(native.raw.toolCall.toolCallId).toBe(rawId);
+      expect(JSON.stringify([activity, emitted, notices])).not.toContain("private-command");
+    }
+    expect(new Set(observedIds).size).toBe(6);
+    expect(observedIds.at(-1)).toBe("safe-tool-1");
+  });
   it("emits the native plan tool identity from the actual sidecar input boundary", async () => {
     const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");
     const start = source.indexOf("async function waitForExtensionInput(");
@@ -123,10 +179,10 @@ describe("qualified ACPX runtime sidecar", () => {
     const emitted: unknown[] = [];
     const create = new Function("createCopilotToolEvidence", "createCursorToolEvidence", "validateAcpxRichEvent", "emit", "agent", `
       const activeHost = { identity: () => ({ backendSessionId: "session" }) };
-      let host = activeHost, turnId = "turn";
+      let host = activeHost, turnId = "turn", activeCopilotEvidence;
       const currentTurnId = "turn", openParams = { agent, workingDirectory: "/workspace" };
       const diagnostic = () => {};
-      ${source.slice(start, end).replaceAll("openParams!", "openParams")}
+      ${stripTypeScriptTypes(source.slice(start, end))}
       return { evidence: toolEvidence, retire: () => { turnId = null; } };
     `)(createCopilotToolEvidence, createCursorToolEvidence, validateAcpxRichEvent, (...args: unknown[]) => emitted.push(args), agent);
     const tool = { type: "tool_call", tag: "tool_call", toolCallId: "tool", kind: "execute", status: "pending", rawInput: { command: "printf private-value" } };
@@ -139,6 +195,25 @@ describe("qualified ACPX runtime sidecar", () => {
     create.retire();
     create.evidence?.tool({ ...tool, tag: "tool_call_update", status: "failed" });
     expect(emitted).toHaveLength(agent === "pi" ? 0 : 1);
+  });
+
+  it("captures the actual sidecar bridge's Copilot receipt callback before turn replacement", () => {
+    const source = readFileSync(new URL("./acpx-runtime-sidecar.ts", import.meta.url), "utf8");
+    const start = source.indexOf("        semanticTools: {");
+    const end = source.indexOf("        onGoalUpdate:", start);
+    expect(start).toBeGreaterThan(0); expect(end).toBeGreaterThan(start);
+    const events: unknown[] = [];
+    let active = true;
+    const evidence = createCopilotToolEvidence({ sessionId: "session-a", turnId: "turn-a", workingDirectory: "/workspace", active: () => active, emit: event => { validateAcpxRichEvent(event); events.push(event); } });
+    const create = new Function("params", "activeCopilotEvidence", "waitForTool", `return ({ ${source.slice(start, end)} }).semanticTools;`);
+    const options = create({ agent: "copilot", tools: [] }, evidence, () => undefined);
+    const captured = options.captureSemanticReceipt();
+    const receipt = appendSemanticToolReceipt({ tool: "get_task_context", callId: "1", arguments: {} }, { content: [{ type: "text", text: "{}" }] }).receipt;
+    captured(receipt);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ payload: { category: "paperclip_semantic_tool_receipt_v1", provenance: { sessionId: "session-a", turnId: "turn-a" } } });
+    active = false; captured(receipt); expect(events).toHaveLength(1);
+    for (const agent of ["cursor", "codex", "pi"]) expect(create({ agent, tools: [] }, evidence, () => undefined).captureSemanticReceipt).toBeUndefined();
   });
 
   it("passes only validated Pi native boundaries and history through the real text sanitizer", () => {

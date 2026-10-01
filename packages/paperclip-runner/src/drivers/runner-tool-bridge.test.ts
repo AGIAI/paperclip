@@ -1,3 +1,4 @@
+import { readNativeSemanticReceipt, type SemanticToolReceipt, type SemanticToolResult } from "./semantic-tool-receipt.js";
 import { connect } from "node:net";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -465,3 +466,44 @@ describe("runner semantic MCP bridge", () => {
 function tool(name: string): Readonly<Record<string, unknown>> {
   return { name, inputSchema: { type: "object" } };
 }
+
+describe("Copilot semantic receipt opt-in", () => {
+  it.each(["small", "chunked", "tagged", "error"])("preserves %s result encoding and captures scope before dispatch", async encoding => {
+    const receipts: SemanticToolReceipt[] = [];
+    let resolve!: (value: unknown) => void;
+    let reject!: (error: Error) => void;
+    const pending = new Promise((yes, no) => { resolve = yes; reject = no; });
+    const capture = vi.fn(() => (receipt: SemanticToolReceipt) => receipts.push(receipt));
+    const handler = vi.fn(() => pending);
+    const bridge = await startRunnerToolBridge({ tools: [tool("documents.read")], handler, captureSemanticReceipt: capture });
+    bridges.push(bridge);
+    const request = { id: 3, method: "tools/call", params: { name: "documents.read", arguments: {} } };
+    const response = rpc(bridge, request);
+    await vi.waitFor(() => expect(handler).toHaveBeenCalledTimes(1));
+    expect(capture).toHaveBeenCalledTimes(1);
+    if (encoding === "error") reject(new Error("bounded failure"));
+    else resolve(encoding === "chunked" ? "x".repeat(70000) : encoding === "tagged" ? { bigint: 1n } : { accepted: false });
+    const body = await (await response).json() as { result: SemanticToolResult };
+    expect(receipts).toHaveLength(1);
+    expect(readNativeSemanticReceipt({ contents: body.result.content })).toEqual(receipts[0]);
+    expect(body.result.isError === true).toBe(encoding === "error");
+    if (encoding === "small") expect(JSON.parse(body.result.content[0].text)).toEqual({ accepted: false });
+    if (encoding === "error") expect(body.result.content[0].text).toBe("bounded failure");
+    if (encoding === "chunked") expect(body.result.content.length).toBeGreaterThan(2);
+    const replay = await (await rpc(bridge, request)).json();
+    expect(replay).toEqual(body);
+    expect(receipts).toHaveLength(1);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+  it("does not receipt unauthorized/unadmitted calls or let diagnostic errors change results", async () => {
+    const capture = vi.fn(() => () => { throw new Error("diagnostic only"); });
+    const bridge = await startRunnerToolBridge({ tools: [tool("documents.read")], handler: async () => ({ ok: true }), captureSemanticReceipt: capture });
+    bridges.push(bridge);
+    await rpc(bridge, { id: 1, method: "tools/call", params: { name: "documents.read" } }, "wrong");
+    await rpc(bridge, { id: 2, method: "tools/call", params: { name: "unknown" } });
+    expect(capture).not.toHaveBeenCalled();
+    const body = await (await rpc(bridge, { id: 3, method: "tools/call", params: { name: "documents.read" } })).json() as { result: SemanticToolResult };
+    expect(JSON.parse(body.result.content[0].text)).toEqual({ ok: true });
+    expect(readNativeSemanticReceipt({ contents: body.result.content })).not.toBeNull();
+  });
+});
