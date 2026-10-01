@@ -1,6 +1,16 @@
 # Cursor ACP capability inventory
 
-Current source candidate (2026-09-30): **Cursor profile v9 is unqualified**.
+Current source candidate (2026-10-01): **Cursor profile v10 is unqualified**.
+Native tool IDs containing control characters now use the same bounded hash in
+tool activity, permission details and correlated evidence. Safe IDs stay unchanged;
+distinct native IDs stay distinct. The original ACP request and option identity
+remain intact for response delivery. The declaration binds the identity helper,
+permission adapter and evidence projector. Retained v9 sessions are incompatible.
+The native distribution and its usage limits are unchanged. Deterministic tests
+cover both permission/tool arrival orders and an unresolved real ACPX callback;
+fresh local and Daytona qualification is still required.
+
+Historical source candidate (2026-09-30): **Cursor profile v9 is unqualified**.
 Its declaration binds `paperclip-cursor-usage-v4`, all three newly verified native
 closures and the shared ACPX patch that persists bounded diagnostic observations.
 Every native counter receipt remains partial with unverified semantics; it cannot

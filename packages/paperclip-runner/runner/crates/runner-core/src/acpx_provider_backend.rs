@@ -215,7 +215,7 @@ impl AcpxProviderDescriptor {
                 "2026.09.26-dd393fe",
                 None,
                 None,
-                "sha256:a76ad26878a3b3328154901563cbda857e53583e4e01787f35a797992ef76162",
+                "sha256:e4ffecec5a7d43252f7f79cd681df582492b41a40dd33c1ad1a8354a178ccddb",
             ),
             "copilot" => (
                 self.model.as_str(),
@@ -223,7 +223,7 @@ impl AcpxProviderDescriptor {
                 "1.0.88",
                 None,
                 None,
-                "sha256:98936d763497bd6f0e5605f52831a344f456357de58c457e440e69a1a468a2f4",
+                "sha256:2d501724197e00564fb8cd8ce7b0f951c32fb6c1d3bfdde2dd0531171e3db266",
             ),
             "grok" => (
                 "grok-4.7",
@@ -2803,7 +2803,7 @@ mod tests {
                 "cursor",
                 "cursor-agent",
                 "2026.09.26-dd393fe",
-                "sha256:a76ad26878a3b3328154901563cbda857e53583e4e01787f35a797992ef76162",
+                "sha256:e4ffecec5a7d43252f7f79cd681df582492b41a40dd33c1ad1a8354a178ccddb",
                 None,
                 None,
                 "explicit-model",
@@ -2812,7 +2812,7 @@ mod tests {
                 "copilot",
                 "@github/copilot",
                 "1.0.88",
-                "sha256:98936d763497bd6f0e5605f52831a344f456357de58c457e440e69a1a468a2f4",
+                "sha256:2d501724197e00564fb8cd8ce7b0f951c32fb6c1d3bfdde2dd0531171e3db266",
                 None,
                 None,
                 "explicit-model",
@@ -2843,6 +2843,19 @@ mod tests {
             }
             let valid: AcpxProviderDescriptor = serde_json::from_value(value.clone()).unwrap();
             valid.validate(&context()).unwrap();
+            if matches!(agent, "cursor" | "copilot") {
+                let mut previous_v9 = value.clone();
+                previous_v9["commandDigest"] = json!(match agent {
+                    "cursor" =>
+                        "sha256:a76ad26878a3b3328154901563cbda857e53583e4e01787f35a797992ef76162",
+                    "copilot" =>
+                        "sha256:98936d763497bd6f0e5605f52831a344f456357de58c457e440e69a1a468a2f4",
+                    _ => unreachable!(),
+                });
+                let previous_v9: AcpxProviderDescriptor =
+                    serde_json::from_value(previous_v9).unwrap();
+                assert!(previous_v9.validate(&context()).is_err());
+            }
             if agent == "cursor" {
                 let mut previous_v8 = value.clone();
                 previous_v8["commandDigest"] = json!(

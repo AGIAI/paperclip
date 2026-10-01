@@ -1,6 +1,18 @@
 # Rich ACP integration and qualification report
 
-Current source checkpoint (2026-09-30): **Cursor v9, Copilot v8 and Pi v10
+Current source checkpoint (2026-10-01): **Cursor v10, Copilot v10 and Pi v10
+remain unqualified**. Cursor now shares the exact opaque native tool-ID mapping
+across activity and permissions. Copilot correlates native tool results with
+authenticated, turn-bound semantic receipts instead of display names. Both new
+profile identities reject v9 warm sessions. Their native distribution bytes
+are unchanged; new sidecar assets, runner admission digests and fresh local/Daytona
+qualification are required. The [Cursor](runner-cursor-capabilities.md) and
+[Copilot](runner-copilot-capabilities.md) inventories describe the new contracts,
+the Copilot 256 KiB output limit and the credential-free native proof scope.
+Pi remains blocked on a verifiable OpenRouter spending cap. Prior paid failures
+and case-specific passes remain historical; none is regraded by these fixes.
+
+Historical source checkpoint (2026-09-30): **Cursor v9, Copilot v8 and Pi v10
 remain unqualified**. All three declarations bind shared ACPX patch SHA-256
 `bd5393058a218040d217fa85449d59a6f30507de54cd645bf0ef21422823f85e`.
 Cursor additionally binds newly materialized `paperclip-cursor-usage-v4` closures;

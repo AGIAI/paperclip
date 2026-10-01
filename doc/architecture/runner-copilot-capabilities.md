@@ -1,6 +1,28 @@
 # Copilot 1.0.88 rich ACP capability audit
 
-Current source candidate (2026-09-30): **Copilot profile v9 is unqualified**.
+Current source candidate (2026-10-01): **Copilot profile v10 is unqualified**.
+Admitted Paperclip MCP calls append a bounded `paperclip.semantic_tool_receipt.v1`
+text block after the original result blocks. It records the operation, call-ID
+hash, canonical argument hash, result hash and transport outcome. An invocation
+callback bound to the active turn emits matching durable evidence. Native tool
+output alone is not authority: the projector requires that callback, exact
+arguments and result, and one native lifecycle. It rejects foreign, late,
+duplicate and conflicting receipts. Tool names and titles cannot grant a match.
+`returned` does not mean accepted; a returned `accepted:false` remains a rejection.
+
+The native reader accepts at most 256 KiB of the complete `rawOutput`, including
+its repeated text fields. Large and chunked bridge results still carry a receipt,
+but output above that bound has no native correlation evidence. Error results
+retain `isError`; deterministic tests cover errors, while the actual pinned
+ARM64 executable has only been checked with a small two-block success response
+and a local mock model. This is not paid or cross-platform qualification.
+Native executable and distribution bytes are unchanged. The profile binds the
+receipt, bridge and projector sources plus the complete permission-policy import
+closure; retained v9 sessions are incompatible. Fresh packs and local/Daytona
+qualification remain required. Completion feedback also preserves an explicitly
+requested final-response format instead of overriding it with a summary request.
+
+Historical source candidate (2026-09-30): **Copilot profile v9 is unqualified**.
 Typed edit permission callbacks now put a single bounded workspace-relative target
 in the first canonical prompt (`Change file: path`). The same pure projector is
 used by both runner paths and the bounded diagnostic notice. It checks `path`,
