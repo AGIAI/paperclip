@@ -1,7 +1,7 @@
 # Paperclip as the persistent team behind your assistant
 
 Date: 2026-09-30
-Status: First-release implementation across instance and Cloud; paid local acceptance verified; broad verification and hosted rollout remain open
+Status: First-release implementation in review; local paid acceptance verified across three models; deployment and hosted/store acceptance remain release gates
 
 ## 1. The thesis
 
@@ -143,14 +143,15 @@ Defaults: one public listing, hosted onboarding, first-party public tools, broad
 - [Claude authentication](https://claude.com/docs/connectors/building/authentication)
 
 
-## Implementation record (2026-09-30)
+## Initial implementation record (2026-09-30; historical)
 
 Paperclip worktree: `paperclip-public-mcp`, branch `codex/paperclip-public-mcp`.
 Cloud worktree: `paperclip-cloud-public-mcp`, branch `codex/public-mcp`.
 
-The first-release code is in these isolated branches. It is **not a completed
-production rollout or a fully green, PR-ready hand-off**. The checks and gates
-below distinguish implementation evidence from remaining release work.
+At this initial checkpoint, the first-release code was in isolated branches and
+broad verification had not passed. The failures below remain part of the history;
+the later PR qualification record supersedes this checkpoint for current checks.
+No production rollout has been performed.
 
 Implemented:
 
@@ -226,7 +227,7 @@ Verification:
   patched-dependency configuration mismatch). This establishes those three
   failures as baseline behavior; it does not clear the other broad-run results.
 
-Remaining first-release gates:
+Open gates at the initial checkpoint:
 
 1. Resolve the broad Paperclip verification failures above, finish all required
    test groups, and complete normal code/PR review. No PR has been opened.
@@ -301,7 +302,7 @@ as the explicit-only `public-mcp` suite. The maintained runbook is
   failures, retain model failures, and repeat the final model matrix to check
   that success is not a single lucky run.
 
-Final paid verification (2026-10-01): **42/42 cells passed** across two complete
+Initial paid qualification (2026-10-01): **42/42 cells passed** across two complete
 21-cell runs on identical source, without retries. GPT-5.4 Mini, Claude Haiku 4.5
 and Claude Sonnet 4.6 each passed all seven cases twice. All 42 packaged evidence
 sets passed the existing validator. Eval typecheck and 470 unit tests pass; the
@@ -315,3 +316,58 @@ The [dated results record](2026-10-01-public-mcp-paid-eval-results.md) includes
 source fingerprints, models, costs, reports, failure classifications and the
 remaining hosted/store and repository-wide verification gates. These local paid
 results do not close those release gates.
+
+
+## PR qualification and merge consequences (2026-10-01)
+
+[Core PR #14846](https://github.com/paperclipai/paperclip/pull/14846) contains the
+instance implementation, plugin packages and evals. The companion Cloud PR is
+tracked in the Cloud repository. Both use fresh worktrees and dedicated branches;
+neither has been merged or deployed by this work.
+
+After rebasing onto the current development baseline, the Core CI run at
+`fb7946a4b82d6010dfaa24cb2f81e8fef72fd779` passed all actual CI lanes, including
+server/workspace/serialized tests, all eight browser shards, typecheck and build.
+Subsequent review fixes repeat CI before handoff; each PR's Verification section
+and latest-commit checks are the current record. The initial local broad-run
+failures above are retained as historical evidence, not a claim that current CI
+is failing.
+
+Current local qualification:
+
+- Core production build, repository-wide typecheck, eval typecheck and all 881
+  eval-support tests pass. All 15 real OAuth/MCP tests and 10 OpenAPI checks pass.
+- Shared registration and pending-consent quotas are enforced in durable state.
+  Completed connections do not exhaust a shared client's pending quota. Tests
+  complete twelve connections for one client and exercise concurrent admission.
+- Cloud root tests pass: 2,074 passed and 63 opt-in tests skipped. Web tests pass:
+  769 tests in 93 files. Root/web typechecks, web build and smoke QA pass.
+- Seven opt-in durable PostgreSQL tests pass, including cleanup/admission races,
+  shared quotas, active-client retention and repeated completed connections.
+- The latest Core and Cloud code passes a real OAuth/broker/MCP SDK round trip:
+  initialize, list ten tools, call, refresh and revoke with person/company
+  attribution preserved.
+- A fresh paid complete matrix after rebase and review fixes passes 21/21, with
+  no retries and all evidence packages validated. This follows two earlier
+  21/21 campaigns. The final pending-consent correction has dedicated protocol
+  tests and a 3/3 paid delegation/retrieval regression, one on each model, with
+  no retries and all evidence validated. See the dated results record for the
+  exact source fingerprints and costs.
+
+This is a usable opt-in first release for existing teams. Applying Core updates
+adds migrations 0294 and 0295 plus disabled MCP code. An operator must enable
+`PAPERCLIP_PUBLIC_MCP_ENABLED`, configure `PAPERCLIP_PUBLIC_URL`, and expose the
+authenticated instance over HTTPS. A team member can then connect Codex or Claude
+Code directly, consent to a company, review work, delegate tasks as themselves,
+and retrieve results later. [The runbook](../public-mcp.md) includes commands.
+The shared production Paperclip skill also gains generic document-creation and
+read-back guidance.
+
+Hosted use additionally requires Cloud migration 0054, a secret-store encryption
+key, the Cloud feature flag, and a compatible tenant release/fleet rollout.
+Signup eligibility, execution credentials and spending setup remain explicit.
+Merging does not create a company, launch paid agents, expose a live public
+endpoint, or publish a store listing. Actual hosted newcomer provisioning,
+staging HTTPS application connections and public store installation remain
+release gates. Agent impersonation/external task claims and third-party tool
+access remain releases two and three.

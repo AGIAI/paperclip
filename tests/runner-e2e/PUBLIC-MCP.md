@@ -27,7 +27,7 @@ and its CLI worker. Start with Mini and Haiku. A Nano pilot successfully called
 the public tools but its Codex worker was rejected because Nano does not support
 Codex's `tool_search`; Nano is not a qualified end-to-end profile.
 
-Each case allows one team run, up to 16 external requests per conversation,
+Each case allows one team run, up to 16 external requests across all conversations,
 2,500 output tokens per request, a three-minute conversation deadline, twelve
 minutes per case and a $2 estimated external-assistant ceiling per cell. The
 worker has its usual timeout and Claude turn limit. These are execution bounds,
@@ -104,7 +104,9 @@ boundaries retain their focused protocol tests; paid success does not replace th
 
 ## Recorded local acceptance
 
-On 2026-10-01, two complete runs on identical source passed **42/42 cells**
-without retries: seven cases twice on Mini, Haiku and Sonnet. All packaged
-evidence validated. See the [dated results and retained failure history](../../doc/plans/2026-10-01-public-mcp-paid-eval-results.md)
+On 2026-10-01, two initial complete runs on identical source passed **42/42 cells**
+without retries. After rebasing and review fixes, a fresh full matrix passed
+**21/21 cells**, again without retries: all seven cases on Mini, Haiku and Sonnet.
+All packaged evidence validated. The results record distinguishes each measured
+source version and subsequent focused regression checks. See the [dated results and retained failure history](../../doc/plans/2026-10-01-public-mcp-paid-eval-results.md)
 for source hashes, costs, reports and limits.

@@ -2,13 +2,13 @@
 
 Date: 2026-10-01
 
-Final selected campaigns: **42/42 cells passed**. All 42 selected evidence packages passed the existing report validator. These are real paid local Product E2E runs with browser authentication/consent, OAuth, MCP, an external assistant API, scheduling, and a CLI worker.
+Latest complete matrix: **21/21 cells passed**, without retries, after rebasing and PR fixes. All 21 evidence packages passed the existing report validator. A final focused delegation/retrieval regression then passed **3/3** on the pending-consent correction, again without retries and with all evidence validated. Earlier qualification also passed **42/42** across two complete campaigns. These measurements have separate source fingerprints below. They are real paid local Product E2E runs with browser authentication/consent, OAuth, MCP, an external assistant API, scheduling, and a CLI worker.
 
-| Model | final-b-20261001 | final-c-20261001 |
-| --- | --- | --- |
-| `gpt-5.4-mini` | 7/7 | 7/7 |
-| `claude-haiku-4-5-20251001` | 7/7 | 7/7 |
-| `claude-sonnet-4-6` | 7/7 | 7/7 |
+| Model | final-b-20261001 | final-c-20261001 | pr-final-20261001 |
+| --- | --- | --- | --- |
+| `gpt-5.4-mini` | 7/7 | 7/7 | 7/7 |
+| `claude-haiku-4-5-20251001` | 7/7 | 7/7 | 7/7 |
+| `claude-sonnet-4-6` | 7/7 | 7/7 | 7/7 |
 
 GPT-5.4 Mini resolved to `gpt-5.4-mini-2026-03-17` in external API responses. Requested and observed model IDs are retained separately. The worker also must report metered usage for the configured model.
 
@@ -28,10 +28,14 @@ The oracle reads durable state through public APIs. It checks document contents/
 
 ## Retained reports
 
+- [public-mcp-pr-final-regression-20261001](../../tests/runner-e2e/results/public-mcp-pr-final-regression-20261001/report/index.html): 3/3 delegation/retrieval cells, one on each model, after the final pending-consent quota correction. [Source manifest](../../tests/runner-e2e/results/public-mcp-pr-final-regression-20261001/source-files.json).
+
+- [public-mcp-pr-final-20261001](../../tests/runner-e2e/results/public-mcp-pr-final-20261001/report/index.html): 21/21 after rebasing and review fixes. [Source manifest](../../tests/runner-e2e/results/public-mcp-pr-final-20261001/source-files.json).
+
 - [public-mcp-final-b-20261001](../../tests/runner-e2e/results/public-mcp-final-b-20261001/report/index.html): 21/21, with screenshots, checks, tool outcomes, cost coverage and cleanup. [Source manifest](../../tests/runner-e2e/results/public-mcp-final-b-20261001/source-files.json).
 - [public-mcp-final-c-20261001](../../tests/runner-e2e/results/public-mcp-final-c-20261001/report/index.html): 21/21, with screenshots, checks, tool outcomes, cost coverage and cleanup. [Source manifest](../../tests/runner-e2e/results/public-mcp-final-c-20261001/source-files.json).
 
-These campaigns contain 42 retained attempts for 42 cells and completed without retries. Earlier failed attempts remain visible in the history below; selecting a later successful attempt never deletes the earlier measurement. Reports are retained locally in this managed worktree and have not been published.
+These three complete campaigns contain 63 retained attempts for 63 cells and completed without retries. Earlier failed attempts remain visible in the history below; selecting a later successful attempt never deletes the earlier measurement. Reports are retained locally in this managed worktree and have not been published.
 
 ## What the iterations found
 
@@ -45,34 +49,46 @@ These campaigns contain 42 retained attempts for 42 cells and completed without 
 | Haiku/Sonnet paused cases, matrix E | Recovery legitimately moved waiting tasks from `todo` to `blocked`. Both are accepted only with the correct assignee, paused agent and zero runs; queued state is now retained explicitly. |
 | Mini document, final A | The worker attempted POST where document creation requires PUT, then saved a comment instead. Clarified generic document creation and read-back in the production Paperclip skill. The missing-document failure remains a failure. |
 | Haiku UUID, final A | A pre-execution schema rejection was repaired with a valid UUID, leaving one task/run. The oracle now permits that repair, while requiring stable identity after execution may have begun. |
+| Post-rebase smoke | The secret guard caught an OAuth callback query in a browser navigation diagnostic and blocked evidence output. Diagnostic URLs now omit query, fragment and userinfo; the raw-body credential guard remains strict. The subsequent smoke passed. |
+| PR qualification startup failures | Stale, detached PostgreSQL shared-memory segments exhausted the macOS host limit. The incomplete campaigns are retained; only unused segments with no live creator were reclaimed. A fresh complete campaign then passed all 21 cells. |
+| Review request-budget finding | Enforced the 16-request external-assistant cap across every conversation in the cell. Unit calibration and the fresh full matrix pass with the shared cap. |
 
 The earlier full matrices retain their original grades: [C: 20/21](../../tests/runner-e2e/results/public-mcp-matrix-c-20261001/report/index.html), [D: 20/21](../../tests/runner-e2e/results/public-mcp-matrix-d-20261001/report/index.html), [E: 19/21](../../tests/runner-e2e/results/public-mcp-matrix-e-20261001/report/index.html), and [final A: 19/21](../../tests/runner-e2e/results/public-mcp-final-a-20261001/report/index.html). Infrastructure failures also remain recorded, including embedded-Postgres startup limits, a host sleep interruption, and an Anthropic HTTP 529 retried by the existing launcher.
 
 ## Provenance and validation
 
+- `public-mcp-pr-final-regression-20261001`: base `d17bdce7a9b25d67d4aaecf92acf0743c7396108`, worktree SHA-256 `50cb81541ff67ff40e02346eff7765e1cf07ec101243b718bc83412ffc35ddc6`; suite definition `df7d686d55f28e5eb13e9c023c5858e28c24a4bbe82ca38c6c3facf23ac4a026`. Three attempts, three passing cells and three validated packages.
+
+- `public-mcp-pr-final-20261001`: base `fb7946a4b82d6010dfaa24cb2f81e8fef72fd779`, worktree SHA-256 `50cb81541ff67ff40e02346eff7765e1cf07ec101243b718bc83412ffc35ddc6`; suite definition `df7d686d55f28e5eb13e9c023c5858e28c24a4bbe82ca38c6c3facf23ac4a026`.
+
 - `public-mcp-final-b-20261001`: base `c65fc9e3c81c41aafe421aa90a00514b84343285`, worktree SHA-256 `0e8766437ac1841f0b59971faf2c7c6bd45c03f2aba31dc19310cf4796768a01`; suite definition `804a7f8fa96a997898f0ae9522c17257affa794c102bb32c66803a840813195b`.
 - `public-mcp-final-c-20261001`: base `c65fc9e3c81c41aafe421aa90a00514b84343285`, worktree SHA-256 `0e8766437ac1841f0b59971faf2c7c6bd45c03f2aba31dc19310cf4796768a01`; suite definition `804a7f8fa96a997898f0ae9522c17257affa794c102bb32c66803a840813195b`.
 - Grader: `public-mcp-durable-state-v8`. Catalog metadata fingerprints the shared plugin workflows, production worker skill and fixture instructions. Each attempt records source SHA/ref, selected cell, provider/model, timing, usage and cleanup.
 - The live harness used Node 24.21.0, isolated authenticated servers and disposable local databases. Claude fixtures pin CLI 2.1.277. Credentials are supplied through the existing ignored eval environment file and encrypted normal API bindings.
-- Eval typecheck and all 470 unit tests in 38 files pass. Positive, plausible-wrong and missing-evidence calibrations cover the new oracles.
-- Focused real MCP boundary tests pass (11 tests); focused Cloud broker checks pass (8 tests). Those cover protocol authorization boundaries separately from paid model behavior.
+- Eval typecheck and all 881 current unit tests in 63 files pass. Positive, plausible-wrong and missing-evidence calibrations cover the new oracles.
+- The latest real MCP boundary tests pass (15 tests), including twelve completed connections through a shared client. OpenAPI route coverage passes (10 tests). Cloud root tests pass (2,074 passed, 63 skipped), web tests pass (769), and all seven opt-in durable PostgreSQL tests pass. These cover protocol and admission boundaries separately from paid model behavior.
+- The final Core and Cloud code also passes a real tenant OAuth → Cloud broker → MCP SDK initialize/list/call round trip, then refresh and revocation; all ten tools and person/company attribution are verified. This is a local disposable fixture, not a production deployment.
 - Automatic consent traces/video/screenshots are disabled; explicit captures contain fixture task pages. Tool evidence and visible answers are retained, while the external assistant's hidden reasoning is omitted. The existing secret/evidence validator passed all final packages.
 
-Verification logs: [eval typecheck](../../tests/runner-e2e/results/public-mcp-verification-20261001/eval-typecheck.log), [470 unit tests](../../tests/runner-e2e/results/public-mcp-verification-20261001/eval-unit.log), [MCP boundaries](../../tests/runner-e2e/results/public-mcp-verification-20261001/mcp-boundary.log), [Cloud broker](../../tests/runner-e2e/results/public-mcp-verification-20261001/cloud-broker.log).
+Current verification logs: [Core build](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/core-build.log), [Core typecheck](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/core-typecheck.log), [881 eval-support tests](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/eval-unit.log), [15 MCP boundary tests](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/mcp-boundary.log), [Cloud root tests](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/cloud-tests.log), [seven PostgreSQL tests](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/cloud-postgres.log), and [real broker/tenant MCP SDK](../../tests/runner-e2e/results/public-mcp-pr-verification-20261001/cloud-tenant-mcp-sdk.log).
 
-The source manifests describe the measured working tree. Subsequent source-tree edits only record these results in documentation; the evaluated code and skills are unchanged.
+Initial verification logs (historical): [eval typecheck](../../tests/runner-e2e/results/public-mcp-verification-20261001/eval-typecheck.log), [470 unit tests](../../tests/runner-e2e/results/public-mcp-verification-20261001/eval-unit.log), [MCP boundaries](../../tests/runner-e2e/results/public-mcp-verification-20261001/mcp-boundary.log), [Cloud broker](../../tests/runner-e2e/results/public-mcp-verification-20261001/cloud-broker.log).
+
+The source manifests describe each measured working tree. The latest full matrix precedes the final pending-consent quota correction; that correction has dedicated shared-client protocol tests and a separate paid delegation regression. Historical runs keep their original grades and source fingerprints.
 
 ## Recorded cost
 
-- Final selected campaigns: **$2.3864** external-assistant list-price estimate across 214 observed API responses; **$3.3786** worker provider-reported charges.
-- All retained development attempts (160): **$7.5575** external-assistant estimate and **$10.6320** reported worker charges.
+- Initial two selected campaigns: **$2.3864** external-assistant list-price estimate across 214 observed API responses; **$3.3786** worker provider-reported charges.
+- Latest complete matrix: **$1.2059** external-assistant estimate across 108 observed responses and **$1.7534** worker provider-reported charges.
+- Final focused regression: **$0.2751** external-assistant estimate across 25 observed responses and **$0.3273** reported worker charges.
+- All 200 retained development attempts total **$9.0859** external-assistant estimates and **$12.7127** reported worker charges.
 - These are partial cost observations, not an invoice total. OpenAI workers report tokens but no dollar amount here; failed/interrupted requests may have unknown usage. Local compute is unmetered. Missing prices are not treated as free. Rates, pricing dates/URLs and token categories are retained with each assistant measurement.
 
 ## Scope and remaining gates
 
 This proves the selected local public MCP workflows across three models. It does not prove hosted newcomer provisioning, store installation, desktop chat UI interoperability, or production deployment. Cloud/instance migrations, feature opt-ins, broker secrets, stable HTTPS packaging and hosted acceptance remain release gates. External-agent leases and third-party tool gateways remain later releases.
 
-Repository-wide tests are not fully green; the implementation plan records baseline-reproduced failures and other broad-run results that still require triage. Passing this paid suite does not erase those results. See [the implementation plan](2026-09-30-paperclip-public-mcp-and-plugins.md).
+The [implementation plan](2026-09-30-paperclip-public-mcp-and-plugins.md) retains initial broad-run failures and the current PR qualification record. Paid success does not substitute for repository checks, review, or hosted acceptance.
 
 ## Reproduce
 
