@@ -51,7 +51,15 @@ describe("native status authority", () => {
     expect(arbitrate({ assessment: passive, cursorPlanWaitAuthorized: true })).toMatchObject({
       toStatus: "in_progress", reasonCode: "native_plan_accepted_waiting_for_continuation", effects: [],
     });
-    expect(arbitrate({ assessment: passive })).toMatchObject({ reasonCode: "live_continuation_registered" });
+    expect(arbitrate({ assessment: passive })).toMatchObject({
+      toStatus: "in_progress",
+      reasonCode: "completion_evidence_incomplete",
+      effects: [expect.objectContaining({
+        kind: "enqueue_continuation",
+        continuationKind: "same_agent",
+        idempotencyKey: "native-completion-incomplete",
+      })],
+    });
     expect(arbitrate({ assessment: passive, cursorPlanWaitAuthorized: true, terminalState: "failed" }).reasonCode).not.toBe("native_plan_accepted_waiting_for_continuation");
     expect(arbitrate({ assessment: passive, cursorPlanWaitAuthorized: true, priorIssueStatus: "cancelled" }).toStatus).toBe("cancelled");
     expect(arbitrate({ assessment: passive, cursorPlanWaitAuthorized: true, governanceGate: { kind: "interaction", id: "pending" } }).toStatus).toBe("in_review");

@@ -12,7 +12,6 @@ import { eq } from "drizzle-orm";
 import { agentFileStore, fileHash, inspectAgentFile, snapshotAgentFiles, MAX_AGENT_FILE_BYTES, MAX_AGENT_DIRECTORY_BYTES, MAX_AGENT_DIRECTORY_ENTRIES } from "../services/agent-file-store.js";
 import { agents, companies, authUsers, companyMemberships, principalPermissionGrants, heartbeatRuns, environmentLeases, environments, agentInstructionWorkingCopies, agentInstructionRevisions, agentInstructionHeads, createDb } from "@paperclipai/db";
 import { startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
-import { agentDirectoryWorkingCopyService } from "../services/agent-directory-working-copies.js";
 import { agentInstructionRevisionService } from "../services/agent-instruction-revisions.js";
 import { agentInstructionWorkingCopyService, instructionWorkingCopyGuidance } from "../services/agent-instruction-working-copies.js";
 import { resolveManagedInstructionsRoot } from "../services/agent-instructions.js";
@@ -898,10 +897,14 @@ describe("persistent agent directories", () => {
         }
       },
     };
-    const executionTarget = { kind: "remote" as const, transport: "sandbox" as const, environmentId: randomUUID(), remoteCwd, runner };
+    const executionTarget = { kind: "remote" as const, transport: "sandbox" as const, environmentId: randomUUID(), leaseId: "", remoteCwd, runner };
+    await db.insert(environments).values({ id: executionTarget.environmentId, name: "Warm fixture sandbox", driver: "sandbox" });
     const prepare = async (reuseRunId?: string) => {
       const runId = randomUUID();
       await db.insert(heartbeatRuns).values({ id: runId, companyId, agentId, invocationSource: "on_demand", responsibleUserId: userId });
+      executionTarget.leaseId = randomUUID();
+      await db.insert(environmentLeases).values({ id: executionTarget.leaseId, companyId, environmentId: executionTarget.environmentId,
+        heartbeatRunId: runId, provider: "daytona", providerLeaseId: "warm-fixture-allocation" });
       return (await copies.prepare({ ...target(), runId, cwd: home, target: executionTarget, warm: true, reuseRunId }))!;
     };
     let copy = await prepare();
@@ -919,7 +922,7 @@ describe("persistent agent directories", () => {
     }
     await copies.collectStopped({ companyId, runId: original.runId, target: executionTarget });
     expect(await fs.stat(copy.executionRoot)).toBeTruthy();
-    await copies.collectStopped({ companyId, runId: copy.runId, target: executionTarget });
+    expect((await copies.collectStopped({ companyId, runId: copy.runId, target: executionTarget }))?.receipt).toMatchObject({ cleanupPending: false });
     await expect(fs.stat(copy.executionRoot)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
