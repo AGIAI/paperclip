@@ -7,7 +7,7 @@ import { safeCopilotEditTarget } from "./copilot-permission-context.js";
 
 const LIMIT = 256;
 const CATEGORY = "copilot_tool_evidence_v1";
-type Fields = Record<string, string | number | boolean>;
+type Fields = Record<string, string | number | boolean | null>;
 interface Tool { kind?: string; input?: string; fields: Fields; invalid?: boolean; semanticInput?: string; semanticReceipt?: SemanticToolReceipt; read?: SingleReadEvidence }
 const record = (v: unknown): Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
 const identity = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 240 && !/[\u0000-\u001f\u007f]/u.test(v);
@@ -153,6 +153,7 @@ export function createCopilotToolEvidence(binding: {
           fields.semanticOperationId = candidate.operationId;
           fields.semanticCallIdentitySha256 = candidate.callIdentitySha256;
           fields.semanticInputSha256 = candidate.inputSha256;
+          if (candidate.schema === "paperclip.semantic_tool_receipt.v2") fields.semanticNormalizedInputSha256 = candidate.normalizedInputSha256;
           fields.semanticResultSha256 = candidate.resultSha256;
           fields.semanticOutcome = candidate.outcome;
         }
@@ -190,7 +191,7 @@ export function createCopilotToolEvidence(binding: {
           return;
         }
         semanticReceipts.set(parsed.callIdentitySha256, parsed);
-        notice("semantic_result", undefined, { ...parsed }, "paperclip/semantic_tool_result", "paperclip_semantic_tool_receipt_v1");
+        notice("semantic_result", undefined, { ...parsed }, "paperclip/semantic_tool_result", parsed.schema === "paperclip.semantic_tool_receipt.v2" ? "paperclip_semantic_tool_receipt_v2" : "paperclip_semantic_tool_receipt_v1");
       }); };
     },
     tool: (event: unknown) => { safely(() => projection.tool(event)); },

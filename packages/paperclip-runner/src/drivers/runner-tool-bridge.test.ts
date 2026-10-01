@@ -1,4 +1,5 @@
-import { readNativeSemanticReceipt, type SemanticToolReceipt, type SemanticToolResult } from "./semantic-tool-receipt.js";
+import { readNativeSemanticReceipt, semanticInputSha256, type SemanticToolReceipt, type SemanticToolResult } from "./semantic-tool-receipt.js";
+import { validatePrpStructuredRunResult } from "../protocol/replay-contract.js";
 import { connect } from "node:net";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -468,6 +469,71 @@ function tool(name: string): Readonly<Record<string, unknown>> {
 }
 
 describe("Copilot semantic receipt opt-in", () => {
+  const rawFinish = { reportedWorkDisposition: "done", summary: "The task is complete.", evidence: [], verification: [],
+    completionClaim: { contractRevision: "1", objectiveSatisfied: true, criteria: [], remainingWork: [] } };
+  it.each(["committed", "not-forwarded", "invalid", "duplicate-capture", "conflicting-capture", "duplicate-commit"])(
+    "captures only the invocation's exact forwarded normalized input: %s", async mode => {
+      const receipts: SemanticToolReceipt[] = [];
+      let capturedInput: unknown;
+      const bridge = await startRunnerToolBridge({ captureSemanticReceipt: () => receipt => receipts.push(receipt), handler: async call => {
+        const validation = validatePrpStructuredRunResult(call.arguments);
+        if (!validation.ok) throw new Error("Invalid fixture input");
+        capturedInput = structuredClone(validation.result);
+        const invalid: Record<string, unknown> = {}; invalid.self = invalid;
+        const commit = call.captureNormalizedInput!(mode === "invalid" ? invalid : validation.result);
+        if (mode === "duplicate-capture") call.captureNormalizedInput!(validation.result)();
+        if (mode === "conflicting-capture") call.captureNormalizedInput!({ ...validation.result, summary: "foreign" })();
+        if (mode !== "not-forwarded") commit();
+        if (mode === "duplicate-commit") commit();
+        // The digest is a snapshot of forwarded input, not a later mutable value.
+        validation.result.summary = "later mutation";
+        return { accepted: true };
+      } });
+      bridges.push(bridge);
+      const request = { id: 3, method: "tools/call", params: { name: "paperclip_finish", arguments: rawFinish } };
+      const body = await (await rpc(bridge, request)).json();
+      expect(receipts).toHaveLength(1);
+      expect(readNativeSemanticReceipt({ contents: body.result.content })).toEqual(receipts[0]);
+      expect(receipts[0]).toMatchObject({ schema: "paperclip.semantic_tool_receipt.v2", inputSha256: semanticInputSha256(rawFinish),
+        normalizedInputSha256: mode === "committed" ? semanticInputSha256(capturedInput) : null });
+      expect(semanticInputSha256(rawFinish)).not.toBe(semanticInputSha256(capturedInput));
+      expect(await (await rpc(bridge, request)).json()).toEqual(body);
+      expect(receipts).toHaveLength(1);
+    },
+  );
+  it("keeps concurrent call captures separate and ignores captures after settlement", async () => {
+    const pending = new Map<string, { capture: NonNullable<import("./runner-tool-bridge.js").RunnerToolCall["captureNormalizedInput"]>; settle: () => void }>();
+    const receipts: SemanticToolReceipt[] = [];
+    const bridge = await startRunnerToolBridge({ captureSemanticReceipt: () => receipt => receipts.push(receipt), handler: call => new Promise(resolve => {
+      pending.set(call.callId, { capture: call.captureNormalizedInput!, settle: () => resolve({ accepted: true }) });
+    }) });
+    bridges.push(bridge);
+    const first = rpc(bridge, { id: "first", method: "tools/call", params: { name: "paperclip_finish", arguments: rawFinish } });
+    const secondInput = { ...rawFinish, summary: "Second call" };
+    const second = rpc(bridge, { id: "second", method: "tools/call", params: { name: "paperclip_finish", arguments: secondInput } });
+    await vi.waitFor(() => expect(pending.size).toBe(2));
+    const normalizedFirst = validatePrpStructuredRunResult(rawFinish); const normalizedSecond = validatePrpStructuredRunResult(secondInput);
+    if (!normalizedFirst.ok || !normalizedSecond.ok) throw new Error("Invalid fixture");
+    pending.get("second")!.capture(normalizedSecond.result)(); pending.get("second")!.settle();
+    const secondReceipt = readNativeSemanticReceipt({ contents: (await (await second).json()).result.content });
+    expect(secondReceipt).toMatchObject({ inputSha256: semanticInputSha256(secondInput), normalizedInputSha256: semanticInputSha256(normalizedSecond.result) });
+    pending.get("second")!.capture(normalizedFirst.result)();
+    pending.get("first")!.capture(normalizedFirst.result)(); pending.get("first")!.settle();
+    const firstReceipt = readNativeSemanticReceipt({ contents: (await (await first).json()).result.content });
+    expect(firstReceipt).toMatchObject({ inputSha256: semanticInputSha256(rawFinish), normalizedInputSha256: semanticInputSha256(normalizedFirst.result) });
+    expect(receipts).toEqual([secondReceipt, firstReceipt]);
+  });
+  it("does not accept model metadata as normalized authority or widen non-Copilot calls", async () => {
+    const modelMetadata = { normalizedInputSha256: "a".repeat(64), captureNormalizedInput: "forged" };
+    const withEvidence = await startRunnerToolBridge({ tools: [tool("documents.read")], captureSemanticReceipt: () => () => {}, handler: async call => {
+      expect(call.captureNormalizedInput).toBeUndefined(); return modelMetadata;
+    } }); bridges.push(withEvidence);
+    const body = await (await rpc(withEvidence, { id: 1, method: "tools/call", params: { name: "documents.read", arguments: modelMetadata } })).json();
+    expect(readNativeSemanticReceipt({ contents: body.result.content })).toHaveProperty("normalizedInputSha256", null);
+    const plain = await startRunnerToolBridge({ handler: async call => { expect(call.captureNormalizedInput).toBeUndefined(); return { accepted: true }; } }); bridges.push(plain);
+    const plainBody = await (await rpc(plain, { id: 2, method: "tools/call", params: { name: "paperclip_finish", arguments: rawFinish } })).json();
+    expect(readNativeSemanticReceipt({ contents: plainBody.result.content })).toBeNull();
+  });
   it.each(["small", "chunked", "tagged", "error"])("preserves %s result encoding and captures scope before dispatch", async encoding => {
     const receipts: SemanticToolReceipt[] = [];
     let resolve!: (value: unknown) => void;
