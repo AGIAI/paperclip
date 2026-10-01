@@ -1,5 +1,5 @@
 {
-  "commandDigest": "sha256:ed39259990cb0efda48d6105d2fa3599aac76873eb75cd80b4d0b179ce0579a6",
+  "commandDigest": "sha256:98936d763497bd6f0e5605f52831a344f456357de58c457e440e69a1a468a2f4",
   "declaration": {
     "schema": "paperclip.acpx_profile_declaration.v1",
     "agent": "copilot",
@@ -20,6 +20,9 @@
     "ownedDistributionDelivery": "COPILOT_CLI_DIST_DIR:lease-owned-guarded-inner-distribution:v1",
     "permissionContextContract": "copilot-edit-permission-context-v1",
     "permissionContextSourceSha256": "fe1bb611bea289d81b1c7c973fbb01b93de133a7caa8fe78b7ff4ee1f485b224",
-    "permissionAdapterSourceSha256": "2bc34ac7899ac2729909459321e5a8a3668342cc61921e8c95e672719c6d91f2"
+    "permissionAdapterSourceSha256": "2bc34ac7899ac2729909459321e5a8a3668342cc61921e8c95e672719c6d91f2",
+    "permissionLocationsSourceSha256": "f39a81da395b6e23aa2a1a45572a28846e5e81bfd3d764d9a456f74a79c752e9",
+    "permissionRedactionSourceSha256": "687270d7bbe3dccce6c2fed8664e76cda724b43e545cb153b9f54b018de52927",
+    "permissionClassifierSourceSha256": "1161eabd82e26133e3b3db3ab567f65d52808b03f176e93497e02c8330349fb4"
   }
 }

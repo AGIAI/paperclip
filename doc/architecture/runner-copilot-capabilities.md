@@ -17,7 +17,12 @@ Default/full-auto selection is unchanged: callbacks handled by Paperclip receive
 this check before any permission-mode fallback; no new automatic grant is added.
 The existing transport policy still applies before permission handling.
 
-The declaration binds this context contract and its source hashes. Copilot's
+The declaration binds the context projector, permission adapter, workspace path
+validator, semantic redaction policy, and generated tool-operation classifier.
+A recursive value-import test requires every non-builtin policy dependency to
+remain in this source hash set; type-only imports do not affect execution.
+The candidate v9 digest was refreshed before live admission to close this
+transitive policy binding. No retained v8 evidence is regraded. Copilot's
 native executable, patched inner distribution, and shared ACPX patch are unchanged;
 the sidecar assets and runner's embedded admission digest change. Older profile
 identities cannot be admitted as v9 or reused as matching warm sessions. Fresh
