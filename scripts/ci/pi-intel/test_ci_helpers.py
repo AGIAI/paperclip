@@ -1,14 +1,16 @@
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import tarfile
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from lifecycle import CleanupUncertain, Lifecycle, run_test_cases
 from retain_pack import retain_pack
 from source_guard import tree, sha
 from admit_evidence import admit_evidence, regular_bytes
+from verify import tool_invocation, verify_tool_invocation
 
 class CleanupRegression(unittest.TestCase):
     def test_first_cleanup_failure_prevents_second_test_and_scratch_removal(self):
@@ -85,5 +87,25 @@ class ArtifactStorageRegression(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             root=Path(root); (root/'escape').symlink_to('/etc/hosts')
             with self.assertRaisesRegex(RuntimeError, 'symlink'): admit_evidence(root)
+
+class MulticallInvocationRegression(unittest.TestCase):
+    def test_symlink_dispatched_cli_keeps_invocation_name_and_audits_target(self):
+        with tempfile.TemporaryDirectory() as root:
+            root=Path(root); target=root/'rustup-init'; invocation=root/'rustup'
+            target.write_text('#!/bin/sh\ncase "$0" in */rustup) test "$1" = toolchain; exit $?;; *) exit 2;; esac\n')
+            target.chmod(0o755); invocation.symlink_to(target.name)
+            with patch('verify.shutil.which', return_value=str(invocation)):
+                executable,audit=tool_invocation('rustup')
+            self.assertEqual(executable,invocation)
+            self.assertEqual(audit['resolvedTarget'],str(target.resolve()))
+            self.assertEqual(audit['targetSha256'],sha(target))
+            verify_tool_invocation(executable,audit)
+            clean={'PATH':'/usr/bin:/bin'}
+            self.assertEqual(subprocess.run([executable,'toolchain','install','1.97.1'],env=clean,timeout=5).returncode,0)
+            # This reproduces the CI failure: resolving the alias changes multicall mode.
+            self.assertEqual(subprocess.run([executable.resolve(),'toolchain','install','1.97.1'],env=clean,timeout=5).returncode,2)
+            target.write_text('#!/bin/sh\nexit 0\n')
+            with self.assertRaisesRegex(RuntimeError,'target bytes changed'):
+                verify_tool_invocation(executable,audit)
 
 if __name__ == '__main__': unittest.main()

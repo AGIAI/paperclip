@@ -15,6 +15,19 @@ SOURCE=PIN['sourceRevision']
 sha=source_guard.sha
 require=source_guard.require
 
+def tool_invocation(name):
+    found=shutil.which(name)
+    require(found is not None,'Required executable not found: '+name)
+    # Multicall CLIs dispatch on argv[0]; preserve the name returned by PATH lookup.
+    invocation=Path(found).absolute()
+    target=invocation.resolve(strict=True)
+    require(invocation.name==name and target.is_file() and os.access(invocation,os.X_OK),'Unexpected executable invocation')
+    return invocation, {'invocationPath':str(invocation),'resolvedTarget':str(target),'targetSha256':sha(target)}
+
+def verify_tool_invocation(invocation, audit):
+    require(str(invocation)==audit['invocationPath'] and str(invocation.resolve(strict=True))==audit['resolvedTarget'], 'Executable invocation or target changed')
+    require(sha(invocation.resolve(strict=True))==audit['targetSha256'],'Executable target bytes changed')
+
 def execute(args):
     stage=args.source.resolve(strict=True);out=args.output.resolve()
     out.mkdir(mode=0o700,parents=True,exist_ok=False)
@@ -31,7 +44,8 @@ def execute(args):
     inherited_path=os.environ['PATH']
     node=Path(shutil.which('node')).resolve(strict=True)
     pnpm=Path(shutil.which('pnpm')).resolve(strict=True)
-    rustup=Path(shutil.which('rustup')).resolve(strict=True)
+    rustup,rustup_audit=tool_invocation('rustup')
+    receipt['rustupTool']=rustup_audit;save()
     env={'PATH':inherited_path,'HOME':str(scratch/'home'),'TMPDIR':str(scratch),'LANG':'en_US.UTF-8','CI':'true',
          'PAPERCLIP_TELEMETRY_ENABLED':'false','PAPERCLIP_RUNNER_SOURCE_REVISION':SOURCE,
          'CARGO_HOME':str(scratch/'cargo'),'RUSTUP_HOME':str(scratch/'rustup'),'CARGO_TARGET_DIR':str(scratch/'target'),
@@ -43,6 +57,7 @@ def execute(args):
     signal.signal(signal.SIGTERM,stop_signal)
     def run(command,label,timeout,cwd=stage,command_env=None,owned=False):
         nonlocal active,owner
+        if str(command[0])==str(rustup):verify_tool_invocation(rustup,rustup_audit)
         lifecycle.begin()
         row={'label':label,'startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'command':list(map(str,command)),'deadlineSeconds':timeout,'status':'running'}
         receipt['commands'].append(row);save();start=time.monotonic()
