@@ -1,28 +1,30 @@
 # Copilot 1.0.88 rich ACP capability audit
 
-Current source candidate (2026-10-01): **Copilot profile v11 is unqualified**.
-The authenticated Daytona v10 attempt exposed two independent receipt-boundary
-failures. Generic JWT redaction removed the public receipt schema name from a
-notice detail. Separately, a legitimate completion omitted optional fields that
-the strict result validator fills before forwarding; its original argument hash
-therefore differed from the proposed canonical result. The failed attempt remains
-failed even though its owned processes, sandbox and IPC retired cleanly.
+Current source candidate (2026-10-01): **Copilot profile v12 is unqualified**.
+Receipt v2 preserves the original `inputSha256` and separately captures
+`normalizedInputSha256` from the same invocation's validated outgoing body.
+For the native sidecar, only a successful, correlated `tool.resolve` commits
+that capture. A pipe write alone cannot attest delivery: Rust can reject an
+otherwise valid frame at its smaller payload admission limit. Explicit errors,
+cancellation, timeout, missing responses and stale or foreign responses leave
+the capture null. A returned `accepted:false` witnesses delivery but still
+rejects completion. The direct driver commits only after its proposal emission.
 
-Receipt v2 preserves the original `inputSha256` and separately records
-`normalizedInputSha256` at the same invocation's actual validated forwarding
-boundary. The capture commits only after that emission succeeds; absent or
-invalid capture remains null. The sidecar rejects an oversized frame or semantic
-body that its Unicode encoder would change before committing the digest.
-Rejected frames consume no stream sequence. Writable backpressure still means
-the bytes were accepted into the stream buffer; it does not prove semantic
-acceptance. Native result matching still requires the exact
-invocation-owned receipt and all original call/input/result hashes. Acceptance
-must independently match the normalized digest and the unique proposed/accepted
-result bodies. Transport return alone never proves acceptance. The server
-preserves only the fixed schema literal inside a validated receipt notice;
-adjacent credentials and JWT-shaped values remain redacted. Retained v10 warm
-sessions are incompatible. Native executable bytes are unchanged; new runtime
-packs and fresh local/Daytona qualification are required.
+Delivery does not prove canonical equality or completion acceptance. The grader
+must independently match the normalized digest with the unique proposed and
+accepted result bodies; receiver sanitization does not relax that comparison.
+The sidecar also rejects oversized frames or bodies its Unicode encoder would
+change. Dropped frames consume no stream sequence; writable backpressure is
+handled as an accepted buffer write, without claiming receiver admission.
+
+The server preserves only the fixed schema literal inside a validated receipt
+notice; adjacent credentials and JWT-shaped values remain redacted. The paid
+v10 Daytona failure remains failed. The v11 build and offline CI evidence is
+historical and does not qualify this corrected source. Retained v10 and v11
+warm sessions are incompatible. Native executable bytes are unchanged; fresh
+runtime packs and local/Daytona qualification are required. Tests exercise the
+actual parsed sidecar command handler and the Rust subprocess transport,
+including rejection of a 300 KiB payload before pending-tool admission.
 
 Historical source candidate (2026-10-01): **Copilot profile v10 was unqualified**.
 Admitted Paperclip MCP calls append a bounded `paperclip.semantic_tool_receipt.v1`
