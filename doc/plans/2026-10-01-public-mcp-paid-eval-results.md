@@ -184,6 +184,11 @@ Updated supporting verification:
   regressions cover quota reuse and unchanged-status suppression.
 - All 28 adjacent issue-tree/stale-lock route tests pass after checkout/release
   activity gained previous/current status for event delivery.
+- CI subsequently found that checkout logging dereferenced a null result in an
+  existing concurrent workspace-reopen path. The log now omits status when no
+  task is returned, preserving that path's response and avoiding a false event.
+  The existing 12-test closed-workspace suite reproduces and verifies the fix.
+  This narrow null-result correction follows the paid regression above.
 - Repository-wide typecheck and production build pass after merging master.
 - The Core → Cloud → Core authority round trip passes real OAuth, MCP 2.0
   subscription, delivery, current Cloud membership loss, unsubscribe, legacy MCP
