@@ -19,20 +19,24 @@ const hash = (v: unknown) => `sha256:${createHash("sha256").update(canonicalJson
 function requireProof(value: unknown, reason: string): asserts value { if (!value) throw new Error(`Pi controls: ${reason}`); }
 const terminalTypes = new Set(["turn.completed", "turn.failed", "turn.cancelled", "turn.interrupted"]);
 const closureTypes = new Set(["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"]);
+const controlSettlementTypes = new Set(["run.result.accepted", "run.terminal"]);
 
 /** Consume the actual Product projection. Pi does not emit Cursor/Copilot native
  * diagnostic notices; never manufacture those to reuse another provider's oracle. */
 function origin(events: readonly unknown[], scope: PiControlScope) {
   requireProof(Object.values(scope).every(id) && events.length > 0 && events.length <= 20_000, "bounded exact scope required");
-  const rows = events.map(rec).filter(row => rec(row.payload).prpEvent !== undefined).map(row => ({ row, event: rec(rec(row.payload).prpEvent) })).sort((a, b) => a.row.seq - b.row.seq);
+  const projected = events.map(rec).filter(row => rec(row.payload).prpEvent !== undefined).map(row => ({ row, event: rec(rec(row.payload).prpEvent) })).sort((a, b) => a.row.seq - b.row.seq);
   const seqs = new Set<number>(), sourceIds = new Set<string>(), last = new Map<string, number>();
-  for (const { row, event: e } of rows) {
+  for (const { row, event: e } of projected) {
     requireProof(row.companyId === scope.companyId && row.runId === scope.runId && isValidNativePrpEnvelope(e, row.protocolSchemaVersion)
-      && e.sourceKind === "runner" && e.runId === scope.runId && e.eventType === row.eventType && Number.isSafeInteger(row.seq) && row.seq > 0 && !seqs.has(row.seq)
+      && (e.sourceKind === "runner" || (e.sourceKind === "control_plane" && controlSettlementTypes.has(e.eventType)))
+      && e.runId === scope.runId && e.eventType === row.eventType && Number.isSafeInteger(row.seq) && row.seq > 0 && !seqs.has(row.seq)
       && id(e.sourceInstanceId) && Number.isSafeInteger(e.sourceSeq) && e.sourceSeq > (last.get(e.sourceInstanceId) ?? 0)
       && e.sourceEventId === `${e.sourceInstanceId}:${e.runId}:${e.sourceSeq}` && !sourceIds.has(e.sourceEventId), "foreign, duplicate or reordered event");
     seqs.add(row.seq); sourceIds.add(e.sourceEventId); last.set(e.sourceInstanceId, e.sourceSeq);
   }
+  const rows = projected.filter(x => x.event.sourceKind === "runner");
+  const control = projected.filter(x => x.event.sourceKind === "control_plane");
   const created = rows.filter(x => x.event.eventType === "runtime_request.created");
   requireProof(created.length === 1, "one native permission required");
   const card = created[0]!, request = rec(rec(card.event.payload).request);
@@ -42,6 +46,18 @@ function origin(events: readonly unknown[], scope: PiControlScope) {
     && Array.isArray(request.choices) && request.choices.some((c: Row) => c.key === "decline"), "native permission identity missing");
   const stream = (event: Row) => event.turnId === card.event.turnId && event.normalizedSessionId === card.event.normalizedSessionId && event.sourceInstanceId === card.event.sourceInstanceId;
   requireProof(rows.filter(x => x.event.turnId != null).every(x => stream(x.event)), "foreign turn, session or producer");
+  // Product settlement adds a separate control-plane producer after the runner
+  // terminal. Validate those records without using them as native tool proof.
+  const terminals = rows.filter(x => terminalTypes.has(x.event.eventType));
+  requireProof(control.length <= 2 && new Set(control.map(x => x.event.eventType)).size === control.length
+    && control.every(x => terminals.length === 1 && x.row.seq > terminals[0]!.row.seq
+      && x.event.sourceInstanceId === `${card.event.sourceInstanceId}:control`
+      && x.event.turnId === card.event.turnId && x.event.normalizedSessionId === card.event.normalizedSessionId
+      && (x.event.eventType === "run.result.accepted"
+        ? rec(rec(x.event.payload).result).schema === "paperclip.run_result.v1"
+        : rec(x.event.payload).schema === "paperclip.prp.terminal.v1"))
+    && (control.length !== 2 || (control[0]!.event.eventType === "run.result.accepted" && control[1]!.event.eventType === "run.terminal")),
+  "foreign, duplicate or premature control-plane settlement");
   const executionId = bootstrapReadExecutionId(request.details.toolCallId);
   const native = rows.filter(x => x.event.eventType.startsWith("tool.execution.") && rec(x.event.payload).transport === "builtin");
   const write = native.filter(x => rec(x.event.payload).executionId === executionId);

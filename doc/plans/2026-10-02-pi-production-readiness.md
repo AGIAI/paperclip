@@ -45,24 +45,43 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 
 ## Evidence so far
 
-- At `342287678`, normal public profile-14 admission passes on ARM Mac in
-  23.8 seconds and Intel Mac in 53.5 seconds. Fresh installed steering returns
-  HTTP 200 and retains one exact correlation-bound acknowledgement. The full
-  journey fails at Deny: steering splits the transcript display and the UI
-  incorrectly marks the older, still-live permission cancelled. A real widget
-  regression reproduces the missing button. The correction derives request
-  state from the whole run, carries pending cards to the live tail, and keeps
-  closed cards at their original position. All 281 focused UI/projection and
-  performance checks, UI typecheck and token gates pass. The paid failure and
-  cleanup grade remain unchanged; all seven journalled owned processes later
-  retire. A new installed journey must verify actual denial and consumption.
-- Full workspace build and typecheck pass at `342287678`; core native tests
-  pass 333 cases. The broader native integration run fails one Codex interrupt
-  recovery case with `provider startup ownership remains unadmitted`; isolated
-  diagnosis reproduces it. Do not count that broader run as passing. Current
-  CI passes its other checks and Greptile is 5/5, but Linux Canary retains
-  `session_handshake_timeout`. The exact-source local image build cannot reach
-  the Docker daemon and produces no usable image. Linux and Daytona remain held.
+- At `603ad3726`, the installed steering journey posts Steer (HTTP 200) and
+  Deny (HTTP 202) to the original request. The provider consumes the hidden
+  instruction, produces its exact final marker, and reaches succeeded/Done.
+  Its canonical grade remains failed: the oracle rejects the legitimate
+  `run.result.accepted` and `run.terminal` control-plane records as non-runner
+  events. All seven journalled provider processes retire with no target effect.
+  The corrected oracle validates those two records against the same run, turn,
+  session and linked control producer, after the one native terminal. It still
+  rejects foreign, duplicate, reordered and premature records. All 121 controls,
+  flow and catalog tests pass, as does Product E2E typecheck. Replaying the exact
+  retained public evidence passes the corrected oracle; replay does not regrade
+  the original attempt or prove a fresh cleanup receipt. Controls definitions
+  advance to version 5. A fresh installed journey remains the qualification gate.
+- At `603ad3726`, public profile-14 setup passes on ARM and Intel Mac. The
+  first ARM closed-admission probe rejects with `provider_lifetime_owned`;
+  a separate credential-free diagnostic with retained state passes in 35.0
+  seconds. Preserve both observations; ownership contention remains unclassified.
+  Intel closed admission passes in 54.1 seconds. Neither host submits a prompt.
+- Full workspace build passes at `3728bb45f`; only the tested UI request-order
+  correction changes executable code afterward. Workspace typecheck and UI
+  build pass at `603ad3726`. All 282 UI/projection/performance tests and token
+  gates pass. Core native tests pass 333 cases. The broader local native
+  integration run fails one Codex interrupt recovery case with `provider startup
+  ownership remains unadmitted`; isolated diagnosis reproduces it. Do not count
+  that broader run as passing.
+- At `603ad3726`, 52 CI checks pass and Greptile is 5/5 with both findings
+  resolved. Linux Canary is the one failed check: `session_handshake_timeout`.
+  The local exact-source Linux build compiles but exceeds its fixed 30-minute
+  deadline during image import. It produces no verified usable image. Its
+  task-owned builder is stopped, its cache and failed receipt remain, and no
+  provider credentials or calls occur. Linux and Daytona remain held.
+- At `342287678`, installed steering proves delivery and one acknowledgement,
+  but the UI marks the still-pending permission cancelled and hides Deny. The
+  correction uses whole-run lifecycle state, carries pending cards to the live
+  tail, and leaves closed cards at their original position. Older carried cards
+  precede newer requests. The real widget regression clicks Deny for the
+  original run, request and provider turn. The paid failure stays failed.
 - At `36e712104`, installed steering returns HTTP 200 and the native command
   journal records accepted delivery. The public API retains the correct
   correlation-bound acknowledgement at source sequence 65 and also a
