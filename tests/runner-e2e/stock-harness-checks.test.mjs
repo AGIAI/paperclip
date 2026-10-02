@@ -41,7 +41,8 @@ describe("stock harness prerequisite coverage", () => {
 
 describe("stock harness prerequisite admission", () => {
   const current = { sha: "a".repeat(40), fingerprint: "b".repeat(64) };
-  const receipt = () => ({ schema: "paperclip.stock-harness-preflight.v1", passed: true,
+  const receipt = () => ({ schema: "paperclip.stock-harness-preflight.v2", passed: true,
+    setup: { passed: true, exitCode: 0 },
     providerCalls: 0, sourceSha: current.sha, sourceFingerprint: current.fingerprint,
     sourceErrors: [], gates: [...stockHarnessGates.map(g => g.id), "SH-1-rust"].map(id => ({ id, passed: true, exitCode: 0 })) });
   it("admits the same passing source revision", () => expect(assertPreflightReceipt(receipt(), current).passed).toBe(true));
@@ -54,6 +55,7 @@ describe("stock harness prerequisite admission", () => {
     ["duplicate boundary", r => { r.gates[1] = r.gates[0]; }],
     ["provider calls", r => { r.providerCalls = 1; }],
     ["missing source", r => { r.sourceErrors.push("missing.ts"); }],
+    ["failed cold setup", r => { r.setup.passed = false; r.setup.exitCode = 1; }],
   ])("rejects %s before providers", (_name, mutate) => {
     const r = receipt(); mutate(r); expect(() => assertPreflightReceipt(r, current)).toThrow("exact source SHA and fingerprint");
   });

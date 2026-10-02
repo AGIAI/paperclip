@@ -25,6 +25,8 @@ runs the prerequisites automatically before loading local credentials or startin
 an isolated provider instance. Its subprocess receives only allowlisted toolchain
 and operating-system variables. Disposable GitHub runners may resolve Cargo
 dependencies; local prerequisites retain offline Cargo execution.
+The ordinary server SDK dependency builder prepares the shared/SDK outputs
+needed by route tests on a cold install with lifecycle scripts disabled.
 
 The direct Playwright path also requires the retained prerequisite receipt. It
 verifies the exact checkout SHA, evaluated-source fingerprint, all requested
@@ -86,8 +88,8 @@ existing secret sanitizer; screenshots remain the original captured pixels.
 
 The oracle's identity is independent of the implementation constant, so changing
 the shipped manual cannot silently change the expected result. The suite
-definition digest incorporates the evaluated default manual and shared prompt
-implementation, fixture, journeys, grader, prerequisite, and execution integration
+definition digest incorporates the evaluated default manual, shared prompt
+implementation and connection guidance, fixture, journeys, grader, prerequisite, and execution integration
 sources. Positive and plausible-negative support tests exercise
 missing/malformed receipts, manual regrowth, removed startup/resume procedures,
 absent connection guidance, and budget drift. Existing calibrated lifecycle
@@ -108,7 +110,7 @@ are not counted as passing coverage. Local evidence is retained under
 `results/stock-harness-preflight-2026-10-02T16-15-39.064Z/preflight.json`.
 Earlier interrupted, discovery-failure, and setup/test-timeout attempts remain
 retained; the final unchanged-assertion retry passed. No live cells or paid
-providers were run. This establishes executable coverage, not a live reliability
+providers were run during that initial setup. This establishes executable coverage, not a live reliability
 result or improved coding quality. A quality claim needs comparable tasks,
 models, effort, tools, and independently graded before/after results.
 
@@ -130,6 +132,15 @@ checks passed; the provider run lasted 34.745 seconds and the cell 56.660 second
 Its tiny public hire bundle and budget receipts passed, and cleanup passed.
 This diagnostic predates enforced prerequisite admission and the expanded source
 digest, so it is retained separately from the final qualification matrix.
+
+The first full candidate attempt at `36e987246b649927e96ce1184cd616c4e490106e`
+[was cancelled during prerequisites](https://github.com/paperclipai/paperclip/actions/runs/37037105491).
+Cold protected installs disable lifecycle scripts, leaving the plugin SDK unbuilt;
+SH-2/SH-3 could not import it. Provider admission was not reached. This setup
+failure is retained separately from behavioral results. The prerequisite now runs
+the ordinary server dependency builder first, retains its output and exit status,
+and refuses admission when setup fails. A cold legacy pilot must pass before the
+full matrix retry.
 
 Dispatch the trusted workflow from `master`, with `target_branch` naming the
 same-repository candidate and an exact cell selector first. The workflow resolves

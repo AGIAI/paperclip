@@ -44,7 +44,8 @@ export const stockHarnessGates = [
       "tests/runner-e2e/stock-harness-admission.test.ts", "tests/runner-e2e/stock-harness-digest.test.ts"],
     required: ["rejects old SHA before providers", "allows toolchain paths and excludes every present or future credential",
       "changes when the evaluated server/src/onboarding-assets/default/AGENTS.md changes",
-      "changes when the evaluated packages/adapter-utils/src/server-utils.ts changes"] },
+      "changes when the evaluated packages/adapter-utils/src/server-utils.ts changes",
+      "changes when the evaluated packages/shared/src/connection-intent-guidance.ts changes"] },
 ];
 
 export function gradeGate(gate, report, exitCode) {
@@ -67,7 +68,8 @@ export function sourceFingerprint() {
     ...stockHarnessGates.flatMap(gate => gate.files.map(file => join(gate.cwd, file))),
     "tests/runner-e2e/stock-harness.ts", "tests/runner-e2e/stock-harness-checks.mjs", "tests/runner-e2e/catalog.ts",
     "tests/runner-e2e/stock-harness-admission.ts", "tests/runner-e2e/launch.ts", "tests/runner-e2e/runner.spec.ts",
-    "packages/adapter-utils/src/server-utils.ts", "server/src/onboarding-assets/default/AGENTS.md", "server/src/routes/agents.ts",
+    "packages/adapter-utils/src/server-utils.ts", "packages/shared/src/connection-intent-guidance.ts",
+    "server/src/onboarding-assets/default/AGENTS.md", "server/src/routes/agents.ts", "scripts/ensure-plugin-build-deps.mjs",
     "packages/paperclip-runner/src/drivers/codex/codex-app-server-driver-impl.ts",
     "packages/paperclip-runner/src/live/runnerd-codex-transport.ts",
     "packages/paperclip-runner/src/live/live-session.ts",
@@ -85,7 +87,8 @@ export function sourceFingerprint() {
 
 export function assertPreflightReceipt(report, current) {
   const expected = [...stockHarnessGates.map(gate => gate.id), "SH-1-rust"];
-  if (report?.schema !== "paperclip.stock-harness-preflight.v1" || report.passed !== true ||
+  if (report?.schema !== "paperclip.stock-harness-preflight.v2" || report.passed !== true ||
+      report.setup?.passed !== true || report.setup?.exitCode !== 0 ||
       report.providerCalls !== 0 || report.sourceSha !== current.sha ||
       report.sourceFingerprint !== current.fingerprint || report.sourceErrors?.length !== 0 ||
       !Array.isArray(report.gates) || report.gates.length !== expected.length ||
@@ -127,6 +130,23 @@ export function main(args = process.argv.slice(2)) {
     "PATH", "HOME", "TMPDIR", "TMP", "TEMP", "SYSTEMROOT", "LANG", "LC_ALL",
     "CARGO_HOME", "RUSTUP_HOME", "CI", "GITHUB_ACTIONS",
   ].flatMap(name => process.env[name] === undefined ? [] : [[name, process.env[name]]]));
+  // A protected cold install disables lifecycle scripts. Use the same ordinary
+  // SDK dependency builder as server startup, before importing server tests.
+  const setupRun = spawnSync(process.execPath, [join(root, "scripts/ensure-plugin-build-deps.mjs")], {
+    cwd: root, env, encoding: "utf8", timeout: 5 * 60_000,
+  });
+  writeFileSync(join(output, "setup.txt"), `${setupRun.stdout ?? ""}\n${setupRun.stderr ?? ""}`);
+  const setup = { passed: setupRun.status === 0, exitCode: setupRun.status };
+  if (!setup.passed) {
+    const source = sourceFingerprint();
+    writeFileSync(join(output, "preflight.json"), JSON.stringify({
+      schema: "paperclip.stock-harness-preflight.v2", sourceSha: git.stdout?.trim() || null,
+      sourceFingerprint: source.fingerprint, measuredAt: new Date().toISOString(), providerCalls: 0,
+      live: "not_run", passed: false, sourceErrors: source.sourceErrors, setup, gates: [],
+    }, null, 2) + "\n");
+    process.exitCode = 1;
+    return;
+  }
   const results = [];
   for (const gate of stockHarnessGates) {
     console.log(`Checking ${gate.id}: ${gate.name}`);
@@ -147,9 +167,9 @@ export function main(args = process.argv.slice(2)) {
   writeFileSync(join(output, "rust.txt"), rustOutput);
   results.push({ id: "SH-1-rust", passed: rust.status === 0 && /test runtime_instructions_are_additive_for_codex_on_start_and_resume \.\.\. ok/.test(rustOutput), exitCode: rust.status });
   const { fingerprint, sourceErrors } = sourceFingerprint();
-  const report = { schema: "paperclip.stock-harness-preflight.v1", sourceSha: git.stdout?.trim() || null,
+  const report = { schema: "paperclip.stock-harness-preflight.v2", sourceSha: git.stdout?.trim() || null,
     sourceFingerprint: fingerprint, measuredAt: new Date().toISOString(), providerCalls: 0,
-    live: "not_run", passed: git.status === 0 && sourceErrors.length === 0 && results.every(row => row.passed), sourceErrors, gates: results };
+    live: "not_run", passed: git.status === 0 && sourceErrors.length === 0 && results.every(row => row.passed), sourceErrors, setup, gates: results };
   writeFileSync(join(output, "preflight.json"), JSON.stringify(report, null, 2) + "\n");
   console.log(`Stock harness prerequisite evidence: ${output}/preflight.json`);
   if (!report.passed) process.exitCode = 1;
