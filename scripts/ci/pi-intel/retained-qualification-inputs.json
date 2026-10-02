@@ -1,0 +1,226 @@
+{
+  "schema": "paperclip.retained-intel-canonical-inputs/v1",
+  "sourceRevision": "bba63f51207de8513ad2d9593694f718fc60ef17",
+  "artifactRunId": "37004499595",
+  "artifactWorkflowRevision": "f07200505bebc3db4dd981184d10d383298e0bba",
+  "artifactId": 11226760000,
+  "artifactZipSha256": "9bc17434eb15b1f38b29b42b8ef95a477520a097a060ac1af8dc916d10d14d92",
+  "artifactZipBytes": 699302565,
+  "selectedFiles": {
+    "receipt.json": {
+      "sha256": "52be6ef06049ea8ca999daea11bbef8e07fe3c23676c08dc7eec5c96594d7d9a",
+      "bytes": 26369
+    },
+    "source.tar": {
+      "sha256": "38ae0523faace6d7797f8cfd5c4b0a018260ce421677e250fb35fbcc0ec8c14e",
+      "bytes": 142090240
+    },
+    "source-input-inventory.json": {
+      "sha256": "0c89bf9990b4eacc5c7313bde5c1f8ff6895919add44e5cf72b10d9a0823b5f7",
+      "bytes": 1036377
+    },
+    "resolved-pnpm-lock.yaml": {
+      "sha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
+      "bytes": 607788
+    },
+    "original-pnpm-lock.yaml": {
+      "sha256": "e11d69fa8702a906c293c1cb307c71df90d3b1f1617b3c23ebf17fa9a87fec79",
+      "bytes": 607788
+    },
+    "provider-pack.json": {
+      "sha256": "7fda16213dbad0ccad99f014ab4e2d5162f84cff4644c1931d16f93bd208f974",
+      "bytes": 2743
+    },
+    "pack-inventory.json": {
+      "sha256": "a6f17cf2ab692235f03427f9763bf48403d8940e86ad642dc3c91eb5e25dc656",
+      "bytes": 10353069
+    },
+    "paperclip-runnerd": {
+      "sha256": "8a65b041bff62f8324237b4a1eb9035865eb445cd24004c8d840c3ef82123dbb",
+      "bytes": 32072480
+    },
+    "provider-pack.tar.gz": {
+      "sha256": "f9ff172df22f02f15fd646b8b1f9f3fdb7c17c5ed398d3fe0788f07f98abf343",
+      "bytes": 648284591
+    },
+    "hardware.log": {
+      "sha256": "4404f16e6c781a34b3aa80daf339839b06cf53740452fb6951e8bb33c77efaeb",
+      "bytes": 119
+    },
+    "node.log": {
+      "sha256": "3f7282f09fc0b20115d70e05037efe8b47e44a8d612e433b1c34a131a72560fe",
+      "bytes": 28
+    },
+    "pnpm.log": {
+      "sha256": "aa4b6073295967fb7e7e4f8b415ae112cffbd0fe5aa20c6edb02e3b6c4935684",
+      "bytes": 7
+    },
+    "npm-version.log": {
+      "sha256": "005206ab803f8881d8227540b7980b37e723b69a8849edb31734a90b7e7964e2",
+      "bytes": 8
+    },
+    "install.log": {
+      "sha256": "6133fce1367f5aaed4f953bbb670dc618a6fec87ca26c768f0521cd567df11f4",
+      "bytes": 12506
+    },
+    "typescript.log": {
+      "sha256": "3f7138c4b56663d93ed15024f25e9daff02f8a61ec0232630c46d1026b37dbb1",
+      "bytes": 1178
+    },
+    "rust-install.log": {
+      "sha256": "ad4589c40b796b55d0b530528ea40efdc3dea2f8af0ab76014123b2d36733657",
+      "bytes": 445
+    },
+    "cargo-path.log": {
+      "sha256": "d02696ca67c6148d2f065093f5d978d996ac24f7cf7e2dbac6a62fbdc4dcb5c8",
+      "bytes": 86
+    },
+    "rustc-path.log": {
+      "sha256": "6f9d4203e3658d8739cc44d23313c3a57cea3637c3262bd519eabae57542c16f",
+      "bytes": 86
+    },
+    "rust-version-verbose.log": {
+      "sha256": "87c09aab5ad89ed5a2636cd4f577eb178a3afba7a9f71490b240845245725f04",
+      "bytes": 191
+    },
+    "cargo-version.log": {
+      "sha256": "1aedaa9cce116919d39b1eb303a58865771582bc24fc259aa8e26cb212e0f59e",
+      "bytes": 36
+    },
+    "sdk-path.log": {
+      "sha256": "e6006a0ded501fa927f656931e70c3690852ee98f775d137c30eab661cc8f99f",
+      "bytes": 100
+    },
+    "sdk-version.log": {
+      "sha256": "521fbd942d19d4f08ee3ac22fe5e1fee54d05fb48db0d8d179461b8195d210eb",
+      "bytes": 5
+    },
+    "clang-path.log": {
+      "sha256": "49d8f9f4284933d2d9de7c39957c598bf6ee3ff73475761fce9c8cdcd62a62b3",
+      "bytes": 98
+    },
+    "ld-path.log": {
+      "sha256": "e5433141a9dcd84e4f6d50914971357e48533fa22def24382800d81a2edcb6a8",
+      "bytes": 95
+    },
+    "daemon-build.log": {
+      "sha256": "5f2d3b993c11f3b2ef3761a282a31e502bf1b6977e3c44fa80f5b07ad49654a5",
+      "bytes": 18358
+    },
+    "daemon-sign.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "daemon-signature-verify.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "daemon-architecture.log": {
+      "sha256": "786645000d0cc7f1656e956bfa6e23f2932b6684893ffd3a35ee199f4c2b61df",
+      "bytes": 135
+    },
+    "daemon-metadata.log": {
+      "sha256": "a1b957a6ee5fad916252ba629b3c2ad85af8b54c1f006d5901f1614eb700ebfe",
+      "bytes": 452
+    },
+    "pack-build.log": {
+      "sha256": "a0aaacad24a26e218efeb05fed91a84279dbdb5c86dfdf16bf70eea1206fde80",
+      "bytes": 2790
+    },
+    "pack-verify.log": {
+      "sha256": "f75281a60aa9c9b8a8ea5c64fa3fc9dc18af8faabe1eff0e9c806ba71c312fff",
+      "bytes": 1825
+    }
+  },
+  "compiler": {
+    "rustcSha256": "a1fd557be213adbcfe224e0e05e2903aa3f4b8d9294bed51d97a9d2a0b201e55",
+    "cargoSha256": "07816976dbe29da10bf127b75edcb0f5cd8b8652051b9c79709f8c0898d125d2",
+    "versionVerbose": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: x86_64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6\n",
+    "cargoVersion": "cargo 1.97.1 (c980f4866 2026-06-30)\n",
+    "jobs": 2,
+    "sdk": {
+      "path": "/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+      "version": "15.5",
+      "settings": {
+        "SDKSettings.json": "58a133735f0a55a624a1703067059f6e78925e51725ec6e1f966072e142c9c42",
+        "SDKSettings.plist": "30bf3c8ef32f46d43f68eb91a85eded3e1763edc752a6fd71633eecac4909b28"
+      }
+    },
+    "appleTools": {
+      "clang": {
+        "path": "/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang",
+        "sha256": "4c458256bcdf913774de1bb4a37768244d3b41f32ad55afb2dfec3432f46f4fe"
+      },
+      "ld": {
+        "path": "/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld",
+        "sha256": "648a8aac7f6f829a42305d24dddd7a3cfa48ee0bd9d4e7ec1ded5c51edea372b"
+      }
+    },
+    "target": "x86_64-apple-darwin",
+    "rustflags": "",
+    "targetDirectory": "/private/tmp/pc-intel-5dwslosd/target"
+  },
+  "daemonBuildMetadata": {
+    "binaryContractVersion": 2,
+    "binaryName": "paperclip-runnerd",
+    "durableSessionCapabilities": [
+      "unlimited_runtime",
+      "connection_lease_renewal"
+    ],
+    "harnessDriverVersion": 1,
+    "nativeExecutionVersion": 1,
+    "packageName": "@paperclipai/paperclip-runner",
+    "packageVersion": "0.0.0",
+    "prp": {
+      "maximumVersion": 2,
+      "minimumVersion": 1,
+      "name": "paperclip.runner"
+    },
+    "prpTransportModes": [
+      "dial_ws_loopback",
+      "dial_wss",
+      "listen_ws"
+    ],
+    "schema": "paperclip-runner/runnerd-build-metadata/v1"
+  },
+  "buildCommandTail": [
+    "build",
+    "--release",
+    "--target",
+    "x86_64-apple-darwin",
+    "--manifest-path",
+    "packages/paperclip-runner/runner/Cargo.toml",
+    "--locked",
+    "-p",
+    "paperclip-runner-core",
+    "--bin",
+    "paperclip-runnerd",
+    "-j",
+    "2"
+  ],
+  "originalVerifierSha256": "5cbfbb4f3009f2644eef3801777b52a1845b8ea7f42f838334b51b37c5f8efe1",
+  "nodeSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49",
+  "originalPackDigest": "sha256:96bd73cd7235cdfd082444db2522fe24f550b54f6cfae17edd0cf63f46ba68e6",
+  "resolvedLockSha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
+  "testSourceClosure": {
+    "packages/paperclip-runner/test/pi-closed-startup.test.mjs": "32bb057e1505082c0ed6b1d71cdd8cdb3271d920c2bea9cdc1ebddedf568c0c4",
+    "packages/paperclip-runner/test/pi-native-package-contract.test.mjs": "cdeb1b9c5b9363e0cca4ed475f3622251bf514b42d16a3e200b4f6d6d671d24f",
+    "packages/paperclip-runner/src/drivers/acpx/pi-runtime-extension.ts": "f3446be10d984c368c52202e768aefe9b4a25968e09922e98e3f016c9dc0198e",
+    "packages/paperclip-runner/src/drivers/acpx/pi-acp-runtime.ts": "95f74eb44a2e498fbd9461d363fac5b4d5fdae05b9666dca1ac4a632229dfef4",
+    "packages/paperclip-runner/test/pi-acp-package-contract.test.mjs": "b4a7b7dd0887f3d1daa8cb339a73f47cb88ef01857c7a38e14d83ae069f093ba",
+    "packages/paperclip-runner/test-fixtures/pi-acp/fake-pi.mjs": "edc945b4636dea6c0ff67d3320a50fbdd3da67bdf53cd4d7f18b3b3573ac8bb2"
+  },
+  "expectedTests": {
+    "closed-startup": 1,
+    "native-extension-contracts": 63
+  },
+  "observerSha256": "1fcf353beb90722f90401a7792a5853bf0807d964a1065e3f55b76a63bc4b4cc",
+  "packVerifierSha256": "12380ee6070908dda3c54c78db9dea4bf0768b50b7d369a51f9d4a913aa0de82",
+  "normalProviderSelection": {
+    "pi": {
+      "qualification": "qualified",
+      "profileVersion": 13,
+      "profileDigest": "sha256:fe1e6da01b2a9e4c691ca27cf689d2d6de846a93be6b23fc1e103c9addd7b177"
+    }
+  }
+}
