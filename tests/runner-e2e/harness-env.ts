@@ -1,3 +1,4 @@
+import { installedDaytonaPluginKeys } from "./installed-daytona-plugin.js";
 import { QUALIFIED_ACPX_PROFILES } from "../../packages/paperclip-runner/src/drivers/acpx/qualified-profiles.js";
 import { installedCliKeys } from "./installed-cli.js";
 import path from "node:path";
@@ -180,7 +181,7 @@ export function buildPaperclipServerEnvironment(
   ]) {
     delete result[key];
   }
-  for (const key of [...GENERATED_SERVER_SECRET_KEYS, ...installedCliKeys]) delete result[key];
+  for (const key of [...GENERATED_SERVER_SECRET_KEYS, ...installedCliKeys, ...installedDaytonaPluginKeys]) delete result[key];
   Object.assign(result, overrides);
   return result;
 }

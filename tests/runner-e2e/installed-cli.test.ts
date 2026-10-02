@@ -67,3 +67,28 @@ it.skipIf(process.platform === "win32")("rejects a FIFO entrypoint without waiti
   execFileSync("/usr/bin/mkfifo", [f.env.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI], { timeout: 5000, env: {} });
   await expect(verifyInstalledCli(f.env, [cells[0]!])).rejects.toThrow("bounded regular file");
 });
+
+it("uses the direct public Playwright JS bin without bin-shim Node injection", async () => {
+  const { runnerE2EPlaywrightInvocation } = await import("./web-server-command.js");
+  const f = await fixture(); const cli = join(f.root,"node_modules/@playwright/test/cli.js");
+  await mkdir(join(f.root,"node_modules/@playwright/test"),{recursive:true});
+  await writeFile(cli,"console.log(JSON.stringify({nodePath:process.env.NODE_PATH??null,nodeOptions:process.env.NODE_OPTIONS??null,args:process.argv.slice(2)}))");
+  const invocation = runnerE2EPlaywrightInvocation(f.root,["--version"],true);
+  expect(invocation.command).toBe(process.execPath);
+  expect(JSON.parse(execFileSync(invocation.command,invocation.args,{env:{},timeout:5000,encoding:"utf8"}))).toEqual({nodePath:null,nodeOptions:null,args:["--version"]});
+  expect(runnerE2EPlaywrightInvocation(f.root,["--version"],false)).toEqual({command:"pnpm",args:["exec","playwright","--version"]});
+  for (const key of ["NODE_PATH","NODE_OPTIONS"]) expect(()=>assertInstalledCliSelection({...f.env,[key]:""},[cells[0]!])).toThrow("ambient Node injection");
+});
+
+it("startup-only accepts only explicit uncredentialed local hello and zero retries", async () => {
+  const { assertInstalledStartupOnly } = await import("./installed-cli.js");
+  const { parseRunnerSelectors } = await import("./selectors.js");
+  const f=await fixture(); const cell=cells.find(e=>e.id==="extended-harnesses.runner-acpx-pi.local.hello-complete")!;
+  const options=parseRunnerSelectors(["--installed-startup-only","--id",cell.id,"--max-automatic-retries","0"]);
+  expect(options.installedStartupOnly).toBe(true);expect(()=>assertInstalledStartupOnly(f.env,[cell],options)).not.toThrow();
+  for(const delta of [{maxAutomaticRetries:1},{maxParallel:2},{ui:true},{debug:true},{headed:true},{list:true},{matrixJson:true},{ids:[]}])expect(()=>assertInstalledStartupOnly(f.env,[cell],{...options,...delta})).toThrow("startup-only");
+  expect(()=>assertInstalledStartupOnly(f.env,[cells.find(e=>e.environment.id==="daytona")!],options)).toThrow("startup-only");
+  expect(()=>assertInstalledStartupOnly({...f.env,OPENROUTER_API_KEY:"dummy-not-a-real-key"},[cell],options)).toThrow("credential inputs");
+  expect(()=>assertInstalledStartupOnly({...f.env,KIMI_MODEL_API_KEY:"dummy-not-a-real-key"},[cell],options)).toThrow("credential inputs");
+  expect(()=>assertInstalledStartupOnly({},[cell],options)).toThrow("startup-only");
+});

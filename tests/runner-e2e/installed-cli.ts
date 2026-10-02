@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { findPackageJSON } from "node:module";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { MatrixExecution } from "./types.js";
+import { CREDENTIAL_NAMES, type MatrixExecution } from "./types.js";
 
 export const installedCliKeys = ["PAPERCLIP_RUNNER_E2E_INSTALLED_CLI", "PAPERCLIP_RUNNER_E2E_INSTALLED_CLI_SHA256", "PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_ROOT", "PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_SHA256"] as const;
 const overrideKeys = ["PAPERCLIP_RUNNER_BINARY", "PAPERCLIP_RUNNER_REMOTE_BINARY_PATH", "PAPERCLIP_RUNNER_REMOTE_PROVIDER_PACK_PATH", "PAPERCLIP_RUNNER_ACPX_QUALIFICATION", "PAPERCLIP_ACPX_BUILTIN_ROOT", "PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT", "PAPERCLIP_ACPX_PROVIDER_PACKAGE_MANIFEST"] as const;
@@ -49,4 +49,11 @@ export async function verifyInstalledCli(env: NodeJS.ProcessEnv, executions: rea
   const serverSha256 = digest(await readOwned(serverEntry, 16 * 1024 * 1024));
   if (cliSha256 !== env.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI_SHA256 || serverSha256 !== env.PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_SHA256) throw new Error("Installed CLI/server bytes differ from their reviewed pins");
   return { schema: "paperclip.e2e.installed-cli-admission/v1", entry, cliRoot, cliSha256, serverRoot, serverEntry, serverSha256, version: cli.version, defaultRuntimeResolution: true, qualificationOverride: false };
+}
+
+/** This prep lane cannot create agents or read the normal local credential file. */
+export function assertInstalledStartupOnly(env: NodeJS.ProcessEnv, executions: readonly MatrixExecution[], options: { ids: string[]; maxParallel: number; maxAutomaticRetries: number; headed: boolean; ui: boolean; debug: boolean; list: boolean; matrixJson: boolean }) {
+  assertInstalledCliSelection(env, executions);
+  if (!usesInstalledCli(env) || executions.length !== 1 || executions[0]?.id !== "extended-harnesses.runner-acpx-pi.local.hello-complete" || options.ids.length !== 1 || options.ids[0] !== executions[0]?.id || options.maxParallel !== 1 || options.maxAutomaticRetries !== 0 || options.headed || options.ui || options.debug || options.list || options.matrixJson) throw new Error("Installed startup-only requires one explicit local Pi hello, no retries or interactive mode");
+  if (CREDENTIAL_NAMES.some(key => env[key] !== undefined) || Object.keys(env).some(key => /^(?:OPENAI|ANTHROPIC|OPENROUTER|DAYTONA|XAI|GROK|CURSOR|COPILOT|GITHUB|GH)(?:_|$)/.test(key) && env[key] !== undefined)) throw new Error("Installed startup-only forbids provider credential inputs");
 }
