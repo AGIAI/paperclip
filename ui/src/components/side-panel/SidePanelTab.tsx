@@ -46,6 +46,7 @@ export function SidePanelTab({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
   const [labelIsTruncated, setLabelIsTruncated] = useState(false);
+  const [tooltipOpen, setTooltipOpen] = useState(false);
   const sizingKey = `${appearance}:${label}:${icon ? "icon" : "no-icon"}:${status ? "status" : "no-status"}:${closable ? "closable" : "fixed"}`;
   const [stableWidth, setStableWidth] = useState<{ key: string; width: number } | null>(null);
   const hasStableWidth = stableWidth?.key === sizingKey;
@@ -71,6 +72,10 @@ export function SidePanelTab({
     return () => observer.disconnect();
   }, [label]);
 
+  useEffect(() => {
+    if (suppressTooltip || !labelIsTruncated) setTooltipOpen(false);
+  }, [labelIsTruncated, suppressTooltip]);
+
   return (
     <div
       ref={wrapperRef}
@@ -94,7 +99,10 @@ export function SidePanelTab({
         className,
       )}
     >
-      <Tooltip open={labelIsTruncated && !suppressTooltip ? undefined : false}>
+      <Tooltip
+        open={labelIsTruncated && !suppressTooltip && tooltipOpen}
+        onOpenChange={(open) => setTooltipOpen(open && labelIsTruncated && !suppressTooltip)}
+      >
         <TooltipTrigger asChild>
           <button
             {...dragHandleProps}
