@@ -206,8 +206,8 @@ and its safe JSON projection contain the per-profile/case comparison, exact
 source hashes, all campaign and recovery links, timing/usage, cost coverage,
 security failures, clipping limits and publication-layout recovery. Candidate
 `f02d8d0df` has 24 retained results: 15 pass and nine fail. Historical
-`12c5433c6` has 23 retained results plus one bounded AWS-runner recovery in
-progress. Classic Claude/OpenCode skill runs save no Paperclip task document
+`12c5433c6` also has 24 retained results: 15 pass and nine fail. Its single
+AWS-runner recovery timed out; original missing evidence remains recorded. Classic Claude/OpenCode skill runs save no Paperclip task document
 where historical runs save one; the original oracle remains failed.
 
 The merged native Codex change is held constant. Same aggregate success counts

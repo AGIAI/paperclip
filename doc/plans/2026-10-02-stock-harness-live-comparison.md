@@ -25,7 +25,7 @@ These are recorded overall qualifications, including security and receipt failur
 | `legacy-claude` | `claude-sonnet-4-6` | `ordered-comment-continuation` | Pass | Pass |
 | `legacy-claude` | `claude-sonnet-4-6` | `continuity-restart` | Fail: chat memory | Fail: chat memory |
 | `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `assigned-skill-explicit-invocation` | Pass | Fail: no Paperclip document |
-| `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `ordered-comment-continuation` | Missing: runner shutdown | Pass |
+| `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `ordered-comment-continuation` | Fail: no Paperclip document, deadline/run-start timeout | Pass |
 | `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `continuity-restart` | Pass | Pass |
 | `legacy-acp-codex` | `gpt-5.6-sol` | `assigned-skill-explicit-invocation` | Fail: credential guard | Fail: credential guard |
 | `legacy-acp-codex` | `gpt-5.6-sol` | `ordered-comment-continuation` | Fail: credential guard, no Paperclip document, receipt incomplete | Fail: credential guard, no Paperclip document |
@@ -51,7 +51,7 @@ Keep the agreed tiny manual. Next, verify that legacy agents discover and follow
 
 Classic Claude chat fails the memory assertion in both variants. Six legacy ACP cells per variant fail the persisted-credential guard: the scanner finds a scoped provider credential in persisted ACP session state. Raw session files and credential values are not published. These are existing qualification failures requiring their own investigation; they cannot be waived or interpreted as instruction-reduction quality evidence.
 
-Historical native OpenCode ordered comments hit the case deadline without the required continuation outcome. The initial historical classic OpenCode ordered cell lost its AWS runner before result upload; only that missing cell is recovered. Completed failures are never rerun to select a better result. A candidate pass against a missing/interrupted baseline is not an improvement claim.
+Historical native OpenCode ordered comments hit the case deadline without the required continuation outcome. The initial historical classic OpenCode ordered cell lost its AWS runner before result upload; its one unchanged-source recovery also hits the 12-minute deadline. Both OpenCode ordered cases pass in the candidate. Completed failures are never rerun to select a better result. Those candidate passes against historical timeouts are observed differences, not proof of a general improvement.
 
 Historical public prompt retrieval is clipped in three legacy ACP cells (four invocations), including identity/connection suffix text. Those structural receipt failures cannot establish that the provider omitted instructions. The candidate ACP Codex chat run also lacks a complete per-run invocation receipt. Instruction presence/absence claims are bounded by the retained public receipts.
 
@@ -59,7 +59,7 @@ Historical public prompt retrieval is clipped in three legacy ACP cells (four in
 
 | Variant | Retained cells | Pass / fail / missing | Cell duration sum | Provider duration sum | Recorded runs with tokens / with reported cost / total | Reported LLM subtotal |
 | --- | ---: | --- | ---: | ---: | --- | ---: |
-| baseline | 23 | 15 / 8 / 1 | 2529.579s | 1665.132s | 50 / 41 / 55 | $1.718768 |
+| baseline | 24 | 15 / 9 / 0 | 3250.195s | 2108.034s | 52 / 43 / 58 | $1.749425 |
 | candidate | 24 | 15 / 9 / 0 | 2804.913s | 1540.860s | 45 / 36 / 47 | $1.743151 |
 
 For the 13 cells that pass both variants, median cell time is 85.550s historical versus 69.761s reduced; median provider time is 57.150s versus 43.862s. This excludes failures and is descriptive, not a reliable speedup estimate.
@@ -78,12 +78,12 @@ Provider billing is incomplete. Legacy Codex/ACP usage is unpriced in several ru
 | [Initial candidate matrix](https://github.com/paperclipai/paperclip/actions/runs/37042856368) | `f02d8d0df` | 4 pass, 7 fail, 13 cancelled when a same-target-branch pilot superseded it. Original attempts retained. |
 | [Candidate cancelled-cell recovery](https://github.com/paperclipai/paperclip/actions/runs/37045368302) | `f02d8d0df` | Only the 13 cancelled cells: 11 pass, 2 fail. Combined candidate has 24 results, 15 pass / 9 fail. |
 | [Historical matrix](https://github.com/paperclipai/paperclip/actions/runs/37042864888) | `12c5433c6` | 15 pass, 8 recorded failures, one AWS-runner shutdown without result upload. |
-| [Historical interrupted-cell recovery](https://github.com/paperclipai/paperclip/actions/runs/37048838402) | `12c5433c6` | Only legacy OpenCode ordered comments; final result shown above when available. |
+| [Historical interrupted-cell recovery](https://github.com/paperclipai/paperclip/actions/runs/37048838402) | `12c5433c6` | Only legacy OpenCode ordered comments: 720.616s deadline failure; evidence and cleanup valid. Historical cohort now has 24 results, 15 pass / 9 fail. |
 | [Current packaging pilot](https://github.com/paperclipai/paperclip/actions/runs/37044967981) | `1eb5ba420` | Attempt 1 stopped before cell/provider execution; attempt 2 passes, evidence valid and cleanup pass. |
 
 The same-target-branch workflow concurrency rule caused the candidate interruption; that orchestration mistake was acknowledged and corrected with a separate unchanged-source recovery branch. No completed model failure was retried. The historical missing cell is recovered once for a runner shutdown. Partial/failed attempts remain part of the history and unknown-spend accounting.
 
-The measured matrix packages contain a prerequisite folder beside the exact campaign root. The trusted selector correctly rejects this layout, so their original published reports synthesize missing-result infrastructure failures. A separate local reconstruction nests that prerequisite folder under the campaign root and verifies byte identity for every copied file; result, scorer, usage, screenshot and prerequisite content are unchanged. The unchanged trusted selector then selects 11/24 original candidate, 13/13 recovery and 23/24 historical packages; recovered normalization validates every retained result’s evidence. Original missing packages stay missing. This is declared directory-layout recovery, not a canonical successful publication or a change to the oracle. The safe JSON records result/receipt/scoring hashes and recovery-manifest hashes.
+The measured matrix packages contain a prerequisite folder beside the exact campaign root. The trusted selector correctly rejects this layout, so their original published reports synthesize missing-result infrastructure failures. A separate local reconstruction nests that prerequisite folder under the campaign root and verifies byte identity for every copied file; result, scorer, usage, screenshot and prerequisite content are unchanged. The unchanged trusted selector then selects 11/24 original candidate, 13/13 recovery 23/24 original historical packages and 1/1 interrupted-cell recovery; recovered normalization validates every retained result’s evidence. Original missing packages stay missing in their original campaign; the separate recovery result has its own provenance. This is declared directory-layout recovery, not a canonical successful publication or a change to the oracle. The safe JSON records result/receipt/scoring hashes and recovery-manifest hashes.
 
 The fix at `1eb5ba420` writes prerequisites beneath the exact campaign root. Its single selected Codex skill cell passes through the protected report and publication pipeline: [interactive pilot report](https://d1p6rlowie26tp.cloudfront.net/runner-e2e/campaigns/gha-37044967981-2/index.html), [GitHub evidence](https://github.com/paperclipai/paperclip/actions/runs/37044967981#artifacts). It has `evidenceValid=true`, cleanup pass, 27.149s provider / 49.523s cell, and a reported zero subtotal with unknown billing type. It does not replace the full matched cohort or qualify untested providers.
 
