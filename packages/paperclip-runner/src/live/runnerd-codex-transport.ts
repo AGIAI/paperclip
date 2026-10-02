@@ -920,8 +920,12 @@ export function bridgedAcpxPermissionParams(
   turnId: string,
 ): Record<string, unknown> | null {
   const request = record(record(record(event.envelope.payload).payload).request);
-  if (event.eventType !== "runtime_request.created"
-    || request.type !== "permission" || request.requestKind !== "permission_approval"
+  if (event.eventType !== "runtime_request.created") return null;
+  return acpxPermissionRequestParams(request, threadId, turnId);
+}
+
+function acpxPermissionRequestParams(request: Record<string, unknown>, threadId: string, turnId: string): Record<string, unknown> | null {
+  if (request.type !== "permission" || request.requestKind !== "permission_approval"
     || record(request.origin).method !== "session/request_permission") return null;
   const toolCallId = record(request.details).toolCallId;
   // Match the permission adapter's 240-character bound. Never truncate, trim,
@@ -938,6 +942,35 @@ export function bridgedAcpxPermissionParams(
     origin: record(request.origin),
     ...(validToolCallId ? { toolCallId } : {}),
   };
+}
+
+/** Rehydrate only the pending ledger attested by the same live ACP session. */
+export function liveAcpxRuntimeRequests(snapshot: Record<string, unknown>, threadId: string, turnId: string): CodexRpcServerRequest[] {
+  if (snapshot.runtimeRequestsLive !== true || snapshot.provider !== "acpx"
+    || snapshot.driverSessionId !== threadId || snapshot.activeProviderTurnId !== turnId
+    || !turnId || !Array.isArray(snapshot.pendingRuntimeRequests)
+    || snapshot.pendingRuntimeRequests.length > 1024) {
+    throw new Error("ACPX pending request snapshot binding is invalid");
+  }
+  const ids = new Set<string>();
+  return snapshot.pendingRuntimeRequests.map(value => {
+    const request = record(value), origin = record(request.origin);
+    const id = request.requestId, method = origin.method;
+    if (typeof id !== "string" || !id || id.length > 160 || ids.has(id)
+      || request.schema !== "paperclip.runtime_request.v2" || request.status !== "pending"
+      || request.turnId !== turnId || typeof method !== "string") {
+      throw new Error("ACPX pending request snapshot request is invalid");
+    }
+    ids.add(id);
+    const permission = request.type === "permission" && request.requestKind === "permission_approval"
+      && method === "session/request_permission";
+    const params = permission
+      ? acpxPermissionRequestParams(request, threadId, turnId)
+      : request.type === "input" && request.requestKind === "runtime" && isAcpxCanonicalInputMethod(method)
+        ? bridgedCodexQuestionParams(request, method, threadId, turnId) : null;
+    if (!params) throw new Error("ACPX pending request snapshot form is invalid");
+    return { id, method, params };
+  });
 }
 
 export function bridgedCodexQuestionParams(
@@ -3511,6 +3544,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
   readonly #traceFrameIndex = new RunnerdTraceFrameIndex();
   #pendingTraceRehydrations: PendingTraceRehydration[] = [];
   #pendingDriverTraceInterpretations: PendingDriverTraceInterpretation[] = [];
+  #restoredRuntimeRequests: CodexRpcServerRequest[] = [];
   readonly #bridgedRuntimeInputs = new Map<string, { durableTurnId: string; permission?: boolean }>();
 
   constructor(readonly options: CapabilityRunnerdCodexTransportOptions) {
@@ -3701,7 +3735,10 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       // than reading its filesystem. This both supports remote process owners
       // and proves any identity restored after PRP event compaction before the
       // checkpoint-backed thread is exposed to the driver.
-      const snapshot = await this.#commandResult("session.snapshot", {});
+      const restoreRuntimeRequests = this.#recoveryTurnBindingPending
+        && this.options.adoptExistingRunner !== undefined && this.options.provider === "acpx";
+      const snapshot = await this.#commandResult("session.snapshot", restoreRuntimeRequests
+        ? { includePendingRuntimeRequests: true } : {});
       this.#confirmCheckpointProviderIdentity(
         snapshot,
         "authenticated session.snapshot",
@@ -3755,6 +3792,15 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
                   : terminal.eventType === "turn.cancelled"
                     ? "cancelled"
                     : "failed",
+          });
+        }
+      }
+      if (restoreRuntimeRequests && activeProviderTurnId !== null) {
+        this.#restoredRuntimeRequests = liveAcpxRuntimeRequests(snapshot, this.#threadId, activeProviderTurnId);
+        for (const request of this.#restoredRuntimeRequests) {
+          this.#bridgedRuntimeInputs.set(String(request.id), {
+            durableTurnId: this.#durableTurnId,
+            permission: request.method === "session/request_permission",
           });
         }
       }
@@ -3835,6 +3881,14 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
 
   notifications(): AsyncIterable<CodexRpcNotification> {
     return this.#queue;
+  }
+
+  takeRestoredRuntimeRequests(): CodexRpcServerRequest[] {
+    this.#throwIfFailed();
+    const requests = this.#restoredRuntimeRequests;
+    this.#restoredRuntimeRequests = [];
+    return requests.filter(request => this.#bridgedRuntimeInputs.has(String(request.id))
+      && request.params.threadId === this.#threadId && request.params.turnId === this.#turnId);
   }
 
   setServerRequestHandler(handler: CodexServerRequestHandler): void {

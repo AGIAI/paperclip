@@ -287,6 +287,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             | "resolutions-error-redaction"
             | "resolutions-projected-id"
             | "resolutions-wrong-ack"
+            | "resolutions-snapshot-wrong-session"
+            | "resolutions-snapshot-wrong-turn"
+            | "resolutions-snapshot-missing-callbacks"
             | "suspend"
             | "suspend-wrong-ack"
             | "suspend-wrong-identity"
@@ -679,15 +682,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     )?;
                     next_sequence += 1;
                 }
-                if command == "turn.start"
-                    && matches!(
-                        mode,
-                        "resolutions"
-                            | "resolutions-error-redaction"
-                            | "resolutions-projected-id"
-                            | "resolutions-wrong-ack"
-                    )
-                {
+                if command == "turn.start" && mode.starts_with("resolutions") {
                     for (event_type, payload) in [
                         (
                             "runtime.tool_called",
@@ -834,6 +829,22 @@ fn bootstrap_success(
         "turn.cancel" => {
             json!({"cancelled":mode != "turns-wrong-cancel", "sessionClosed":matches!(mode, "turns-retired" | "turns-retired-terminal-first")})
         }
+        "session.snapshot" => json!({
+            "identity": {
+                "kind":"acpx", "normalizedSessionId":"session-1",
+                "acpxRecordId":if mode == "resolutions-snapshot-wrong-session" {"other-record"} else {"record-1"},
+                "backendSessionId":"backend-1", "agentSessionId":"agent-1",
+                "profileDigest":profile_digest, "workspaceDigest":format!("sha256:{}", "2".repeat(64)),
+                "requestedModel":"gpt-5.6-sol", "effectiveModel":"gpt-5.6-sol",
+                "permissionMode":"approve-reads", "providerLifetimeFenceCandidates":[60001,60002,60003]
+            },
+            "runId":"run-1",
+            "turnId":if mode == "resolutions-snapshot-wrong-turn" {"other-turn"} else {"turn-1"},
+            "pendingRuntimeRequests":if mode == "resolutions-snapshot-missing-callbacks" {Value::Null} else {
+                json!([{"requestId":if mode == "resolutions-projected-id" {PROJECTED_INPUT_PROVIDER_ID} else {"input-1"},
+                    "type":"input","turnId":"turn-1"}])
+            }
+        }),
         "session.suspend" => json!({
             "suspended":mode != "suspend-wrong-ack",
             "identity": if mode == "suspend-missing-identity" { Value::Null } else { json!({

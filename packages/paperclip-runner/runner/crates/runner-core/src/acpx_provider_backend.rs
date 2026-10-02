@@ -225,7 +225,7 @@ impl AcpxProviderDescriptor {
                 "1.0.88",
                 None,
                 None,
-                "sha256:3ff08fbe76fe4549c9eb01e8794428d8909c65c151d775220f2ec111d9e6f7c1",
+                "sha256:5e5955c57917a7e7c25703b3ed9e420cd72105eab033b611508dc37fdba3858b",
             ),
             "grok" => (
                 "grok-4.7",
@@ -1762,6 +1762,54 @@ impl AcpxCommandExecutor {
         })))
     }
 
+    fn snapshot_live_requests(&mut self) -> Result<CommandExecution, DurableRunnerError> {
+        let session = self.session.as_mut().ok_or_else(|| {
+            DurableRunnerError::invalid("ACPX request snapshot requires the surviving provider")
+        })?;
+        let live_requests = session.verify_live_request_snapshot().map_err(|error| {
+            DurableRunnerError::invalid(format!("ACPX live request snapshot failed: {error}"))
+        })?;
+        let state = self
+            .state
+            .as_ref()
+            .ok_or_else(|| DurableRunnerError::invalid("ACPX provider state is unavailable"))?;
+        if state.provider_exit_unconfirmed
+            || state.lifecycle == "closed"
+            || state.identity.as_ref() != Some(session.identity())
+            || state.active_turn_id.as_deref() != session.state().active_turn_id()
+        {
+            return Err(DurableRunnerError::invalid(
+                "ACPX live request snapshot lost its provider binding",
+            ));
+        }
+        validate_pending_runtime_requests(&state.pending_runtime_requests)?;
+        let requests = state
+            .pending_runtime_requests
+            .values()
+            .filter(|request| {
+                let id = request["requestId"].as_str().unwrap_or("");
+                request["turnId"].as_str() == state.active_turn_id.as_deref()
+                    && if request["type"] == "input" {
+                        session
+                            .state()
+                            .pending_provider_input_request_id(id)
+                            .and_then(|provider_id| live_requests.get(provider_id))
+                            .is_some_and(|kind| kind == "input")
+                    } else {
+                        session.state().pending_permission(id).is_some()
+                            && live_requests
+                                .get(id)
+                                .is_some_and(|kind| kind == "permission")
+                    }
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut snapshot = self.snapshot()?;
+        snapshot.result["pendingRuntimeRequests"] = json!(requests);
+        snapshot.result["runtimeRequestsLive"] = json!(true);
+        Ok(snapshot)
+    }
+
     fn close_session(&mut self, reason: &str) -> Result<CommandExecution, DurableRunnerError> {
         if let Some(session) = self.session.as_mut() {
             session.shutdown(reason).map_err(|error| {
@@ -2041,6 +2089,15 @@ impl CommandExecutor for AcpxCommandExecutor {
             "turn.stop" => self.stop_turn_for_suspension(&command.command_type),
             "request.resolve" => self.resolve_request(&command.payload),
             "semantic_tool.result" => self.deliver_tool_result(&command.payload),
+            "session.snapshot"
+                if command
+                    .payload
+                    .get("includePendingRuntimeRequests")
+                    .and_then(Value::as_bool)
+                    == Some(true) =>
+            {
+                self.snapshot_live_requests()
+            }
             "session.snapshot" => self.snapshot(),
             "session.close" | "session.destroy" => self.close_session(&command.command_type),
             "runner.suspend" => self.suspend(),
@@ -2831,7 +2888,7 @@ mod tests {
                 "copilot",
                 "@github/copilot",
                 "1.0.88",
-                "sha256:3ff08fbe76fe4549c9eb01e8794428d8909c65c151d775220f2ec111d9e6f7c1",
+                "sha256:5e5955c57917a7e7c25703b3ed9e420cd72105eab033b611508dc37fdba3858b",
                 None,
                 None,
                 "explicit-model",
