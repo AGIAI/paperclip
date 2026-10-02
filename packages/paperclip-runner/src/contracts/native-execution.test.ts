@@ -89,6 +89,22 @@ describe("NativeExecutionInputV1", () => {
     expect(composeNativeSystemInstructions(parsed.runtimeContext, "Follow sibling.md")).toBe(
       `${PAPERCLIP_EXECUTION_PROMPT}\n\nFollow sibling.md\n\nRead-only instruction sibling root: /runtime/instructions`,
     );
+    const agentFilesContext = {
+      ...parsed.runtimeContext,
+      instructions: {
+        ...parsed.runtimeContext.instructions,
+        workingCopy: { kind: "agent_files" as const, rootPath: "/runtime/current-agent-copy", entryPath: "AGENTS.md" },
+      },
+    };
+    const agentFilesInstructions = composeNativeSystemInstructions(agentFilesContext, "Preserve my personal notes.");
+    expect(agentFilesInstructions).toContain("AGENT_HOME) is /runtime/current-agent-copy.");
+    expect(agentFilesInstructions).toContain("its absolute path may change between turns");
+    expect(agentFilesInstructions).toContain("use the current $AGENT_HOME environment variable instead of an absolute agent-directory path from an earlier turn");
+    expect(agentFilesInstructions).toContain("All supported files and subfolders there are restored across tasks and sessions");
+    expect(agentFilesInstructions).toContain("Write task deliverables in the task working directory");
+    expect(agentFilesInstructions).toContain("Preserve my personal notes.");
+    expect(agentFilesInstructions).toMatch(/Read-only instruction sibling root: \/runtime\/instructions$/);
+    expect(composeNativeSystemInstructions(parsed.runtimeContext, "Follow sibling.md")).not.toContain("$AGENT_HOME");
     expect(canonicalNativeRuntimeContextDigest({
       ...context,
       mcp: { ...context.mcp, bindingId: "native-mcp:run-2" },
