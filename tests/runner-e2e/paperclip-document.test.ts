@@ -67,6 +67,20 @@ describe("explicit Paperclip document delivery", () => {
     }) as string;
     expect(gradeContextIntegrity({ ...scenario, checkpoints: [initial, final] }).every(row => row.passed)).toBe(true);
   });
+  it.each([null, undefined])("the shipped recipe supports an unnumbered issue with identifier %s", identifier => {
+    const reference = readFileSync(new URL("../../skills/paperclip/references/issue-documents.md", import.meta.url), "utf8");
+    const recipe = reference.match(/```javascript\n([\s\S]*?)```/)?.[1];
+    expect(recipe).toBeDefined();
+    const comment = runInNewContext(`${recipe}\ncomment`, {
+      issue: { id: "849c6474-ab4e-4428-981a-0b9a0207fa9b", identifier },
+      saved: { key: "report-agent-redirected" },
+    }) as string;
+    const target = comment.match(/\]\(([^)]+)\)/)?.[1];
+    expect(target).toBeDefined();
+    const url = new URL(target!, "https://paperclip.example");
+    expect(url.pathname).toBe("/issues/849c6474-ab4e-4428-981a-0b9a0207fa9b");
+    expect(url.hash).toBe("#document-report-agent-redirected");
+  });
   it("preserves the original ambiguous request and assigned output procedure", () => {
     expect(contextIntegrityScenario("assigned-skill-explicit-invocation", "probe").prompt).toBe(
       "Use the assigned Context integrity output skill for this task, then follow its instructions and finish the task. Do not create child tasks or unrelated deliverables.",
