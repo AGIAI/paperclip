@@ -4,7 +4,9 @@ Created: 2026-10-02. Status: item 1 merged for native Codex app-server in
 [PR #14920](https://github.com/paperclipai/paperclip/pull/14920). Item 2's default
 hire manual is reduced to identity only, and common legacy startup/resume
 instructions are in [PR #14948](https://github.com/paperclipai/paperclip/pull/14948).
-GitHub live qualification and a matched prior-instruction comparison are in progress.
+GitHub live qualification has measured document-delivery failures; PR #14948 remains
+draft. A matched prior-instruction comparison and its final interrupted-cell
+recovery are recorded in the [live report](2026-10-02-stock-harness-live-comparison.md).
 Additional carriers and native instructions remain open.
 
 Goal: keep the agent's stock harness behavior and add only what it needs to work
@@ -124,7 +126,10 @@ and existing-test update.
 - [ ] **2.3 Reduce native Runner instructions and constraints.** Improve
   discoverable tool documentation first, then shorten fixed guidance and
   consolidate completion rules. Verify prompt revisions, digests, and session
-  compatibility across native Codex, ACPX, and OpenCode.
+  compatibility across native Codex, ACPX, and OpenCode. Dotta approved the
+  native tool-documentation slice on 2026-10-02 in a separate worktree. Native
+  `paperclip_finish`/`paperclip_block` guidance must not leak into legacy
+  completion paths, which use the operational skill and API.
 
 ### Follow-up 2.1 implementation and verification
 
@@ -339,17 +344,18 @@ secret-reference plumbing are inherited from existing profiles.
 
 | Coverage ID | Implemented change | Executable coverage | Live status |
 | --- | --- | --- | --- |
-| SH-1 | Native Codex additive developer instructions, including start/resume/recovery | TypeScript driver, runnerd transport, Runner Lab/live-session, and Rust provider tests in `pnpm test:e2e:runner:stock-harness`; native Codex cells exercise real hires. | `not_run`; task success is not vendor-base proof. |
-| SH-2 | Eight-word default hire `AGENTS.md` | Public creation/onboarding tests; exact independent public bundle oracle before and after provider execution for every stock-harness cell. | 24 cells configured, `not_run`. |
-| SH-3 | Reduced shared task/chat defaults and removed generic resume contract | Shared renderer and ACPX/Codex/OpenCode/Pi/Hermes/Cursor Cloud regressions; actual legacy invocation prompts checked in the new suite. | Legacy cells configured, `not_run`; additional carriers remain item 2.2. |
+| SH-1 | Native Codex additive developer instructions, including start/resume/recovery | TypeScript driver, runnerd transport, Runner Lab/live-session, and Rust provider tests in `pnpm test:e2e:runner:stock-harness`; native Codex cells exercise real hires. | Native Codex passes all three matched journeys in both variants; #14920 held constant, so task success is not before/after vendor-base proof. |
+| SH-2 | Eight-word default hire `AGENTS.md` | Public creation/onboarding tests; exact independent public bundle oracle before and after provider execution for every stock-harness cell. | Candidate public tiny-bundle and budget receipts pass in all 24 retained cells. Behavioral delivery is not fully qualified; see F14–F17. |
+| SH-3 | Reduced shared task/chat defaults and removed generic resume contract | Shared renderer and ACPX/Codex/OpenCode/Pi/Hermes/Cursor Cloud regressions; actual legacy invocation prompts checked in the new suite. | Actual legacy prompts measured. Document-delivery regressions and clipped/missing receipts retained; additional carriers remain deferred item 2.2. |
 
 The suite is explicit-only and excluded from `--all`; it does not add paid work
 to ordinary campaigns. Negative calibration covers manual regrowth, missing or
 malformed prompt receipts, old startup/resume procedures, missing connection
 guidance, wrong budgets, and skipped prerequisite assertions. Source revisions,
 attempts, cost, partial failures, cleanup, and sanitized evidence use the existing
-report pipeline. No paid providers were launched during setup. No coding-quality
-improvement or live qualification is claimed. Unrepresented harnesses remain
+report pipeline. No paid providers were launched during the initial setup.
+Subsequent GitHub measurements are recorded below; no broad coding-quality
+improvement or full live qualification is claimed. Unrepresented harnesses remain
 unqualified; Codex-through-ACP vendor-base preservation is still F7.
 
 Local setup verification: 478 prerequisite tests passed (477 TypeScript plus one
@@ -359,8 +365,13 @@ passing coverage. Final prerequisite evidence is retained at
 `tests/runner-e2e/results/stock-harness-preflight-2026-10-02T16-15-39.064Z/preflight.json`;
 earlier interrupted, missing-Hermes-discovery, and setup/test-timeout attempts are
 retained as failures. Hermes is checked through its package config because the
-root Vitest project list omits it. Full repository checks have not been rerun for
-this eval setup; they remain required before a PR-ready handoff.
+root Vitest project list omits it. Later exact-head prerequisites expanded to
+557 passed checks (556 TypeScript and one Rust), and E2E support to 895 tests.
+Repository typecheck/build passed. The complete local Vitest run retained three
+unrelated timing failures; all three files passed unchanged reruns. At
+`1eb5ba420`, 52 CI gates pass and two skip; Greptile is 5/5 with zero open
+threads. Later documentation heads require fresh checks. See the live report
+for exact source hashes, campaigns, failures and cost limitations.
 
 ## Findings ledger
 
@@ -380,7 +391,11 @@ Confirmed mechanics below do not by themselves establish an effect on task quali
 | F10 | Removing the default manual left the 661-word legacy task template and its 172-word resumed-wake execution contract. Hermes and Pi have additional policy carriers. | 2.1 complete locally: task/chat defaults 113 words, no generic resume contract; 2.2 wrappers pending |
 | F11 | Task Markdown and the wake renderer prescribe different accepted-plan behavior for planning-mode accepted-confirmation payloads; tests currently expect both. | 2; unify the directive owner; production reachability still to trace |
 | F12 | Native fixed instructions and full-turn constraints repeat completion and uncommon procedures, while reserved finish/block tool descriptions are only one sentence each. | 2; improve tool documentation before removing needed native protocol guidance |
-| F13 | Existing context-integrity/chat fixtures injected a QA manual, so their green results did not qualify the production tiny hire default. | Dedicated stock-harness suite configured with public default-bundle and delivered-prompt receipts; live measurement pending. |
+| F13 | Existing context-integrity/chat fixtures injected a QA manual, so their green results did not qualify the production tiny hire default. | Dedicated stock-harness suite measured real default hires; retained failures prevent blanket qualification. |
+| F14 | Historical classic Claude/OpenCode skill runs save one Paperclip document; reduced runs save none while completing the task. Legacy ACP Claude has the same behavior under a separate guard failure. Pinned skill storage wording is ambiguous. | Measured delivery failures; keep original oracle. Improve legacy skill/API delivery guidance separately, then compare both variants with preserved and storage-specific cases. |
+| F15 | Classic Claude restart chat fails its memory assertion in both variants. | Existing behavior, not attributable to this reduction from these trials. |
+| F16 | All six legacy ACP cells per variant fail the persisted-provider-credential guard. Three historical ACP cells also have clipped public prompt retrieval, and candidate ACP Codex chat lacks a complete invocation receipt. | Security/receipt qualification follow-ups; do not waive guard, expose raw sessions, or infer missing provider instructions from clipped receipts. |
+| F17 | Prerequisites beside the campaign root violate trusted artifact selection. A same-target pilot superseded 13 candidate cells; one historical AWS runner shut down without upload. | Packaging fixed at `1eb5ba420` and pilot passes. Directory-layout-only copies preserve every byte; missing cells alone recovered at unchanged source, completed failures never rerun. |
 
 Append new findings with evidence, affected paths, and the numbered item that
 will address them. Record intentional behavior explicitly rather than as a bug.
@@ -402,3 +417,6 @@ will address them. Record intentional behavior explicitly rather than as a bug.
 
 For each completed item, add the chosen behavior, changed paths, verification
 results, remaining exceptions, and follow-ups here before checking it off.
+| 2026-10-02 | Dotta deferred 2.2 additional legacy carriers and approved the first 2.3 native tool-description slice separately. | Keep wrappers open; native finish/block documentation must not be supplied to legacy skill/API completion paths. |
+| 2026-10-02 | Matched default-manual/shared-prompt campaigns measured failures, with #14920 constant. | Candidate `f02d8d0df`: 15/24 pass. Historical `12c5433c6`: 15 pass, eight recorded failures, one interrupted cell recovering. Classic Claude/OpenCode Paperclip document delivery regressed in observed trials; keep PR #14948 draft. [Live report](2026-10-02-stock-harness-live-comparison.md). |
+| 2026-10-02 | Cold prerequisite and packaging faults were repaired without weakening admission or behavioral graders. | Three setup attempts stopped before providers. Current `1eb5ba420` pilot passes 557 prerequisite checks and protected report publication; source/hash/cost evidence retained. Candidate cancellation and historical runner shutdown recovered only for missing cells. |
