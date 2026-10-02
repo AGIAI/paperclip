@@ -15,7 +15,7 @@ export const nativeBlockedReportTask: RunnerTaskFixture = {
   buildPrompt: nonce => [
     "Deployment cannot proceed because required release access has not been granted.",
     "Release Owner is the external owner of that grant. Do not attempt deployment, create subtasks, or claim the access exists.",
-    "Record the whole task as blocked, identify the owner as Release Owner, and state the unblock action exactly: Grant deployment access.",
+    'Record the whole task as blocked and identify the owner as Release Owner. The exact unblock action is "Grant deployment access" (without quotation marks or trailing punctuation).',
     `Include BLOCKED_${nonce.replace(/[^a-z0-9]/gi, "")} in your final explanation.`,
   ].join("\n"),
   buildMatchers: nonce => [
@@ -25,7 +25,7 @@ export const nativeBlockedReportTask: RunnerTaskFixture = {
     { kind: "message_contains", expected: `BLOCKED_${nonce.replace(/[^a-z0-9]/gi, "")}` },
     { kind: "message_contains", expected: "Release Owner" },
     { kind: "message_contains", expected: "Grant deployment access" },
-    { kind: "message_regex", pattern: "\\b(?:blocked|cannot proceed|can't proceed|missing|required access|not (?:yet )?granted|awaiting|waiting|unavailable)\\b", flags: "i" },
+    { kind: "message_regex", pattern: "^(?![\\s\\S]*\\b(?:not blocked|no longer blocked|access (?:is |has been |was )?already granted|completed Grant deployment access)\\b)[\\s\\S]*\\b(?:blocked|cannot proceed|can't proceed|missing|required access|not (?:yet )?granted|awaiting|waiting|unavailable)\\b", flags: "i" },
     { kind: "json_path", path: "run.resultJson.nativeResult.reportedWorkDisposition", expected: "blocked" },
     { kind: "json_path", path: "run.resultJson.nativeResult.blocker.owner.name", expected: "Release Owner" },
     { kind: "json_path", path: "run.resultJson.nativeResult.blocker.unblockAction", expected: "Grant deployment access" },

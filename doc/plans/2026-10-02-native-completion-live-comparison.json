@@ -1,20 +1,127 @@
 {
-  "schema": "paperclip.native-completion.safe-comparison/v1",
-  "asOf": "2026-10-02T19:41:00Z",
-  "partial": true,
+  "schema": "paperclip.native-completion.safe-comparison/v2",
+  "asOf": "2026-10-02T20:30:00Z",
+  "partial": false,
   "expectedCellsPerVariant": 6,
   "expectedProviderTurnsPerVariant": 6,
   "candidateSha": "ae34843731ac338bd806a4106cb447134bff402c",
   "candidatePilotSha": "55ce97b675e1ed68cc171fe44b729147209a7e24",
   "baselineSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+  "originalPairedDelta": {
+    "newFailures": 0,
+    "newPasses": 0,
+    "unchangedPasses": 3,
+    "unchangedFailures": 3,
+    "pending": 0
+  },
   "candidate": [
     {
+      "executionId": "stock-harness.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+      "profileId": "runner-acpx-claude",
+      "caseId": "assigned-skill-explicit-invocation",
+      "status": "passed",
+      "model": "claude-sonnet-5",
+      "durationMs": 45214,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 10,
+          "outputTokens": 1012,
+          "cachedInputTokens": 156332,
+          "totalTokens": 157354,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 25013,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "sourceSha": "ae34843731ac338bd806a4106cb447134bff402c",
+      "providerDurationMs": 25013,
+      "originalFailureClass": null,
+      "originalMarkerOnlyUiFailure": false,
+      "independentChecks": 10,
+      "failedIndependentPaths": [],
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "ae34843731ac338bd806a4106cb447134bff402c",
+        "sourceFingerprint": "f4ab12423213e122604d34bdad0234db389478aa4a8ab883e307c1dbbc8ecff8",
+        "providerCallsBeforeAdmission": 0,
+        "executedChecks": 589
+      },
+      "resultSha256": "41070facb1177c865c2ae3b1c52ea2233bcc68e1e22aa53b44cad983e06e3f26",
+      "publicTaskDocuments": 1,
+      "behaviorChecks": 7,
+      "allBehaviorChecksPass": true
+    },
+    {
+      "executionId": "stock-harness.runner-acpx-claude.local.native-blocked-report",
+      "profileId": "runner-acpx-claude",
+      "caseId": "native-blocked-report",
+      "status": "failed",
+      "model": "claude-sonnet-5",
+      "durationMs": 73954,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 6,
+          "outputTokens": 1238,
+          "cachedInputTokens": 86721,
+          "totalTokens": 87965,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 26599,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "sourceSha": "ae34843731ac338bd806a4106cb447134bff402c",
+      "providerDurationMs": 26599,
+      "originalFailureClass": "candidate_failure",
+      "originalMarkerOnlyUiFailure": true,
+      "independentChecks": 14,
+      "failedIndependentPaths": [],
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "ae34843731ac338bd806a4106cb447134bff402c",
+        "sourceFingerprint": "f4ab12423213e122604d34bdad0234db389478aa4a8ab883e307c1dbbc8ecff8",
+        "providerCallsBeforeAdmission": 0,
+        "executedChecks": 589
+      },
+      "resultSha256": "9d10096be385cce395e6ebe365a83a912cb92390b1e47b392003fac698aadb60",
+      "retainedDiagnosis": "marker-only UI grader defect; all persisted/visible API matchers pass"
+    },
+    {
       "executionId": "stock-harness.runner-codex.local.assigned-skill-explicit-invocation",
-      "sourceSha": "55ce97b675e1ed68cc171fe44b729147209a7e24",
+      "profileId": "runner-codex",
+      "caseId": "assigned-skill-explicit-invocation",
       "status": "passed",
       "model": "gpt-5.6-sol",
       "durationMs": 46812,
-      "providerDurationMs": 25483,
       "cleanup": "passed",
       "billing": {
         "llm": {
@@ -41,35 +148,482 @@
         "observedAndEstimatedCostUsd": 0,
         "complete": true
       },
-      "checks": 7,
-      "allBehaviorChecksPass": true,
-      "publicTaskDocuments": 1,
+      "sourceSha": "55ce97b675e1ed68cc171fe44b729147209a7e24",
+      "providerDurationMs": 25483,
+      "originalFailureClass": null,
+      "originalMarkerOnlyUiFailure": false,
+      "independentChecks": 10,
+      "failedIndependentPaths": [],
       "prerequisites": {
         "passed": true,
         "sourceSha": "55ce97b675e1ed68cc171fe44b729147209a7e24",
         "sourceFingerprint": "ca46783b9d6529260667716a45d47c7fec43b36d6c813549212f6dbd4d2a25d0",
         "providerCallsBeforeAdmission": 0,
-        "tests": 585
+        "executedChecks": 585
       },
-      "resultSha256": "3a59532dd61292e551e1de678b5f84df49c01b760ae03ea4a784a039ba0e55d1"
+      "resultSha256": "3a59532dd61292e551e1de678b5f84df49c01b760ae03ea4a784a039ba0e55d1",
+      "publicTaskDocuments": 1,
+      "behaviorChecks": 7,
+      "allBehaviorChecksPass": true
+    },
+    {
+      "executionId": "stock-harness.runner-codex.local.native-blocked-report",
+      "profileId": "runner-codex",
+      "caseId": "native-blocked-report",
+      "status": "failed",
+      "model": "gpt-5.6-sol",
+      "durationMs": 62782,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 42772,
+          "outputTokens": 382,
+          "cachedInputTokens": 21169,
+          "totalTokens": 64323,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 16475,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "sourceSha": "ae34843731ac338bd806a4106cb447134bff402c",
+      "providerDurationMs": 16475,
+      "originalFailureClass": "candidate_failure",
+      "originalMarkerOnlyUiFailure": true,
+      "independentChecks": 14,
+      "failedIndependentPaths": [
+        "run.resultJson.nativeResult.blocker.unblockAction"
+      ],
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "ae34843731ac338bd806a4106cb447134bff402c",
+        "sourceFingerprint": "f4ab12423213e122604d34bdad0234db389478aa4a8ab883e307c1dbbc8ecff8",
+        "providerCallsBeforeAdmission": 0,
+        "executedChecks": 589
+      },
+      "resultSha256": "fc1b6262c51f9d8b92fb4c82c9de4977ce8259ae0b63597a0c1a3cb406e130f9",
+      "retainedDiagnosis": "marker-only UI grader defect plus exact-action punctuation mismatch"
+    },
+    {
+      "executionId": "stock-harness.runner-opencode.local.assigned-skill-explicit-invocation",
+      "profileId": "runner-opencode",
+      "caseId": "assigned-skill-explicit-invocation",
+      "status": "passed",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "durationMs": 66835,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 43262,
+          "outputTokens": 1072,
+          "cachedInputTokens": 85248,
+          "totalTokens": 129582,
+          "reportedCostUsd": 0.0028500250000000004,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 44963,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0.0028500250000000004,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0.0028500250000000004,
+        "complete": true
+      },
+      "sourceSha": "ae34843731ac338bd806a4106cb447134bff402c",
+      "providerDurationMs": 44963,
+      "originalFailureClass": null,
+      "originalMarkerOnlyUiFailure": false,
+      "independentChecks": 10,
+      "failedIndependentPaths": [],
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "ae34843731ac338bd806a4106cb447134bff402c",
+        "sourceFingerprint": "f4ab12423213e122604d34bdad0234db389478aa4a8ab883e307c1dbbc8ecff8",
+        "providerCallsBeforeAdmission": 0,
+        "executedChecks": 589
+      },
+      "resultSha256": "e02ba645c4d938ec6e106f245504df3610b8b0d4eaaadec11c66553bb01615d9",
+      "publicTaskDocuments": 1,
+      "behaviorChecks": 7,
+      "allBehaviorChecksPass": true
+    },
+    {
+      "executionId": "stock-harness.runner-opencode.local.native-blocked-report",
+      "profileId": "runner-opencode",
+      "caseId": "native-blocked-report",
+      "status": "failed",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "durationMs": 92115,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 21456,
+          "outputTokens": 823,
+          "cachedInputTokens": 20224,
+          "totalTokens": 42503,
+          "reportedCostUsd": 0.00153276,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 44633,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0.00153276,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0.00153276,
+        "complete": true
+      },
+      "sourceSha": "ae34843731ac338bd806a4106cb447134bff402c",
+      "providerDurationMs": 44633,
+      "originalFailureClass": "candidate_failure",
+      "originalMarkerOnlyUiFailure": true,
+      "independentChecks": 14,
+      "failedIndependentPaths": [],
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "ae34843731ac338bd806a4106cb447134bff402c",
+        "sourceFingerprint": "f4ab12423213e122604d34bdad0234db389478aa4a8ab883e307c1dbbc8ecff8",
+        "providerCallsBeforeAdmission": 0,
+        "executedChecks": 589
+      },
+      "resultSha256": "255b5aea2c938baf9875fb0c98198bfabf3aa9a0845af7ee89ef3a6a2e9adf83",
+      "retainedDiagnosis": "marker-only UI grader defect; all persisted/visible API matchers pass"
     }
   ],
-  "baseline": [],
-  "pendingCandidate": [
-    "stock-harness.runner-codex.local.native-blocked-report",
-    "stock-harness.runner-acpx-claude.local.assigned-skill-explicit-invocation",
-    "stock-harness.runner-acpx-claude.local.native-blocked-report",
-    "stock-harness.runner-opencode.local.assigned-skill-explicit-invocation",
-    "stock-harness.runner-opencode.local.native-blocked-report"
+  "baseline": [
+    {
+      "executionId": "stock-harness.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+      "profileId": "runner-acpx-claude",
+      "caseId": "assigned-skill-explicit-invocation",
+      "status": "passed",
+      "model": "claude-sonnet-5",
+      "durationMs": 51820,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 10,
+          "outputTokens": 1015,
+          "cachedInputTokens": 155959,
+          "totalTokens": 156984,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 30896,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+      "providerDurationMs": 30896,
+      "originalFailureClass": null,
+      "originalMarkerOnlyUiFailure": false,
+      "independentChecks": 10,
+      "failedIndependentPaths": [],
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+        "sourceFingerprint": "07aae3c4b57106fa9c6a6f218f6fa16aa42d998f65d8f9be9abea6120019b401",
+        "providerCallsBeforeAdmission": 0,
+        "executedChecks": 588
+      },
+      "resultSha256": "64a4599ce7dc230d5fe586af8c0f000e87d27a96c9d7fcb24969ee04b6069bee",
+      "publicTaskDocuments": 1,
+      "behaviorChecks": 7,
+      "allBehaviorChecksPass": true
+    },
+    {
+      "executionId": "stock-harness.runner-acpx-claude.local.native-blocked-report",
+      "profileId": "runner-acpx-claude",
+      "caseId": "native-blocked-report",
+      "status": "failed",
+      "model": "claude-sonnet-5",
+      "durationMs": 77209,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 6,
+          "outputTokens": 909,
+          "cachedInputTokens": 66538,
+          "totalTokens": 67453,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 29743,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+      "providerDurationMs": 29743,
+      "originalFailureClass": "candidate_failure",
+      "originalMarkerOnlyUiFailure": true,
+      "independentChecks": 14,
+      "failedIndependentPaths": [],
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+        "sourceFingerprint": "07aae3c4b57106fa9c6a6f218f6fa16aa42d998f65d8f9be9abea6120019b401",
+        "providerCallsBeforeAdmission": 0,
+        "executedChecks": 588
+      },
+      "resultSha256": "091e358cfd955d7b9a00d2c6b5a7a9cd01e16a21b8b320ff5e80326c7b75b42f",
+      "retainedDiagnosis": "marker-only UI grader defect; all persisted/visible API matchers pass"
+    },
+    {
+      "executionId": "stock-harness.runner-codex.local.assigned-skill-explicit-invocation",
+      "profileId": "runner-codex",
+      "caseId": "assigned-skill-explicit-invocation",
+      "status": "passed",
+      "model": "gpt-5.6-sol",
+      "durationMs": 51075,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 156433,
+          "outputTokens": 1495,
+          "cachedInputTokens": 132956,
+          "totalTokens": 290884,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 30332,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+      "providerDurationMs": 30332,
+      "originalFailureClass": null,
+      "originalMarkerOnlyUiFailure": false,
+      "independentChecks": 10,
+      "failedIndependentPaths": [],
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+        "sourceFingerprint": "07aae3c4b57106fa9c6a6f218f6fa16aa42d998f65d8f9be9abea6120019b401",
+        "providerCallsBeforeAdmission": 0,
+        "executedChecks": 588
+      },
+      "resultSha256": "ca3e16bf9d94a88071a62d9eaecf9f3aa115e7594913b9f7bcbd55001d4366fc",
+      "publicTaskDocuments": 1,
+      "behaviorChecks": 7,
+      "allBehaviorChecksPass": true
+    },
+    {
+      "executionId": "stock-harness.runner-codex.local.native-blocked-report",
+      "profileId": "runner-codex",
+      "caseId": "native-blocked-report",
+      "status": "failed",
+      "model": "gpt-5.6-sol",
+      "durationMs": 64524,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 42597,
+          "outputTokens": 464,
+          "cachedInputTokens": 21040,
+          "totalTokens": 64101,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 16644,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+      "providerDurationMs": 16644,
+      "originalFailureClass": "candidate_failure",
+      "originalMarkerOnlyUiFailure": true,
+      "independentChecks": 14,
+      "failedIndependentPaths": [
+        "run.resultJson.nativeResult.blocker.unblockAction"
+      ],
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+        "sourceFingerprint": "07aae3c4b57106fa9c6a6f218f6fa16aa42d998f65d8f9be9abea6120019b401",
+        "providerCallsBeforeAdmission": 0,
+        "executedChecks": 588
+      },
+      "resultSha256": "e28c005b1f44a4fc09fb8f9169f50a40d759af2d33b377b737bd44fa7cc4d5bb",
+      "retainedDiagnosis": "marker-only UI grader defect plus exact-action punctuation mismatch"
+    },
+    {
+      "executionId": "stock-harness.runner-opencode.local.assigned-skill-explicit-invocation",
+      "profileId": "runner-opencode",
+      "caseId": "assigned-skill-explicit-invocation",
+      "status": "passed",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "durationMs": 90664,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 44977,
+          "outputTokens": 1584,
+          "cachedInputTokens": 105984,
+          "totalTokens": 152545,
+          "reportedCostUsd": 0.0037635715,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 66281,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0.0037635715,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0.0037635715,
+        "complete": true
+      },
+      "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+      "providerDurationMs": 66281,
+      "originalFailureClass": null,
+      "originalMarkerOnlyUiFailure": false,
+      "independentChecks": 10,
+      "failedIndependentPaths": [],
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+        "sourceFingerprint": "07aae3c4b57106fa9c6a6f218f6fa16aa42d998f65d8f9be9abea6120019b401",
+        "providerCallsBeforeAdmission": 0,
+        "executedChecks": 588
+      },
+      "resultSha256": "63d94f6b94affe09c4d52031b12904e10a4b685b1b576af13f23d9880dcf8a37",
+      "publicTaskDocuments": 1,
+      "behaviorChecks": 7,
+      "allBehaviorChecksPass": true
+    },
+    {
+      "executionId": "stock-harness.runner-opencode.local.native-blocked-report",
+      "profileId": "runner-opencode",
+      "caseId": "native-blocked-report",
+      "status": "failed",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "durationMs": 71434,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 20857,
+          "outputTokens": 488,
+          "cachedInputTokens": 20224,
+          "totalTokens": 41569,
+          "reportedCostUsd": 0.0010970715,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 23477,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0.0010970715,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0.0010970715,
+        "complete": true
+      },
+      "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+      "providerDurationMs": 23477,
+      "originalFailureClass": "candidate_failure",
+      "originalMarkerOnlyUiFailure": true,
+      "independentChecks": 14,
+      "failedIndependentPaths": [],
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+        "sourceFingerprint": "07aae3c4b57106fa9c6a6f218f6fa16aa42d998f65d8f9be9abea6120019b401",
+        "providerCallsBeforeAdmission": 0,
+        "executedChecks": 588
+      },
+      "resultSha256": "475f9bb10c3397b6d3d4826262f38873ac7d6f9491f9db63bb07be2b3c85f8df",
+      "retainedDiagnosis": "marker-only UI grader defect; all persisted/visible API matchers pass"
+    }
   ],
-  "pendingBaseline": [
-    "stock-harness.runner-codex.local.assigned-skill-explicit-invocation",
-    "stock-harness.runner-codex.local.native-blocked-report",
-    "stock-harness.runner-acpx-claude.local.assigned-skill-explicit-invocation",
-    "stock-harness.runner-acpx-claude.local.native-blocked-report",
-    "stock-harness.runner-opencode.local.assigned-skill-explicit-invocation",
-    "stock-harness.runner-opencode.local.native-blocked-report"
-  ],
+  "pendingCandidate": [],
+  "pendingBaseline": [],
   "fixtureMatchProof": {
     "schema": "paperclip.native-completion.fixture-match-proof/v1",
     "cells": [
@@ -105,10 +659,109 @@
       }
     ]
   },
+  "retainedDomRegrade": {
+    "schema": "paperclip.native-blocker.retained-dom-regrade/v1",
+    "providerCalls": 0,
+    "method": "Retained final Playwright DOM text replays through the corrected assertion; original visibility separately inspected in the retained failure screenshot. This does not replace original live verdicts or claim a new live run.",
+    "rows": [
+      {
+        "variant": "baseline",
+        "profileId": "runner-acpx-claude",
+        "retainedMarkerExplanationPass": true,
+        "traceSha256": "85764e148f85aee75fe8ff31a7084e844b544e33e5b18b90b8b8e91b05f1cc73",
+        "resultSha256": "091e358cfd955d7b9a00d2c6b5a7a9cd01e16a21b8b320ff5e80326c7b75b42f",
+        "snapshotWallTime": 1790970574509,
+        "retainedBubbleCount": 1,
+        "markerBubbleCount": 1,
+        "ownerPresent": true,
+        "actionPresent": true,
+        "contradictoryClaim": false,
+        "htmlSha256": "b81a25b3dfdaf7dc67a7d6950cab880ac08e89e61e78672fb0af177aa127cd5e",
+        "screenshotVisuallyInspected": true
+      },
+      {
+        "variant": "baseline",
+        "profileId": "runner-codex",
+        "retainedMarkerExplanationPass": true,
+        "traceSha256": "91a8630edfc00378b24cf9426ced8f2001252a603759efc3b28ea292d6ce53d2",
+        "resultSha256": "e28c005b1f44a4fc09fb8f9169f50a40d759af2d33b377b737bd44fa7cc4d5bb",
+        "snapshotWallTime": 1790970933943,
+        "retainedBubbleCount": 1,
+        "markerBubbleCount": 1,
+        "ownerPresent": true,
+        "actionPresent": true,
+        "contradictoryClaim": false,
+        "htmlSha256": "eb5ce83ec4c1044a8e1ec1c3c9444e0ceef8f6e074260f3b3e1b1daddd47b43c",
+        "screenshotVisuallyInspected": true
+      },
+      {
+        "variant": "baseline",
+        "profileId": "runner-opencode",
+        "retainedMarkerExplanationPass": true,
+        "traceSha256": "f3d2e76581cb5090ab16e7110062ecd5be25bd06bf58eba6a2aa10976eeabee1",
+        "resultSha256": "475f9bb10c3397b6d3d4826262f38873ac7d6f9491f9db63bb07be2b3c85f8df",
+        "snapshotWallTime": 1790970990379,
+        "retainedBubbleCount": 1,
+        "markerBubbleCount": 1,
+        "ownerPresent": true,
+        "actionPresent": true,
+        "contradictoryClaim": false,
+        "htmlSha256": "1ff8be1dff61e629e2b4ef5a25ba1bca4c9d35b4bfb22720c78a9eebbe378901",
+        "screenshotVisuallyInspected": true
+      },
+      {
+        "variant": "candidate",
+        "profileId": "runner-acpx-claude",
+        "retainedMarkerExplanationPass": true,
+        "traceSha256": "97799f078293c15c2e976ba744fb89688b9a0da1e43045d7fbad9be3ce326d84",
+        "resultSha256": "9d10096be385cce395e6ebe365a83a912cb92390b1e47b392003fac698aadb60",
+        "snapshotWallTime": 1790970677775,
+        "retainedBubbleCount": 1,
+        "markerBubbleCount": 1,
+        "ownerPresent": true,
+        "actionPresent": true,
+        "contradictoryClaim": false,
+        "htmlSha256": "b51ab457bda29867f790073762aa089e15ed85885253a95b4fa099579a6c2709",
+        "screenshotVisuallyInspected": true
+      },
+      {
+        "variant": "candidate",
+        "profileId": "runner-codex",
+        "retainedMarkerExplanationPass": true,
+        "traceSha256": "f8ee2b43e5f2face66eeff696772bf733d0657056db7a0affe180ed763d3681a",
+        "resultSha256": "fc1b6262c51f9d8b92fb4c82c9de4977ce8259ae0b63597a0c1a3cb406e130f9",
+        "snapshotWallTime": 1790970650513,
+        "retainedBubbleCount": 1,
+        "markerBubbleCount": 1,
+        "ownerPresent": true,
+        "actionPresent": true,
+        "contradictoryClaim": false,
+        "htmlSha256": "fb0a8ee2730d29f9aa174db973c66af924a99f45029f9fb3d92089e58a269010",
+        "screenshotVisuallyInspected": true
+      },
+      {
+        "variant": "candidate",
+        "profileId": "runner-opencode",
+        "retainedMarkerExplanationPass": true,
+        "traceSha256": "042b6d741b8cc42dc8d6584c0f9ec9eae795eaf03d155ddf305f0c6768017bd1",
+        "resultSha256": "255b5aea2c938baf9875fb0c98198bfabf3aa9a0845af7ee89ef3a6a2e9adf83",
+        "snapshotWallTime": 1790971103735,
+        "retainedBubbleCount": 1,
+        "markerBubbleCount": 1,
+        "ownerPresent": true,
+        "actionPresent": true,
+        "contradictoryClaim": false,
+        "htmlSha256": "54192526b4f2c99d9d9177a8ae4b41089d1cf5eb97bb2e19af57d072e8045d72",
+        "screenshotVisuallyInspected": true
+      }
+    ]
+  },
   "limitations": [
-    "One graded candidate cell, no baseline or blocker results yet.",
-    "Native reported zero cost has unknown actual provider billing; local runtime is unmetered.",
-    "Pilot source precedes blocker-only grader correction; its completion fixture and production guidance are unchanged.",
-    "Single trials do not establish general coding quality, reliability, speed or cost improvement."
+    "Measures shared/additional native completion tool descriptions, not removal of native fixed prompts.",
+    "Original 3/6 machine passes per variant are preserved. Four Claude/OpenCode blocker verdicts are grader defects. Codex strict action mismatch remains a failure in both.",
+    "Provider-free retained DOM replay validates recorded reply text; original visibility is separately inspected in retained screenshots. It is not a new live execution.",
+    "Future clarified fixture punctuation does not retroactively pass the original exact-action failures.",
+    "Native reported zero cost does not establish zero actual billing; local runtime is unmetered.",
+    "Single trials do not establish general coding quality, broad reliability, timing or cost improvement."
   ]
 }

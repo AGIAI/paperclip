@@ -5,6 +5,7 @@ import { completionDelivery, type CompletionObservation } from "./completion-upd
 import { runInstructionPersistenceFlow } from "./instruction-persistence.js";
 import { gradeApiResponsePaging, readResponseProof, responseEvidenceDescription } from "./api-response-reading.js";
 import { runBlockerFlow } from "./blocker-flow.js";
+import { assertNativeBlockerReply } from "./native-blocker-visible.js";
 import { largeJournalEvidence } from "./journal-evidence.js";
 import { observeBrowserBootstrap } from "./browser-bootstrap-diagnostics.js";
 import { runAccountingFlow } from "./accounting-flow.js";
@@ -2597,6 +2598,8 @@ for (const execution of executions) {
         expect(finalRunMessage.trim()).not.toBe("");
         await expect(visibleAgentReplies.filter({ hasText: finalRunMessage }).last())
           .toBeVisible({ timeout: 30_000 });
+      } else if (execution.suite.id === "stock-harness" && execution.task.id === "native-blocked-report") {
+        await assertNativeBlockerReply(visibleAgentReplies, marker);
       } else {
         const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const terminalAgentReplies = visibleAgentReplies.filter({
