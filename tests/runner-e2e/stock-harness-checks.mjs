@@ -56,11 +56,13 @@ export const stockHarnessGates = [
     config: "tests/runner-e2e/vitest.config.ts",
     files: ["tests/runner-e2e/stock-harness-manifest.test.ts", "tests/runner-e2e/paperclip-document.test.ts", "tests/runner-e2e/stock-harness.test.ts", "tests/runner-e2e/stock-harness-checks.test.mjs",
       "tests/runner-e2e/stock-harness-admission.test.ts", "tests/runner-e2e/stock-harness-digest.test.ts",
-      "tests/runner-e2e/select-rerun-artifacts.test.ts"],
+      "tests/runner-e2e/select-rerun-artifacts.test.ts", "tests/runner-e2e/native-completion-case.test.ts"],
     required: ["requires generated capability manifests for the current skill sources", "the shipped recipe delivers the current", "the shipped recipe supports an unnumbered issue", "rejects old SHA before providers", "allows toolchain paths and excludes every present or future credential",
       "changes when the evaluated server/src/onboarding-assets/default/AGENTS.md changes",
       "changes when the evaluated packages/adapter-utils/src/server-utils.ts changes",
       "changes when the evaluated packages/shared/src/connection-intent-guidance.ts changes",
+      "changes when the evaluated tests/runner-e2e/native-completion-case.ts changes",
+      "accepts the persisted blocker, owner and exact requested unblock action",
       "retains credential-free prerequisites inside the exact campaign root"] },
 ];
 
@@ -93,6 +95,7 @@ export function sourceFingerprint() {
     "packages/paperclip-runner/src/generated/capability-contract.ts", "packages/paperclip-runner/docs/capability-contract.md",
     ...["capabilities.yaml", "mcp-tool-map.yaml", "eval-traceability.yaml", "capability-contract.md", "downstream-handoff.md"]
       .map(file => `packages/paperclip-runner/generated/capability/${file}`),
+    "tests/runner-e2e/native-completion-case.ts",
     "packages/adapter-utils/src/server-utils.ts", "packages/shared/src/connection-intent-guidance.ts",
     "server/src/onboarding-assets/default/AGENTS.md", "server/src/routes/agents.ts", "scripts/ensure-plugin-build-deps.mjs",
     "packages/paperclip-runner/src/drivers/codex/codex-app-server-driver-impl.ts",
