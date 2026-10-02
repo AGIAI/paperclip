@@ -1,0 +1,114 @@
+{
+  "schema": "paperclip.native-completion.safe-comparison/v1",
+  "asOf": "2026-10-02T19:41:00Z",
+  "partial": true,
+  "expectedCellsPerVariant": 6,
+  "expectedProviderTurnsPerVariant": 6,
+  "candidateSha": "ae34843731ac338bd806a4106cb447134bff402c",
+  "candidatePilotSha": "55ce97b675e1ed68cc171fe44b729147209a7e24",
+  "baselineSha": "8792aed8ac8e9d004406afcb4b9a4ffddccd72c8",
+  "candidate": [
+    {
+      "executionId": "stock-harness.runner-codex.local.assigned-skill-explicit-invocation",
+      "sourceSha": "55ce97b675e1ed68cc171fe44b729147209a7e24",
+      "status": "passed",
+      "model": "gpt-5.6-sol",
+      "durationMs": 46812,
+      "providerDurationMs": 25483,
+      "cleanup": "passed",
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 156457,
+          "outputTokens": 1288,
+          "cachedInputTokens": 133102,
+          "totalTokens": 290847,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 25483,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "checks": 7,
+      "allBehaviorChecksPass": true,
+      "publicTaskDocuments": 1,
+      "prerequisites": {
+        "passed": true,
+        "sourceSha": "55ce97b675e1ed68cc171fe44b729147209a7e24",
+        "sourceFingerprint": "ca46783b9d6529260667716a45d47c7fec43b36d6c813549212f6dbd4d2a25d0",
+        "providerCallsBeforeAdmission": 0,
+        "tests": 585
+      },
+      "resultSha256": "3a59532dd61292e551e1de678b5f84df49c01b760ae03ea4a784a039ba0e55d1"
+    }
+  ],
+  "baseline": [],
+  "pendingCandidate": [
+    "stock-harness.runner-codex.local.native-blocked-report",
+    "stock-harness.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+    "stock-harness.runner-acpx-claude.local.native-blocked-report",
+    "stock-harness.runner-opencode.local.assigned-skill-explicit-invocation",
+    "stock-harness.runner-opencode.local.native-blocked-report"
+  ],
+  "pendingBaseline": [
+    "stock-harness.runner-codex.local.assigned-skill-explicit-invocation",
+    "stock-harness.runner-codex.local.native-blocked-report",
+    "stock-harness.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+    "stock-harness.runner-acpx-claude.local.native-blocked-report",
+    "stock-harness.runner-opencode.local.assigned-skill-explicit-invocation",
+    "stock-harness.runner-opencode.local.native-blocked-report"
+  ],
+  "fixtureMatchProof": {
+    "schema": "paperclip.native-completion.fixture-match-proof/v1",
+    "cells": [
+      {
+        "executionId": "stock-harness.runner-codex.local.assigned-skill-explicit-invocation",
+        "fixtureConfigSha256": "8fc61211aefb339a310469695d716c3faea15c2a547c543d70c599857a7e071d",
+        "model": "gpt-5.6-sol"
+      },
+      {
+        "executionId": "stock-harness.runner-codex.local.native-blocked-report",
+        "fixtureConfigSha256": "46c90b7162ad096dcae386cc850e1bd64bcc1c571c0118ddd5988fec45706047",
+        "model": "gpt-5.6-sol"
+      },
+      {
+        "executionId": "stock-harness.runner-opencode.local.assigned-skill-explicit-invocation",
+        "fixtureConfigSha256": "891eb6dd154aa5926a3de2eae79780661b436618b6eac7733998750c6c341ba3",
+        "model": "openrouter/deepseek/deepseek-v4-flash-0731"
+      },
+      {
+        "executionId": "stock-harness.runner-opencode.local.native-blocked-report",
+        "fixtureConfigSha256": "3e093398bf6e775b4367f40d1837f6c96dde675226951beb441a8a57108d1b82",
+        "model": "openrouter/deepseek/deepseek-v4-flash-0731"
+      },
+      {
+        "executionId": "stock-harness.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+        "fixtureConfigSha256": "c190a1e731ef450ea6ae0c24b5a8ae0f21db725b47350645cdbb9273415c5acd",
+        "model": "claude-sonnet-5"
+      },
+      {
+        "executionId": "stock-harness.runner-acpx-claude.local.native-blocked-report",
+        "fixtureConfigSha256": "eb9c1d8579092f13a00b7a3ca24c96449d2897659c0514f7d6f1a4ce6d779d9b",
+        "model": "claude-sonnet-5"
+      }
+    ]
+  },
+  "limitations": [
+    "One graded candidate cell, no baseline or blocker results yet.",
+    "Native reported zero cost has unknown actual provider billing; local runtime is unmetered.",
+    "Pilot source precedes blocker-only grader correction; its completion fixture and production guidance are unchanged.",
+    "Single trials do not establish general coding quality, reliability, speed or cost improvement."
+  ]
+}
