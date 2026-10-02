@@ -34,7 +34,6 @@ interface SortableSidePanelTabProps {
   tab: SidePanelTabItem;
   active: boolean;
   appearance: "default" | "streamlined-task";
-  fillAvailableWidth: boolean;
   showLeadingSeparator: boolean;
   onSelect: () => void;
   onClose: () => void;
@@ -46,7 +45,6 @@ function SortableSidePanelTab({
   tab,
   active,
   appearance,
-  fillAvailableWidth,
   showLeadingSeparator,
   onSelect,
   onClose,
@@ -58,17 +56,13 @@ function SortableSidePanelTab({
     <div
       ref={sortable.setNodeRef}
       style={{
-        transform: DndCSS.Transform.toString(sortable.transform),
+        // Tabs have different widths; applying the sortable scale stretches them during reordering.
+        transform: DndCSS.Translate.toString(sortable.transform),
         transition: sortable.transition,
       }}
       className={cn(
         appearance === "streamlined-task"
-          ? cn(
-              "relative flex flex-1 items-center",
-              fillAvailableWidth
-                ? "min-w-0 max-w-none basis-auto"
-                : "min-w-(--side-panel-streamlined-tab-min-width) max-w-(--side-panel-streamlined-tab-max-width) basis-0",
-            )
+          ? "relative mx-0.75 flex w-max min-w-0 max-w-(--side-panel-streamlined-tab-max-width) shrink-0 items-center"
           : "relative",
         sortable.isDragging && "z-20 opacity-80",
       )}
@@ -77,12 +71,7 @@ function SortableSidePanelTab({
         <span
           aria-hidden
           data-side-panel-tab-separator="true"
-          className={cn(
-            "pointer-events-none absolute w-px bg-border",
-            appearance === "streamlined-task"
-              ? "left-0 top-1/2 h-4 -translate-y-1/2"
-              : "inset-y-2 -left-0.5 bg-border/60",
-          )}
+          className="pointer-events-none absolute inset-y-2 -left-0.5 w-px bg-border/60"
         />
       ) : null}
       <SidePanelTab
@@ -272,9 +261,7 @@ export function SidePanelTabs({
             <div className={cn(
               "flex items-center",
               appearance === "streamlined-task"
-                ? tabs.length === 1
-                  ? "w-full gap-0"
-                  : "w-max min-w-full gap-0"
+                ? "w-max gap-0"
                 : "min-w-max gap-1 py-1",
             )}>
               {tabs.map((tab, index) => (
@@ -283,15 +270,11 @@ export function SidePanelTabs({
                   tab={tab}
                   active={tab.id === activeTabId}
                   appearance={appearance}
-                  fillAvailableWidth={
-                    appearance === "streamlined-task" && tabs.length === 1
-                  }
                   showLeadingSeparator={
-                    appearance === "streamlined-task"
-                      ? index > 0
-                      : index > 0
-                        && tab.id !== activeTabId
-                        && tabs[index - 1]?.id !== activeTabId
+                    appearance === "default"
+                      && index > 0
+                      && tab.id !== activeTabId
+                      && tabs[index - 1]?.id !== activeTabId
                   }
                   onSelect={() => onActiveTabChange(tab.id)}
                   onClose={() => closeTab(tab.id)}
