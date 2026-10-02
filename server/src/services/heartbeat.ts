@@ -36,6 +36,7 @@ import { connectionIntentService } from "./connection-intents.js";
 import { managedAiSessionFingerprintConfig, prepareManagedAiRuntime, assertManagedAiProjectAuth, stripAiAuthBindings, isAiConnectionBusy, AI_AUTH_ENV_KEYS } from "./ai-connection-runtime.js";
 import { aiConnectionBindingSchema, aiRuntimeConnectionBindingSchema, type AiConnectionRouterSelection } from "@paperclipai/shared";
 import { aiConnectionRouterService, AiConnectionPoolExhausted, applyAiConnectionRouterTaskSettings } from "./ai-connection-router.js";
+import { aiConnectionSessionCompatibilityInputs, managedAiSessionIdentityCompatible } from "./ai-connection-session.js";
 import { executionBlockerPredicate, getExecutionBlocker } from "./execution-blocker.js";
 import { CONVERSATION_CONTINUATION_POLICY, claimedAdapterType, runUsedConversationAdapter, hasConversationContinuationPolicy, isConversationAdapter } from "./conversation-continuation.js";
 import { recordExecutionWait } from "./execution-wait.js";
@@ -6958,6 +6959,7 @@ export function resolveTaskSessionConfigFreshness(input: {
   configuredModel: string | null;
   taskSessionParams: Record<string, unknown> | null | undefined;
   configMetadata: EffectiveRunSessionConfigMetadata | null;
+  compatibleConfigMetadata?: readonly EffectiveRunSessionConfigMetadata[];
   wakeResetReason?: string | null;
   preserveLegacySessionWithoutConfigMetadata?: boolean;
 }): TaskSessionConfigFreshnessDecision {
@@ -7005,7 +7007,8 @@ export function resolveTaskSessionConfigFreshness(input: {
       );
     } else if (
       storedConfig &&
-      storedConfig.fingerprint !== input.configMetadata.fingerprint
+      storedConfig.fingerprint !== input.configMetadata.fingerprint &&
+      !input.compatibleConfigMetadata?.some(candidate => candidate.version === storedConfig.version && candidate.fingerprint === storedConfig.fingerprint)
     ) {
       changedCategories = changedEffectiveRunSessionConfigCategories({
         previous: storedConfig.categoryFingerprints,
@@ -20905,6 +20908,7 @@ export function heartbeatService(
       const persistedRouterPoolId = routerHasPersistedInput ? readNonEmptyString(parseObject(context.aiRouterSelection).poolId) : null;
       const requestedAiBinding = persistedRouterPoolId ? { mode: "router" as const, connectionId: persistedRouterPoolId } : agent.runtimeConfig?.aiConnection ? aiRuntimeConnectionBindingSchema.parse(agent.runtimeConfig.aiConnection) : undefined;
       let aiBinding = requestedAiBinding?.mode === "router" ? undefined : requestedAiBinding;
+      const originalAiIssueOverrides = issueAssigneeOverrides;
       if (requestedAiBinding?.mode === "router") {
         try {
           context.aiRouterTaskKey = readNonEmptyString(context.aiRouterTaskKey) ?? taskKey ?? run.id;
@@ -21700,9 +21704,11 @@ export function heartbeatService(
           });
         }
         const savedAiAccount = parseObject(run.contextSnapshot?.aiConnection);
-        if (persistedNativeExecutionInput && (savedAiAccount.sessionIdentity
-          ? savedAiAccount.sessionIdentity !== managedAiRuntime.sessionIdentity
-          : savedAiAccount.identity !== managedAiRuntime.identity)) {
+        if (persistedNativeExecutionInput && !managedAiSessionIdentityCompatible(
+          savedAiAccount.sessionIdentity ?? savedAiAccount.identity,
+          managedAiRuntime.sessionIdentity,
+          managedAiRuntime.identity,
+        )) {
           throw new ConfigurationIncompleteFailure("The AI account changed while this native run was suspended. Start a new execution.", { configurationIncomplete: { reason: "ai_connection_changed", actionUrl: `/agents/${agent.id}/runtime` } });
         }
         Object.assign(resolvedConfig, managedAiRuntime.config);
@@ -21774,8 +21780,7 @@ export function heartbeatService(
         agent.companyId,
         agent.id,
       );
-      const sessionConfigMetadata =
-        await buildEffectiveRunSessionConfigMetadata({
+      const sessionConfigMetadataInput = {
           adapterType: agent.adapterType,
           effectiveAdapterConfig: runtimeConfig,
           managedAiHome: managedAiRuntime?.home,
@@ -21839,7 +21844,24 @@ export function heartbeatService(
                   latestAgentConfigRevision.createdAt.toISOString(),
               }
             : null,
+        };
+      const sessionConfigMetadata = await buildEffectiveRunSessionConfigMetadata(sessionConfigMetadataInput);
+      let compatibleConfigMetadata: EffectiveRunSessionConfigMetadata[] = [];
+      if (managedAiRuntime && aiBinding && taskSession &&
+        readConfigFingerprintFromSessionParams(taskSession.sessionParamsJson)?.fingerprint !== sessionConfigMetadata.fingerprint) {
+        const revisions = requestedAiBinding?.mode === "router"
+          ? await db.select().from(agentConfigRevisions).where(and(eq(agentConfigRevisions.companyId, agent.companyId), eq(agentConfigRevisions.agentId, agent.id))).orderBy(desc(agentConfigRevisions.createdAt), desc(agentConfigRevisions.id)).limit(21)
+          : [];
+        const candidates = aiConnectionSessionCompatibilityInputs({
+          effectiveAdapterConfig: runtimeConfig, agentRuntimeConfig: agent.runtimeConfig,
+          agentConfigRevision: sessionConfigMetadataInput.agentConfigRevision,
+          issueOverrides: issueAssigneeOverrides, originalIssueOverrides: originalAiIssueOverrides,
+          binding: aiBinding, router: requestedAiBinding?.mode === "router",
+          storedIdentity: taskSession.sessionParamsJson?.paperclipAiCredentialIdentity,
+          sessionIdentity: managedAiRuntime.sessionIdentity, credentialIdentity: managedAiRuntime.identity, revisions,
         });
+        compatibleConfigMetadata = await Promise.all(candidates.map(candidate => buildEffectiveRunSessionConfigMetadata({ ...sessionConfigMetadataInput, ...candidate })));
+      }
       const configuredModel =
         readConfiguredModelFromAdapterConfig(runtimeConfig);
       const wakeSessionResetReason = describeSessionResetReason(context);
@@ -21849,6 +21871,7 @@ export function heartbeatService(
         taskSessionParams:
           taskSession?.sessionParamsJson ?? taskSessionDecodedParams,
         configMetadata: sessionConfigMetadata,
+        compatibleConfigMetadata,
         wakeResetReason: wakeSessionResetReason,
         preserveLegacySessionWithoutConfigMetadata:
           acceptedPlanContinuationWake && !acceptedPlanWakeRoutingDecision,
@@ -23088,10 +23111,11 @@ export function heartbeatService(
         delete context.paperclipPreviousSessionId;
       }
 
-      const taskSessionCredentialCompatible = isTaskSessionCredentialCompatible(
-        taskSession?.sessionParamsJson,
-        managedAiRuntime?.sessionIdentity,
-      ) || Boolean(managedAiRuntime && isTaskSessionCredentialCompatible(taskSession?.sessionParamsJson, managedAiRuntime.identity));
+      const taskSessionCredentialCompatible = !managedAiRuntime || managedAiSessionIdentityCompatible(
+        taskSession?.sessionParamsJson?.paperclipAiCredentialIdentity,
+        managedAiRuntime.sessionIdentity,
+        managedAiRuntime.identity,
+      );
       if (managedAiRuntime) {
         sessionConfigMetadata.aiCredentialIdentity = managedAiRuntime.sessionIdentity;
         if (!taskSessionCredentialCompatible) {

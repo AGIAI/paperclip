@@ -34,6 +34,11 @@ eligible member; otherwise the operator must explicitly reset the session.
 Credential `ai_session_epoch` changes on reconnect or manual rotation. Only
 verified runtime refresh write-back preserves it. Session fingerprints use the
 epoch while authentication failure attribution still uses the token generation.
+Adopting a valid account preserves a session only when the complete effective
+configuration matches a prior fingerprint. Core can bridge binding-only agent
+revisions (up to 20) and unchanged legacy token identities at epoch zero. Changes
+to other settings, explicit resets, and credential replacement retain their
+existing reset behavior; no fingerprint category is exempted.
 Native recovery retains concrete routing evidence and can finish after the
 router flag or plugin is disabled or uninstalled; it revalidates underlying
 account access and never makes a new allocation.
