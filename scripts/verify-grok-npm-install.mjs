@@ -121,7 +121,10 @@ try {
   // isolated; the actual admission probe runs without a network or credentials.
   const piProbe = join(assets, 'pi-public-install-probe.mjs');
   cpSync(join(repo, 'scripts/pi-public-install-probe.mjs'), piProbe); chmodSync(piProbe, 0o644);
-  const setup = isolated(['node', '/consumer/node_modules/paperclipai/dist/index.js', 'runtime', 'setup', 'pi'], { download: true }).toString();
+  // Pi assembles a bundled runtime in scratch space before atomic publication.
+  // Keep the existing sandbox and memory bound; only this download needs more
+  // temporary capacity than the smaller offline lifecycle probes.
+  const setup = isolated(['node', '/consumer/node_modules/paperclipai/dist/index.js', 'runtime', 'setup', 'pi'], { download: true, temporarySizeMiB: 2048 }).toString();
   const receipt = JSON.parse(setup.trim());
   assert.equal(receipt.status, 'installed_verified');
   assert.equal(receipt.target, 'linux-x64');

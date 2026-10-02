@@ -19,11 +19,11 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Gate | Acceptance evidence | Current result |
 | --- | --- | --- |
 | Runtime identity and admission | Exact runtime/profile/model; verified effective thinking; startup below the 60-second admission limit; unsupported configuration fails before a prompt | Deterministic checks and ARM installed startup pass. Recheck final source on all supported hosts. |
-| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed local restart and three-turn warm continuity pass at `f5f57e380`. Provider-death and Stop remain required. |
+| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed local restart and three-turn warm continuity pass at `f5f57e380`. Pending-permission Stop and stale response rejection pass at `03dd6ef93`. Provider-death evidence remains required. |
 | Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | Historical partial passes exist. Full final-source campaign remains required. |
-| Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | Historical get-task-context pass. Final-source roster remains required. |
+| Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | Installed get-task-context passes at `f5f57e380`; context-before-action times out. Five cells remain unexecuted. |
 | Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Fresh ARM public installation and normal packaged no-key probe pass. The Linux fleet job is queued. Final-source Intel/Linux/Daytona receipts remain required. |
-| Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live Stop remains required. The qualification key cap is not proof of Paperclip budget enforcement. |
+| Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
 | Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Draft #14956 is stacked on #14924. Prerequisite PRs #14921–#14924 remain open. No merge or release. |
 
 ## Bounded execution
@@ -78,6 +78,20 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   credentials, prompts, binary override or borrowed workspace package.
 - Draft #14956 at `2b3d7ff0a` has a fresh Greptile 5/5, the Linux finding is
   resolved, and its CI checks pass. Subsequent changes require a fresh review.
+- At `03dd6ef93`, fresh pending-permission Stop passes: the original callback is
+  cancelled, a stale decline is rejected, the owned processes retire and the
+  continuous watcher records no file effect. The subsequent steering attempt
+  retains its failed grade. Its browser successfully posts one queued comment,
+  but the oracle compares plain input with the editor's Markdown-escaped body
+  and never clicks Steer. The correction binds to the exact browser POST body;
+  67 calibrations include escaped content and rejection of an altered queue.
+- The `03dd6ef93` full build passes. The broad unit run reports 14,984 passes
+  and one HTTP socket failure; all 12 tests in that unchanged suite pass in
+  isolation. Fresh review is 5/5. CI's public installer reaches Pi setup but
+  exhausts its 256 MiB scratch mount. Pi assembly now gets at most 2048 MiB,
+  retaining the same unprivileged, read-only sandbox and 3 GiB memory limit.
+  All seven sandbox checks pass. CI's separate legacy signoff browser failure
+  received one diagnostic shard rerun; it is not counted as passing yet.
 - Earlier evidence in `doc/architecture/runner-pi-capabilities.md` is historical
   and must not be counted as qualification of a new source revision.
 

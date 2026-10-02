@@ -437,7 +437,8 @@ Only after cancellation does it attempt a stale **decline**, which must return
 cancelled run and no automatic continuation.
 
 Steering submits a random marker only in a browser comment after the permission
-is pending, then clicks that comment's production Steer button. It records the
+is pending, binds the queued comment to the exact body submitted by the
+production Markdown editor, then clicks that comment's production Steer button. It records the
 exact public POST's queue/revision/run binding and requires the saved run
 acknowledgment plus the Product facade's same-turn acknowledgment item. The raw
 Rust `acpx-control-*` transport echo is suppressed by the facade;

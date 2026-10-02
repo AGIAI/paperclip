@@ -11,7 +11,7 @@ import { readPiSteeringSettlement } from "./pi-controls-evidence.js";
 const harness = vi.hoisted(() => ({ target: "", prompt: "", message: "", mutation: false, incomplete: false }));
 vi.mock("./user-actions.js", () => ({
   createTaskThroughUi: async (input: { prompt: string }) => { harness.prompt = input.prompt; },
-  submitTaskReply: async (_page: unknown, body: string) => { harness.message = body; return Date.now(); },
+  submitTaskReply: async (page: { submitReply(body: string): void }, body: string) => { page.submitReply(body); return Date.now(); },
 }));
 vi.mock("./copilot-local-fixtures.js", async importOriginal => {
   const actual = await importOriginal<typeof import("./copilot-local-fixtures.js")>();
@@ -26,7 +26,7 @@ vi.mock("@playwright/test", () => ({ expect: (actual: any, message?: string) => 
   toHaveCount: async (value: number) => { if (typeof actual.count === "function") expect(actual.count()).toBe(value); },
 }) }));
 
-async function exercise(taskId: string, remote: boolean, failure?: "mutation" | "incomplete" | "missing-ack" | "missing-comment" | "foreign-comment") {
+async function exercise(taskId: string, remote: boolean, failure?: "mutation" | "incomplete" | "missing-ack" | "missing-comment" | "foreign-comment" | "foreign-queued-body") {
   harness.target = ""; harness.prompt = ""; harness.message = ""; harness.mutation = failure === "mutation"; harness.incomplete = failure === "incomplete";
   const task = piControlTasks.find(t => t.id === taskId)!, stopCase = taskId === "pending-permission-stop";
   const workspacePath = await mkdtemp(join(tmpdir(), "pi-controls-fixture-"));
@@ -39,7 +39,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
     const target = remote ? "pi-control-fixture.txt" : harness.target;
     f.scope.target = target; f.tool.target = target; f.issue.title = task.buildTitle("fixture");
   };
-  const queue = () => ({ queueId: "queue", targetRunId: "run", revision: "revision", protocol: "paperclip_runner_v1", steeringDisposition: "available", entries: harness.message ? [{ comment: { id: "comment", body: harness.message } }] : [] });
+  const queue = () => ({ queueId: "queue", targetRunId: "run", revision: "revision", protocol: "paperclip_runner_v1", steeringDisposition: "available", entries: harness.message ? [{ comment: { id: "comment", body: harness.message + (failure === "foreign-queued-body" ? " altered" : "") } }] : [] });
   const api = {
     post: async (path: string, body: any) => {
       if (path.endsWith("/projects")) return { name: "Pi controls fixture" };
@@ -102,6 +102,13 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
     },
   });
   const page = { goto: async () => {}, reload: async () => {}, getByText: () => locator(),
+    submitReply: (body: string) => {
+      // Match the production editor's retained Markdown escaping. Matching the
+      // plain input would never observe this otherwise valid queued comment.
+      harness.message = body.replaceAll("_", "\\\\_").replaceAll("[]", "\\\\[]");
+      expect(harness.message).not.toBe(body);
+      postBrowser("/api/issues/issue/comments", { body: harness.message });
+    },
     getByTestId: (id: string) => locator(id === "task-chat-runtime-request" ? "card" : id.startsWith("task-chat-queued-steer-") ? "steer" : id === "task-chat-history-loading" ? "loading" : "other"),
     waitForRequest: (predicate: (request: any) => boolean) => new Promise(resolve => waiters.push({ predicate, resolve })) };
   // The real shared remote oracle is exercised. Poisoned local copyback cannot
@@ -127,6 +134,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
       observe: () => {}, capture: async () => {}, evidence: async (name: string, value: unknown) => saved.set(name, structuredClone(value)), remoteBootstrap,
       registerCleanupAssertion: (fn: () => Promise<any>) => localCleanup.push(fn), registerBeforeEnvironmentTeardownAssertion: (fn: () => Promise<any>) => remoteCleanup.push(fn) } as any);
     if (failure === "missing-ack") { await expect(call).rejects.toThrow("acknowledgement"); expect(browserDeclines).toBe(0); }
+    else if (failure === "foreign-queued-body") { await expect(call).rejects.toThrow("browser comment queued"); expect(browserSteers).toBe(0); expect(browserDeclines).toBe(0); }
     else if (remote && (failure === "mutation" || failure === "incomplete")) await expect(call).rejects.toThrow();
     else {
       const result = await call; expect(result.checks.every(c => c.passed)).toBe(true); expect(saved.has("api-state.json")).toBe(true);
@@ -165,4 +173,5 @@ for (const task of ["pending-permission-stop", "same-turn-steering"]) {
 it.each(["mutation", "incomplete"] as const)("fails local cleanup on %s despite an absent final target", failure => exercise("pending-permission-stop", false, failure));
 it.each(["mutation", "incomplete"] as const)("fails remote lifetime proof on %s despite an absent target", failure => exercise("same-turn-steering", true, failure));
 it("never denies the native write before the steering acknowledgement exists", () => exercise("same-turn-steering", false, "missing-ack"));
+it("rejects a queued body that differs from the exact browser submission", () => exercise("same-turn-steering", false, "foreign-queued-body"));
 it.each(["missing-comment", "foreign-comment"] as const)("retains and rejects %s during cleanup without fabricating persisted output", failure => exercise("same-turn-steering", false, failure));
