@@ -540,6 +540,10 @@ credentials belong to the connection; the model belongs to the agent.
 | Hermes local | OpenRouter; custom/local Chat Completions |
 | Gemini CLI, Grok | Their native API connections; custom routes are not advertised |
 
+Migration `0295` adds Google to both account-default provider constraints. Local
+Gemini connections seed the API-key auth choice in their disposable home before
+environment probes and task execution. The settings file contains no credential.
+
 OpenClaw Gateway, Hermes Gateway, Claude Managed, AWS AgentCore, Process, HTTP,
 and legacy `acpx_local` are excluded: external agents retain their own model
 configuration, and `acpx_local` is retired. Cursor/Pi/Copilot custom routing,

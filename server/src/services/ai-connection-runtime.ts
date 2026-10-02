@@ -304,6 +304,16 @@ export async function prepareManagedAiRuntime(
       });
       env.OPENCODE_DISABLE_PROJECT_CONFIG = "true";
     }
+    if (!routing && input.binding.provider === "google") {
+      // Gemini headless CLI requires an explicit auth choice even with an API key.
+      // Seed only the disposable connection home, never the operator's settings.
+      const geminiHome = path.join(home, ".gemini");
+      await mkdir(geminiHome, { mode: 0o700 });
+      await writeFile(path.join(geminiHome, "settings.json"), JSON.stringify({
+        selectedAuthType: "gemini-api-key",
+        security: { auth: { selectedType: "gemini-api-key" } },
+      }), { mode: 0o600 });
+    }
     const projected = routing ? managedProviderRouting(routing, harness, value, typeof input.config.model === "string" ? input.config.model : "") : undefined;
     if (projected) {
       Object.assign(env, projected.env);
