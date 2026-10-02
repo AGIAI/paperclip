@@ -34,12 +34,25 @@ import type {
   TaskChatPlanDocumentItem,
   TaskChatTurnItem,
 } from "./task-chat-model";
+import { latestPendingRuntimeRequest } from "./task-chat-model";
 import { providerActivityPresentation } from "./task-chat-activity-presentation";
 import { nativeRunEventsToTranscript } from "../transcript/native-run-events";
 
 const TS = "2026-07-31T12:00:00.000Z";
 
 describe("runtime requests across steering sections", () => {
+  it("selects the newer request when an older pending permission crosses steering", () => {
+    const older: TranscriptEntry = { kind: "runtime_request", ts: TS, requestId: "older-permission",
+      requestKind: "permission_approval", turnId: "provider-turn", requestType: "permission", status: "pending",
+      prompt: "Earlier write", choices: [{ key: "decline", label: "Deny" }], fields: [] };
+    const newer: TranscriptEntry = { ...older, ts: "2026-07-31T12:00:02.000Z", requestId: "newer-permission", prompt: "Later write" };
+    const options = { runId: "run-steering", running: true };
+    const context = runtimeRequestSegmentContext([older, newer], options);
+    const tail = reconcileSegmentRuntimeRequests(transcriptToTaskChatItems([newer], options), [newer], context, true);
+    expect(tail.map(item => item.id)).toEqual(["run-steering:runtime-request:older-permission", "run-steering:runtime-request:newer-permission"]);
+    expect(latestPendingRuntimeRequest(tail)?.requestId).toBe("newer-permission");
+  });
+
   it.each(["pending", "resolved", "cancelled"] as const)("keeps one %s permission under whole-run authority", status => {
     const request: TranscriptEntry = { kind: "runtime_request", ts: TS, requestId: "permission-1",
       requestKind: "permission_approval", turnId: "provider-turn", requestType: "permission", status: "pending",

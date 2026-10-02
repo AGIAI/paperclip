@@ -606,12 +606,15 @@ export function reconcileSegmentRuntimeRequests(
     retained.add(item.id);
     return [state.item];
   });
+  const carried: TaskChatItem[] = [];
   if (carryPending) {
     for (const { item } of context.values()) {
-      if (item.status === "pending" && !retained.has(item.id)) result.push(item);
+      if (item.status === "pending" && !retained.has(item.id)) carried.push(item);
     }
   }
-  return result;
+  // A carried request predates this section. Keep newer requests last so the
+  // composer selects the latest input instead of reviving an older one.
+  return [...carried, ...result];
 }
 
 /**
