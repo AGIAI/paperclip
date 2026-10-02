@@ -43,8 +43,8 @@ Oracle/admission calibration is itself included in the prerequisite gate.
 
 ## Live matrix
 
-There are 27 explicit local cells: these eight existing profiles each run three
-existing journeys. The three native profiles also run one concrete blocker case.
+There are 29 explicit local cells: these eight existing profiles each run three
+existing journeys. The three native profiles also run one concrete blocker case. Classic Claude and OpenCode each add one explicit Paperclip document delivery case.
 All journeys have independently calibrated graders.
 
 - Legacy: `legacy-codex`, `legacy-claude`, `legacy-opencode`,
@@ -56,9 +56,10 @@ All journeys have independently calibrated graders.
 | `assigned-skill-explicit-invocation` | 1 | Public skill creation/pinning, an explicit skill request, and saved output containing the marker available only in the skill body. | 12 minutes |
 | `ordered-comment-continuation` | 2 | Initial report followed by three ordered public comments, including repeated wording and a changed scope; final saved report preserves the ledger and requested scope. | 12 minutes |
 | `continuity-restart` | 3 | Task-backed chat retains the requested context across a server restart and subsequent replies. | 15 minutes |
+| `assigned-skill-paperclip-document` (classic Claude/OpenCode only) | 1 | Actual saved document/revision/content and a clickable canonical UI document link in an agent completion comment. | 12 minutes |
 | `native-blocked-report` (native profiles only) | 1 | A persisted whole-task blocker identifies Release Owner and the exact requested unblock action; its visible explanation includes the marker. | 5 minutes |
 
-A full current matrix expects 51 provider turns. The earlier manual/shared-prompt
+A full current matrix expects 53 provider turns. The earlier manual/shared-prompt
 comparison used the original 24 cells and expected 48 turns. Models, credentials, effort,
 permissions, assigned skills, environment, and managed secret references are
 inherited from the existing profile; only its QA manual is omitted. Both company
