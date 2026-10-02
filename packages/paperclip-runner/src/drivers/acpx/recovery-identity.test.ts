@@ -35,6 +35,7 @@ describe("ACPX recovery identity", () => {
     ["copilot", "../../../test/fixtures/copilot-profile-v9-identity.json"],
     ["copilot", "../../../test/fixtures/copilot-profile-v10-identity.json"],
     ["copilot", "../../../test/fixtures/copilot-profile-v11-identity.json"],
+    ["copilot", "../../../test/fixtures/copilot-profile-v12-identity.json"],
     ["pi", "../../../test-fixtures/pi-acp/profile-v9-identity.json"],
   ] as const)("rejects retained %s sessions after the execution identity changes", async (agent, path) => {
     const fixture = await recoveryFixture();

@@ -6,7 +6,21 @@ Pi uses `@earendil-works/pi-coding-agent@1.0.0`, `pi-acp@0.0.33`, and ACPX
 `0.13.1`. Profile **13** adds explicit, native-acknowledged reasoning selection
 for the exact model `openrouter/deepseek/deepseek-v4-flash-0731`. New Pi
 configuration and qualification cases select `low`. This candidate is not yet
-production qualified. Cursor v10 and Copilot v12 remain gated.
+production qualified. Cursor v10 and Copilot v13 remain gated.
+
+Copilot's declaration hashes the shared sidecar, sidecar protocol, direct driver,
+and generated schema bundle. Pi's reasoning field changed those four files, so
+Copilot's pending declaration advances to v13 with digest
+`sha256:3ff08fbe76fe4549c9eb01e8794428d8909c65c151d775220f2ec111d9e6f7c1`.
+Its executable, distribution closure, model, permissions, and qualification
+status are unchanged. The v12 declaration remains historical, and v12 warm
+sessions are rejected. This source-identity repair supplies no Copilot paid proof.
+
+The first profile-13 source (`f5c5fde38`) built a fresh ARM daemon and Pi pack,
+then passed original startup and all 61 native/ACP contract tests without model
+calls. Its full Runner suite found three missing-mode test fixtures and the
+stale Copilot declaration. Those failures are retained. The corrected final
+source still requires fresh platform builds, complete checks, and paid tests.
 
 Profile 12 passed one paid local hello through the actual installed public
 CLI/server and normal runtime setup. The next question-continuation case failed

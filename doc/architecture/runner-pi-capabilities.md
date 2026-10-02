@@ -7,6 +7,12 @@ Pi remains pinned to **`@earendil-works/pi-coding-agent@1.0.0`**, with
 reasoning-mode selection and rejects previous profile identities. It is a new
 qualification candidate; profile-12 results below remain historical evidence.
 
+Pi's new field also changes four shared files covered by Copilot's source
+identity. Copilot therefore advances to a still-unqualified profile v13 without
+changing its executable or model. Pi's profile-13 identity and native closure
+remain unchanged. Final artifacts must bind the corrected source; the initial
+ARM startup and 61 contract passes alone do not establish production readiness.
+
 The normal Pi configuration records `piThinkingLevel` as `off`, `low`, `high`,
 or `max`. New configurations and qualification cases explicitly select `low`.
 The runner binds that setting to the session identity and requires native
