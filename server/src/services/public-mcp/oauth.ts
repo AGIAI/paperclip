@@ -19,6 +19,9 @@ const secret = (prefix: string) => prefix + randomBytes(32).toString("base64url"
 export class McpOAuthError extends Error {
   constructor(readonly code: string, message: string, readonly status = 400) { super(message); }
 }
+export class PublicMcpDisabledError extends McpOAuthError {
+  constructor() { super("temporarily_unavailable", "Assistant connections are disabled. Enable them in Settings > Experimental.", 503); }
+}
 const invalidGrant = () => new McpOAuthError("invalid_grant", "Authorization is expired, revoked, or invalid.");
 
 export function publicMcpConfig(env: NodeJS.ProcessEnv = process.env, authPublicBaseUrl?: string) {
@@ -71,7 +74,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
   const settings = instanceSettingsService(db);
   const isEnabled = async () => (await settings.getExperimental()).enablePublicMcp === true;
   async function assertEnabled() {
-    if (!await isEnabled()) throw new McpOAuthError("temporarily_unavailable", "Assistant connections are disabled. Enable them in Settings > Experimental.", 503);
+    if (!await isEnabled()) throw new PublicMcpDisabledError();
   }
   const boardAuth = boardAuthService(db);
 

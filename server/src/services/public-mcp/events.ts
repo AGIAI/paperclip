@@ -7,7 +7,7 @@ import { localEncryptedProvider } from "../../secrets/local-encrypted-provider.j
 import { logActivity } from "../activity-log.js";
 import { logger } from "../../middleware/logger.js";
 import { type ApiDispatch } from "./capabilities.js";
-import { type McpPrincipal, type PublicMcpOAuth } from "./oauth.js";
+import { PublicMcpDisabledError, type McpPrincipal, type PublicMcpOAuth } from "./oauth.js";
 import { boundedJson, callbackUrl, eventFetch, McpEventError, postEvent, signingKey, verifyCallback, type EventFetch } from "./event-webhooks.js";
 
 const names = ["paperclip.task.status_changed", "paperclip.task.comment_created", "paperclip.task.document_updated"] as const;
@@ -184,7 +184,12 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
       await authorize(principal, filters.parse(s.arguments));
       destination = await decrypt(s);
       await authorizeCloud(principal, destination.cloud);
-    } catch {
+    } catch (error) {
+      if (error instanceof PublicMcpDisabledError) {
+        // A live disable pauses the claimed delivery without spending a retry.
+        await db.update(deliveries).set({ attempts: claim.attempts - 1, nextAttemptAt: new Date(now()), outcome: "paused" }).where(eq(deliveries.id, claim.id));
+        return false;
+      }
       // Fail closed for this delivery, but transient authority failures must be
       // recoverable. Retry without emitting application data, within the same bound.
       if (claim.attempts >= 6) await finish("authority_unavailable");

@@ -3,7 +3,7 @@ import express, { type Request } from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, mcpEventSubscriptions, createDb, authUsers, companies, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
+import { activityLog, mcpEventDeliveries, mcpEventSubscriptions, createDb, authUsers, companies, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { createPublicMcpOAuth, publicMcpConfig, hashMcpSecret } from "../services/public-mcp/oauth.js";
 import { McpApiError, createMcpApiDispatch, createPublicMcpExecutor, publicMcpCapabilities } from "../services/public-mcp/capabilities.js";
@@ -506,6 +506,36 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     } finally { await settings.updateExperimental({ enablePublicMcp: true }); }
     await f.service.tick();
     expect(f.received).toHaveLength(count + 1);
+    await f.service.unsubscribe(f.principal, f.input);
+  });
+
+  it("preserves the final delivery attempt when access is disabled after the tick begins", async () => {
+    const f = await eventFixture();
+    const settings = instanceSettingsService(db);
+    const subscription = await f.service.subscribe(f.principal, f.input);
+    await f.activity(); f.setStatus(503); await f.service.tick();
+    await db.update(mcpEventDeliveries).set({ attempts: 5 }).where(eq(mcpEventDeliveries.subscriptionId, subscription.id));
+    f.advance(10_000); f.setStatus(204);
+    const count = f.received.length;
+    const authorize = oauth.authorizeGrant.bind(oauth);
+    const gate = vi.spyOn(oauth, "authorizeGrant").mockImplementationOnce(async id => {
+      await settings.updateExperimental({ enablePublicMcp: false });
+      return authorize(id);
+    });
+    try {
+      await f.service.tick();
+      expect(f.received).toHaveLength(count);
+      const [paused] = await db.select().from(mcpEventDeliveries).where(eq(mcpEventDeliveries.subscriptionId, subscription.id));
+      expect(paused).toMatchObject({ attempts: 5, finishedAt: null, outcome: "paused" });
+    } finally {
+      gate.mockRestore();
+      await settings.updateExperimental({ enablePublicMcp: true });
+    }
+    await f.service.tick();
+    expect(f.received).toHaveLength(count + 1);
+    const [delivered] = await db.select().from(mcpEventDeliveries).where(eq(mcpEventDeliveries.subscriptionId, subscription.id));
+    expect(delivered).toMatchObject({ attempts: 6, outcome: "delivered" });
+    expect(delivered!.finishedAt).not.toBeNull();
     await f.service.unsubscribe(f.principal, f.input);
   });
 
