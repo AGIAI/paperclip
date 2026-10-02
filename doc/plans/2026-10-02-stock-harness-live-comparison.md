@@ -25,10 +25,10 @@ These are recorded overall qualifications, including security and receipt failur
 | `legacy-claude` | `claude-sonnet-4-6` | `ordered-comment-continuation` | Pass | Pass |
 | `legacy-claude` | `claude-sonnet-4-6` | `continuity-restart` | Fail: chat memory | Fail: chat memory |
 | `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `assigned-skill-explicit-invocation` | Pass | Fail: no Paperclip document |
-| `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `ordered-comment-continuation` | Fail: no Paperclip document, deadline/run-start timeout | Pass |
+| `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `ordered-comment-continuation` | Fail: deadline/run-start timeout | Pass |
 | `legacy-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `continuity-restart` | Pass | Pass |
 | `legacy-acp-codex` | `gpt-5.6-sol` | `assigned-skill-explicit-invocation` | Fail: credential guard | Fail: credential guard |
-| `legacy-acp-codex` | `gpt-5.6-sol` | `ordered-comment-continuation` | Fail: credential guard, no Paperclip document, receipt incomplete | Fail: credential guard, no Paperclip document |
+| `legacy-acp-codex` | `gpt-5.6-sol` | `ordered-comment-continuation` | Fail: credential guard, receipt incomplete | Fail: credential guard |
 | `legacy-acp-codex` | `gpt-5.6-sol` | `continuity-restart` | Fail: credential guard, receipt incomplete | Fail: credential guard, receipt incomplete |
 | `legacy-acp-claude` | `claude-sonnet-4-6` | `assigned-skill-explicit-invocation` | Fail: credential guard | Fail: credential guard, no Paperclip document |
 | `legacy-acp-claude` | `claude-sonnet-4-6` | `ordered-comment-continuation` | Fail: credential guard, receipt incomplete | Fail: credential guard |
@@ -40,7 +40,7 @@ These are recorded overall qualifications, including security and receipt failur
 | `runner-acpx-claude` | `claude-sonnet-5` | `ordered-comment-continuation` | Pass | Pass |
 | `runner-acpx-claude` | `claude-sonnet-5` | `continuity-restart` | Pass | Pass |
 | `runner-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `assigned-skill-explicit-invocation` | Pass | Pass |
-| `runner-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `ordered-comment-continuation` | Fail: no Paperclip document, deadline/run-start timeout | Pass |
+| `runner-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `ordered-comment-continuation` | Fail: deadline/run-start timeout | Pass |
 | `runner-opencode` | `openrouter/deepseek/deepseek-v4-flash-0731` | `continuity-restart` | Pass | Pass |
 
 ## Findings and next step
