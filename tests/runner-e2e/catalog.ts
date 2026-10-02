@@ -8,8 +8,8 @@ import { taskTitleTasks, taskTitleDefinitionDigest, TASK_TITLE_BUDGET_CENTS } fr
 import { blockerTasks, blockerProfile } from "./blocker-cases.js";
 import { accountingTasks } from "./accounting-cases.js";
 import { continuationTasks } from "./continuation-cases.js";
-import { contextIntegrityTasks } from "./context-integrity-cases.js";
-import { productionDefaultHireProfile, stockHarnessSourceDigest } from "./stock-harness.js";
+import { contextIntegrityTasks, paperclipDocumentTask } from "./context-integrity-cases.js";
+import { productionDefaultHireProfile, stockHarnessSourceDigest, stockHarnessSkillSources } from "./stock-harness.js";
 import { lifecycleLiveTasks, lifecycleLiveDefinitionDigest } from "./lifecycle-live-cases.js";
 import { everydayTasks, productionStoryProfile } from "./everyday-cases.js";
 
@@ -1235,11 +1235,14 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     profiles: [...contextIntegrityProfiles.filter(profile => !pendingContextIntegrityProfiles.includes(profile)),
       runnerProfiles.find(profile => profile.id === "legacy-opencode")!].map(productionDefaultHireProfile),
     environments: [localEnvironment],
-    tasks: [...contextIntegrityTasks, chatTasks.find(task => task.id === "continuity-restart")!],
-    expectedMatrixSize: 24,
+    tasks: [...contextIntegrityTasks, chatTasks.find(task => task.id === "continuity-restart")!, paperclipDocumentTask],
+    expectedMatrixSize: 26,
+    excludedExecutionIds: ["legacy-codex", "legacy-acp-codex", "legacy-acp-claude", "runner-codex", "runner-acpx-claude", "runner-opencode"]
+      .map(profile => `stock-harness.${profile}.local.${paperclipDocumentTask.id}`),
     definitionMetadata: {
-      version: 1, instructions: "production-default-hire", scheduling: "explicit-only",
+      version: 2, instructions: "production-default-hire", scheduling: "explicit-only",
       sourceDigest: stockHarnessSourceDigest(),
+      operationalSkillSources: stockHarnessSkillSources(),
       grading: "public-default-bundle-and-delivered-prompts-plus-independent-lifecycle-oracles",
       vendorBaseEvidence: "required deterministic Codex driver/runnerd/Rust gate; task success is not vendor-base proof",
       paidCalls: "one skill turn, two ordered-comment turns, three chat turns per profile",

@@ -16,18 +16,20 @@ function recording(generation: "legacy" | "native" = "legacy"): StockHarnessEvid
 }
 
 describe("stock harness Product E2E", () => {
-  it("registers 24 explicit local cells with independent skill, continuation and chat oracles", () => {
+  it("registers 26 explicit local cells with the original cases and two focused delivery repair cells", () => {
     const cells = runnerMatrix.filter(row => row.suite.id === "stock-harness");
-    expect(cells).toHaveLength(24);
+    expect(cells).toHaveLength(26);
     expect(new Set(cells.map(row => row.profile.id))).toEqual(new Set([
       "legacy-codex", "legacy-claude", "legacy-opencode", "legacy-acp-codex", "legacy-acp-claude",
       "runner-codex", "runner-acpx-claude", "runner-opencode",
     ]));
     expect(new Set(cells.map(row => row.task.id))).toEqual(new Set([
       "ordered-comment-continuation", "assigned-skill-explicit-invocation", "continuity-restart",
+      "assigned-skill-paperclip-document",
     ]));
     expect(cells.every(row => row.suite.manualOnly && row.environment.id === "local")).toBe(true);
-    expect(cells.reduce((turns, row) => turns + row.task.expectedRunCount, 0)).toBe(48);
+    expect(cells.reduce((turns, row) => turns + row.task.expectedRunCount, 0)).toBe(50);
+    expect(cells.filter(row => row.task.id === "assigned-skill-paperclip-document").map(row => row.profile.id).sort()).toEqual(["legacy-claude", "legacy-opencode"]);
     expect(cells[0]!.suite.definitionMetadata?.sourceDigest).toMatch(/^[a-f0-9]{64}$/);
   });
 
