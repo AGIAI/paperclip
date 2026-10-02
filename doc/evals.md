@@ -35,8 +35,11 @@ Pi's explicit-only `pi-controls` Product suite tests Stop while native permissio
 is unanswered and browser-originated same-turn steering, locally and on Daytona.
 Its [fixture contract](../tests/runner-e2e/FIXTURES.md#pi-active-controls) separates
 control acknowledgment, actual message consumption and owned process retirement.
-The current Pi matrix has 25 explicit cells (13 local and 12 Daytona), including
-these four controls and pending-native-question controller restart. File editing
+The current Pi matrix has 26 explicit cells (13 local and 13 Daytona), including
+these four controls, pending-native-question controller restart, and a Daytona-only
+exact-Pi-child provider-death journey. Provider death must expire the original
+unanswered card and reject stale replies without a replacement run; any durable
+fallback is distinct from restoration. File editing
 also requires native edit/validation events and a registered artifact download.
 All remain unqualified until measured on the exact candidate runtime and harness.
 

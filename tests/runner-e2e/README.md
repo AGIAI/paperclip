@@ -1437,14 +1437,31 @@ mock control plane. Neither suite substitutes for the other.
 
 ### Pi native Product fixtures
 
-The separate `pi-native` suite defines nine explicit Pi cells: native questions,
+The separate `pi-native` suite defines ten explicit Pi cells: native questions,
 agent-file persistence, browser permission denial and controller restart with an
 unanswered native question on local and Daytona, plus
-a local-only automatic `restrictive-denial` case. The latter cannot use the remote
+a local-only automatic `restrictive-denial` case and one Daytona-only
+`native-pending-provider-death` case. The latter cannot use the remote
 setup read under `deny-all`, so it is explicitly excluded there. It uses the
 pinned candidate profile and exact OpenRouter model. It is excluded from `--all`,
 never automatically retries, and retains qualification as pending until live proof.
 Reserve and reconcile each paid cell just as for `extended-harnesses`.
+
+Provider death is a real, one-run paid Product journey, distinct from controller
+restart and Stop. The owned Linux observer pins the verified wrapper ancestry,
+closure and executable inode before signalling exactly its unique Pi child through
+a pidfd. Pi overwrites its argv with `process.title`; entrypoint attribution is
+explicitly parent-attested, not an original-child-argv claim. The fixture requires
+production-generated non-replayable expiry, an expired original browser card,
+rejection of stale answers by both public APIs, no continuation file effect, and
+no second run. Any durable `wake_assignee` fallback stays separately identified
+and unanswered. Full process/run/lease evidence remains private. Local provider
+death is excluded because this exact ownership mechanism requires Linux pidfd.
+The Python helper calibration uses a synthetic transport and a real title-changing
+Node child; it proves fault ownership only, never paid Pi lifecycle behavior. Run
+it on native Linux with pinned Node on PATH: `python3 tests/runner-e2e/pi-provider-fault.test.py`.
+This adds one cell to the pending Pi Product matrix (26: 13 local, 13 Daytona);
+no qualification or live success is implied by discovery or oracle tests.
 
 ```sh
 pnpm test:e2e:runner -- --list --suite pi-native

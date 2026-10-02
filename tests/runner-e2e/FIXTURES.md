@@ -350,21 +350,40 @@ a candidate failure; transport/infrastructure failures retain the existing
 harness classification. Positive and plausible-wrong/missing-evidence unit
 calibrations do not count as paid qualification. All automatic retries stay zero.
 
-Provider-death coverage remains bounded: the existing patched-ACP package test
-`provider exit fails promptly and missing owned extension fails admission` runs
-an actual wrapper child against a deterministic fake Pi child. The bridge test
-`expires pending requests and discards a late answer exactly once` and driver
-abort/event-stream tests separately cover pending cleanup with mocked transport.
-They do not establish a single actual native-provider-death to durable browser
-request-expiry chain. No local or Daytona paid death case is claimed, and no
-arbitrary process-kill API is introduced by these fixtures.
+`native-pending-provider-death` adds one real Daytona-only Product journey.
+After the native input is publicly durable and still unanswered, the existing
+owned remote observer admits the exact Pi child through its verified wrapper
+parent, source-pinned closure files, executable inode, workspace, run/lease/session
+ancestry and fresh PID/start-time checks. Pi overwrites Linux argv via
+`process.title`, so the private receipt explicitly uses pinned-parent entrypoint
+attribution and never claims original child argv. A pidfd targets only that child;
+worker death, broad process-name matching and controller Stop cannot substitute.
+
+The runtime itself must emit `runtime_request.expired` for the original callback
+with `provider_process_lost` and `replayAllowed:false`, followed by native turn
+failure. The permanent failed-terminal recovery projection must put the owned
+issue in Blocked, proved through API and browser and retained through cleanup.
+The original durable card must expire, retain zero answers and lose its browser
+answer controls; any supersession must name the separate fallback card.
+Both public stale-response APIs must reject the old answer. Any production-created
+`wake_assignee` fallback is separately identified and remains unanswered; it is not
+a restored native callback. The sealed observer proves no continuation marker was
+created and all owned processes retired before public lease deletion. The company
+must retain exactly the original run through cleanup.
+
+Local provider-death remains excluded. The Python admission tests include a
+real pidfd calibration against a synthetic title-changing child on native Linux;
+the normal E2E unit wrapper invokes it with no provider credentials or network.
+macOS runs metadata negatives and explicitly skips this Linux-only calibration.
+That calibration and the earlier fake-Pi wrapper/bridge tests do not count as the
+real paid Product lifecycle proof. This new candidate cell remains unqualified.
 
 ## Pi active controls
 
 The explicit-only `pi-controls` suite adds `pending-permission-stop` and
 `same-turn-steering` on local and Daytona, each with one provider run, a
 120-second active-turn timeout and a 300-second attempt budget. These four
-control cases retain their behavior; the current matrix totals 25 Pi cells.
+control cases retain their behavior; the current matrix totals 26 Pi cells.
 Pi 1/profile 11 and coverage revisions intentionally change the affected suite
 fingerprints, so older qualification receipts cannot be reused. Catalog presence and
 deterministic calibration do not constitute paid qualification.

@@ -7,10 +7,11 @@ export const piNativeTasks: readonly RunnerTaskFixture[] = [
   ["restrictive-denial", "Restrictive native write denial prevents a file effect", 1],
   ["human-permission-denial", "Browser denial prevents a native write through process retirement", 1],
   ["native-pending-controller-restart", "Pending native question survives controller restart in the same live run", 1],
+  ["native-pending-provider-death", "Lost Pi provider expires its original unanswered native question", 1],
 ].map(([id, label, turns]) => ({
   id: String(id), label: String(label), groups: [], workMode: "standard", flow: "pi_native",
   expectedRunCount: Number(turns), attemptTimeoutMs: { local: 5 * 60_000, daytona: 5 * 60_000 },
-  expectedTerminalState: { issue: "done", run: "succeeded" },
+  expectedTerminalState: id === "native-pending-provider-death" ? { issue: "blocked", run: "failed" } : { issue: "done", run: "succeeded" },
   buildTitle: nonce => `Pi ${id} ${nonce}`,
   buildVisibleMarker: nonce => `PI-NATIVE-${id}-${nonce}`,
   buildPrompt: nonce => piNativePrompt(String(id), nonce),
@@ -22,6 +23,11 @@ export function piNativeFinish(marker: string): string {
 }
 
 export function piNativePrompt(id: string, nonce: string): string {
+  if (id === "native-pending-provider-death") return [
+    'Call paperclip_native_question exactly once with {method:"input",title:"Pi native provider death",placeholder:"Answer"}. Wait for the real answer; never guess it or substitute semantic request_human_input.',
+    "Only after receiving the actual answer, use native write to save its exact tool-result object as JSON to pi-provider-death-answer.json in the task workspace. Never write that file while the question is unanswered. This is an internal verification file, not a deliverable.",
+    piNativeFinish(`PI-NATIVE-${id}-${nonce}`),
+  ].join("\n");
   if (id === "native-pending-controller-restart") return [
     'Call paperclip_native_question exactly once with {method:"input",title:"Pi native restart",placeholder:"Answer"}. Wait for the real answer; never guess it or substitute semantic request_human_input.',
     "Use native write to save the exact returned tool-result object as JSON to pi-native-restart-answer.json in the task workspace. Do not change or infer its fields. This is an internal verification file, not a deliverable.",

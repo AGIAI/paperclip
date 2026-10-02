@@ -28,7 +28,7 @@ function interactionBinding(card: Row) {
     continuationPolicy: card.continuationPolicy, resolverPolicy: card.resolverPolicy, payload: card.payload };
 }
 
-function inspect(state: State, events: readonly Row[], companyId: string) {
+function inspect(state: State, events: readonly Row[], companyId: string, header = "Pi native restart") {
   requireProof(id(companyId) && id(state.issue.id) && state.issue.companyId === companyId && state.runs.length === 1 && state.interactions.length === 1,
     "one company-scoped task, run and question required");
   const run = state.runs[0]!, card = state.interactions[0]!;
@@ -63,7 +63,7 @@ function inspect(state: State, events: readonly Row[], companyId: string) {
   requireProof(request.schema === "paperclip.runtime_request.v2" && request.requestKind === "runtime" && request.type === "input" && request.status === "pending"
     && id(request.requestId) && id(request.itemId) && id(request.turnId) && request.turnId === opening.event.turnId && request.itemId === opening.event.itemId
     && hasAcpxNativeOrigin(request.origin, "pi", "elicitation/create") && questionSet.schema === "paperclip.question_set.v1"
-    && id(question.id) && question.answerMode === "text" && question.header === "Pi native restart"
+    && id(question.id) && question.answerMode === "text" && question.header === header
     && card.payload?.runtimeRequestId === request.requestId && digest(card.payload.questionSet) === digest(questionSet)
     && card.idempotencyKey === `paperclip-runner-question:${run.id}:${request.requestId}`, "canonical Pi input request identity missing");
   requireProof(rows.filter(x => x.event.turnId != null || x.event.eventType.startsWith("turn.") || x.event.eventType.startsWith("runtime_request.")).every(({ event }) => event.turnId === request.turnId
@@ -77,12 +77,16 @@ function inspect(state: State, events: readonly Row[], companyId: string) {
 }
 
 /** Grade public state and PRP receipts; assistant prose is never restart proof. */
-export function observePiRestartPending(state: State, events: readonly Row[], companyId: string): PiRestartPending {
-  const { run, card, rows, binding } = inspect(state, events, companyId);
+export function observePiPendingNativeInput(state: State, events: readonly Row[], companyId: string, header: string): PiRestartPending {
+  const { run, card, rows, binding } = inspect(state, events, companyId, header);
   requireProof(state.issue.status === "in_progress" && run.status === "running" && card.status === "pending" && card.result == null
     && run.resultJson?.nativeCancellation == null && run.resultJson?.startupCancellation == null
     && !rows.some(x => closures.has(x.event.eventType) || terminals.has(x.event.eventType) || x.event.sourceKind === "control_plane"), "question is no longer unanswered in a live run");
   return binding;
+}
+
+export function observePiRestartPending(state: State, events: readonly Row[], companyId: string): PiRestartPending {
+  return observePiPendingNativeInput(state, events, companyId, "Pi native restart");
 }
 
 export function gradePiRestartCompletion(state: State, events: readonly Row[], pending: PiRestartPending, answer: string, proof: unknown): boolean {
