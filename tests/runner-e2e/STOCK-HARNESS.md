@@ -198,3 +198,32 @@ success. Report every attempt, failure attribution, provider timing, token usage
 reported costs and unknown spend. A reported zero subtotal is not proof of zero
 provider spending. This small single-trial matrix cannot establish general coding
 quality or broad performance equivalence, and does not compare #14920 before/after.
+
+## Measured comparison and unresolved delivery
+
+The [dated live report](../../doc/plans/2026-10-02-stock-harness-live-comparison.md)
+and its safe JSON projection contain the per-profile/case comparison, exact
+source hashes, all campaign and recovery links, timing/usage, cost coverage,
+security failures, clipping limits and publication-layout recovery. Candidate
+`f02d8d0df` has 24 retained results: 15 pass and nine fail. Historical
+`12c5433c6` has 23 retained results plus one bounded AWS-runner recovery in
+progress. Classic Claude/OpenCode skill runs save no Paperclip task document
+where historical runs save one; the original oracle remains failed.
+
+The merged native Codex change is held constant. Same aggregate success counts
+would not establish equivalence: case outcomes differ, fixture storage wording
+is ambiguous, ACP credential guards fail, and some public prompt receipts are
+clipped. Native finish/block tool guidance belongs to native runners; legacy
+document-delivery guidance must use the actual Paperclip skill/API path. No
+production or skill instructions have been changed to turn the measured failures
+into passes. PR #14948 remains draft.
+
+The corrected packaging pilot at `1eb5ba420` passes on GitHub with valid
+evidence and cleanup. It validates prerequisite nesting under the exact campaign
+root using the unchanged trusted selector. Its current prerequisite runs 557
+checks (556 TypeScript plus one Rust); all 895 E2E support tests pass. The 313
+filtered native tests are not counted. Original failed/partial attempts and
+publication failures remain retained; local reconstructed copies move folders
+without editing results, graders or usage. Never dispatch a second development
+campaign for an active target branch: workflow concurrency supersedes the older
+run. Use a separate frozen-source branch when independent campaigns must overlap.
