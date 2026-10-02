@@ -19,6 +19,15 @@ export function parseRestartRunnerIdentity(value: unknown): RestartRunnerIdentit
   return { processPid: v.processPid, processGroupId: v.processGroupId, processStartedAt: v.processStartedAt };
 }
 
+/** Linux run receipts retain milliseconds; ps lstart retains whole seconds. */
+export function restartProcessStartMatches(observed: string, expected: string, platform = process.platform): boolean {
+  const actualTime = Date.parse(observed), expectedTime = Date.parse(expected);
+  if (!Number.isFinite(actualTime) || !Number.isFinite(expectedTime)) return false;
+  return platform === "linux"
+    ? Math.floor(actualTime / 1000) === Math.floor(expectedTime / 1000)
+    : actualTime === expectedTime;
+}
+
 export function createProcessTreeOwner(root: ChildProcess, options: {
   readTable?: () => Promise<ProcessObservation[] | null>;
   signalGroup?: (pid: number, signal: NodeJS.Signals) => void;
@@ -92,7 +101,7 @@ export function createProcessTreeOwner(root: ChildProcess, options: {
     const candidate = tree.members.map(member => member.process).find(row => row.pid === expected.processPid);
     if (!candidate || !running(candidate) || candidate.kind !== "paperclip-runnerd"
       || candidate.processGroupId !== expected.processGroupId
-      || Date.parse(candidate.started) !== Date.parse(expected.processStartedAt)
+      || !restartProcessStartMatches(candidate.started, expected.processStartedAt)
       || candidate.processGroupId === root.pid) throw new Error("Restart runner is not the exact owned durable daemon");
     const subtree = observeDescendantProcessTree(table, candidate.pid);
     const members = new Set(subtree.members.map(member => member.process.pid));

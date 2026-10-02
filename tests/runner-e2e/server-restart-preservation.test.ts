@@ -1,6 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 import { expect, it, vi } from "vitest";
-import { createProcessTreeOwner, parseRestartRunnerIdentity } from "./process-tree-owner.js";
+import { createProcessTreeOwner, parseRestartRunnerIdentity, restartProcessStartMatches } from "./process-tree-owner.js";
 import { createRunnerE2EServerStopper } from "./server-stop.js";
 import { diagnosticProcessKind, type ProcessObservation } from "./process-tree.js";
 
@@ -34,6 +34,16 @@ function fixture() {
   return { stop, child: root(100), root, signals, owners, table: () => table,
     replace: (next: ProcessObservation[]) => { table = next; }, close: () => owners.forEach(owner => owner.stopObserving()) };
 }
+
+it("matches Linux process birth receipts at ps precision without accepting another second", () => {
+  expect(restartProcessStartMatches(started, "2026-10-02T13:55:27.731Z", "linux")).toBe(true);
+  for (const expected of ["2026-10-02T13:55:26.999Z", "2026-10-02T13:55:28.000Z", "invalid"]) {
+    expect(restartProcessStartMatches(started, expected, "linux")).toBe(false);
+  }
+  expect(restartProcessStartMatches("invalid", started, "linux")).toBe(false);
+  expect(restartProcessStartMatches(started, "2026-10-02T13:55:27.731Z", "darwin")).toBe(false);
+  expect(restartProcessStartMatches(started, started, "darwin")).toBe(true);
+});
 
 it.skipIf(process.platform === "win32")("preserves only the admitted daemon tree across restart and finally retires old and new owners", async () => {
   const f = fixture();

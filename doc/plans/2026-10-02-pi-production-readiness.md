@@ -19,7 +19,7 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Gate | Acceptance evidence | Current result |
 | --- | --- | --- |
 | Runtime identity and admission | Exact runtime/profile/model; verified effective thinking; startup below the 60-second admission limit; unsupported configuration fails before a prompt | Deterministic checks and ARM installed startup pass. Recheck final source on all supported hosts. |
-| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Controller recovery fixes in PR #14956. Live attempts exposed the durable/provider turn-ID gap and duplicate request creation. Neither attempt is a qualification pass. |
+| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed local restart and three-turn warm continuity pass at `f5f57e380`. Provider-death and Stop remain required. |
 | Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | Historical partial passes exist. Full final-source campaign remains required. |
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | Historical get-task-context pass. Final-source roster remains required. |
 | Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Fresh ARM public installation passes. Linux source/image build is running. Final-source Intel/Linux/Daytona receipts remain required. |
@@ -50,6 +50,14 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   because recovery emitted a second `runtime_request.created`. The oracle
   correctly requires one creation. The next change restores the ledger without
   repeating its creation event.
+- `f5f57e380`: the fresh installed restart journey passes all six matchers,
+  including one native creation/resolution, the original process and turn, exact
+  browser answer, independent file and cleanup. The revised three-turn warm
+  journey also passes all nine matchers with the same native process/session.
+  Earlier failed attempts remain unchanged.
+- The full workspace typecheck, 332 native core tests and 58 focused governance,
+  cost and session tests pass. The PR's Linux timestamp precision finding is
+  fixed with positive and negative calibration and the real process fixture.
 - Credential-free ARM startup through the installed CLI, server and database
   passed. Normal Pi setup verifies the profile-13 closure. Full transport and
   recovery regressions at `780471702` passed 216 tests.
