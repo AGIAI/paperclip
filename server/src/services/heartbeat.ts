@@ -34,7 +34,8 @@ import { applyConnectorSkills, prepareConnectorSkillDelivery, resolveConnectorAs
 import { admitExplicitNativeContinuation, undeliveredLegacyUserCommentIds } from "./explicit-native-continuation.js";
 import { connectionIntentService } from "./connection-intents.js";
 import { managedAiSessionFingerprintConfig, prepareManagedAiRuntime, assertManagedAiProjectAuth, stripAiAuthBindings, isAiConnectionBusy, AI_AUTH_ENV_KEYS } from "./ai-connection-runtime.js";
-import { aiConnectionBindingSchema } from "@paperclipai/shared";
+import { aiConnectionBindingSchema, aiRuntimeConnectionBindingSchema, type AiConnectionRouterSelection } from "@paperclipai/shared";
+import { aiConnectionRouterService, AiConnectionPoolExhausted, applyAiConnectionRouterTaskSettings } from "./ai-connection-router.js";
 import { executionBlockerPredicate, getExecutionBlocker } from "./execution-blocker.js";
 import { CONVERSATION_CONTINUATION_POLICY, claimedAdapterType, runUsedConversationAdapter, hasConversationContinuationPolicy, isConversationAdapter } from "./conversation-continuation.js";
 import { recordExecutionWait } from "./execution-wait.js";
@@ -535,6 +536,7 @@ import {
   MAX_TURN_CONTINUATION_RETRY_REASON,
   WORKSPACE_BUSY_RETRY_REASON,
   AI_CONNECTION_BUSY_RETRY_REASON,
+  AI_CONNECTION_POOL_WAIT_RETRY_REASON,
   INTERACTION_CONTINUATION_INFRA_RETRY_REASON,
   INTERACTION_CONTINUATION_INFRA_WAKE_REASON,
   WAKE_COMMENT_IDS_KEY,
@@ -15542,7 +15544,7 @@ export function heartbeatService(
     const requiresIssueGate =
       isTransientWorkspaceGitScanCode(run.errorCode) ||
       hasConversationContinuationPolicy(run.resultJson) ||
-      retryReason === AI_CONNECTION_BUSY_RETRY_REASON ||
+      (retryReason === AI_CONNECTION_BUSY_RETRY_REASON || retryReason === AI_CONNECTION_POOL_WAIT_RETRY_REASON) ||
       retryReason === MAX_TURN_CONTINUATION_RETRY_REASON ||
       retryReason === INTERACTION_CONTINUATION_INFRA_RETRY_REASON;
     if (requiresIssueGate) {
@@ -15612,7 +15614,7 @@ export function heartbeatService(
                 executionFailureRetryCount(run),
             }
           : {}),
-        ...(retryReason === AI_CONNECTION_BUSY_RETRY_REASON
+        ...((retryReason === AI_CONNECTION_BUSY_RETRY_REASON || retryReason === AI_CONNECTION_POOL_WAIT_RETRY_REASON)
           ? { failureRetriesBeforeAiConnectionWait: executionFailureRetryCount(run) }
           : {}),
         ...(shouldQuarantineWorkspaceForRetry
@@ -15938,7 +15940,7 @@ export function heartbeatService(
         }
 
         if (
-          retryReason === AI_CONNECTION_BUSY_RETRY_REASON && issueId &&
+          (retryReason === AI_CONNECTION_BUSY_RETRY_REASON || retryReason === AI_CONNECTION_POOL_WAIT_RETRY_REASON) && issueId &&
           !isNonAssigneeWorkspaceBusyRetry(retryReason, contextSnapshot)
         ) {
           // The issue row is locked above. Recheck after the preflight gate so
@@ -20433,7 +20435,7 @@ export function heartbeatService(
     let readFailureReportSecrets: () => string[] = () => [];
 
     try {
-      const agent = await getAgent(run.agentId);
+      let agent = await getAgent(run.agentId);
       if (!agent) {
         await setRunStatus(runId, "failed", {
           error: "Agent not found",
@@ -20684,7 +20686,7 @@ export function heartbeatService(
                   : row;
               })
           : null;
-      const issueAssigneeOverrides =
+      let issueAssigneeOverrides =
         issueContext && issueContext.assigneeAgentId === agent.id
           ? parseIssueAssigneeAdapterOverrides(
               issueContext.assigneeAdapterOverrides,
@@ -20890,7 +20892,7 @@ export function heartbeatService(
         // durable for authorization and operation-time credential resolution.
         context.executionPolicy = retainedTrust.executionPolicy;
       }
-      const config = parseObject(agent.adapterConfig);
+      let config = parseObject(agent.adapterConfig);
       const taskSession = taskKey
         ? await getTaskSession(
             agent.companyId,
@@ -20899,6 +20901,46 @@ export function heartbeatService(
             taskKey,
           )
         : null;
+      const routerHasPersistedInput = Object.keys(parseObject(parseObject(run.runnerProfileJson).nativeExecutionInput)).length > 0;
+      const persistedRouterPoolId = routerHasPersistedInput ? readNonEmptyString(parseObject(context.aiRouterSelection).poolId) : null;
+      const requestedAiBinding = persistedRouterPoolId ? { mode: "router" as const, connectionId: persistedRouterPoolId } : agent.runtimeConfig?.aiConnection ? aiRuntimeConnectionBindingSchema.parse(agent.runtimeConfig.aiConnection) : undefined;
+      let aiBinding = requestedAiBinding?.mode === "router" ? undefined : requestedAiBinding;
+      if (requestedAiBinding?.mode === "router") {
+        try {
+          context.aiRouterTaskKey = readNonEmptyString(context.aiRouterTaskKey) ?? taskKey ?? run.id;
+          const savedIdentity = taskSession?.sessionParamsJson?.paperclipAiCredentialIdentity;
+          const selection = await aiConnectionRouterService(db, options.pluginWorkerManager).resolve({
+            companyId: agent.companyId, poolId: requestedAiBinding.connectionId, agentId: agent.id,
+            userId: responsibleUserId, adapterType: agent.adapterType, taskKey: String(context.aiRouterTaskKey),
+            overrides: issueAssigneeOverrides?.adapterConfig ?? {},
+            existingGrantId: typeof savedIdentity === "string" ? savedIdentity.split(":")[0] : undefined,
+            requireExisting: Boolean(taskSession?.sessionDisplayId) && !shouldResetTaskSessionForWake(context),
+            persisted: routerHasPersistedInput ? context.aiRouterSelection as AiConnectionRouterSelection | undefined : undefined,
+          });
+          aiBinding = selection.binding;
+          // Provider-specific fields from the configured harness must not leak into the selected member.
+          config = applyAiConnectionRouterTaskSettings(config, selection);
+          if (issueAssigneeOverrides) issueAssigneeOverrides = { ...issueAssigneeOverrides, adapterConfig: applyAiConnectionRouterTaskSettings(issueAssigneeOverrides.adapterConfig ?? {}, selection) };
+          agent = { ...agent, adapterConfig: config };
+          context.aiRouterSelection = selection;
+          await db.update(heartbeatRuns).set({ contextSnapshot: sql`coalesce(${heartbeatRuns.contextSnapshot}, '{}'::jsonb) || ${JSON.stringify({ aiRouterTaskKey: context.aiRouterTaskKey, aiRouterSelection: selection })}::jsonb` }).where(eq(heartbeatRuns.id, run.id));
+          await appendRunEvent(run, { eventType: "lifecycle", stream: "system", level: "info", message: "Using task-pinned pool account", payload: { poolId: selection.poolId, memberId: selection.memberId, provider: aiBinding.provider, model: config.model, notes: selection.notes } });
+        } catch (error) {
+          if (error instanceof AiConnectionPoolExhausted && !routerHasPersistedInput) {
+            const now = new Date();
+            context.aiConnectionBusyDeferredWhileAssignee = issueContext?.assigneeAgentId === agent.id;
+            const cancelled = await setRunStatusIfRunning(run.id, "cancelled", { error: error.message, errorCode: error.code, finishedAt: now, resultJson: { executionRecovery: { kind: "ai_connection_wait", providerWorkStarted: false }, retryAt: error.retryAt }, contextSnapshot: context });
+            if (cancelled.updated) {
+              await setWakeupStatus(run.wakeupRequestId, "cancelled", { finishedAt: now, error: error.message });
+              const retry = await scheduleBoundedRetryForRun(cancelled.run ?? run, agent, { now, retryReason: AI_CONNECTION_POOL_WAIT_RETRY_REASON, wakeReason: "ai_connection_pool_retry", maxAttempts: (run.scheduledRetryAttempt ?? 0) + 1, delayMs: Math.max(1000, Date.parse(error.retryAt) - Date.now()) });
+              if (retry.outcome !== "scheduled") await releaseIssueExecutionAndPromote(cancelled.run ?? run);
+              await finalizeAgentStatus(run.agentId, "cancelled");
+            }
+            return;
+          }
+          throw new ConfigurationIncompleteFailure(error instanceof Error ? error.message : "Configure this connection pool", { configurationIncomplete: { reason: "ai_connection_unavailable", companyId: agent.companyId, agentId: agent.id, responsibleUserId, actionUrl: `/agents/${agent.id}/runtime`, fingerprint: `ai-router:${requestedAiBinding.connectionId}` } });
+        }
+      }
       if (isConversation(issueContext)) {
         delete context.resumeSessionParams;
         delete context.resumeSessionDisplayId;
@@ -21569,7 +21611,8 @@ export function heartbeatService(
       });
       const mergedConfig = {
         ...workspaceManagedConfig,
-        ...(issueAssigneeOverrides?.adapterConfig ?? {}),
+        ...Object.fromEntries(Object.entries(issueAssigneeOverrides?.adapterConfig ?? {}).filter(([key]) => requestedAiBinding?.mode !== "router" || !["provider", "acpxAgent", "model", "modelReasoningEffort", "reasoningEffort", "effort", "variant"].includes(key))),
+        ...(requestedAiBinding?.mode === "router" ? parseObject(parseObject(context.aiRouterSelection).runtimeConfig) : {}),
         // The base below is already task-owned. Keep directory transport while
         // preserving isolated mode and the mandatory sandbox preflight.
         ...(useIsolatedTaskDirectory ? { workspaceStrategy: { type: "project_primary" } } : {}),
@@ -21606,7 +21649,7 @@ export function heartbeatService(
         ["local", "ssh"].includes(
           selectedEnvironmentForConfig?.driver ?? "local",
         );
-      const aiBinding = agent.runtimeConfig?.aiConnection ? aiConnectionBindingSchema.parse(agent.runtimeConfig.aiConnection) : undefined;
+
       const { resolvedConfig, secretKeys, secretManifest } =
         await resolveExecutionRunAdapterConfig({
           managedAiCredentials: Boolean(aiBinding),
@@ -21656,13 +21699,16 @@ export function heartbeatService(
               fingerprint: `ai:${agent.id}:${responsibleUserId}:${JSON.stringify(aiBinding)}` },
           });
         }
-        if (persistedNativeExecutionInput && parseObject(run.contextSnapshot?.aiConnection).identity !== managedAiRuntime.identity) {
+        const savedAiAccount = parseObject(run.contextSnapshot?.aiConnection);
+        if (persistedNativeExecutionInput && (savedAiAccount.sessionIdentity
+          ? savedAiAccount.sessionIdentity !== managedAiRuntime.sessionIdentity
+          : savedAiAccount.identity !== managedAiRuntime.identity)) {
           throw new ConfigurationIncompleteFailure("The AI account changed while this native run was suspended. Start a new execution.", { configurationIncomplete: { reason: "ai_connection_changed", actionUrl: `/agents/${agent.id}/runtime` } });
         }
         Object.assign(resolvedConfig, managedAiRuntime.config);
         for (const key of AI_AUTH_ENV_KEYS) secretKeys.add(key);
-        context.aiConnection = { ...managedAiRuntime.attribution, identity: managedAiRuntime.identity };
-        await db.update(heartbeatRuns).set({ contextSnapshot: sql`coalesce(${heartbeatRuns.contextSnapshot}, '{}'::jsonb) || ${JSON.stringify({ aiConnection: context.aiConnection })}::jsonb` }).where(eq(heartbeatRuns.id, run.id));
+        context.aiConnection = { ...managedAiRuntime.attribution, accountName: managedAiRuntime.accountName, identity: managedAiRuntime.identity, sessionIdentity: managedAiRuntime.sessionIdentity };
+        await db.update(heartbeatRuns).set({ contextSnapshot: sql`coalesce(${heartbeatRuns.contextSnapshot}, '{}'::jsonb) || ${JSON.stringify({ aiConnection: context.aiConnection, ...(context.aiRouterTaskKey ? { aiRouterTaskKey: context.aiRouterTaskKey } : {}), ...(context.aiRouterSelection ? { aiRouterSelection: context.aiRouterSelection } : {}) })}::jsonb` }).where(eq(heartbeatRuns.id, run.id));
       }
       if (secretManifest.length > 0) {
         context.paperclipSecrets = {
@@ -23044,10 +23090,10 @@ export function heartbeatService(
 
       const taskSessionCredentialCompatible = isTaskSessionCredentialCompatible(
         taskSession?.sessionParamsJson,
-        managedAiRuntime?.identity,
-      );
+        managedAiRuntime?.sessionIdentity,
+      ) || Boolean(managedAiRuntime && isTaskSessionCredentialCompatible(taskSession?.sessionParamsJson, managedAiRuntime.identity));
       if (managedAiRuntime) {
-        sessionConfigMetadata.aiCredentialIdentity = managedAiRuntime.identity;
+        sessionConfigMetadata.aiCredentialIdentity = managedAiRuntime.sessionIdentity;
         if (!taskSessionCredentialCompatible) {
           runtimeSessionIdForAdapter = null;
           runtimeSessionParamsForAdapter = null;

@@ -445,6 +445,17 @@ export function InstanceExperimentalSettings() {
         />
 
         <ExperimentalToggleCard
+          title="AI connection routers"
+          description="Allow experimental plugins to rotate new tasks through authorized AI accounts. Each task keeps its account and harness; exhausted tasks wait for usage to recover. Install a compatible router plugin and enable a pool separately."
+          checked={experimentalQuery.data?.enableAiConnectionRouters === true}
+          onCheckedChange={(checked) => toggleMutation.mutate({ enableAiConnectionRouters: checked })}
+          disabled={toggleMutation.isPending}
+          settingKey="enableAiConnectionRouters"
+          managed={managedKeys.enableAiConnectionRouters}
+          ariaLabel="Toggle AI connection routers experimental setting"
+        />
+
+        <ExperimentalToggleCard
           title="Paperclip Runner"
           description="Allow new Codex agents to select the experimental Rust Paperclip Runner, including authenticated runner ingress when a sandbox requires it. Onboarding continues to use legacy adapters. Turning this off hides the choice without affecting existing native runs."
           checked={enableNativeRunner}
