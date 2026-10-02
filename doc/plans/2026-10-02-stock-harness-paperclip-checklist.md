@@ -246,7 +246,25 @@ Starting points: [onboarding assets](../../server/src/onboarding-assets/),
 [hiring skill and references](../../skills/paperclip-create-agent/),
 [teams catalog](../../packages/teams-catalog/catalog/).
 
-Decision: per-template disposition and migration policy pending.
+Dotta approved hiring implementation; it is ongoing in a separate branch from
+master. The hiring work owns its skill/references, CEO/CoS assets and team
+catalog. This qualification branch does not change those files.
+
+The read-only audit found four onboarding CEO files (1,897 words), a 164-word
+CoS manual, four role examples (coder 652, QA 619, UX 1,325, security 1,724 words),
+and eight team-catalog manuals. Hiring step 6, the 60–150-line role guide and
+review checklist would regenerate the removed operating policies.
+
+- [ ] **3.1** Reduce role drafting rules, coder/adapted hire examples and matching
+  catalog coder, preserving metadata, auth, permissions and skill selections.
+- [ ] **3.2** Reduce the CEO bundle/copy, including forced delegation, hiring,
+  memory and repeated API recipes.
+- [ ] **3.3** Review remaining roles/catalog and CoS copy.
+- [ ] **3.4** Review specialized built-in/plugin contracts separately; retain
+  product-required behavior rather than assuming every rule is redundant.
+
+Custom and existing bundles and governance remain deliberate rollout boundaries.
+Separate hiring PR/branch link and prompt diffs are pending.
 
 ## 4. Fix repository context while retaining Paperclip configuration
 
@@ -424,6 +442,7 @@ will address them. Record intentional behavior explicitly rather than as a bug.
 - F18: Native blocker browser assertion required a marker-only reply despite asking for owner/action/reason. Correct marker-plus-explanation checks symmetrically, calibrate contradictory and future-condition replies, retain original verdicts.
 - F19: Original prompt-removal cohorts loaded Paperclip; OpenCode skill truncation omitted the late API recipe. The early repair fixed Claude in one paired trial. In the repaired original OpenCode assignment, Paperclip was first loaded only during disposition recovery after a local-file write. Shared legacy operational-skill delivery/selection needs review before more recipe expansion.
 - F20: Explicit repaired OpenCode reads the early recipe/reference and saves a public document/revision, but hands off a code-formatted path rather than a clickable anchor. Baseline provides a clickable API URL, rejected by the UI-only oracle. Preserve both grades; clarify future clickable UI-link fixture and review the smallest link example separately.
+- F22: Legacy operational skill mounting is already mandatory, but its discovery description omitted ordinary task/heartbeat work and document delivery. The approved narrow fix expands stock metadata selection and adds a real Markdown link example in the existing reference. Original + clarified-explicit OpenCode paired qualification is pending; no full-body injection or native-tool leakage. ACP Claude names-only metadata, custom ACP unsupported delivery, OpenClaw wrappers and Pi HOME differences remain distinct follow-ups.
 - F21: Skill heading insertion shifted both generated capability inventories. General CI caught stale metadata after the frozen repair campaign’s narrower build admitted providers. Regenerate canonical derived files and require stale-manifest/inventory checks before future provider admission.
 
 For each completed item, add the chosen behavior, changed paths, verification
