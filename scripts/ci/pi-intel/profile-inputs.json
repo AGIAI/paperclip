@@ -13,10 +13,10 @@
       "digest": "sha256:48cecd8dc77a5533240fcf2f29d19be05380da4a79f8e5061480f94241db75a8"
     },
     "pi": {
-      "path": "packages/paperclip-runner/test-fixtures/pi-acp/profile-v11-identity.json",
-      "sha256": "7b253e94b1672dff0e7a4f4a50f3bb2270038d14f1ef27857f8bef67b9800a7f",
-      "version": 11,
-      "digest": "sha256:5e276f48c8a87b3e6165369faac62d3925282c84b98934575b1b7b97ad50b309"
+      "path": "packages/paperclip-runner/test-fixtures/pi-acp/profile-v12-identity.json",
+      "sha256": "99a6dd48b3da1c555cfbec7f42fe0cb1c00afe437b65a78db92f6b14d7828168",
+      "version": 12,
+      "digest": "sha256:47306e6d2a9b59e8f9189f725ebb7a0a7f91826044d1739e1a35ab31f228ba1f"
     }
   },
   "candidateClosureDigests": {
@@ -31,26 +31,30 @@
       "linux-x64": "sha256:a3d8f4367cfa1694d79e3f8b7930b6fbfe42a229c272b375b11951d631db8d07"
     },
     "pi": {
-      "darwin-arm64": "sha256:a3e43c23f9603983a59fd256ca1dcf8bbd5cc2728dad095f7bcd3b3e62278597",
-      "darwin-x64": "sha256:8c6e7802d47da9410af56e367f6cf7af572fcbf3e361627cee026e8cffc9bdd3",
-      "linux-x64": "sha256:40e186c53db60d1ab5673ba34f33002e93cea518725a93395d241393b984caef"
+      "darwin-arm64": "sha256:e17be4d27c589b8f8b5de7d00686c39873fe6f902a3f133bdaf1a9f94dee00a2",
+      "darwin-x64": "sha256:03351f4a250a8db0e79411a9079b43a0ff05f72a2aff41fae17f1fc2de24bd41",
+      "linux-x64": "sha256:29dfc829700c57392f1d56373078dcfc80674cbd50f65674ec64fced81dffb68"
     }
   },
   "additionalSourceFiles": {
     "packages/paperclip-runner/test/fixtures/copilot-message-identity-distributions-1.0.88.json": "7e1534d668a3db7acae15377b67d86fa80cc21ce699d021709b0b52ad314cfb2",
-    "patches/pi-acp@0.0.33.patch": "429184a462f9acef5bef890f3537db3ef385ee7c06d9fe0c335158590005ab0a",
+    "patches/pi-acp@0.0.33.patch": "93254de82ae779587611748cfb963475c3439e033f1582f06dfdcc7f7b937546",
     "packages/paperclip-runner/scripts/pi-distribution/package.json": "c14f4050ef27dca91d3650e7446bc9927296a926224dba50a0e02f5d9fd4d95b",
     "packages/paperclip-runner/scripts/pi-distribution/package-lock.json": "f4b04d51c4d91a6529dc97af2f3f84c28a220d93a54b5555826c4d9fd30f0939",
-    "packages/paperclip-runner/scripts/materialize-pi-distribution.mjs": "39bd8cc48791f8e54a953c7803334b965b9998943b0402008438d565ea2230be",
+    "packages/paperclip-runner/scripts/materialize-pi-distribution.mjs": "315e1123abdad82006caca1823e15ba2da0cb1cfe7f0f29534c3830e8bf0682b",
     "packages/paperclip-runner/scripts/build-node-startup-timeout.mjs": "545dbaf7062b1cd54176dafe3feb8877e5ccf19406f791172a3ad47dbfd73fc4",
-    "packages/paperclip-runner/src/drivers/acpx/pi-acp-runtime.ts": "a0ec66a03cd9fa32e9aaafc4ac6840115883333000fd079ccba230706b763ac0",
+    "packages/paperclip-runner/src/drivers/acpx/pi-acp-runtime.ts": "95f74eb44a2e498fbd9461d363fac5b4d5fdae05b9666dca1ac4a632229dfef4",
     "packages/paperclip-runner/src/drivers/acpx/pi-runtime-extension.ts": "f3446be10d984c368c52202e768aefe9b4a25968e09922e98e3f016c9dc0198e",
     "packages/paperclip-runner/src/drivers/acpx/pi-verified-runtime.ts": "dfb5f6604da0abc307c4bb514e3dd47354f4b867be28fdeb64273c3c055b68c1",
     "packages/paperclip-runner/src/drivers/acpx/pi-node-pins.ts": "ffc822aff64db315e461cbe44f03d704695de4a4296f643af79386c3556a1d46",
-    "packages/paperclip-runner/src/drivers/acpx/pi-closure-pins.ts": "0941f56ea13b8eb309a345d2a1513e0ec53d201c81c755b356565505bc1df905",
-    "packages/paperclip-runner/src/drivers/acpx/qualified-profiles.ts": "20185223c77ce6d5b67b270abdc0debc26166c7d3dd412a1ecea83f980429027",
-    "packages/paperclip-runner/package.json": "a87426b0184e114e46c6f4ddbf3f4a9727cd591cf0a5ca900efde42198190fd1",
-    "packages/paperclip-runner/src/drivers/acpx/pi-installation.ts": "d32de12609133c16bb78c559b98ac878fa792a1f336159d09f2c1948f887125e"
+    "packages/paperclip-runner/src/drivers/acpx/pi-closure-pins.ts": "9fdfcd7d7b0bdcbb75fe7d8f7e9228642f32d83bead9813d494b3ee133c2fc5e",
+    "packages/paperclip-runner/src/drivers/acpx/qualified-profiles.ts": "9760d924815554cb0f438c444e1f23a3608fca4a245344b25d15199b743515e5",
+    "packages/paperclip-runner/package.json": "b5be67eb3190ddaa9baf20a455fae62fc7722b764f89f2cdbdd02a6d6a9dcad3",
+    "packages/paperclip-runner/src/drivers/acpx/pi-installation.ts": "a9c4e9c3f003eebd38b35f89a112291ad0620aed57894c878ff6806593911fd7",
+    "packages/paperclip-runner/src/drivers/acpx/native-distribution-integrity.ts": "943ba0fb2d27d08b9b0d36778f08c7c0dbdb78893c7564babd4e67f67cf065fe",
+    "packages/paperclip-runner/runner/crates/runner-core/src/acpx_provider_backend.rs": "3c90ed419b96a3484756954f3c2a8af8c4c8fc4ec5aa2a7725b9df36167dcd72",
+    "packages/paperclip-runner/rust-toolchain.toml": "e4c6d27e48d71df0ae66d84f3bc2d5df8cbf5c3cbb3225475a7852d94361a0c5",
+    "packages/paperclip-runner/runner/crates/runner-core/src/bin/paperclip-runnerd.rs": "116d2641e844ba28cd7496d56b44fa405ea8def8940d9e50e9d6b30603602581"
   },
   "permissionPolicySources": {
     "packages/paperclip-runner/src/drivers/acpx/copilot-permission-context.ts": {
@@ -174,8 +178,8 @@
     }
   },
   "localComparison": {
-    "sourceRevision": "efe019a79f50440d7bd6c3bc6c75fb8f18953093",
-    "sourceArchiveSha256": "587c0f60a30f0ca4b43361830cb611fcaa4a83f492cb7a9fd66b7908b45f72be",
+    "sourceRevision": "b9e5d6ecdb05ab7244c90976e07c950f8d09b15b",
+    "sourceArchiveSha256": "b32d8e32639e6527804fe11bfa1aaefcefa87fca31e9155499e6b9a28f69dbd4",
     "trackedLockSha256": "e11d69fa8702a906c293c1cb307c71df90d3b1f1617b3c23ebf17fa9a87fec79",
     "resolvedLockSha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
     "nodeSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49",
@@ -183,7 +187,7 @@
     "piRuntimeVersion": "1.0.0",
     "piServerVersion": "0.0.33",
     "acpxVersion": "0.13.1",
-    "note": "Fresh W TypeScript/sidecar/provider pack; exact retained native Intel daemon from5eba after complete declared-input equality. Historical local pack and S/V outputs are not current outputs. Original Apple SDK/linker details were not retained; no equivalence or fresh-compilation claim.",
+    "note": "Fresh exact-source TypeScript, sidecar, native Intel Rust daemon and Pi12 provider pack. Historical local outputs are not current outputs; no old daemon import or native input-equivalence claim.",
     "historicalLocalOutputs": {
       "localPackDigest": "sha256:a7ae16b680c6fcaa9438faa46562ba31519bb0fb42e21b0a4b00e8936c462d89",
       "localDaemonSha256": "c0e9acdd461d5efe4a10f9fd751e8a67beceede4d43593951d7079edad657044",
@@ -191,138 +195,33 @@
       "sourceRevision": "5eba61ece929dcfb2b0c1761825a2d9e557c2554"
     }
   },
-  "nativeDaemonReuse": {
-    "schema": "paperclip.native-daemon-reuse/v1",
-    "originalBuildSource": "5eba61ece929dcfb2b0c1761825a2d9e557c2554",
-    "nativeInputEquivalentTo": "efe019a79f50440d7bd6c3bc6c75fb8f18953093",
-    "artifactRunId": "36933598154",
-    "artifactId": "11197947432",
-    "artifactName": "pi-native-intel-36933598154",
-    "artifactWorkflowRevision": "b58907578ed590f11b049f794f01ce0368df2676",
-    "artifactZipSha256": "2f9892bfa65318e3a61fd39f09fbe26374098eff6cfc3126fa1cba8df31b85c1",
-    "artifactZipBytes": 1076265811,
-    "sourceArchiveSha256": "f751f86b19701757d30501e39d47fe7d20a102e32f9e4c4df585074393e85237",
-    "selectedFiles": {
-      "source.tar": {
-        "sha256": "f751f86b19701757d30501e39d47fe7d20a102e32f9e4c4df585074393e85237",
-        "bytes": 141516800
-      },
-      "source-input-inventory.json": {
-        "sha256": "f95181f36e02e84b309f3c7b21831bc9e6480d4431c0b57a31aa5764ec966695",
-        "bytes": 1032076
-      },
-      "receipt.json": {
-        "sha256": "900fdd6a89a190bd93501f650749c72c7417ea392febd0d0cb4645eae8381736",
-        "bytes": 26160
-      },
-      "paperclip-runnerd": {
-        "sha256": "a0c7ace7ad0be9ac5b5f9c58749d9c452cd3a1ef143a38d5120d8e4f2bf82d6a",
-        "bytes": 32035568
-      },
-      "daemon-build.log": {
-        "sha256": "eea04dc2986eb3f451a0b2eeb76942eab6affb8643a6cc90eace5274a1cd5bb2",
-        "bytes": 18358
-      },
-      "daemon-metadata.log": {
-        "sha256": "a1b957a6ee5fad916252ba629b3c2ad85af8b54c1f006d5901f1614eb700ebfe",
-        "bytes": 452
-      },
-      "daemon-sign.log": {
-        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "bytes": 0
-      },
-      "rust-version-verbose.log": {
-        "sha256": "87c09aab5ad89ed5a2636cd4f577eb178a3afba7a9f71490b240845245725f04",
-        "bytes": 191
-      }
-    },
-    "sourceDeltaAllowed": [
-      "doc/evals.md",
-      "packages/paperclip-runner/scripts/materialize-pi-distribution.test.mjs",
-      "packages/paperclip-runner/src/drivers/acpx/native-distribution-integrity.test.ts",
-      "packages/paperclip-runner/src/drivers/acpx/native-distribution-integrity.ts",
-      "packages/paperclip-runner/src/drivers/acpx/pi-installation.ts",
-      "packages/paperclip-runner/src/drivers/acpx/pi-native-admission.test.ts",
-      "packages/paperclip-runner/src/drivers/acpx/pi-verified-runtime.test.ts",
-      "packages/paperclip-runner/src/drivers/acpx/pi-verified-runtime.ts",
-      "tests/runner-e2e/FIXTURES.md",
-      "tests/runner-e2e/README.md",
-      "tests/runner-e2e/catalog.test.ts",
-      "tests/runner-e2e/catalog.ts",
-      "tests/runner-e2e/failure-classifier.ts",
-      "tests/runner-e2e/pi-controls-evidence.test.ts",
-      "tests/runner-e2e/pi-file-evidence.test.ts",
-      "tests/runner-e2e/pi-file-evidence.ts",
-      "tests/runner-e2e/pi-native-cases.test.ts",
-      "tests/runner-e2e/pi-native-cases.ts",
-      "tests/runner-e2e/pi-native-flow.ts",
-      "tests/runner-e2e/pi-native-provider-death-flow.test.ts",
-      "tests/runner-e2e/pi-native-provider-death-flow.ts",
-      "tests/runner-e2e/pi-native-restart-flow.test.ts",
-      "tests/runner-e2e/pi-native-restart-flow.ts",
-      "tests/runner-e2e/pi-provider-fault.py",
-      "tests/runner-e2e/pi-provider-fault.test.py",
-      "tests/runner-e2e/pi-provider-fault.test.ts",
-      "tests/runner-e2e/remote-native-fixtures.test.ts",
-      "tests/runner-e2e/remote-native-fixtures.ts",
-      "tests/runner-e2e/runner.spec.ts",
-      "tests/runner-e2e/server-stop.test.ts"
+  "expectedDaemonBuildMetadata": {
+    "binaryContractVersion": 2,
+    "binaryName": "paperclip-runnerd",
+    "durableSessionCapabilities": [
+      "unlimited_runtime",
+      "connection_lease_renewal"
     ],
-    "compiler": {
-      "rustcSha256": "a1fd557be213adbcfe224e0e05e2903aa3f4b8d9294bed51d97a9d2a0b201e55",
-      "cargoSha256": "07816976dbe29da10bf127b75edcb0f5cd8b8652051b9c79709f8c0898d125d2",
-      "versionVerbose": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: x86_64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6\n",
-      "jobs": 2
+    "harnessDriverVersion": 1,
+    "nativeExecutionVersion": 1,
+    "packageName": "@paperclipai/paperclip-runner",
+    "packageVersion": "0.0.0",
+    "prp": {
+      "maximumVersion": 2,
+      "minimumVersion": 1,
+      "name": "paperclip.runner"
     },
-    "daemonBuildMetadata": {
-      "binaryContractVersion": 2,
-      "binaryName": "paperclip-runnerd",
-      "durableSessionCapabilities": [
-        "unlimited_runtime",
-        "connection_lease_renewal"
-      ],
-      "harnessDriverVersion": 1,
-      "nativeExecutionVersion": 1,
-      "packageName": "@paperclipai/paperclip-runner",
-      "packageVersion": "0.0.0",
-      "prp": {
-        "maximumVersion": 2,
-        "minimumVersion": 1,
-        "name": "paperclip.runner"
-      },
-      "prpTransportModes": [
-        "dial_ws_loopback",
-        "dial_wss",
-        "listen_ws"
-      ],
-      "schema": "paperclip-runner/runnerd-build-metadata/v1"
-    },
-    "buildCommandTail": [
-      "build",
-      "--release",
-      "--target",
-      "x86_64-apple-darwin",
-      "--manifest-path",
-      "packages/paperclip-runner/runner/Cargo.toml",
-      "--locked",
-      "-p",
-      "paperclip-runner-core",
-      "--bin",
-      "paperclip-runnerd",
-      "-j",
-      "2"
+    "prpTransportModes": [
+      "dial_ws_loopback",
+      "dial_wss",
+      "listen_ws"
     ],
-    "originalVerifierSha256": "7de772df5beabe6413e2d0d8dd287017ef2be8d3b3cdc76e8a23007ba547b509",
-    "missingOriginalToolchainEvidence": [
-      "Apple SDK version",
-      "Apple linker/compiler identity",
-      "full Rust compiler sysroot inventory"
-    ],
-    "claims": {
-      "freshNativeCompilation": false,
-      "currentAppleToolchainEquivalent": false,
-      "completeDeclaredNativeSourceConfigProtocolEquality": true,
-      "originalCompilerProvenanceRetained": true
-    }
+    "schema": "paperclip-runner/runnerd-build-metadata/v1"
+  },
+  "freshNativeBuild": {
+    "toolchain": "1.97.1",
+    "target": "x86_64-apple-darwin",
+    "jobs": 2,
+    "deadlineSeconds": 1500
   }
 }

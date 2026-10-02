@@ -47,7 +47,7 @@ export function verifyPack(pack, source, platform, architecture) {
   requireTrue(manifest.digest === `sha256:${createHash('sha256').update(canonicalJson(p)).digest('hex')}`, 'Canonical manifest mismatch');
   requireTrue(p.runnerSourceRevision === source, 'Wrong source');
   requireTrue(p.target.platform === platform && p.target.architecture === architecture, 'Wrong target');
-  const pins = { cursor: '1df2a15b93bc3a14fa47fa3315344ba023fe2412048047cdc6f32096a6336564', copilot: '48cecd8dc77a5533240fcf2f29d19be05380da4a79f8e5061480f94241db75a8', pi: '5e276f48c8a87b3e6165369faac62d3925282c84b98934575b1b7b97ad50b309' };
+  const pins = { cursor: '1df2a15b93bc3a14fa47fa3315344ba023fe2412048047cdc6f32096a6336564', copilot: '48cecd8dc77a5533240fcf2f29d19be05380da4a79f8e5061480f94241db75a8', pi: '47306e6d2a9b59e8f9189f725ebb7a0a7f91826044d1739e1a35ab31f228ba1f' };
   requireTrue(Object.keys(p.candidateProviders).sort().join(',') === Object.keys(pins).sort().join(','), 'Wrong candidate set');
   const closurePins = JSON.parse(readFileSync(new URL('./profile-inputs.json', import.meta.url))).candidateClosureDigests;
   const checks = [];

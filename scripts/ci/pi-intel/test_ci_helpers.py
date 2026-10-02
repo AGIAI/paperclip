@@ -6,13 +6,75 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+import json
+import re
 from unittest.mock import Mock, patch
 from lifecycle import CleanupUncertain, Lifecycle, run_test_cases
 from retain_pack import retain_pack, verify_archive
 from closed_inventory import closed_tree
 from source_guard import tree, sha, capture_authority, verify_authority, verify_source, ASSETS
 from admit_evidence import admit_evidence, regular_bytes
-from verify import tool_invocation, verify_tool_invocation
+from verify import tool_invocation, verify_tool_invocation, build_native_daemon, INPUTS, SOURCE
+
+class FreshNativeBuildRegression(unittest.TestCase):
+    """Mock command boundaries only: no compiler, platform tool or child launch."""
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name).resolve();self.stage=self.root/'stage';self.stage.mkdir()
+        self.scratch=self.root/'scratch';self.scratch.mkdir();self.sdk=self.root/'sdk';self.sdk.mkdir()
+        (self.sdk/'SDKSettings.json').write_text('{"Version":"fixture"}')
+        self.tools={}
+        for name in ('rustup','cargo','rustc','clang','ld'):
+            path=self.root/name;path.write_text('fixture-only '+name);path.chmod(0o700);self.tools[name]=path
+        self.audit={'invocationPath':str(self.tools['rustup']),'resolvedTarget':str(self.tools['rustup']),'targetSha256':sha(self.tools['rustup'])}
+        self.env={'CARGO_TARGET_DIR':str(self.scratch/'target')};self.receipt={};self.calls=[];self.fail_label=None;self.bad_metadata=False
+    def run_command(self,command,label,timeout):
+        self.calls.append((label,list(map(str,command)),timeout))
+        if label==self.fail_label:raise RuntimeError('injected command failure')
+        values={'cargo-path':str(self.tools['cargo']),'rustc-path':str(self.tools['rustc']),
+                'rust-version-verbose':'rustc 1.97.1 fixture\nhost: x86_64-apple-darwin', 'cargo-version':'cargo 1.97.1 fixture',
+                'sdk-path':str(self.sdk),'sdk-version':'fixture','clang-path':str(self.tools['clang']),'ld-path':str(self.tools['ld']),
+                'daemon-architecture':'Mach-O 64-bit executable x86_64',
+                'daemon-metadata':json.dumps({} if self.bad_metadata else INPUTS['expectedDaemonBuildMetadata'])}
+        if label=='daemon-build':
+            p=self.scratch/'target/x86_64-apple-darwin/release/paperclip-runnerd';p.parent.mkdir(parents=True);p.write_bytes(b'newly-compiled-fixture');p.chmod(0o755)
+        return values.get(label,'')
+    def build(self):
+        with patch('verify.tool_invocation',return_value=(self.tools['rustup'],self.audit)):
+            return build_native_daemon(self.stage,self.scratch,self.env,self.run_command,self.receipt,lambda:None)
+    def test_fresh_compiler_recipe_and_output_provenance(self):
+        daemon=self.build();self.assertEqual(daemon.read_bytes(),b'newly-compiled-fixture')
+        self.assertTrue(self.receipt['nativeRecompiled']);self.assertFalse(self.receipt['nativeDaemonReuse']);self.assertEqual(self.receipt['nativeBuildSource'],SOURCE)
+        build=next(c for c in self.calls if c[0]=='daemon-build')
+        self.assertEqual(build[2],1500);self.assertEqual(build[1][1:],['build','--release','--target','x86_64-apple-darwin','--manifest-path','packages/paperclip-runner/runner/Cargo.toml','--locked','-p','paperclip-runner-core','--bin','paperclip-runnerd','-j','2'])
+        self.assertEqual(self.env['RUSTC'],str(self.tools['rustc']))
+        self.assertEqual(self.receipt['compiler']['sdk']['settings']['SDKSettings.json'],sha(self.sdk/'SDKSettings.json'))
+        labels=[c[0] for c in self.calls];self.assertLess(labels.index('daemon-sign'),labels.index('daemon-signature-verify'));self.assertLess(labels.index('daemon-signature-verify'),labels.index('daemon-metadata'))
+    def test_compiler_failure_cannot_produce_or_claim_fresh_daemon(self):
+        self.fail_label='daemon-build'
+        with self.assertRaisesRegex(RuntimeError,'injected'):self.build()
+        self.assertNotIn('nativeRecompiled',self.receipt);self.assertFalse((self.stage/'packages/paperclip-runner/dist/bin/paperclip-runnerd').exists())
+        self.assertNotIn('daemon-sign',[c[0] for c in self.calls])
+    def test_wrong_metadata_cannot_claim_fresh_success(self):
+        self.bad_metadata=True
+        with self.assertRaisesRegex(RuntimeError,'build metadata'):self.build()
+        self.assertNotIn('nativeRecompiled',self.receipt)
+    def test_missing_sdk_evidence_stops_before_build(self):
+        (self.sdk/'SDKSettings.json').unlink()
+        with self.assertRaisesRegex(RuntimeError,'SDK settings'):self.build()
+        self.assertNotIn('daemon-build',[c[0] for c in self.calls])
+    def test_unreviewed_recipe_stops_before_commands(self):
+        with patch.dict(INPUTS,{'freshNativeBuild':dict(INPUTS['freshNativeBuild'],jobs=8)}):
+            with self.assertRaisesRegex(RuntimeError,'recipe'):self.build()
+        self.assertEqual(self.calls,[])
+
+    def test_pack_verifier_and_source_profile_authorities_agree(self):
+        verifier=(Path(__file__).parent/'verify-pack.mjs').read_text()
+        block=re.search(r'const pins = \{([^}]+)\};',verifier)
+        self.assertIsNotNone(block)
+        pins=dict(re.findall(r"(\w+): '([a-f0-9]{64})'",block.group(1)))
+        self.assertEqual({agent:'sha256:'+digest for agent,digest in pins.items()},
+                         {agent:profile['digest'] for agent,profile in INPUTS['profiles'].items()})
 
 class CleanupRegression(unittest.TestCase):
     def test_first_cleanup_failure_prevents_second_test_and_scratch_removal(self):

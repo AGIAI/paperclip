@@ -68,8 +68,9 @@ on:
 permissions: {}
 
 concurrency:
-  # Publishing a newer image must not discard an earlier verification's evidence.
-  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.diagnose_pi_startup && 'pi-startup-diagnostic' || inputs.verify_pi_intel && 'pi-native-intel' || inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.source_e2e_support_only && 'source-e2e-support' || inputs.source_root_tests_only && 'source-root-tests' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}
+  # Different immutable manual sources retain independent evidence; the same
+  # source/mode still supersedes itself. Ordinary PR grouping is unchanged.
+  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.diagnose_pi_startup && 'pi-startup-diagnostic' || inputs.verify_pi_intel && 'pi-native-intel' || inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.source_e2e_support_only && 'source-e2e-support' || inputs.source_root_tests_only && 'source-root-tests' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}${{ github.event_name == 'workflow_dispatch' && inputs.expected_source_sha && format('-{0}', inputs.expected_source_sha) || '' }}
   cancel-in-progress: true
 
 jobs:
@@ -176,7 +177,7 @@ jobs:
             test "$SOURCE_ROOT_TESTS_ONLY" != true
             test "$DIAGNOSE_AJV" != true
             test "$IMAGE_MODE" != true
-            test "$EXPECTED_SOURCE_SHA" = efe019a79f50440d7bd6c3bc6c75fb8f18953093
+            test "$EXPECTED_SOURCE_SHA" = b9e5d6ecdb05ab7244c90976e07c950f8d09b15b
             test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
             # Standard hosted runner minutes are free for this public repository.
             # Artifact storage and unrelated resource costs are not inferred here.
@@ -230,24 +231,13 @@ jobs:
         with:
           version: 9.15.4
           package_json_file: candidate/package.json
-      - name: Download exact historical native daemon evidence
-        timeout-minutes: 5
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh api repos/paperclipai/paperclip/actions/artifacts/11197947432/zip \
-            > "$RUNNER_TEMP/pi-native-daemon-36933598154.zip"
-          printf '%s  %s\n' 2f9892bfa65318e3a61fd39f09fbe26374098eff6cfc3126fa1cba8df31b85c1 \
-            "$RUNNER_TEMP/pi-native-daemon-36933598154.zip" | shasum -a 256 --check
       - name: Build frozen pack and run unchanged no-provider contracts once
         timeout-minutes: 55
         run: |
           set -euo pipefail
           python3 -B trusted-ci/scripts/ci/pi-intel/verify.py \
             --source "$GITHUB_WORKSPACE/candidate" \
-            --output "$GITHUB_WORKSPACE/pi-intel-evidence" \
-            --daemon-archive "$RUNNER_TEMP/pi-native-daemon-36933598154.zip"
+            --output "$GITHUB_WORKSPACE/pi-intel-evidence"
       - name: Admit complete evidence within the reserved storage bound
         if: always()
         id: pi_intel_evidence
