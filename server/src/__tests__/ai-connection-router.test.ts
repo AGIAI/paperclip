@@ -214,6 +214,34 @@ describe("durable, authorized connection routing", () => {
     try { const pool = await makePool({ mode: "usage_aware", members: [members[1]!] }); const start = Date.now(); expect((await resolve(pool.id, "slow-probe")).memberId).toBe(members[1]!.id); expect(Date.now() - start).toBeLessThan(20_000); expect(proposal.mock.calls.at(-1)?.[2].candidates[0]?.usage).toBeUndefined(); }
     finally { spy.mockRestore(); }
   }, 25_000);
+  it("persists run-key affinity before policy calls and reuses it across allocation recovery", async () => {
+    await instanceSettingsService(db).updateExperimental({ enableAiConnectionRouters: true, enableWorktreeRunExecution: true });
+    const pool = await makePool({ members: [members[1]!] });
+    const [agent] = await db.insert(agents).values({ companyId, name: "Run-key fixture", adapterType: "claude_local", adapterConfig: { cwd: home, engine: "cli" }, runtimeConfig: { aiConnection: { mode: "router", connectionId: pool.id }, heartbeat: { enabled: false } } }).returning();
+    let affinity: string | undefined;
+    const execute = vi.fn(); registerServerAdapter({ ...getServerAdapter("claude_local"), execute });
+    const heartbeat = heartbeatService(db, { pluginWorkerManager: worker, runtimeEnv: {} });
+    proposal.mockImplementationOnce(async (_id, _method, request) => {
+      const [run] = await db.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.agentId, agent!.id), eq(heartbeatRuns.status, "running")));
+      expect(run?.contextSnapshot?.aiRouterTaskKey).toBe(run?.id);
+      expect(request.taskKey).toBe(run?.id);
+      affinity = run!.id;
+      throw new Error("fixture policy interruption");
+    });
+    try {
+      const run = await heartbeat.wakeup(agent!.id, { source: "on_demand", reason: "manual", triggerDetail: "manual", contextSnapshot: { responsibleUserId: "alice", wakeReason: "manual" } });
+      expect(run).not.toBeNull();
+      await expect.poll(async () => (await heartbeat.getRun(run!.id))?.status, { timeout: 20_000 }).toBe("failed");
+      expect(affinity).toBe(run!.id);
+      expect((await heartbeat.getRun(run!.id))?.contextSnapshot?.aiRouterTaskKey).toBe(affinity);
+      expect(execute).not.toHaveBeenCalled();
+      const input = { agentId: agent!.id, adapterType: "claude_local" };
+      const committed = await resolve(pool.id, affinity!, input);
+      expect(await aiConnectionRouterService(db, worker).resolve({ companyId, poolId: pool.id, agentId: agent!.id, userId: "alice", adapterType: "claude_local", taskKey: affinity! })).toEqual(committed);
+      const [cursor] = await db.select().from(aiConnectionRouterCursors).where(eq(aiConnectionRouterCursors.poolId, pool.id)); expect(cursor?.version).toBe(1);
+      expect(await db.select().from(aiConnectionTaskPins).where(eq(aiConnectionTaskPins.poolId, pool.id))).toHaveLength(1);
+    } finally { proposal.mockReset(); proposal.mockImplementation(defaultProposal); unregisterServerAdapter("claude_local"); await heartbeat.drainActiveRunExecutions(); }
+  }, 30_000);
   it("defers a pinned task before provider work and schedules a retry with its affinity intact", async () => {
     await instanceSettingsService(db).updateExperimental({ enableAiConnectionRouters: true, enableWorktreeRunExecution: true });
     const pool = await makePool({ members: [members[1]!] });

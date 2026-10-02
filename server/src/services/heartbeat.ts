@@ -20911,7 +20911,13 @@ export function heartbeatService(
       const originalAiIssueOverrides = issueAssigneeOverrides;
       if (requestedAiBinding?.mode === "router") {
         try {
-          context.aiRouterTaskKey = readNonEmptyString(context.aiRouterTaskKey) ?? taskKey ?? run.id;
+          const routerTaskKey = readNonEmptyString(context.aiRouterTaskKey) ?? taskKey ?? run.id;
+          // A retry must retain the original run-key affinity even if the host
+          // crashes after committing a pin but before recording its selection.
+          if (routerTaskKey !== run.contextSnapshot?.aiRouterTaskKey) {
+            await db.update(heartbeatRuns).set({ contextSnapshot: sql`coalesce(${heartbeatRuns.contextSnapshot}, '{}'::jsonb) || ${JSON.stringify({ aiRouterTaskKey: routerTaskKey })}::jsonb` }).where(and(eq(heartbeatRuns.id, run.id), eq(heartbeatRuns.companyId, agent.companyId)));
+          }
+          context.aiRouterTaskKey = routerTaskKey;
           const savedIdentity = taskSession?.sessionParamsJson?.paperclipAiCredentialIdentity;
           const selection = await aiConnectionRouterService(db, options.pluginWorkerManager).resolve({
             companyId: agent.companyId, poolId: requestedAiBinding.connectionId, agentId: agent.id,
