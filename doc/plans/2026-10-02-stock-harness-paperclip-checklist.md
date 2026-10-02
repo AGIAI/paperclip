@@ -147,6 +147,13 @@ not inherit instructions to call unavailable native finish/block tools.
   all five native provider kinds; SH-4-resume checks v13 checkpoint rotation
   without changing the Paperclip task or prior history. Live qualification is
   pending; use native profile comparisons, with legacy results kept separate.
+
+  Implemented in draft [PR #14961](https://github.com/paperclipai/paperclip/pull/14961),
+  stacked on #14948 for the eval fixtures. Local verification passed 232 native
+  tests, three retained-checkpoint cases, two legacy prompt boundary assertions,
+  and all 900 E2E support tests. Runner core/surface compilation and E2E typecheck
+  passed. Both exact SH-4 gates passed (14 selected assertions; unrelated cases
+  explicitly skipped). Repository-wide and paid qualification remain pending.
 - [ ] **2.3.2 Move document/file delivery procedures into native tool docs.**
   Include the live server override and preserve prepared versus delivered receipts.
 - [ ] **2.3.3 Move hiring/dependency recipes into native discovery/tool docs.**
