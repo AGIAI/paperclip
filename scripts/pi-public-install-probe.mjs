@@ -20,8 +20,8 @@ assert.equal(JSON.parse(await readFile(join(server, 'package.json'), 'utf8')).na
 const { resolvePaperclipRunnerBinary } = await import(pathToFileURL(join(server, 'dist/services/native-runtime/native-codex-runner.js')));
 const { createCapabilityRunnerdCodexTransport } = await import(pathToFileURL(join(server, 'dist/vendor/paperclip-runner/live/runnerd-codex-transport.js')));
 const { QUALIFIED_ACPX_PROFILES } = await import(pathToFileURL(join(server, 'dist/vendor/paperclip-runner/drivers/acpx/qualified-profiles.js')));
-assert.equal(QUALIFIED_ACPX_PROFILES.pi.agentProfileVersion, 13);
-assert.equal(QUALIFIED_ACPX_PROFILES.pi.commandDigest, 'sha256:fe1e6da01b2a9e4c691ca27cf689d2d6de846a93be6b23fc1e103c9addd7b177');
+assert.equal(QUALIFIED_ACPX_PROFILES.pi.agentProfileVersion, 14);
+assert.equal(QUALIFIED_ACPX_PROFILES.pi.commandDigest, 'sha256:f35145437eeb355ed37bc5a4fa93d7ede561d9c45daf311979b46890b808ddd4');
 assert.equal(QUALIFIED_ACPX_PROFILES.pi.qualificationModel, 'openrouter/deepseek/deepseek-v4-flash-0731');
 const daemon = resolvePaperclipRunnerBinary();
 assert.equal(await realpath(daemon), join(server, 'dist/vendor/paperclip-runner/bin/paperclip-runnerd'));
@@ -63,7 +63,7 @@ try {
   assert.equal(state.activeTurnId, null);
   assert.equal(state.identity, null);
   assert.equal(state.providerExitUnconfirmed, false);
-  console.log(JSON.stringify({ schema: 'paperclip.pi.public-npm-install.v1', target: `${process.platform}-${process.arch}`, normalPackagedDaemon: true, exactPiProfile: 13, runtime: '1.0.0', credentials: 'none', promptCalls: 0, settledMs, cleanRunnerExit: true }));
+  console.log(JSON.stringify({ schema: 'paperclip.pi.public-npm-install.v1', target: `${process.platform}-${process.arch}`, normalPackagedDaemon: true, exactPiProfile: 14, runtime: '1.0.0', credentials: 'none', promptCalls: 0, settledMs, cleanRunnerExit: true }));
 } finally {
   try { await bundle?.transport.close(); }
   finally { clearTimeout(watchdog); await rm(root, { recursive: true, force: true }); }

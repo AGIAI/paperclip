@@ -9,7 +9,10 @@ qualification. The existing draft stack must be reviewed in dependency order.
 
 - Pi: `@earendil-works/pi-coding-agent@1.0.0`.
 - Wrapper: `pi-acp@0.0.33`; ACPX: `0.13.1`; Node: `24.21.0`.
-- Pi profile: 13. Model: `openrouter/deepseek/deepseek-v4-flash-0731`.
+- Pi profile: 14. Model: `openrouter/deepseek/deepseek-v4-flash-0731`.
+- Profile 14 binds the corrected outbound ACPX client patch. Profile 13 remains
+  historical evidence. Cursor 11 and Copilot 15 also bind that shared patch;
+  both remain pending and receive no new paid qualification in this work.
 - Reasoning: native-confirmed `low`. No silent model or thinking fallback.
 - Exact source, suite definition, installed package integrity, runner digest,
   environment and cost evidence must accompany each attempt.
@@ -22,7 +25,7 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed local restart and three-turn warm continuity pass at `f5f57e380`. Pending-permission Stop and stale response rejection pass at `03dd6ef93`. Provider-death evidence remains required. |
 | Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | Historical partial passes exist. Full final-source campaign remains required. |
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | Installed get-task-context passes at `f5f57e380`; context-before-action times out. Five cells remain unexecuted. |
-| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Fresh ARM public installation and normal packaged no-key probe pass. The Linux fleet job is queued. Final-source Intel/Linux/Daytona receipts remain required. |
+| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Historical ARM and Intel public installations pass. Linux CI retains `session_handshake_timeout`; queued fleet jobs were cancelled. Final-source platform receipts, Linux companion and Daytona image remain required. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
 | Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Draft #14956 is stacked on #14924. Prerequisite PRs #14921–#14924 remain open. No merge or release. |
 
@@ -42,6 +45,24 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 
 ## Evidence so far
 
+- At `36e712104`, installed steering returns HTTP 200 and the native command
+  journal records accepted delivery. The public API retains the correct
+  correlation-bound acknowledgement at source sequence 65 and also a
+  rehydrated transport echo at 66. The exact-one acknowledgement gate rejects
+  that duplicate before permission denial. A regression using the actual
+  rehydration function reproduces both items; suppressing the transport echo
+  retains the one authoritative item. The interrupted attempt remains failed.
+- The shared ACPX patch also requires portable hunk metadata and new byte-bound
+  identities. Pi advances to 14, Cursor to pending 11, and Copilot to pending
+  15. Historical fixtures remain immutable, and old installed identities fail
+  closed. The corrected patch passes all 16 packaging checks; identity and
+  steering regressions pass 244 tests. No other provider qualification expands.
+- The credential-free Intel public installation at `36e712104` passes closed
+  admission in 44 seconds. Its Greptile review is 5/5, but CI is held by the
+  stale patch-bound profiles, portable patch metadata and Linux admission.
+  The paid attempt and task-owned Linux build were stopped when that identity
+  mismatch was found. Their evidence is retained; the owned server and database
+  processes are retired. Qualification must use newly installed profile 14.
 - At `4237bc369`, the native turn-binding correction advances the steering
   journey past `steering_stale_turn`, but the provider boundary still rejects
   delivery. The real patched ACPX client lacks `requestExtension`: its types

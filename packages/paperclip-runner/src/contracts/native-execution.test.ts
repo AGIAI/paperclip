@@ -344,7 +344,7 @@ describe("NativeExecutionInputV1", () => {
       profile: provider.profile,
     });
     expect(parseNativeExecutionInput(parsed)).toEqual(parsed);
-    for (const unsupportedVersion of [0, 15, 1.5, "14", null]) {
+    for (const unsupportedVersion of [0, 16, 1.5, "14", null]) {
       expect(() => parseNativeExecutionInput({
         ...input,
         session: { ...input.session, driverKind: "acpx_runtime" },
@@ -521,7 +521,7 @@ describe("native task context ownership", () => {
     });
   }
 
-  it.each(["off", "low", "high", "max"])("requires exact Pi13 thinking level %s in native input", piThinkingLevel => {
+  it.each(["off", "low", "high", "max"])("requires exact current Pi thinking level %s in native input", piThinkingLevel => {
     const { qualificationModel, reportedModelId: _reported, permissionPolicy: _permission, modelPolicy: _policy, qualificationStatus: _status, ...profile } = QUALIFIED_ACPX_PROFILES.pi;
     const value = { ...currentInput(), session: { ...currentInput().session, driverKind: "acpx_runtime" }, provider: { kind: "acpx", agent: "pi", model: qualificationModel, permissionMode: "approve-all", piThinkingLevel, profile } };
     expect(parseNativeExecutionInput(value).provider).toEqual(value.provider);
