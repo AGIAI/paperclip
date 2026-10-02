@@ -9,6 +9,24 @@ from retained_qualification import (PIN, RetainedChild, complete_integrity, extr
 
 
 class RetainedQualificationTests(unittest.TestCase):
+    def test_image_fallback_excludes_every_offline_manual_mode(self):
+        workflow = (Path(__file__).resolve().parents[3]/'.github/workflows/docker-runner-check.yml').read_text()
+        block = workflow.split('  manual_image:\n', 1)[1].split('    needs:', 1)[0]
+        expression = next(line.strip()[4:] for line in block.splitlines() if line.strip().startswith('if: '))
+        clauses = expression.split(' && ')
+        self.assertEqual(clauses[0], "github.event_name == 'workflow_dispatch'")
+        self.assertTrue(all(c.startswith('!inputs.') and c[8:].isidentifier() for c in clauses[1:]))
+        def selected(event, inputs):
+            return event == 'workflow_dispatch' and all(not inputs.get(c[8:], False) for c in clauses[1:])
+        self.assertTrue(selected('workflow_dispatch', {}))
+        self.assertFalse(selected('pull_request', {}))
+        for mode in ('verify_runner', 'verify_source', 'diagnose_ajv_pack', 'verify_pi_intel',
+                     'diagnose_pi_startup', 'diagnose_pi_snapshot_pool',
+                     'diagnose_pi_snapshot_streaming', 'source_e2e_support_only',
+                     'verify_pi_intel_retained'):
+            with self.subTest(mode=mode):
+                self.assertFalse(selected('workflow_dispatch', {mode: True}))
+
     def test_exact_summary_and_missing_duplicate_failure_skip_rejections(self):
         for prefix in ('#', 'ℹ'):
             good = '\n'.join(f'{prefix} {k} {v}' for k, v in dict(tests=63, pass_=63, fail=0, cancelled=0, skipped=0, todo=0).items()).replace('pass_', 'pass')

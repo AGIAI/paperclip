@@ -1037,7 +1037,7 @@ jobs:
 
   manual_image:
     name: Build and verify on EC2
-    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner && !inputs.verify_source && !inputs.diagnose_ajv_pack && !inputs.verify_pi_intel && !inputs.diagnose_pi_startup && !inputs.diagnose_pi_snapshot_pool && !inputs.diagnose_pi_snapshot_streaming && !inputs.source_e2e_support_only
+    if: github.event_name == 'workflow_dispatch' && !inputs.verify_runner && !inputs.verify_source && !inputs.diagnose_ajv_pack && !inputs.verify_pi_intel && !inputs.diagnose_pi_startup && !inputs.diagnose_pi_snapshot_pool && !inputs.diagnose_pi_snapshot_streaming && !inputs.source_e2e_support_only && !inputs.verify_pi_intel_retained
     needs: authorize_manual
     runs-on: runs-on/fleet=paperclip-public-pr-x64/env=public-ci
     timeout-minutes: 90
