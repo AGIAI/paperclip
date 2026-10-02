@@ -90,6 +90,7 @@ export function assertPreflightReceipt(report, current) {
   if (report?.schema !== "paperclip.stock-harness-preflight.v3" || report.passed !== true ||
       report.setup?.passed !== true || report.setup?.exitCode !== 0 ||
       report.setup?.sdkExitCode !== 0 || report.setup?.runnerdExitCode !== 0 ||
+      report.setup?.runnerdSha256 !== current.runnerdSha256 ||
       report.providerCalls !== 0 || report.sourceSha !== current.sha ||
       report.sourceFingerprint !== current.fingerprint || report.sourceErrors?.length !== 0 ||
       !Array.isArray(report.gates) || report.gates.length !== expected.length ||
@@ -113,6 +114,8 @@ export function main(args = process.argv.slice(2)) {
     if (git.status !== 0 || source.sourceErrors.length) throw new Error("Cannot verify stock harness source provenance.");
     const report = assertPreflightReceipt(JSON.parse(readFileSync(verify, "utf8")), {
       sha: git.stdout.trim(), fingerprint: source.fingerprint,
+      runnerdSha256: createHash("sha256").update(readFileSync(join(root,
+        "packages/paperclip-runner/runner/target/debug", `paperclip-runnerd${process.platform === "win32" ? ".exe" : ""}`))).digest("hex"),
     });
     const output = resolve(verify, "..");
     for (const gate of stockHarnessGates) {
@@ -158,6 +161,9 @@ export function main(args = process.argv.slice(2)) {
     process.exitCode = 1;
     return;
   }
+  const runnerdBinary = join(root, "packages/paperclip-runner/runner/target/debug",
+    `paperclip-runnerd${process.platform === "win32" ? ".exe" : ""}`);
+  setup.runnerdSha256 = createHash("sha256").update(readFileSync(runnerdBinary)).digest("hex");
   const results = [];
   for (const gate of stockHarnessGates) {
     console.log(`Checking ${gate.id}: ${gate.name}`);
@@ -166,7 +172,9 @@ export function main(args = process.argv.slice(2)) {
       ...(gate.config ? ["--config", gate.config] : []),
       ...(gate.testPattern ? ["--testNamePattern", gate.testPattern] : []),
       "--reporter=default", "--reporter=json", `--outputFile.json=${file}`],
-    { cwd: resolve(root, gate.cwd), env, stdio: "inherit", timeout: 10 * 60_000 });
+    { cwd: resolve(root, gate.cwd),
+      env: gate.id === "SH-1" ? { ...env, PAPERCLIP_STOCK_PREFLIGHT_RUNNERD: runnerdBinary } : env,
+      stdio: "inherit", timeout: 10 * 60_000 });
     let report;
     try { report = JSON.parse(readFileSync(file, "utf8")); } catch { /* missing evidence fails closed below */ }
     results.push(gradeGate(gate, report, run.status));

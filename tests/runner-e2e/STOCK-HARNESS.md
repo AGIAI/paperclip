@@ -148,6 +148,9 @@ prompt/oracle checks and the Rust additive test. It stopped before providers:
 the real daemon-frame test lacked the cold `paperclip-runnerd` binary. Setup now
 builds that daemon from the locked Rust source before TypeScript gates, retains
 `runnerd-build.txt`, and requires both setup exits in the admission receipt.
+The required daemon-frame test selects that built debug binary explicitly,
+without replacing staged product binaries. The receipt records its SHA-256;
+verification rejects a changed binary before provider admission.
 
 Dispatch the trusted workflow from `master`, with `target_branch` naming the
 same-repository candidate and an exact cell selector first. The workflow resolves
