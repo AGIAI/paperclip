@@ -127,11 +127,13 @@ export async function createNativeAcpxDistributionSnapshot(input: NativeAcpxDist
     const copyEntry = async (entry: NativeAcpxDistributionEntry): Promise<void> => {
       const path = join(source, ...entry.path.split("/"));
       if (await realpath(path) !== path) throw new Error("Native ACPX closure contains a symbolic link");
-      const before = await lstat(path, { bigint: true });
-      if (!before.isFile() || before.nlink !== 1n || before.size !== BigInt(entry.size) || Boolean(before.mode & 0o111n) !== entry.executable) throw new Error("Native ACPX closure file identity is invalid");
-      const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+      // Bind metadata to the descriptor we will read, without a redundant
+      // pathname stat. NONBLOCK prevents a raced-in FIFO from blocking open;
+      // only a bounded regular single-link file may reach the read below.
+      const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
       try {
-        if (!same(before, await file.stat({ bigint: true }))) throw new Error("Native ACPX closure file changed before read");
+        const before = await file.stat({ bigint: true });
+        if (!before.isFile() || before.nlink !== 1n || before.size !== BigInt(entry.size) || Boolean(before.mode & 0o111n) !== entry.executable) throw new Error("Native ACPX closure file identity is invalid");
         const bytes = Buffer.alloc(entry.size);
         let offset = 0;
         while (offset < bytes.length) {
@@ -145,25 +147,29 @@ export async function createNativeAcpxDistributionSnapshot(input: NativeAcpxDist
         await writeFile(target, bytes, { mode: entry.executable ? 0o500 : 0o400, flag: "wx" });
       } finally { await file.close(); }
     };
-    for (let start = 0; start < entries.length;) {
-      let end = start;
-      let bytes = 0;
-      while (end < entries.length && end - start < NATIVE_COPY_CONCURRENCY) {
-        const size = entries[end]!.size;
-        if (end > start && bytes + size > NATIVE_COPY_BUFFER_BYTES) break;
-        bytes += size;
-        end++;
+    // Keep bounded capacity occupied when one file is slower than its peers.
+    // Every task catches its rejection before releasing capacity; once failed,
+    // no new copy is admitted and all owned descriptors drain before cleanup.
+    const active = new Set<Promise<void>>();
+    let activeBytes = 0;
+    let failed = false;
+    let failure: unknown;
+    for (const entry of entries) {
+      while (!failed && (active.size >= NATIVE_COPY_CONCURRENCY
+        || (active.size > 0 && activeBytes + entry.size > NATIVE_COPY_BUFFER_BYTES))) {
+        await Promise.race(active);
       }
-      const batch = entries.slice(start, end);
-      // Never clean the private root while another worker can still write or
-      // close a descriptor. Stop scheduling new batches after any rejection.
-      const copied = await Promise.allSettled(batch.map(copyEntry));
-      const failure = copied.find((result) => result.status === "rejected");
-      if (failure?.status === "rejected") throw failure.reason;
-      // Worker completion order must not change the module guard or manifest.
-      for (const entry of batch) digests[join(packageRoot, ...entry.path.split("/"))] = entry.sha256;
-      start = end;
+      if (failed) break;
+      activeBytes += entry.size;
+      const copying = copyEntry(entry).catch(error => {
+        if (!failed) { failed = true; failure = error; }
+      }).finally(() => { activeBytes -= entry.size; active.delete(copying); });
+      active.add(copying);
     }
+    await Promise.all(active);
+    if (failed) throw failure;
+    // Completion order must not change the module guard or manifest.
+    for (const entry of entries) digests[join(packageRoot, ...entry.path.split("/"))] = entry.sha256;
     if (!same(rootBefore, await heldRoot.stat({ bigint: true })) || !same(rootBefore, await lstat(source, { bigint: true }))) throw new Error("Native ACPX distribution root changed during snapshot");
     const executable = join(packageRoot, ...input.executable.split("/"));
     const args = [...(input.entrypoint === undefined ? [] : ["--require", join(packageRoot, GUARD), join(packageRoot, ...input.entrypoint.split("/"))]), ...input.fixedArguments];
