@@ -113,6 +113,7 @@ export function stockHarnessSourceDigest() {
     "stock-harness-checks.mjs", "stock-harness-admission.ts",
     "../../server/src/onboarding-assets/default/AGENTS.md",
     "../../packages/adapter-utils/src/server-utils.ts",
+    "../../packages/shared/src/connection-intent-guidance.ts",
   ]) hash.update(source).update(readFileSync(new URL(source, import.meta.url)));
   return hash.digest("hex");
 }

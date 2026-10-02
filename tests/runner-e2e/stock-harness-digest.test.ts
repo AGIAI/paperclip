@@ -5,7 +5,7 @@ import { stockHarnessSourceDigest } from "./stock-harness.js";
 vi.mock("node:fs", async importOriginal => ({ ...await importOriginal<typeof import("node:fs")>(), readFileSync: vi.fn() }));
 
 describe("stock harness instruction revision", () => {
-  it.each(["server/src/onboarding-assets/default/AGENTS.md", "packages/adapter-utils/src/server-utils.ts"])(
+  it.each(["server/src/onboarding-assets/default/AGENTS.md", "packages/adapter-utils/src/server-utils.ts", "packages/shared/src/connection-intent-guidance.ts"])(
     "changes when the evaluated %s changes", source => {
       vi.mocked(readFileSync).mockImplementation(() => Buffer.from("unchanged"));
       const original = stockHarnessSourceDigest();
