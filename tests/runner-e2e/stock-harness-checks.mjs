@@ -87,8 +87,9 @@ export function sourceFingerprint() {
 
 export function assertPreflightReceipt(report, current) {
   const expected = [...stockHarnessGates.map(gate => gate.id), "SH-1-rust"];
-  if (report?.schema !== "paperclip.stock-harness-preflight.v2" || report.passed !== true ||
+  if (report?.schema !== "paperclip.stock-harness-preflight.v3" || report.passed !== true ||
       report.setup?.passed !== true || report.setup?.exitCode !== 0 ||
+      report.setup?.sdkExitCode !== 0 || report.setup?.runnerdExitCode !== 0 ||
       report.providerCalls !== 0 || report.sourceSha !== current.sha ||
       report.sourceFingerprint !== current.fingerprint || report.sourceErrors?.length !== 0 ||
       !Array.isArray(report.gates) || report.gates.length !== expected.length ||
@@ -136,11 +137,21 @@ export function main(args = process.argv.slice(2)) {
     cwd: root, env, encoding: "utf8", timeout: 5 * 60_000,
   });
   writeFileSync(join(output, "setup.txt"), `${setupRun.stdout ?? ""}\n${setupRun.stderr ?? ""}`);
-  const setup = { passed: setupRun.status === 0, exitCode: setupRun.status };
+  // The exact daemon-frame test uses the real local Rust daemon. Legacy cold
+  // cells do not download native artifacts, so compile it before TS discovery.
+  const runnerd = setupRun.status === 0 ? spawnSync("cargo", ["build", "--locked",
+    ...(args.includes("--allow-rust-network") ? [] : ["--offline"]),
+    "-p", "paperclip-runner-core", "--bin", "paperclip-runnerd"], {
+    cwd: join(root, "packages/paperclip-runner/runner"), env, encoding: "utf8", timeout: 10 * 60_000,
+  }) : null;
+  writeFileSync(join(output, "runnerd-build.txt"), `${runnerd?.stdout ?? ""}\n${runnerd?.stderr ?? ""}`);
+  const setup = { passed: setupRun.status === 0 && runnerd?.status === 0,
+    exitCode: setupRun.status !== 0 ? setupRun.status : runnerd?.status ?? null,
+    sdkExitCode: setupRun.status, runnerdExitCode: runnerd?.status ?? null };
   if (!setup.passed) {
     const source = sourceFingerprint();
     writeFileSync(join(output, "preflight.json"), JSON.stringify({
-      schema: "paperclip.stock-harness-preflight.v2", sourceSha: git.stdout?.trim() || null,
+      schema: "paperclip.stock-harness-preflight.v3", sourceSha: git.stdout?.trim() || null,
       sourceFingerprint: source.fingerprint, measuredAt: new Date().toISOString(), providerCalls: 0,
       live: "not_run", passed: false, sourceErrors: source.sourceErrors, setup, gates: [],
     }, null, 2) + "\n");
@@ -167,7 +178,7 @@ export function main(args = process.argv.slice(2)) {
   writeFileSync(join(output, "rust.txt"), rustOutput);
   results.push({ id: "SH-1-rust", passed: rust.status === 0 && /test runtime_instructions_are_additive_for_codex_on_start_and_resume \.\.\. ok/.test(rustOutput), exitCode: rust.status });
   const { fingerprint, sourceErrors } = sourceFingerprint();
-  const report = { schema: "paperclip.stock-harness-preflight.v2", sourceSha: git.stdout?.trim() || null,
+  const report = { schema: "paperclip.stock-harness-preflight.v3", sourceSha: git.stdout?.trim() || null,
     sourceFingerprint: fingerprint, measuredAt: new Date().toISOString(), providerCalls: 0,
     live: "not_run", passed: git.status === 0 && sourceErrors.length === 0 && results.every(row => row.passed), sourceErrors, setup, gates: results };
   writeFileSync(join(output, "preflight.json"), JSON.stringify(report, null, 2) + "\n");
