@@ -187,8 +187,8 @@ addressed by v4. Version 2 hello completion and every failure remain retained.
 The wider local and Linux x64 Daytona matrix remains pending; this document does
 not promote the candidate to a qualified production runtime.
 
-The runner pins `pi-acp@0.0.33` and
-`@earendil-works/pi-coding-agent@0.84.2`. The candidate model is
+At this historical pre-1.0 checkpoint, the runner pinned `pi-acp@0.0.33` and
+`@earendil-works/pi-coding-agent@0.84.2`. The candidate model was
 `openrouter/deepseek/deepseek-v4-flash-0731`; only an explicitly bound OpenRouter
 credential may reach this profile. `patches/pi-acp@0.0.33.patch` repairs the ACP
 wrapper. `pi-runtime-extension.ts` supplies the runner-owned semantic bridge and
@@ -963,3 +963,33 @@ that ID unchanged into the shared MCP dedupe boundary. This is a further
 integration defect. The shared dedupe guard and canonical grader remain intact.
 Both runs lack terminal usage; measured billing is $0.002440082 and cleanup
 passes. Restart and refreshed hello are held until this defect is repaired.
+
+## Explicit host installation
+
+For a published local Paperclip installation, run `paperclipai runtime setup pi`
+with the same installed CLI and account that owns the server package. This is an
+explicit download and verification step; npm installation and agent launch never
+perform it automatically. It installs only this host's supported platform
+(macOS ARM64, macOS x64, or Linux x64), using the source-pinned Node archive, npm
+lock, wrapper patch and complete Pi closure. Node 24, npm, git, tar and the normal
+platform dependency inspector (`otool` or `ldd`) must be available. The server
+package must be writable by the installing account. Setup forwards no instance
+configuration, provider credentials, npm configuration or proxy credentials.
+
+The public server carries a self-contained setup tool and small pinned inputs in
+`dist/vendor/paperclip-runner/cli`; the installed host closure lives in that
+server package's `provider-assets/pi/<platform>`. Setup validates an existing
+closure again before accepting it. A corrupt existing installation is left
+untouched and rejected; reinstall the same Paperclip release into a clean package
+location and repeat setup. Concurrent setup is rejected. Cancellation drains the
+current bounded download/build command before removing its private staging tree;
+allow that cleanup to complete before trying again.
+
+Then select Pi with the exact model
+`openrouter/deepseek/deepseek-v4-flash-0731` and bind an OpenRouter credential
+through the normal provider credential UI. Setup itself makes no model request.
+A missing host closure produces explicit setup guidance. Daytona uses the
+separately built and verified Linux provider pack in its runner image; running
+local setup does not install or qualify a remote image. Published-tar local and
+Daytona startup evidence must bind the final installation candidate, with no
+candidate qualification flags, before a production-readiness claim.
