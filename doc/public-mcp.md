@@ -245,3 +245,16 @@ See [OpenAI's MCP Events guide](https://developers.openai.com/plugins/build/mcp-
 for currently supported client surfaces. Actual staging ChatGPT subscription,
 plugin rescan and event-triggered response are still deployment acceptance gates;
 local protocol and paid model tests do not establish store/UI readiness.
+
+## Storybook previews
+
+Run `pnpm storybook` and open the **Assistant connections** group. The stories
+render the production consent, connection-management, and Experimental pages,
+including read-only roles, loading, empty, unavailable, pending, revoked, and
+failed-save states. Interactive stories verify team-switch consent reset,
+revocation, and settings rollback. All MCP actions use per-story in-memory
+fixtures; no credentials are issued and no work is delegated.
+
+The Cloud repository's `web` Storybook has **Assistant connections / Hosted
+connection** for sign-in, organization selection, and the create-and-return
+flow. OAuth redirects between the two services remain mocked in these previews.
