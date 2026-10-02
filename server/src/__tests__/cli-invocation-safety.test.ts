@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -367,6 +368,9 @@ function isTestFile(relPath: string): boolean {
 
 function listGuidanceFiles(rootDir = repoRoot): string[] {
   const found: string[] = [];
+  // Include tracked files and new authored files, while respecting gitignored
+  // local settings. A tracked file remains scanned even if an ignore matches.
+  const authored = rootDir === repoRoot ? new Set(execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { cwd: rootDir, encoding: "utf8" }).split("\0")) : null;
 
   function walk(absDir: string, relDir: string): void {
     for (const entry of readdirSync(absDir, { withFileTypes: true })) {
@@ -382,7 +386,7 @@ function listGuidanceFiles(rootDir = repoRoot): string[] {
       if (!SCAN_EXTENSIONS.has(path.extname(entry.name))) continue;
       if (isTestFile(relPath)) continue;
       if (SKIP_PATH_PREFIXES.some((prefix) => relPath.startsWith(prefix))) continue;
-      found.push(relPath);
+      if (!authored || authored.has(relPath)) found.push(relPath);
     }
   }
 
