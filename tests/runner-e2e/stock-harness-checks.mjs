@@ -43,7 +43,7 @@ export const stockHarnessGates = [
     files: ["tests/runner-e2e/stock-harness-manifest.test.ts", "tests/runner-e2e/paperclip-document.test.ts", "tests/runner-e2e/stock-harness.test.ts", "tests/runner-e2e/stock-harness-checks.test.mjs",
       "tests/runner-e2e/stock-harness-admission.test.ts", "tests/runner-e2e/stock-harness-digest.test.ts",
       "tests/runner-e2e/select-rerun-artifacts.test.ts"],
-    required: ["requires generated capability manifests for the current skill sources", "the shipped recipe delivers the current", "rejects old SHA before providers", "allows toolchain paths and excludes every present or future credential",
+    required: ["requires generated capability manifests for the current skill sources", "the shipped recipe delivers the current", "the shipped recipe supports an unnumbered issue", "rejects old SHA before providers", "allows toolchain paths and excludes every present or future credential",
       "changes when the evaluated server/src/onboarding-assets/default/AGENTS.md changes",
       "changes when the evaluated packages/adapter-utils/src/server-utils.ts changes",
       "changes when the evaluated packages/shared/src/connection-intent-guidance.ts changes",

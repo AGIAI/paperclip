@@ -36,13 +36,15 @@ Construct a clickable Markdown link from the current issue and successful write
 receipt, then add it to the completion comment or response:
 
 ```javascript
-const prefix = issue.identifier.split("-")[0];
-const documentUrl = `/${prefix}/issues/${issue.identifier}#document-${saved.key}`;
+const issuePath = issue.identifier
+  ? `/${issue.identifier.split("-")[0]}/issues/${issue.identifier}`
+  : `/issues/${issue.id}`;
+const documentUrl = `${issuePath}#document-${saved.key}`;
 const comment = `Saved [Task report](${documentUrl}).`;
 ```
 
 Use the returned key: a locked document can redirect an agent's write to a new
-document.
+document. Unnumbered issues use their ID; the board resolves their company.
 
 ## Update or resolve an unclear write
 

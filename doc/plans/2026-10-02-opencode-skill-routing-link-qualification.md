@@ -61,3 +61,15 @@ unchanged under permitted local execution: 906 assertions passed in the original
 921-assertion attempt, and all 82 selected assertions passed in the permitted
 retry, including every originally failed assertion. No new model calls or old verdict
 changes are part of this follow-up.
+
+Fresh native-PR review caught a supported edge case in that later recipe:
+`issue.identifier` may be null. The recipe now uses the current issue ID in the
+unprefixed UI route when no identifier exists. Provider-free tests cover both
+null and absent identifiers, preserving the returned document key. Source review
+confirms that the board resolves the loaded issue's actual company and preserves
+the document hash; no agent-side company fetch is needed. This route logic also
+corrects wrong prefixes, so the frozen candidate's `PAP` href is noncanonical,
+not a proven broken link. No authenticated click replay or further model run was
+made. The previous 4/5 review and local setup/timing failures remain retained;
+current focused document/source/manifest/admission checks pass 56 assertions and
+E2E typecheck passes. This correction still has no live qualification.

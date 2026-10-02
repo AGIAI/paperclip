@@ -250,9 +250,13 @@ Starting points: [onboarding assets](../../server/src/onboarding-assets/),
 [hiring skill and references](../../skills/paperclip-create-agent/),
 [teams catalog](../../packages/teams-catalog/catalog/).
 
-Dotta approved hiring implementation; it is ongoing in a separate branch from
-master. The hiring work owns its skill/references, CEO/CoS assets and team
-catalog. This qualification branch does not change those files.
+Dotta approved hiring implementation in separate draft
+[PR #14985](https://github.com/paperclipai/paperclip/pull/14985), branch
+`codex/tiny-hiring-templates`, published source
+`5b05d9dcf99b7b1e84510735ab04e336d669ee44`. The hiring work owns its
+skill/references, CEO/CoS assets and team catalog. This branch does not change
+those files; PR CI/review and live qualification remain separate from its unit
+checks. [Prompt diffs and preserved scope](https://github.com/paperclipai/paperclip/blob/5b05d9dcf99b7b1e84510735ab04e336d669ee44/doc/plans/2026-10-02-hiring-template-prompt-diff.md).
 
 The read-only audit found four onboarding CEO files (1,897 words), a 164-word
 CoS manual, four role examples (coder 652, QA 619, UX 1,325, security 1,724 words),
@@ -268,7 +272,23 @@ review checklist would regenerate the removed operating policies.
   product-required behavior rather than assuming every rule is redundant.
 
 Custom and existing bundles and governance remain deliberate rollout boundaries.
-Separate hiring PR/branch link and prompt diffs are pending.
+Specialized Summarizer, Reflection Coach and Wiki Maintainer prompts remain
+unchanged for separate product-contract review; optional Content Lead was already
+tiny. The generic non-CEO fallback belongs to PR #14948. PR #14985 does not reduce
+every shipped specialized agent.
+
+Its explicit `hiring-templates` suite selects native local Codex and ACPX Claude
+`hire-coder-template-reuse` cells: a real default CEO, explicitly requested
+production hiring skill/coder reference, independently scored saved JSON
+artifacts and session reuse. Outcome and source/read coverage are separate;
+missing or redacted receipts do not prove no regression. The existing first-task
+suite covers actual wizard CoS snapshot selection. A matched union qualification
+will hold the reduced manual/shared/operational skill and native completion
+guidance constant while restoring only historical hiring sources in baseline.
+Two cells per variant, five expected provider turns each: four cells / 20 turns,
+15 minutes each, no automatic retries or broader selection. Exact-source
+credential-free admission and frozen refs are required before dispatch; no
+hiring providers have run yet.
 
 ## 4. Fix repository context while retaining Paperclip configuration
 
@@ -448,7 +468,7 @@ will address them. Record intentional behavior explicitly rather than as a bug.
 - F19: Original prompt-removal cohorts loaded Paperclip; OpenCode skill truncation omitted the late API recipe. The early repair fixed Claude in one paired trial. In the repaired original OpenCode assignment, Paperclip was first loaded only during disposition recovery after a local-file write. Shared legacy operational-skill delivery/selection needs review before more recipe expansion.
 - F20: Explicit repaired OpenCode reads the early recipe/reference and saves a public document/revision, but hands off a code-formatted path rather than a clickable anchor. Baseline provides a clickable API URL, rejected by the UI-only oracle. Preserve both grades; clarify future clickable UI-link fixture and review the smallest link example separately.
 - F22: Legacy operational skill mounting is already mandatory, but its discovery description omitted ordinary task/heartbeat work and document delivery. The approved narrow fix expands stock metadata selection and adds a real Markdown link example in the existing reference. Original + clarified-explicit OpenCode pairs both pass in both variants, so improvement causality is not established. Candidate loads the operational skill/reference before public delivery; baseline original writes locally first, then saves publicly in the same assignment. Original candidate copies the example PAP prefix into its link while baseline supplies a bare slug path; neither is scored by the original link-free oracle. No full-body injection or native-tool leakage. ACP Claude names-only metadata, custom ACP unsupported delivery, OpenClaw wrappers and Pi HOME differences remain distinct follow-ups.
-- F23: The new original OpenCode candidate copies `/PAP/issues/RUN-1#document-context-integrity-output` from the literal example despite actual prefix RUN. It passes durable-document grading but has an incorrect-prefix handoff. Baseline original also lacks a clickable canonical link. Approved reference-only correction now derives the link from `issue.identifier` and the saved receipt key. Independent provider-free calibration checks two other prefixes, redirected keys and rejects a wrong-company link; 25 focused document/source tests, canonical metadata checks and E2E typecheck pass. This later source correction is not live-qualified by the preserved runs; no further paid rerun.
+- F23: The new original OpenCode candidate copies `/PAP/issues/RUN-1#document-context-integrity-output` from the literal example despite actual prefix RUN. It passes durable-document grading but has an incorrect-prefix handoff. Baseline original also lacks a clickable canonical link. Approved reference-only correction now derives the link from `issue.identifier` and the saved receipt key. Independent provider-free calibration checks two other prefixes, redirected keys and rejects a wrong-company link; 25 focused document/source tests, canonical metadata checks and E2E typecheck pass. The recipe now also handles null/absent identifiers through the supported issue-ID route; fresh review caught the initial nullable edge. 56 focused checks pass. Source review shows the UI corrects wrong prefixes, so the frozen PAP href is noncanonical rather than proven broken. These later corrections are not live-qualified by the preserved runs; no further paid rerun.
 - F21: Skill heading insertion shifted both generated capability inventories. General CI caught stale metadata after the frozen repair campaign’s narrower build admitted providers. Regenerate canonical derived files and require stale-manifest/inventory checks before future provider admission.
 
 For each completed item, add the chosen behavior, changed paths, verification
