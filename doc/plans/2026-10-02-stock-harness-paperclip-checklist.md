@@ -250,24 +250,23 @@ Starting points: [onboarding assets](../../server/src/onboarding-assets/),
 [hiring skill and references](../../skills/paperclip-create-agent/),
 [teams catalog](../../packages/teams-catalog/catalog/).
 
-Dotta approved hiring implementation in separate draft
-[PR #14985](https://github.com/paperclipai/paperclip/pull/14985), branch
-`codex/tiny-hiring-templates`, published source
-`5b05d9dcf99b7b1e84510735ab04e336d669ee44`. The hiring work owns its
-skill/references, CEO/CoS assets and team catalog. This branch does not change
-those files; PR CI/review and live qualification remain separate from its unit
-checks. [Prompt diffs and preserved scope](https://github.com/paperclipai/paperclip/blob/5b05d9dcf99b7b1e84510735ab04e336d669ee44/doc/plans/2026-10-02-hiring-template-prompt-diff.md).
+Dotta approved and merged [PR #14985](https://github.com/paperclipai/paperclip/pull/14985)
+at `862a5758ba0e88a33232c1f1fa645e85c38a3113`, after corrected source
+`57dcee147ed0b2d2e3cc657cd9e50fb16bf9ec25` passed full CI and fresh Greptile 5/5.
+The hiring skill/references, CEO/CoS assets and team catalog are now on master.
+Their live qualification remains separate from unit/CI verification.
+[Prompt diffs and preserved scope](https://github.com/paperclipai/paperclip/blob/57dcee147ed0b2d2e3cc657cd9e50fb16bf9ec25/doc/plans/2026-10-02-hiring-template-prompt-diff.md).
 
 The read-only audit found four onboarding CEO files (1,897 words), a 164-word
 CoS manual, four role examples (coder 652, QA 619, UX 1,325, security 1,724 words),
 and eight team-catalog manuals. Hiring step 6, the 60–150-line role guide and
 review checklist would regenerate the removed operating policies.
 
-- [ ] **3.1** Reduce role drafting rules, coder/adapted hire examples and matching
+- [x] **3.1** Reduce role drafting rules, coder/adapted hire examples and matching
   catalog coder, preserving metadata, auth, permissions and skill selections.
-- [ ] **3.2** Reduce the CEO bundle/copy, including forced delegation, hiring,
+- [x] **3.2** Reduce the CEO bundle/copy, including forced delegation, hiring,
   memory and repeated API recipes.
-- [ ] **3.3** Review remaining roles/catalog and CoS copy.
+- [x] **3.3** Review remaining roles/catalog and CoS copy.
 - [ ] **3.4** Review specialized built-in/plugin contracts separately; retain
   product-required behavior rather than assuming every rule is redundant.
 
@@ -282,13 +281,30 @@ Its explicit `hiring-templates` suite selects native local Codex and ACPX Claude
 production hiring skill/coder reference, independently scored saved JSON
 artifacts and session reuse. Outcome and source/read coverage are separate;
 missing or redacted receipts do not prove no regression. The existing first-task
-suite covers actual wizard CoS snapshot selection. A matched union qualification
-will hold the reduced manual/shared/operational skill and native completion
-guidance constant while restoring only historical hiring sources in baseline.
-Two cells per variant, five expected provider turns each: four cells / 20 turns,
-15 minutes each, no automatic retries or broader selection. Exact-source
-credential-free admission and frozen refs are required before dispatch; no
-hiring providers have run yet.
+suite covers actual wizard CoS snapshot selection. The matched union holds the
+reduced manual/shared/operational skill and native completion guidance constant,
+restoring only 21 historical hiring production/derived sources in baseline.
+Frozen candidate `9f5404ad3aacbe76777952759414d34fd381e674` and baseline
+`296a4df85e8bcc97a160fc78c291b17adb828196` passed 705 exact-source credential-free
+prerequisites each (704 TypeScript + 1 Rust; zero providers), with 8,242 identical
+other tracked files and matching fixture/model/auth/permissions configuration.
+Only four candidate-specific single-file CEO selection assertions are filtered
+symmetrically; each variant's bundle/source hashes and canonical catalog are
+independently admitted. Two cells per variant, five expected turns each:
+four cells / 20 turns, 15 minutes each, no automatic retries or broader selection.
+The [candidate](https://github.com/paperclipai/paperclip/actions/runs/37075466208)
+and [baseline](https://github.com/paperclipai/paperclip/actions/runs/37075469463)
+protected campaigns are dispatched. No graded live pairs yet; pending evidence
+cannot establish non-regression.
+[Inspect the partial report](https://github.com/paperclipai/paperclip/blob/e3720f369df070036526dd295a7a68e49488c51a/doc/plans/2026-10-02-hiring-template-live-comparison.md).
+Report-only updates preserve the measured refs and merged hiring PR.
+
+The default-manual PR is replayed on the merged hiring base, preserving custom
+CEO bundle checks, the minimal generic boundary and both eval suites. Its prior
+browser failure remains retained: a deterministic process fixture replayed its
+last plan command on an asynchronous `chat_task_completed` wake and wrote a
+second, text-identical source plan revision. It was not paid/provider execution;
+fresh rebased CI remains required before readiness.
 
 ## 4. Fix repository context while retaining Paperclip configuration
 
