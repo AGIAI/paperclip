@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type ErrorRequestHandler } from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -177,6 +177,19 @@ async function createApp(actor: Record<string, unknown>) {
     next();
   });
   app.use("/api", routineRoutes({} as any));
+  const reportServerError: ErrorRequestHandler = (err, req, res, next) => {
+    res.once("finish", () => {
+      if (res.statusCode >= 500) {
+        console.error("Routine route fixture returned a server error", {
+          method: req.method,
+          path: req.originalUrl,
+          error: err,
+        });
+      }
+    });
+    next(err);
+  };
+  app.use(reportServerError);
   app.use(errorHandler);
   return app;
 }
