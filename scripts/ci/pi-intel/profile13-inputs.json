@@ -51,13 +51,16 @@
     "packages/paperclip-runner/src/drivers/acpx/qualified-profiles.ts": "d9ffc16fc9272c457ae436f72872866bfbd2725e2fcd9703e79729a37678cb4a",
     "packages/paperclip-runner/package.json": "da14633b128e56f0f76e96e6911b9d324233078619dbe19ab4a6d81495949dfd",
     "packages/paperclip-runner/src/drivers/acpx/pi-installation.ts": "09a13bdad937b68bf129458d4c00c4ae174c93fad3ae447db3fad922f66c49e5",
-    "packages/paperclip-runner/src/drivers/acpx/native-distribution-integrity.ts": "943ba0fb2d27d08b9b0d36778f08c7c0dbdb78893c7564babd4e67f67cf065fe",
+    "packages/paperclip-runner/src/drivers/acpx/native-distribution-integrity.ts": "4f5041a096f2d39359618eb0aa9ec7950f8ae1696def839041e93978cbb10e8d",
     "packages/paperclip-runner/runner/crates/runner-core/src/acpx_provider_backend.rs": "432b673a9a2354e9ec4117e9603fa250548bd2bb73f7294b4210b26ce92267c6",
     "packages/paperclip-runner/rust-toolchain.toml": "e4c6d27e48d71df0ae66d84f3bc2d5df8cbf5c3cbb3225475a7852d94361a0c5",
     "packages/paperclip-runner/runner/crates/runner-core/src/bin/paperclip-runnerd.rs": "116d2641e844ba28cd7496d56b44fa405ea8def8940d9e50e9d6b30603602581",
     "packages/paperclip-runner/runner/crates/runner-core/src/process_supervisor.rs": "03c550b8f4b362f5bd4fbf1896ad7d69c0fd6094e5f7f40312dc3a0997a4f81a",
     "packages/paperclip-runner/runner/crates/runner-core/src/qualified_launch.rs": "4de0d3b11160762083fe4be3475d7d23dd46c76dc6b26135fc7c7f0d1441e2a9",
-    "packages/paperclip-runner/runner/crates/runner-core/tests/process_supervisor.rs": "0f79df2ace62eac9562062db4b3ba6a84bae3199ee671cb459eeeaa50511d6e0"
+    "packages/paperclip-runner/runner/crates/runner-core/tests/process_supervisor.rs": "0f79df2ace62eac9562062db4b3ba6a84bae3199ee671cb459eeeaa50511d6e0",
+    "packages/paperclip-runner/runner/crates/runner-core/src/acpx_sidecar_transport.rs": "067e604d49eacc9462e4af66073be7d9feeb62cef514d47d8d5aa013232b92ef",
+    "packages/paperclip-runner/src/live/runnerd-codex-transport.ts": "0715c41c35c7f9df64dbfe2eef4a7d226e1f936fad324064a8af9a6ee15cbc65",
+    "packages/paperclip-runner/src/contracts/runtime-context.ts": "e7cd6f0a2bf16ce53f0da0be78314a0cdb4755ba1c36a6c704e605f1488b8279"
   },
   "permissionPolicySources": {
     "packages/paperclip-runner/src/drivers/acpx/copilot-permission-context.ts": {
@@ -181,8 +184,8 @@
     }
   },
   "localComparison": {
-    "sourceRevision": "bba63f51207de8513ad2d9593694f718fc60ef17",
-    "sourceArchiveSha256": "38ae0523faace6d7797f8cfd5c4b0a018260ce421677e250fb35fbcc0ec8c14e",
+    "sourceRevision": "33f4a2137d071c65e5583decf70b0c39ac28ec56",
+    "sourceArchiveSha256": "edf0c91ab0be5a00520c6ae7e90aca3e4ed17d88855eaaaf8202b16a73094db8",
     "trackedLockSha256": "e11d69fa8702a906c293c1cb307c71df90d3b1f1617b3c23ebf17fa9a87fec79",
     "resolvedLockSha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
     "nodeSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49",
@@ -190,7 +193,7 @@
     "piRuntimeVersion": "1.0.0",
     "piServerVersion": "0.0.33",
     "acpxVersion": "0.13.1",
-    "note": "Fresh exact-source TypeScript, sidecar, Rust1.97.1 native daemon and normal qualified Pi13-only pack. No historical native reuse. Original startup deadline unchanged; synthetic loopback SDK contracts are not live provider qualification.",
+    "note": "Fresh exact-source TypeScript, sidecar, Rust1.97.1 native daemon and normal qualified Pi13-only pack. No historical native reuse. Source-owned Pi cold process admission60s, startup watchdog80s and test90s; ordinary requests30s/innerACP30s/cancel2s/close7s unchanged. Synthetic loopback SDK contracts are not live provider qualification.",
     "historicalLocalOutputs": {
       "localPackDigest": "sha256:a7ae16b680c6fcaa9438faa46562ba31519bb0fb42e21b0a4b00e8936c462d89",
       "localDaemonSha256": "c0e9acdd461d5efe4a10f9fd751e8a67beceede4d43593951d7079edad657044",
@@ -235,7 +238,7 @@
     }
   },
   "testSourcePins": {
-    "pi-closed-startup.test.mjs": "32bb057e1505082c0ed6b1d71cdd8cdb3271d920c2bea9cdc1ebddedf568c0c4",
+    "pi-closed-startup.test.mjs": "1af12dae2c9dd1c7f8e70c52a55100f5b30414cefd3d840ba3297100957aabea",
     "pi-native-package-contract.test.mjs": "cdeb1b9c5b9363e0cca4ed475f3622251bf514b42d16a3e200b4f6d6d671d24f",
     "pi-acp-package-contract.test.mjs": "b4a7b7dd0887f3d1daa8cb339a73f47cb88ef01857c7a38e14d83ae069f093ba"
   }
