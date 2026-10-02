@@ -95,6 +95,8 @@ def finalize_diagnostic(proof,active,post_check,retain,remove):
   raise RuntimeError('; '.join(errors))
 
 def execute(args):
+ global PIN
+ if getattr(args,'inputs','f5')=='bba':PIN=json.loads((HERE/'startup-diagnostic-bba-inputs.json').read_text())
  out=args.output.resolve();out.mkdir(mode=0o700,parents=True,exist_ok=False)
  scratch=Path(tempfile.mkdtemp(prefix='pc-intel-diagnostic-',dir='/private/tmp'));scratch.chmod(0o700)
  scratch_id=(scratch.stat().st_dev,scratch.stat().st_ino,scratch.stat().st_uid)
@@ -121,9 +123,14 @@ def execute(args):
   require('GenuineIntel' in hardware and 'x86_64' in hardware,'Intel hardware evidence missing')
   original=extract_selected(args.archive,scratch/'original-artifact',PIN)
   references=out/'original-reference';references.mkdir(mode=0o700)
-  for name in ['receipt.json','provider-pack.json','pack-inventory.json','source-input-inventory.json','resolved-pnpm-lock.yaml']:shutil.copy2(original/name,references/name)
+  for name in PIN['selectedFiles']:
+   if name not in {'provider-pack.tar.gz','paperclip-runnerd','source.tar'}:shutil.copy2(original/name,references/name)
   atomic_json(out/'original-input-pins.json',PIN)
-  receipt=json.loads((original/'receipt.json').read_text());require(receipt['sourceRevision']==PIN['sourceRevision'] and receipt['runId']==PIN['artifactRunId'] and receipt['trustedWorkflowRevision']==PIN['artifactWorkflowRevision'],'Original artifact provenance mismatch')
+  receipt=json.loads((original/'receipt.json').read_text())
+  if PIN.get('compilerProvenanceValidated'):
+   from retained_qualification import validate_original
+   validate_original(original,PIN)
+  require(receipt['sourceRevision']==PIN['sourceRevision'] and receipt['runId']==PIN['artifactRunId'] and receipt['trustedWorkflowRevision']==PIN['artifactWorkflowRevision'],'Original artifact provenance mismatch')
   require(receipt['cleanupUncertain'] is False and receipt['status']=='failed_no_retry','Unexpected original qualification disposition')
   proof['originalFailure']={'status':receipt['status'],'testFailures':receipt.get('testFailures'),'packArchiveSha256':sha(original/'provider-pack.tar.gz'),'daemonSha256':sha(original/'paperclip-runnerd')}
   require(sha(original/'paperclip-runnerd')==PIN['daemonSha256'] and sha(original/'resolved-pnpm-lock.yaml')==PIN['resolvedLockSha256'],'Original daemon/lock mismatch')
@@ -137,10 +144,10 @@ def execute(args):
   before_manifest=json.loads((pack/'provider-pack.json').read_text())
   sink=scratch/'startup-timings.jsonl';fd=os.open(sink,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600);st=os.fstat(fd);os.close(fd)
   identity={k:str(getattr(st,'st_'+k)) for k in ['dev','ino','uid']};identity['path']=str(sink)
-  sidecar=pack/'dist/cli/acpx-runtime-sidecar.cjs';original_sidecar=sidecar.read_bytes();patched,patch=patch_sidecar(original_sidecar,identity)
+  sidecar=pack/'dist/cli/acpx-runtime-sidecar.cjs';original_sidecar=sidecar.read_bytes();patched,patch=patch_sidecar(original_sidecar,identity,PIN['originalSidecarSha256'])
   # Preserve original file mode; this one private copy now has an explicit diagnostic identity.
   sidecar.write_bytes(patched);atomic_json(out/'sidecar-patch.json',patch)
-  (out/'sidecar.diff').write_text(''.join(difflib.unified_diff(original_sidecar.decode().splitlines(True),patched.decode().splitlines(True),fromfile='original-f5-profile13-sidecar',tofile='diagnostic-sidecar')))
+  (out/'sidecar.diff').write_text(''.join(difflib.unified_diff(original_sidecar.decode().splitlines(True),patched.decode().splitlines(True),fromfile='original-'+PIN['sourceRevision']+'-sidecar',tofile='diagnostic-sidecar')))
   command('diagnostic-sidecar-syntax',[node,'--check',sidecar])
   proof['diagnosticPackVerification']=json.loads(command('diagnostic-pack-rebind',[node,HERE/'rebind-diagnostic-pack.mjs',pack,PIN['originalSidecarSha256'],PIN['sourceRevision'],*(['profile13'] if PIN.get('profileVersion')==13 else [])],180))
   after_manifest=json.loads((pack/'provider-pack.json').read_text());expected=copy.deepcopy(before_manifest)
@@ -157,8 +164,13 @@ def execute(args):
   require(sha(test)==PIN['testSha256'] and sha(HERE/'retain-test-state.mjs')==PIN['observerSha256'],'Test/observer changed');test.chmod(0o444);shutil.copy2(HERE/'retain-test-state.mjs',out/'retain-test-state.mjs')
   retained=out/'retained-test-state';retained.mkdir(mode=0o700)
   tenv={**env,'PAPERCLIP_TEST_PI_STARTUP_PACKAGE_ROOT':str(pack),'PAPERCLIP_TEST_PI_STARTUP_RUNNER_BINARY':str(daemon),'PI_INTEL_OWNED_TMP':str(scratch),'PI_INTEL_RETAINED_STATE':str(retained)}
-  owner=OwnedProcesses(out/'closed-startup-processes.json',scratch,pack,sidecar);active=DiagnosticChild(owner)
-  inspection=DiagnosticInspection(owner,active);owner.table=inspection.table;owner.argv=inspection.argv
+  owner=OwnedProcesses(out/'closed-startup-processes.json',scratch,pack,sidecar)
+  if PIN.get('repairedObserver'):
+   from retained_qualification import RetainedChild
+   active=RetainedChild(owner)
+  else:
+   active=DiagnosticChild(owner)
+   inspection=DiagnosticInspection(owner,active);owner.table=inspection.table;owner.argv=inspection.argv
   proof['processInspection']={'activeCadenceSeconds':0.5,'maximumCallSeconds':5,'defaultSharedCallSeconds':2,'deadlineCap':'remaining active70s or existing cleanup100s','activeFailuresFatal':True,'activeInspectionRetries':0}
   row={'label':'original-closed-startup-test-with-diagnostic-sidecar','argv':[str(node),'--import',str(HERE/'retain-test-state.mjs'),'--test',str(test)],'outerDeadlineSeconds':70,'originalTestTimeoutMs':60000,'originalAdmissionLimitMs':30000,'startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'startedMonotonicNs':str(time.monotonic_ns())};proof['commands'].append(row);proof['status']='diagnostic_running';save()
   try:
@@ -198,5 +210,5 @@ def execute(args):
   finally:save()
 
 if __name__=='__main__':
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--archive',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--inputs',choices=['f5','bba'],default='f5');p.add_argument('--archive',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
  raise SystemExit(execute(p.parse_args()))

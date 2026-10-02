@@ -38,6 +38,33 @@ class DiagnosticTests(unittest.TestCase):
    shift-=len(change['inserted']);at=change['offset']+shift;text=text[:at]+text[at+len(change['inserted']):]
   self.assertEqual(text.encode(),self.original);self.assertEqual(hashlib.sha256(text.encode()).hexdigest(),ORIGINAL_SHA)
   self.assertEqual(len(proof['phases']),54)
+ def test_current_bba_patch_and_exact_retained_provenance(self):
+  from startup_timing_patch import BBA_SHA
+  from retained_qualification import validate_original,RetainedChild
+  current=json.loads((Path(__file__).parent/'startup-diagnostic-bba-inputs.json').read_text())
+  original=Path(os.environ['PI_DIAGNOSTIC_BBA_SIDECAR']).read_bytes()
+  modified,proof=patch_sidecar(original,{'path':'/private/tmp/pc-intel-diagnostic-fixture/startup-timings.jsonl','dev':'1','ino':'2','uid':'501'},BBA_SHA)
+  self.assertEqual(proof['originalSha256'],BBA_SHA)
+  text=modified.decode();shift=sum(len(x['inserted']) for x in proof['insertions'])
+  for change in reversed(proof['insertions']):
+   shift-=len(change['inserted']);at=change['offset']+shift
+   self.assertEqual(text[at:at+len(change['inserted'])],change['inserted'])
+   text=text[:at]+text[at+len(change['inserted']):]
+  self.assertEqual(text.encode(),original);self.assertEqual(len(proof['phases']),54)
+  self.assertEqual(current['sourceRevision'],'bba63f51207de8513ad2d9593694f718fc60ef17')
+  self.assertEqual(current['artifactRunId'],'37004499595')
+  self.assertTrue(current['repairedObserver']);self.assertTrue(current['compilerProvenanceValidated'])
+  self.assertEqual(current['originalSidecarSha256'],BBA_SHA)
+  self.assertEqual(current['testSha256'],PIN['testSha256'])
+  validate_original(Path(os.environ['PI_DIAGNOSTIC_BBA_ORIGINAL_ARTIFACT']),current)
+  with self.assertRaisesRegex(RuntimeError,'original digest mismatch'):
+   patch_sidecar(original,{'path':'unused','dev':'1','ino':'2','uid':'3'})
+  workflow=(Path(__file__).parents[3]/'.github/workflows/docker-runner-check.yml').read_text()
+  job=workflow.split('  manual_pi_startup_diagnostic:',1)[1].split('  manual_pi_startup_overlap:',1)[0]
+  self.assertIn('--inputs bba',job);self.assertIn('artifacts/11226760000/zip',job)
+  self.assertIn(current['artifactZipSha256'],job)
+  fallback=workflow.split('  manual_image:',1)[1].split('\n    needs:',1)[0]
+  self.assertIn('!inputs.diagnose_pi_startup',fallback)
  def test_wrong_original_rejected(self):
   with self.assertRaises(RuntimeError):patch_sidecar(self.original+b' ',{'path':'unused','dev':'1','ino':'2','uid':'3'})
  def test_retained_f5_pack_identity_and_original_test_contract(self):

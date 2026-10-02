@@ -2,10 +2,11 @@
 import hashlib,json
 from source_guard import require
 ORIGINAL_SHA='ce987993ffb92f449ef0432dee6cd7eb90ea19521ce3d7b51a185fed16ed8c47'
+BBA_SHA='c7c331492378017d474ab732648dc96c0ece08466983e11be795d60abb9ed99c'
 PREFIX='__pcStartupDiagnostic'
 
-def patch_sidecar(original,sink):
- require(hashlib.sha256(original).hexdigest()==ORIGINAL_SHA,'Diagnostic sidecar original digest mismatch')
+def patch_sidecar(original,sink,expected_sha=ORIGINAL_SHA):
+ require(expected_sha in {ORIGINAL_SHA,BBA_SHA} and hashlib.sha256(original).hexdigest()==expected_sha,'Diagnostic sidecar original digest mismatch')
  require(set(sink)=={'path','dev','ino','uid'} and sink['path'].startswith('/private/tmp/pc-intel-diagnostic-') and sink['path'].endswith('/startup-timings.jsonl'),'Unexpected timing sink binding')
  require(all(isinstance(sink[k],str) and sink[k].isdigit() for k in ['dev','ino','uid']),'Sink identity must use decimal strings')
  text=original.decode();insertions=[];labels=[]
@@ -103,4 +104,4 @@ process.once("exit", () => __pcStartupDiagnosticMark("sidecar.exit"));
  for _,(pos,value) in ordered:
   result.append(text[at:pos]);result.append(value);patch.append({'offset':pos,'inserted':value});at=pos
  result.append(text[at:]);modified=''.join(result).encode()
- return modified,{'schema':'paperclip.startup-timing-additive-patch/v1','originalSha256':ORIGINAL_SHA,'diagnosticSha256':hashlib.sha256(modified).hexdigest(),'sinkBinding':sink,'phases':labels+['sidecar.exit'],'insertions':patch,'onlyAdditions':True,'vendorClosureChanged':False}
+ return modified,{'schema':'paperclip.startup-timing-additive-patch/v1','originalSha256':expected_sha,'diagnosticSha256':hashlib.sha256(modified).hexdigest(),'sinkBinding':sink,'phases':labels+['sidecar.exit'],'insertions':patch,'onlyAdditions':True,'vendorClosureChanged':False}
