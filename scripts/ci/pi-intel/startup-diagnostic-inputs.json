@@ -1,60 +1,62 @@
 {
   "schema": "paperclip.native-intel-startup-diagnostic-input/v1",
-  "sourceRevision": "b9e5d6ecdb05ab7244c90976e07c950f8d09b15b",
+  "sourceRevision": "f5c5fde380f60937ef26cc5a92e1d6a043e9cddc",
   "resolvedLockSha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
-  "artifactRunId": "36959948724",
-  "artifactId": "11208570718",
-  "artifactWorkflowRevision": "9541eb18789bac35242eeea3e569b77fa90d1818",
-  "artifactZipBytes": 1076365959,
-  "artifactZipSha256": "b82cf6c843006781e2e6d5f0a06e0ff39497ffc457b94a511f8bdda66628aa43",
+  "artifactRunId": "36984851998",
+  "artifactId": "11218057612",
+  "artifactWorkflowRevision": "94848f04150ed4f5de7762ff4687c633c7c9cc1a",
+  "artifactZipBytes": 699248654,
+  "artifactZipSha256": "5159dcb57b380648679d441a73b87d50334dcca969adc95150e8429a71cbdfeb",
   "selectedFiles": {
     "receipt.json": {
-      "bytes": 32763,
-      "sha256": "47ef1f494c59c1249ac42f08308a2fb83edcb0759890960059cc367ebdf12bf0"
+      "bytes": 31957,
+      "sha256": "28a572c4278ddbf99219dc720f78debc93dc442114478abf39a561390a8c3a7e"
     },
     "provider-pack.tar.gz": {
-      "bytes": 1029214229,
-      "sha256": "5a550004ca982c49a2d86b3196676f3ce1877b6655ec730d1971b4cec2ba547d"
+      "bytes": 648246195,
+      "sha256": "cc4de9c130102fdb94f57556bac8efa225b2ee9035e72661d6b68a254799f8e9"
     },
     "provider-pack.json": {
-      "bytes": 3629,
-      "sha256": "db5b1d7d825a0533a6506755c6209ccc4d45776c3abbf6c87ff845d1d47e99b2"
+      "bytes": 2743,
+      "sha256": "11f4dba65bb8d144898b5879271d72ff19920785c294ea32b22510c4442d2537"
     },
     "pack-inventory.json": {
-      "bytes": 10633748,
-      "sha256": "172f0f4f2319f3716cca656cdeafd03b4f0db652def53101dfbf148850a20eaa"
+      "bytes": 10353069,
+      "sha256": "8de75e0f0185cbe0d9dfafefa417632e185ed3421fed85469ba20792f7fa8f69"
     },
     "paperclip-runnerd": {
-      "bytes": 32035568,
-      "sha256": "29d5b0fc2ae2a552b89a107e3777e2c8ee356ebdbb13a14ceab8865e1cea1d45"
+      "bytes": 32036944,
+      "sha256": "cc9dcfb006e78d5808f642152c24304a84d84b80dc33ea352ddbc5ad2e216713"
     },
     "source.tar": {
-      "bytes": 141742080,
-      "sha256": "b32d8e32639e6527804fe11bfa1aaefcefa87fca31e9155499e6b9a28f69dbd4"
+      "bytes": 141987840,
+      "sha256": "374600761ad9e0268f6e323bc9eb16aff800106d8baf886e39063ebc52d42e8a"
     },
     "source-input-inventory.json": {
-      "bytes": 1033702,
-      "sha256": "7c160bb1fc4d049378004d014e398d42dabf12e8a73ec9cdda7679113aaa6949"
+      "bytes": 1035823,
+      "sha256": "849fc4f538e592c892c9e5b4eae9d37a606ffca301227d8649a5a6eff9c13edc"
     },
     "resolved-pnpm-lock.yaml": {
       "bytes": 607788,
       "sha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba"
     }
   },
-  "originalSidecarSha256": "7462825f4b82bce8e2a69425eafe4ca8b2c8812df345269c82fb75aa21f3043c",
-  "originalPackDigest": "sha256:9cf4f88d9fcf63746f7716f773cb8d062544c19e0a78e111e60f659a3596b13f",
-  "daemonSha256": "29d5b0fc2ae2a552b89a107e3777e2c8ee356ebdbb13a14ceab8865e1cea1d45",
+  "originalSidecarSha256": "ce987993ffb92f449ef0432dee6cd7eb90ea19521ce3d7b51a185fed16ed8c47",
+  "originalPackDigest": "sha256:183e5a337dbf0edd9a3c210b2f539443996cf70ed35b77d281ae0e49d8eeb974",
+  "daemonSha256": "cc9dcfb006e78d5808f642152c24304a84d84b80dc33ea352ddbc5ad2e216713",
   "nodeSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49",
   "testPath": "packages/paperclip-runner/test/pi-closed-startup.test.mjs",
-  "testSha256": "8967cf9c8cd130b68bf9d64abef8cb8d352af00646e2288b341d8c6ae758b47a",
+  "testSha256": "32bb057e1505082c0ed6b1d71cdd8cdb3271d920c2bea9cdc1ebddedf568c0c4",
   "observerSha256": "1fcf353beb90722f90401a7792a5853bf0807d964a1065e3f55b76a63bc4b4cc",
-  "profileDigest": "sha256:47306e6d2a9b59e8f9189f725ebb7a0a7f91826044d1739e1a35ab31f228ba1f",
-  "closureDigest": "sha256:03351f4a250a8db0e79411a9079b43a0ff05f72a2aff41fae17f1fc2de24bd41",
+  "profileDigest": "sha256:fe1e6da01b2a9e4c691ca27cf689d2d6de846a93be6b23fc1e103c9addd7b177",
+  "closureDigest": "sha256:4728e5a4e7fc1ba602c3e219824fb84884b05a06cdd19dd3e521ee312e1b373a",
   "model": "openrouter/deepseek/deepseek-v4-flash-0731",
-  "originalFailure": "Original 30s session.open timeout; settled35032ms; runner exit0 and owned cleanup verified;48SDK contracts passed; fresh Rust daemon and complete pack passed.",
+  "originalFailure": "Durable session.open command timed out at original30s; close drain barrier failed secondarily.61 SDK contracts passed; fresh Rust and full normal Pi13 pack verified; cleanup certain.",
   "executionCount": 1,
   "providerCalls": 0,
   "timeoutChanges": false,
   "archiveBytesMaximum": 268435456,
-  "retentionDays": 7
+  "retentionDays": 7,
+  "profileVersion": 13,
+  "phaseLimit": "Native get_state is internal to unchanged wrapper; ACP new/set spans include it but do not identify its internal duration."
 }

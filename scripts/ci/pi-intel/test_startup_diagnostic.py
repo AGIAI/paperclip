@@ -37,20 +37,20 @@ class DiagnosticTests(unittest.TestCase):
   for change in reversed(proof['insertions']):
    shift-=len(change['inserted']);at=change['offset']+shift;text=text[:at]+text[at+len(change['inserted']):]
   self.assertEqual(text.encode(),self.original);self.assertEqual(hashlib.sha256(text.encode()).hexdigest(),ORIGINAL_SHA)
-  self.assertEqual(len(proof['phases']),47)
+  self.assertEqual(len(proof['phases']),54)
  def test_wrong_original_rejected(self):
   with self.assertRaises(RuntimeError):patch_sidecar(self.original+b' ',{'path':'unused','dev':'1','ino':'2','uid':'3'})
- def test_retained_b9_pack_identity_and_original_test_contract(self):
-  self.assertEqual(PIN['sourceRevision'],'b9e5d6ecdb05ab7244c90976e07c950f8d09b15b')
-  self.assertEqual(PIN['artifactRunId'],'36959948724')
-  self.assertEqual(PIN['artifactId'],'11208570718')
+ def test_retained_f5_pack_identity_and_original_test_contract(self):
+  self.assertEqual(PIN['sourceRevision'],'f5c5fde380f60937ef26cc5a92e1d6a043e9cddc')
+  self.assertEqual(PIN['artifactRunId'],'36984851998')
+  self.assertEqual(PIN['artifactId'],'11218057612')
   self.assertEqual(PIN['originalSidecarSha256'],ORIGINAL_SHA)
   self.assertEqual(PIN['selectedFiles']['paperclip-runnerd']['sha256'],PIN['daemonSha256'])
   self.assertEqual(PIN['selectedFiles']['resolved-pnpm-lock.yaml']['sha256'],PIN['resolvedLockSha256'])
-  self.assertEqual(PIN['testSha256'],'8967cf9c8cd130b68bf9d64abef8cb8d352af00646e2288b341d8c6ae758b47a')
+  self.assertEqual(PIN['testSha256'],'32bb057e1505082c0ed6b1d71cdd8cdb3271d920c2bea9cdc1ebddedf568c0c4')
   self.assertEqual((PIN['executionCount'],PIN['providerCalls'],PIN['timeoutChanges']),(1,0,False))
   self.assertEqual((PIN['archiveBytesMaximum'],PIN['retentionDays']),(268435456,7))
- def test_b9_markers_follow_outer_layout_and_snapshot_boundaries(self):
+ def test_f5_markers_follow_outer_layout_and_snapshot_boundaries(self):
   _,proof=patch_sidecar(self.original,{'path':'/private/tmp/pc-intel-diagnostic-fixture/startup-timings.jsonl','dev':'1','ino':'2','uid':'501'})
   phases=proof['phases']
   self.assertFalse(any(p.startswith('pi.hash.') for p in phases))
@@ -62,6 +62,17 @@ class DiagnosticTests(unittest.TestCase):
    start=source.index(begin);finish=source.index(end,start)
    interior=[x for x in proof['insertions'] if start < x['offset'] < finish]
    self.assertEqual(interior,[])
+ def test_pi_acp_markers_preserve_actual_admission_and_no_native_rpc_claim(self):
+  _,proof=patch_sidecar(self.original,{'path':'/private/tmp/pc-intel-diagnostic-fixture/startup-timings.jsonl','dev':'1','ino':'2','uid':'501'})
+  for phase in ['acp.initialize.begin','acp.initialize.response','pi.acp.session.request','pi.acp.correlated.response','pi.acp.mode.verified','pi.acp.thought_level.begin','pi.acp.thought_level.verified']:
+   self.assertEqual(proof['phases'].count(phase),1)
+  self.assertFalse(any('get_state' in phase for phase in proof['phases']))
+  source=self.original.decode()
+  selected=next(x for x in proof['insertions'] if 'Mark("pi.acp.thought_level.verified")' in x['inserted'])
+  self.assertTrue(source[:selected['offset']].endswith('      piThinking.assertReady();'))
+ def test_unknown_rebind_profile_rejects_before_any_pack_access(self):
+  result=subprocess.run([os.environ['PI_DIAGNOSTIC_TEST_NODE'],str(Path(__file__).parent/'rebind-diagnostic-pack.mjs'),'/nonexistent-pack','0'*64,'0'*40,'unknown'],capture_output=True,text=True,timeout=5)
+  self.assertNotEqual(result.returncode,0);self.assertIn('Unexpected diagnostic profile mode',result.stderr);self.assertNotIn('ENOENT',result.stderr)
  def test_missing_terminal_retains_incomplete_classification(self):
   with tempfile.TemporaryDirectory() as tmp:
    p,b=self.binding(Path(tmp))

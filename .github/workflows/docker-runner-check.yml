@@ -205,7 +205,7 @@ jobs:
             test "$SOURCE_E2E_SUPPORT_ONLY" != true
             test "$DIAGNOSE_AJV" != true
             test "$IMAGE_MODE" != true
-            test "$EXPECTED_SOURCE_SHA" = b9e5d6ecdb05ab7244c90976e07c950f8d09b15b
+            test "$EXPECTED_SOURCE_SHA" = f5c5fde380f60937ef26cc5a92e1d6a043e9cddc
             test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
             test "$(gh api "repos/$REPOSITORY" --jq '.visibility')" = public
           fi
@@ -300,7 +300,7 @@ jobs:
           if-no-files-found: error
 
   manual_pi_startup_diagnostic:
-    name: Retained B9 profile12 native Intel startup timing diagnostic (not qualification)
+    name: Retained f5 profile13 native Intel startup timing diagnostic (not qualification)
     if: github.event_name == 'workflow_dispatch' && inputs.diagnose_pi_startup
     needs: authorize_manual
     runs-on: macos-15-intel
@@ -321,16 +321,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api repos/paperclipai/paperclip/actions/artifacts/11208570718/zip \
-            > "$RUNNER_TEMP/pi-startup-36959948724.zip"
-          printf '%s  %s\n' b82cf6c843006781e2e6d5f0a06e0ff39497ffc457b94a511f8bdda66628aa43 \
-            "$RUNNER_TEMP/pi-startup-36959948724.zip" | shasum -a 256 --check
+          gh api repos/paperclipai/paperclip/actions/artifacts/11218057612/zip \
+            > "$RUNNER_TEMP/pi-startup-36984851998.zip"
+          printf '%s  %s\n' 5159dcb57b380648679d441a73b87d50334dcca969adc95150e8429a71cbdfeb \
+            "$RUNNER_TEMP/pi-startup-36984851998.zip" | shasum -a 256 --check
       - name: Run one instrumented startup with original assertions and deadlines
         timeout-minutes: 18
         run: |
           set -euo pipefail
           python3 -B trusted-ci/scripts/ci/pi-intel/startup_diagnostic.py \
-            --archive "$RUNNER_TEMP/pi-startup-36959948724.zip" \
+            --archive "$RUNNER_TEMP/pi-startup-36984851998.zip" \
             --output "$GITHUB_WORKSPACE/pi-startup-diagnostic-evidence"
       - name: Admit complete diagnostic evidence within the storage bound
         if: always()

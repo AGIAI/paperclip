@@ -132,7 +132,7 @@ def execute(args):
   require(sha(node)==PIN['nodeSha256'] and sha(daemon)==PIN['daemonSha256'],'Native executable changed')
   require(json.loads(command('node-identity',[node,'-p','JSON.stringify([process.platform,process.arch,process.version])']))==['darwin','x64','v24.21.0'],'Node platform mismatch')
   command('daemon-signature',['/usr/bin/codesign','--verify','--strict',daemon]);require('Mach-O 64-bit executable x86_64' in command('daemon-architecture',['/usr/bin/file',daemon]),'Daemon architecture mismatch')
-  proof['originalPackVerification']=json.loads(command('original-pack-verify',[node,HERE/'verify-pack.mjs',pack,PIN['sourceRevision'],'darwin','x64'],180))
+  proof['originalPackVerification']=json.loads(command('original-pack-verify',[node,HERE/('verify-pack-profile13.mjs' if PIN.get('profileVersion')==13 else 'verify-pack.mjs'),pack,PIN['sourceRevision'],'darwin','x64'],180))
   require(proof['originalPackVerification']['manifestDigest']==PIN['originalPackDigest'],'Original pack identity mismatch')
   before_manifest=json.loads((pack/'provider-pack.json').read_text())
   sink=scratch/'startup-timings.jsonl';fd=os.open(sink,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600);st=os.fstat(fd);os.close(fd)
@@ -140,9 +140,9 @@ def execute(args):
   sidecar=pack/'dist/cli/acpx-runtime-sidecar.cjs';original_sidecar=sidecar.read_bytes();patched,patch=patch_sidecar(original_sidecar,identity)
   # Preserve original file mode; this one private copy now has an explicit diagnostic identity.
   sidecar.write_bytes(patched);atomic_json(out/'sidecar-patch.json',patch)
-  (out/'sidecar.diff').write_text(''.join(difflib.unified_diff(original_sidecar.decode().splitlines(True),patched.decode().splitlines(True),fromfile='original-B9-sidecar',tofile='diagnostic-sidecar')))
+  (out/'sidecar.diff').write_text(''.join(difflib.unified_diff(original_sidecar.decode().splitlines(True),patched.decode().splitlines(True),fromfile='original-f5-profile13-sidecar',tofile='diagnostic-sidecar')))
   command('diagnostic-sidecar-syntax',[node,'--check',sidecar])
-  proof['diagnosticPackVerification']=json.loads(command('diagnostic-pack-rebind',[node,HERE/'rebind-diagnostic-pack.mjs',pack,PIN['originalSidecarSha256'],PIN['sourceRevision']],180))
+  proof['diagnosticPackVerification']=json.loads(command('diagnostic-pack-rebind',[node,HERE/'rebind-diagnostic-pack.mjs',pack,PIN['originalSidecarSha256'],PIN['sourceRevision'],*(['profile13'] if PIN.get('profileVersion')==13 else [])],180))
   after_manifest=json.loads((pack/'provider-pack.json').read_text());expected=copy.deepcopy(before_manifest)
   expected['payload']['artifacts']['acpxSidecar']['sha256']=after_manifest['payload']['artifacts']['acpxSidecar']['sha256']
   for key in ['distDigest','bridgeDigest']:expected['payload'][key]=after_manifest['payload'][key]

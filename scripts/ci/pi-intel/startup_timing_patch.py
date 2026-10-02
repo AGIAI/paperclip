@@ -1,7 +1,7 @@
 """Sparse additive instrumentation of one pinned bundle; never edits vendor closure bytes."""
 import hashlib,json
 from source_guard import require
-ORIGINAL_SHA='7462825f4b82bce8e2a69425eafe4ca8b2c8812df345269c82fb75aa21f3043c'
+ORIGINAL_SHA='ce987993ffb92f449ef0432dee6cd7eb90ea19521ce3d7b51a185fed16ed8c47'
 PREFIX='__pcStartupDiagnostic'
 
 def patch_sidecar(original,sink):
@@ -56,6 +56,14 @@ def patch_sidecar(original,sink):
  mark('// src/drivers/acpx/codex-runtime-adapter.ts','      commandLaunches.count += 1;','runtime.spawn.callback')
  mark('// src/drivers/acpx/codex-runtime-adapter.ts','  const ensuredSession = Promise.resolve().then(','runtime.ensure.begin')
  mark('// src/drivers/acpx/codex-runtime-adapter.ts','    cursorInstructions?.assertReady();','runtime.ensure.settled')
+ # Native RPC internals remain in the unchanged closure; these are ACP boundaries only.
+ mark('', '  async initializeProtocolConnection(connection, launch) {', 'acp.initialize.begin', True)
+ mark('', '    await this.authenticateIfRequired(connection, initialized.authMethods ?? []);', 'acp.initialize.response')
+ mark('// src/drivers/acpx/pi-thinking.ts', '              if (method === "session/new" || method === "session/load") {', 'pi.acp.session.request', True)
+ mark('// src/drivers/acpx/pi-thinking.ts', '          const result = object(message.result);', 'pi.acp.correlated.response')
+ mark('// src/drivers/acpx/pi-thinking.ts', '          state.mode = mode;', 'pi.acp.mode.verified', True)
+ mark('// src/drivers/acpx/codex-runtime-adapter.ts', '      await runtime.setConfigOption({ handle: ensuredHandle, key: "thought_level", value: selectedPiThinkingLevel });', 'pi.acp.thought_level.begin')
+ mark('// src/drivers/acpx/codex-runtime-adapter.ts', '      piThinking.assertReady();', 'pi.acp.thought_level.verified', True)
  # Catch-all standalone function boundaries relevant to verified-runtime preparation.
  for name in ['verifyAcpxProfileInstallation','verifyQualifiedRuntimeExecutable','openVerifiedRuntimeExecutable','openVerifiedCommandDirectory','createAcpxPrivateSnapshot','acquireAcpxProviderLifetimeLease']:
   anchor='async function '+name+'('
