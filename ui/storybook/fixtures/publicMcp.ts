@@ -1,4 +1,4 @@
-import type { McpConnection, McpConnectionRequest } from "@paperclipai/shared";
+import { instanceExperimentalSettingsSchema, type InstanceExperimentalSettingsWithManaged, type McpConnection, type McpConnectionRequest } from "@paperclipai/shared";
 import { fn } from "storybook/test";
 
 export const consentSubmission = fn();
@@ -31,7 +31,7 @@ export function installPublicMcpFixture(fixture: PublicMcpFixture = {}) {
   consentSubmission.mockClear();
   const original = window.fetch;
   let rows = fixture.empty ? [] : connections.map(row => ({ ...row, revokedAt: fixture.revoked ? "2020-01-02T00:00:00Z" : null }));
-  let settings = { enablePublicMcp: Boolean(fixture.enabled), managedKeys: fixture.managed ? { enablePublicMcp: { managed: true, managedBy: "paperclip-cloud" } } : {} };
+  let settings: InstanceExperimentalSettingsWithManaged = { ...instanceExperimentalSettingsSchema.parse({}), enablePublicMcp: Boolean(fixture.enabled), managedKeys: fixture.managed ? { enablePublicMcp: { managed: true, managedBy: "paperclip-cloud" } } : {} };
   const error = (message: string, status = 503) => Response.json({ error: message }, { status });
   window.fetch = async (input, init) => {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin);

@@ -10,7 +10,11 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 const name = "Toggle assistant connections experimental setting";
-export const DisabledByDefault: Story = {};
+export const DisabledByDefault: Story = { play: async ({ canvasElement }) => {
+  const c = within(canvasElement);
+  await expect(await c.findByRole("switch", { name })).not.toBeChecked();
+  await expect(c.getByRole("switch", { name: "Toggle Paperclip Runner experimental setting" })).toBeChecked();
+} };
 export const Enabled: Story = { parameters: { fixture: { enabled: true } } };
 export const ManagedByCloud: Story = { parameters: { fixture: { enabled: true, managed: true } }, play: async ({ canvasElement }) => {
   await expect(await within(canvasElement).findByRole("switch", { name })).toBeDisabled();
