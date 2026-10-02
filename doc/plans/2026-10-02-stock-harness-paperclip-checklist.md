@@ -1,7 +1,10 @@
 # Stock harness, with Paperclip: working checklist
 
-Created: 2026-10-02. Status: item 1 implemented for native Codex app-server;
-PR validation in progress. Other implementation items remain open.
+Created: 2026-10-02. Status: item 1 merged for native Codex app-server in
+[PR #14920](https://github.com/paperclipai/paperclip/pull/14920). Item 2's default
+hire manual is reduced to identity only, and common legacy startup/resume
+instructions are reduced locally. Additional carriers and native instructions
+remain open.
 
 Goal: keep the agent's stock harness behavior and add only what it needs to work
 with Paperclip. Apply this across legacy adapters, the new Runner, and their
@@ -12,7 +15,11 @@ record the proposed behavior and Dotta's direction, make a bounded change, and
 verify the affected paths before moving on. New findings get stable IDs in the
 ledger below so they do not disappear into conversation history.
 
-**Current item: 1 — validate and review the native Codex instruction fix.**
+For every change, record its executable test/eval coverage before continuing.
+Distinguish coverage setup, deterministic results, and measured live results;
+configured cells alone do not qualify behavior.
+
+**Current item: 2 — reduce the default operating manual and shared prompt layers.**
 
 ## Agreed direction and boundaries
 
@@ -43,7 +50,7 @@ ledger below so they do not disappear into conversation history.
 - [x] Remove default replacement of stock base instructions across those paths.
 - [x] Verify the actual app-server request and retained session instructions,
   including resume; checking only a prompt builder is insufficient.
-- [ ] Verify Paperclip task context, tools, auth, assigned skills, and completion
+- [x] Verify Paperclip task context, tools, auth, assigned skills, and completion
   still work. Record applicable regressions and eval results.
 
 Starting points: [Codex backend](../../packages/paperclip-runner/src/backends/codex-native-backend.ts),
@@ -61,14 +68,20 @@ and need a provider session reset. Do not reset active sessions automatically.
 The separate Codex-through-ACP dependency patch remains a coverage follow-up
 under item 6; this change covers the native app-server path.
 
+Verification: 412 focused TypeScript/Rust tests, repository typecheck/build,
+55 passing PR checks, and Greptile 5/5. The original full local test command
+was stopped after setup failures; affected suites passed on rerun. No paid
+live campaign was run, and no task-quality improvement is claimed.
+
 ## 2. Reduce the default operating manual and shared prompt layers
 
 - [ ] Inventory what an agent actually receives: hire instructions, shared
   prompt template, wake context, runtime prompt, bootstrap, and loaded skills.
   Separate always-present text from content loaded on demand.
-- [ ] Agree on the tiny common contract and the coordination details that each
-  runtime still requires. Legacy API coordination and native semantic tools
-  need appropriate instructions for their respective interfaces.
+- [x] Agree on the tiny default: identity only, with no skill or native-tool
+  pointers. The harness supplies coordination instructions.
+- [x] Reduce the generic default hire `AGENTS.md` to the agreed sentence and
+  update the existing creation test to expect the minimal bundle.
 - [ ] Remove repeated workflow rules and stock coding/style/autonomy guidance.
 - [ ] Move detailed planning, hiring, artifacts, and exceptional procedures to
   discoverable references or tools where feasible.
@@ -80,7 +93,116 @@ Starting points: [default hire instructions](../../server/src/onboarding-assets/
 [native runtime contract](../../packages/paperclip-runner/src/contracts/runtime-context.ts),
 [Paperclip operational skill](../../skills/paperclip/SKILL.md).
 
-Decision: exact retained paragraph and on-demand boundaries pending.
+Decision: Dotta confirmed the harness already handles skill and tool delivery;
+the default hire manual is now only "You are an agent in a Paperclip company."
+This replaces 602 words with eight. The shared loader supplies this default
+across instruction-bundle-capable adapters for non-CEO hires without explicit
+instructions. Existing saved bundles retain their content; CEO, first-agent,
+and role/team templates remain separate work under item 3. The common
+prompt/wake reduction is complete locally below; additional carriers, native
+instructions, and skill/reference corrections remain open.
+
+Verification: the existing agent-skills route suite passed all 54 tests,
+including default creation, custom bundles, and CEO/first-agent paths. The
+onboarding asset suite passed all 10 tests. This initially had only deterministic
+coverage. Dotta subsequently requested behavioral eval coverage for every change;
+the dedicated production-default-hire suite below closes the custom QA manual
+gap. Full repository typecheck/build/test were not rerun for this narrow asset
+and existing-test update.
+
+### Shared prompt follow-ups
+
+- [x] **2.1 Reduce common legacy startup/resume instructions.** Keep
+  identity and connection guidance in the shared task/chat defaults; remove the
+  generic resumed-wake execution contract. Preserve current task/event data,
+  specialized wake contracts, custom templates, skills, and auth.
+- [ ] **2.2 Review additional legacy carriers.** Reduce Hermes local/gateway
+  wrappers, review Pi system delivery, and check OpenClaw fresh-wake framing.
+  Preserve transport facts and user configuration.
+- [ ] **2.3 Reduce native Runner instructions and constraints.** Improve
+  discoverable tool documentation first, then shorten fixed guidance and
+  consolidate completion rules. Verify prompt revisions, digests, and session
+  compatibility across native Codex, ACPX, and OpenCode.
+
+### Follow-up 2.1 implementation and verification
+
+The common task and conversation defaults now share the same identity sentence
+and unchanged connection guidance: 113 words each, down from 661 and 205.
+Connection guidance accounts for 108 of those words. The ordinary resumed-wake
+execution contract is removed (172 words), including the old opt-in used by
+OpenClaw on fresh turns. `includeExecutionContract` remains accepted as a
+deprecated no-op for adapter/plugin source compatibility.
+
+Current task facts, ordered comments, work modes, approval/review state,
+checkout, holds/blockers, recovery/watchdog roles, and external-chat contracts
+remain in their existing owners. Skill delivery, runtime authentication,
+custom `promptTemplate`, and `bootstrapPromptTemplate` mechanics are unchanged.
+Hermes's own wrappers and Pi's system carrier remain follow-up 2.2; native
+fixed instructions and full-turn constraints remain follow-up 2.3.
+
+The new defaults apply when prompts are assembled after deployment. Existing
+provider sessions can retain earlier startup instructions in their history
+until reset; no active session or saved custom template is rewritten here.
+
+Verification: 563 distinct focused tests passed across 18 suites:
+
+- Shared prompt selection/rendering, operational-skill selection, and retained
+  specialized wake contracts (130 tests).
+- ACPX, Pi, OpenCode, Cursor Cloud, and Codex local execution, including
+  task/chat fresh/resumed/reset/fallback delivery, custom prompts, skill
+  mounting, and authentication (259 tests).
+- Hermes local prompt rendering and gateway execution (41 tests).
+- Claude, Gemini, Cursor local, Grok, Kimi, OpenClaw, and Claude/Codex ACP
+  fallback execution (113 tests).
+- Native execution input, preserving shared wake compatibility (20 tests).
+
+`@paperclipai/adapter-utils` typecheck and build passed; `git diff --check`
+passed. Full repository typecheck/build/test and live behavioral evals were not
+run for this local bounded change. These checks prove prompt and runtime
+mechanics, not an improvement in coding-task quality.
+
+### Remaining shared layers inspected (2026-10-02)
+
+The table records the initial inspection before follow-up 2.1. Word counts
+cover fixed source text, not complete assembled prompts or token counts. They
+exclude task data, assigned agent instructions, and skills. This inspection
+establishes instruction mechanics, not a performance result.
+
+| Layer | Delivery at initial inspection | Disposition |
+| --- | --- | --- |
+| Shared legacy task/chat templates | `DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE` was 661 words and the conversation template was 205, including connection guidance. Used by Claude, Codex, Cursor local/cloud, Gemini, Grok, Kimi, OpenCode, Pi, and Hermes local. | Completed in 2.1: both defaults now 113 words. Repeated procedures removed, connection guidance retained, no replacement skill pointer. |
+| Generic resumed wake contract | `renderPaperclipWakePrompt` added a 172-word execution contract on ordinary resumed turns. OpenClaw requested it on fresh turns too because it has no shared template. | Completed in 2.1: generic contract removed, including legacy opt-ins. Task/event data and conditional runtime contracts retained. |
+| Additional legacy carriers | Hermes local adds a 171-word identity/API/curl wrapper before the shared task template; Hermes gateway supplies its own four-rule execution contract. Pi carries shared defaults in its system extension and suppresses the wake copy when that extension owns policy. | Separate follow-up 2.2; changing the shared constants alone does not remove every wrapper. Preserve transport facts and custom configuration. |
+| Native fixed prompt | The 262-word `paperclip-execution.v5` prompt carries hiring, delegation/dependencies, connection setup, and finalization guidance across native Codex, ACPX, and OpenCode backends. | Keep one short native completion/dependency contract. Relocate uncommon procedures to the relevant tool documentation, improving that documentation where needed before removing instructions. Any change needs prompt revision/digest/session-compatibility verification. |
+| Native full-turn constraints | `nativeTaskConstraints` adds assigned-skill limits, current agent-file paths, document/file delivery, answered-question handling, and accepted completion/final-response sequencing. Codex/OpenCode add another completion reminder. Prepared constraints reach the model envelope through `native-session-runtime`; compact continuations avoid replaying prior task constraints. | Consolidate duplicate completion instructions. Keep current paths, answer scope, and the required result protocol. Move detailed file/document procedure to discoverable tool descriptions where adequately covered. |
+| Task/event-specific framing | Server task Markdown and wake rendering supply work mode, ordered comments, approved revisions, checkout/holds/blockers, recovery/review/watchdog roles, external-chat bookkeeping/delivery, and conversation handoff. | Retain the facts and mode boundaries in the first reduction. Use one authoritative owner for shared mode directives; review specialized wording separately. |
+
+Custom `promptTemplate` and fresh-only `bootstrapPromptTemplate` configuration
+are distinct from shipped defaults and should not be silently rewritten.
+The built-in process adapter invokes a configured command; HTTP passes context
+as JSON. They do not use the shared text template. External adapter plugins and
+hosted configuration variants still require the broader item 6 audit.
+
+An accepted-plan discrepancy needs resolution: task Markdown permits cohesive
+implementation on the current issue, while the wake renderer's planning-mode
+accepted-confirmation branch requires children and prohibits implementation on
+the source issue. Existing tests assert both versions. Production reachability
+after the server changes work mode has not yet been established; do not claim
+this proves a live plan-continuation failure.
+
+Dotta selected follow-up 2.1 first: reduce the common legacy startup/resume
+copies, preserving conditional context. Additional carriers and native fixed
+instructions remain distinct follow-ups 2.2 and 2.3. No shared runtime text was
+changed by the initial inspection.
+
+Coverage identified during inspection includes shared prompt selection/rendering,
+adapter execution tests, native backend/runtime context tests, and server
+task-context/native-input tests. Follow-up 2.1 extended the shared and adapter
+checks; its results are above. Follow-ups 2.2 and 2.3 need their corresponding
+carrier/protocol assertions. Product E2E context-integrity, completion-updates,
+and direct blocker guidance are candidate lifecycle checks; their current scope
+does not establish coding-task quality. The initial inspection itself ran no
+tests or live evals.
 
 ## 3. Review every hiring and role template
 
@@ -154,7 +276,7 @@ does not apply.
 | Legacy Codex / Claude | Local adapters, managed auth and isolated configuration | Initial inspection only |
 | Other legacy local adapters | ACPX, OpenCode, Pi, Cursor, Gemini, Grok, Kimi, Hermes | Pending |
 | Other adapter transports | Cursor Cloud, Hermes/OpenClaw gateways, process, HTTP, external adapter plugins | Pending |
-| Runner Codex | App-server driver, runnerd bridge, Rust provider, direct/fallback paths | Additive instruction fix implemented; PR validation pending |
+| Runner Codex | App-server driver, runnerd bridge, Rust provider, direct/fallback paths | Additive instruction fix merged in PR #14920 |
 | Runner ACPX | Enabled profiles, especially Claude/Grok; declared or pending profiles tracked separately | Claude initial inspection; remaining audit pending |
 | Runner OpenCode | Native provider and configuration paths | Pending |
 | Hosted/remote providers | Claude Managed and AWS AgentCore; identify their own baseline rather than assuming CLI semantics | Pending |
@@ -172,15 +294,18 @@ does not apply.
 
 ## Verification and evals — apply to each item
 
-- [ ] Map existing coverage before adding cases; use [doc/evals.md](../evals.md).
+- [x] Map existing coverage for all implemented changes before adding cases;
+  see the SH-1–SH-3 map below and [doc/evals.md](../evals.md).
   Keep Runner protocol evals and Product E2E evals distinct.
-- [ ] Start with narrow deterministic checks for instruction layering, effective
+- [x] Set up narrow deterministic checks for the implemented instruction layering,
+  hire, and shared-prompt changes. Future changes still need their own map for effective
   configuration, skill/auth delivery, and session behavior where appropriate.
-- [ ] Use Runner evals for provider/session/tool protocol changes; use Product
-  E2E for real hiring, repository context, task lifecycle, and artifact delivery.
-- [ ] Review existing context-integrity, hiring, completion-updates, and blocker
-  suites for reusable coverage; record gaps rather than claiming coverage from
-  a similarly named case.
+- [x] Reuse existing protocol tests for native Codex request layering and add Product
+  E2E for production-default hiring, skill delivery, task lifecycle, and chat
+  continuity. Repository context and additional artifact cases remain future work.
+- [x] Review existing suites for reusable coverage. Their custom QA manuals did
+  not exercise the tiny default hire; the new suite deliberately omits those
+  bundles and reuses independently graded skill, continuation, and chat journeys.
 - [ ] Compare task quality as well as Paperclip protocol compliance when claiming
   that fewer instructions improve agent performance. Keep model, effort,
   permissions, tools, and fixture comparable.
@@ -189,19 +314,61 @@ does not apply.
 - [ ] Run the relevant checks for each change and the repository's required full
   verification before a PR-ready handoff. Record unrun checks and their reasons.
 
+### Coverage for changes implemented so far
+
+The [stock-harness runbook](../../tests/runner-e2e/STOCK-HARNESS.md) defines a
+credential-free prerequisite plus 24 explicit local Product E2E cells across
+eight legacy/native profiles. Each profile runs assigned-skill invocation,
+ordered comment continuation, and chat continuity across restart. Public receipts
+verify the identity-only managed bundle before provider execution; final receipts
+check actual legacy prompts and both budget hard stops. The existing lifecycle
+oracles still own task/chat success. Models, auth, skills, permissions, and
+secret-reference plumbing are inherited from existing profiles.
+
+| Coverage ID | Implemented change | Executable coverage | Live status |
+| --- | --- | --- | --- |
+| SH-1 | Native Codex additive developer instructions, including start/resume/recovery | TypeScript driver, runnerd transport, Runner Lab/live-session, and Rust provider tests in `pnpm test:e2e:runner:stock-harness`; native Codex cells exercise real hires. | `not_run`; task success is not vendor-base proof. |
+| SH-2 | Eight-word default hire `AGENTS.md` | Public creation/onboarding tests; exact independent public bundle oracle before and after provider execution for every stock-harness cell. | 24 cells configured, `not_run`. |
+| SH-3 | Reduced shared task/chat defaults and removed generic resume contract | Shared renderer and ACPX/Codex/OpenCode/Pi/Hermes/Cursor Cloud regressions; actual legacy invocation prompts checked in the new suite. | Legacy cells configured, `not_run`; additional carriers remain item 2.2. |
+
+The suite is explicit-only and excluded from `--all`; it does not add paid work
+to ordinary campaigns. Negative calibration covers manual regrowth, missing or
+malformed prompt receipts, old startup/resume procedures, missing connection
+guidance, wrong budgets, and skipped prerequisite assertions. Source revisions,
+attempts, cost, partial failures, cleanup, and sanitized evidence use the existing
+report pipeline. No paid providers were launched during setup. No coding-quality
+improvement or live qualification is claimed. Unrepresented harnesses remain
+unqualified; Codex-through-ACP vendor-base preservation is still F7.
+
+Local setup verification: 478 prerequisite tests passed (477 TypeScript plus one
+Rust), 860 Product E2E support tests passed, E2E typecheck passed, and all 24 cells
+were discovered. The 313 unrelated native tests filtered by the gate are not
+passing coverage. Final prerequisite evidence is retained at
+`tests/runner-e2e/results/stock-harness-preflight-2026-10-02T16-15-39.064Z/preflight.json`;
+earlier interrupted, missing-Hermes-discovery, and setup/test-timeout attempts are
+retained as failures. Hermes is checked through its package config because the
+root Vitest project list omits it. Full repository checks have not been rerun for
+this eval setup; they remain required before a PR-ready handoff.
+
 ## Findings ledger
 
 Confirmed mechanics below do not by themselves establish an effect on task quality.
 
 | ID | Finding | Work item / disposition |
 | --- | --- | --- |
-| F1 | Native Codex sent Paperclip text as `baseInstructions`. Probes on codex-cli 0.153.4 showed replacement; additive `developerInstructions` retained the stock base on start and cold resume. | 1; app-server fix implemented, PR validation pending |
+| F1 | Native Codex sent Paperclip text as `baseInstructions`. Probes on codex-cli 0.153.4 showed replacement; additive `developerInstructions` retained the stock base on start and cold resume. | 1; app-server fix merged in PR #14920 |
 | F2 | Default hires and role templates prescribe substantial operating procedures; common prompt and wake layers add further coordination text. | 2–3; mechanics confirmed, performance effect unmeasured |
 | F3 | Hiring references require legacy Paperclip skill/comment procedures, while native Runner intentionally omits that operational skill and uses semantic tools. | 2–3, 5; reconcile runtime contracts |
 | F4 | Local Claude appends instructions; Runner Claude preserves the Claude Code preset. Runner isolation excludes project/local settings, which can also exclude repository instruction discovery. | 4; selective context fix to design |
 | F5 | Some Codex capability settings differ between the direct driver and daemon path; an intermediate configuration does not prove the final provider behavior. | 6; effective-path audit pending |
 | F6 | Omitting or nulling `baseInstructions` on an old Codex thread's resume preserves its saved replacement; an empty string produces an empty base. | 1; document the required provider session reset; no automatic migration in this PR |
 | F7 | The isolated Codex-through-ACP dependency patch also sets `baseInstructions` on start/resume. It is a separate path from the native app-server backend. | 6; follow-up patch/profile audit pending |
+| F8 | The operational skill says target-bound confirmations default `supersedeOnUserComment` to true; the default manual and server normalizer say false. The server uses false. | 2; correct stale skill/reference guidance in a follow-up |
+| F9 | The default manual required a comment on every task, while the operational skill's verified external-chat shortcut delegates comments and lifecycle bookkeeping to the harness. | 2; unconditional manual rule removed; shared layers still need review |
+| F10 | Removing the default manual left the 661-word legacy task template and its 172-word resumed-wake execution contract. Hermes and Pi have additional policy carriers. | 2.1 complete locally: task/chat defaults 113 words, no generic resume contract; 2.2 wrappers pending |
+| F11 | Task Markdown and the wake renderer prescribe different accepted-plan behavior for planning-mode accepted-confirmation payloads; tests currently expect both. | 2; unify the directive owner; production reachability still to trace |
+| F12 | Native fixed instructions and full-turn constraints repeat completion and uncommon procedures, while reserved finish/block tool descriptions are only one sentence each. | 2; improve tool documentation before removing needed native protocol guidance |
+| F13 | Existing context-integrity/chat fixtures injected a QA manual, so their green results did not qualify the production tiny hire default. | Dedicated stock-harness suite configured with public default-bundle and delivered-prompt receipts; live measurement pending. |
 
 Append new findings with evidence, affected paths, and the numbered item that
 will address them. Record intentional behavior explicitly rather than as a bug.
@@ -214,6 +381,10 @@ will address them. Record intentional behavior explicitly rather than as a bug.
 | 2026-10-02 | Paperclip-owned MCP isolation and configuration changes/session resets are acceptable. | Preserve Paperclip auth and assigned skills while fixing repository context. |
 | 2026-10-02 | Dotta requested implementation and a PR for item 1. Native app-server paths now use additive developer instructions. | 139 targeted TypeScript tests and 91 Rust provider tests passed; repository typecheck/build passed. Remaining test/review results to record. |
 | 2026-10-02 | Verified actual Codex instruction layering using a localhost Responses stub, without paid inference. | codex-cli 0.153.4 sent identical 14,732-character stock base instructions on start and cold resume, with the Paperclip marker retained in developer input. This is protocol evidence, not a task-quality eval. |
+| 2026-10-02 | Dotta requested and confirmed the merge of item 1. | PR #14920 merged at `408f70e69f9c5e49cb4377f4886ac2001bfa67a2`, with all 55 checks passing and Greptile 5/5. |
+| 2026-10-02 | Dotta directed an identity-only default manual with no skill or runtime pointers; the harness already handles coordination. | Reduced the default to eight words. Existing hire and onboarding suites passed all 64 tests. Shared prompts and role templates remain pending. |
+| 2026-10-02 | Dotta requested three explicit shared-prompt follow-ups and selected common legacy startup/resume reduction first. | Follow-ups 2.1–2.3 recorded. 2.1 complete locally: both defaults 113 words; generic resume contract removed. 563 focused tests and shared utility typecheck/build passed. Extra carriers and native instruction reduction remain pending. |
+| 2026-10-02 | Dotta requested executable eval coverage for everything implemented so far and all subsequent changes before continuing. | Added SH-1–SH-3 coverage map, credential-free prerequisite, and 24 production-default-hire cells. 478 prerequisite and 860 support tests passed; E2E typecheck/discovery passed. Live provider results remain `not_run`; item 2.2/2.3 unchanged. |
 
 For each completed item, add the chosen behavior, changed paths, verification
 results, remaining exceptions, and follow-ups here before checking it off.
