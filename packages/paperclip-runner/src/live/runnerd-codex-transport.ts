@@ -4843,6 +4843,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       this.#controlPlaneCheckpoint = registration.checkpoint ?? null;
       this.#controlPlaneRelease = registration.release;
     }
+    const admissionDeadline = this.#coldAdmissionDeadline();
     const handle = spawnRunner({
       connection: registration?.connection ?? {
         mode: "connect",
@@ -4897,9 +4898,9 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     this.#evidence.runnerProcessGroupId = handle.processGroupId ?? null;
     this.#publish();
     this.#pump = setInterval(() => this.#pumpEventsSafely(), 5);
-    await this.#waitCommand("run.prepare");
-    await this.#waitCommand("session.open");
-    await this.#waitForProviderIdentity();
+    await this.#waitCommand("run.prepare", undefined, undefined, true);
+    await this.#waitCommand("session.open", undefined, admissionDeadline, true);
+    await this.#waitForProviderIdentity(undefined, admissionDeadline);
     this.#startupComplete = true;
     this.#diagnostic("runnerd authenticated to the durable PRP control plane");
     return this.#openedThreadResponse(params);
@@ -5463,6 +5464,8 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     if (warmRecovery) {
       await this.options.authorizeWarmTransitionRecovery?.("before_spawn");
     }
+    // A replacement executor restores its cold provider before acknowledging recovery.
+    const admissionDeadline = this.#coldAdmissionDeadline(adoptedRunner === undefined);
     const handle = adoptedRunner
       ? null
       : spawnRunner({
@@ -5561,11 +5564,13 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         registration?.ready,
       );
     }
+    // Only a replacement executor can be restoring a cold Pi process. Share
+    // one deadline across every recovery barrier; live adoption stays at 30 s.
     if (runAttachment) {
-      await this.#waitCommand("run.attach", runAttachment.commandId);
+      await this.#waitCommand("run.attach", runAttachment.commandId, admissionDeadline, true);
     }
     if (recoveryProbeCommandId !== null) {
-      await this.#waitCommand("runner.drain", recoveryProbeCommandId);
+      await this.#waitCommand("runner.drain", recoveryProbeCommandId, admissionDeadline, true);
       if (this.#checkpointProviderIdentityExpectation !== null) {
         // A replacement runner can restore the exact provider while its fresh
         // session.resumed event is compacted or delayed behind the completed
@@ -5573,7 +5578,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         // waiting only on the bounded event replay. The authenticated command
         // result is still checked against the exact database checkpoint, so a
         // missing or changed provider identity continues to fail closed.
-        const snapshot = await this.#commandResult("session.snapshot", {});
+        const snapshot = await this.#commandResult("session.snapshot", {}, admissionDeadline);
         this.#confirmCheckpointProviderIdentity(
           snapshot,
           "authenticated recovery session.snapshot",
@@ -5591,6 +5596,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         !this.#checkpointProviderIdentityConfirmed
         ? "session.resumed"
         : undefined,
+      admissionDeadline,
     );
     this.#startupComplete = true;
     this.#diagnostic(
@@ -5918,12 +5924,19 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     return result;
   }
 
+  #coldAdmissionDeadline(coldProcess = true): number | undefined {
+    const timeout = coldAdmissionTimeoutMs(this.options.provider, this.options.acpxAgent, coldProcess);
+    // Preserve the existing independent waits for other providers and live adoption.
+    return timeout === 60_000 ? Date.now() + timeout : undefined;
+  }
+
   async #waitForProviderIdentity(
     expectedEventType?: "harness.ready" | "session.started" | "session.resumed",
+    deadline = Date.now() + 30_000,
   ): Promise<void> {
-    const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
       this.#throwIfFailed();
+      if (this.#closed) throw new Error("runnerd transport closed during provider startup");
       this.#pumpEvents();
       if (
         this.#threadId.length > 0 &&
@@ -5945,28 +5958,20 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     type: string,
     commandId?: string,
     deadline = Date.now() + 30_000,
+    abortOnClose = false,
   ): Promise<void> {
-    while (Date.now() < deadline) {
-      this.#throwIfFailed();
-      const command =
-        commandId === undefined
-          ? this.#core?.store.state.commands.find(
-              (candidate) => candidate.type === type,
-            )
-          : this.#core?.getCommand(commandId);
-      if (command?.status === "completed") return;
-      if (command !== undefined && command.status !== "pending") {
-        throw new Error(
-          `PRP command ${type} ${command.status}: ${JSON.stringify(command.result)}`,
-        );
-      }
-      if (await this.#runnerHasExited())
-        throw new Error(`runnerd exited while waiting for ${type}`);
-      await new Promise((resolveWait) => setTimeout(resolveWait, 10));
-    }
-    throw new Error(
-      `${this.#startupComplete ? "provider_transport_failed" : this.#startupFailureCode}: PRP command ${type} timed out`,
-    );
+    await waitForRunnerCommand({
+      type,
+      deadline,
+      abortOnClose,
+      isClosed: () => this.#closed,
+      throwIfFailed: () => this.#throwIfFailed(),
+      command: () => commandId === undefined
+        ? this.#core?.store.state.commands.find((candidate) => candidate.type === type)
+        : this.#core?.getCommand(commandId),
+      runnerHasExited: () => this.#runnerHasExited(),
+      failureCode: () => this.#startupComplete ? "provider_transport_failed" : this.#startupFailureCode,
+    });
   }
 
 
@@ -6914,4 +6919,38 @@ export function resolveRunnerdCodexSkillInputs(
       path: resolve(codexHome, "skills", assigned.runtimeName, "SKILL.md"),
     };
   });
+}
+
+/** Controller admission budget; ordinary command and turn deadlines are independent. */
+export function coldAdmissionTimeoutMs(provider: string | undefined, agent: string | undefined, coldProcess: boolean): number {
+  return coldProcess && provider === "acpx" && agent === "pi" ? 60_000 : 30_000;
+}
+
+/** Shared polling path keeps startup cancellation separate from owned cleanup commands. */
+export async function waitForRunnerCommand(input: {
+  type: string;
+  deadline: number;
+  abortOnClose: boolean;
+  isClosed: () => boolean;
+  throwIfFailed: () => void;
+  command: () => { status: string; result?: unknown } | undefined;
+  runnerHasExited: () => Promise<boolean>;
+  failureCode: () => string;
+}): Promise<void> {
+  while (Date.now() < input.deadline) {
+    input.throwIfFailed();
+    if (input.abortOnClose && input.isClosed()) {
+      throw new Error(`runnerd transport closed while waiting for ${input.type}`);
+    }
+    const command = input.command();
+    if (command?.status === "completed") return;
+    if (command !== undefined && command.status !== "pending") {
+      throw new Error(`PRP command ${input.type} ${command.status}: ${JSON.stringify(command.result)}`);
+    }
+    if (await input.runnerHasExited()) {
+      throw new Error(`runnerd exited while waiting for ${input.type}`);
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+  }
+  throw new Error(`${input.failureCode()}: PRP command ${input.type} timed out`);
 }
