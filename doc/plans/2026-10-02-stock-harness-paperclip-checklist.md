@@ -5,7 +5,7 @@ Created: 2026-10-02. Status: item 1 merged for native Codex app-server in
 hire manual is reduced to identity only, and common legacy startup/resume
 instructions are in [PR #14948](https://github.com/paperclipai/paperclip/pull/14948).
 GitHub live qualification has measured document-delivery failures; PR #14948 remains
-draft. A matched prior-instruction comparison and its final interrupted-cell
+draft. A matched prior-instruction comparison and its completed interrupted-cell
 recovery are recorded in the [live report](2026-10-02-stock-harness-live-comparison.md).
 Additional carriers and native instructions remain open.
 
@@ -418,5 +418,6 @@ will address them. Record intentional behavior explicitly rather than as a bug.
 For each completed item, add the chosen behavior, changed paths, verification
 results, remaining exceptions, and follow-ups here before checking it off.
 | 2026-10-02 | Dotta deferred 2.2 additional legacy carriers and approved the first 2.3 native tool-description slice separately. | Keep wrappers open; native finish/block documentation must not be supplied to legacy skill/API completion paths. |
-| 2026-10-02 | Matched default-manual/shared-prompt campaigns measured failures, with #14920 constant. | Candidate `f02d8d0df`: 15/24 pass. Historical `12c5433c6`: 15 pass, eight recorded failures, one interrupted cell recovering. Classic Claude/OpenCode Paperclip document delivery regressed in observed trials; keep PR #14948 draft. [Live report](2026-10-02-stock-harness-live-comparison.md). |
+| 2026-10-02 | Matched default-manual/shared-prompt campaigns measured failures, with #14920 constant. | Candidate `f02d8d0df`: 15/24 pass. Historical `12c5433c6`: 15/24 pass after the one runner-shutdown recovery also timed out. Classic Claude/OpenCode Paperclip document delivery regressed in observed trials; keep PR #14948 draft. [Live report](2026-10-02-stock-harness-live-comparison.md). |
 | 2026-10-02 | Cold prerequisite and packaging faults were repaired without weakening admission or behavioral graders. | Three setup attempts stopped before providers. Current `1eb5ba420` pilot passes 557 prerequisite checks and protected report publication; source/hash/cost evidence retained. Candidate cancellation and historical runner shutdown recovered only for missing cells. |
+| 2026-10-02 | Final bounded recovery completed; no further model reruns. | Both matched cohorts have all 24 results, 15 pass and nine fail. Two classic skill deliveries regress; two OpenCode ordered cases pass only with reduced instructions. Overall parity is not behavioral equivalence. All 48 retained result/receipt projections are hashed and sanitized; original interruptions and partial unknown spend remain recorded. |
