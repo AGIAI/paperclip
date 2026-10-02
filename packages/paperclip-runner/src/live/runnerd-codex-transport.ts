@@ -5578,7 +5578,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         // waiting only on the bounded event replay. The authenticated command
         // result is still checked against the exact database checkpoint, so a
         // missing or changed provider identity continues to fail closed.
-        const snapshot = await this.#commandResult("session.snapshot", {}, admissionDeadline);
+        const snapshot = await this.#commandResult("session.snapshot", {}, admissionDeadline, true);
         this.#confirmCheckpointProviderIdentity(
           snapshot,
           "authenticated recovery session.snapshot",
@@ -5864,12 +5864,13 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     type: string,
     payload: Record<string, unknown>,
     deadline?: number,
+    abortOnClose = false,
   ): Promise<Record<string, unknown>> {
     const core = this.#core;
     if (core === null) throw new Error("PRP provider thread is not started");
     const commandId = `command_lab_${randomUUID().replaceAll("-", "")}`;
     core.queueCommand(type, payload, commandId, true);
-    await this.#waitCommand(type, commandId, deadline);
+    await this.#waitCommand(type, commandId, deadline, abortOnClose);
     const command = core.getCommand(commandId);
     if (command?.status !== "completed" || command.type !== type) {
       throw new Error(`PRP command ${type} omitted its durable result`);
