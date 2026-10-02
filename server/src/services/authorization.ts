@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import { withHumanDirectedWork } from "./human-directed-work.js";
+import { hasOwnerChatInstructionAuthority } from "./owner-chat-instruction-authority.js";
 import {
   agents,
   authUsers,
@@ -21,7 +22,14 @@ import type {
   SkillTestAgentKeyScope,
   TaskBridgeAgentKeyScope,
 } from "@paperclipai/shared";
-import { LOW_TRUST_REVIEW_PRESET, extractAgentMentionIds, type LowTrustBoundary } from "@paperclipai/shared";
+import {
+  LOW_TRUST_REVIEW_PRESET,
+  extractAgentMentionIds,
+  trustPresetSchema,
+  lowTrustBoundarySchema,
+  lowTrustReviewPresetPolicySchema,
+  type LowTrustBoundary,
+} from "@paperclipai/shared";
 import {
   LOW_TRUST_ISSUE_ANCESTRY_MAX_DEPTH,
   isIssueWithinLowTrustBoundary,
@@ -274,15 +282,27 @@ function evaluateAuthorizationPolicyForAssignment(
   const agentVisibility = readPolicyObject(policy, "agentVisibility");
   const assignmentPolicy = readPolicyObject(policy, "assignmentPolicy");
   const protectedAgent = readPolicyObject(policy, "protectedAgent");
+  // Core containment policy is understood independently of assignment policy.
+  // Recognizing it must not hide malformed values or unknown extension rules.
+  const trustSections = [
+    ["trustPreset", trustPresetSchema],
+    ["trustBoundary", lowTrustBoundarySchema],
+    ["reviewPreset", lowTrustReviewPresetPolicySchema],
+  ] as const;
+  const hasTrustPolicy = trustSections.some(([key]) => policy[key] !== undefined);
+  const hasInvalidTrustPolicy = trustSections.some(([key, schema]) =>
+    policy[key] !== undefined && !schema.safeParse(policy[key]).success,
+  );
   const knownTopLevelKeys = new Set([
     "agentVisibility",
     "assignmentPolicy",
     "protectedAgent",
     "managedBy",
+    ...trustSections.map(([key]) => key),
   ]);
   const hasUnknownTopLevelKey = Object.keys(policy).some((key) => !knownTopLevelKeys.has(key));
-  const hasKnownPolicySection = Boolean(agentVisibility || assignmentPolicy || protectedAgent);
-  if (hasUnknownTopLevelKey || !hasKnownPolicySection) {
+  const hasKnownPolicySection = Boolean(agentVisibility || assignmentPolicy || protectedAgent || hasTrustPolicy);
+  if (hasUnknownTopLevelKey || hasInvalidTrustPolicy || !hasKnownPolicySection) {
     return {
       kind: "unknown",
       explanation: `${label} has authorization policy data that core cannot evaluate for task assignment.`,
@@ -926,21 +946,16 @@ export function authorizationService(db: Db | DbTransaction) {
     if (candidate.id && boundary.rootIssueId) {
       return issueIdIsDescendantOf(candidate.id, boundary.rootIssueId, boundary.companyId);
     }
-    if (!resource.parentIssueId) return false;
+    // Only an explicit root scope includes descendants. A parent in a permitted
+    // project (or an exact issue-id scope) cannot authorize a child elsewhere.
+    if (!resource.parentIssueId || !boundary.rootIssueId) return false;
     const parent = await loadIssue(resource.parentIssueId);
-    if (!parent) return false;
-    if (
-      isIssueWithinLowTrustBoundary(boundary, {
-        companyId: parent.companyId,
-        id: parent.id,
-        projectId: parent.projectId,
-      })
-    ) {
-      return true;
-    }
-    return boundary.rootIssueId
-      ? issueIdIsDescendantOf(parent.id, boundary.rootIssueId, boundary.companyId)
-      : false;
+    if (!parent || parent.companyId !== boundary.companyId) return false;
+    // Root ancestry permits decomposition, not selection of an unrelated
+    // project. Projectless children remain possible for projectless roots.
+    if (candidate.projectId && !await projectWithinLowTrustBoundary(boundary, candidate.projectId)) return false;
+    return parent.id === boundary.rootIssueId ||
+      issueIdIsDescendantOf(parent.id, boundary.rootIssueId, boundary.companyId);
   }
 
   async function projectWithinLowTrustBoundary(
@@ -965,6 +980,7 @@ export function authorizationService(db: Db | DbTransaction) {
 
   async function decideLowTrustAccess(input: {
     actorAgentId: string;
+    actor: AuthorizationActor;
     action: AuthorizationAction;
     resource: AuthorizationResource;
     resolution: TrustPresetResolution;
@@ -993,6 +1009,23 @@ export function authorizationService(db: Db | DbTransaction) {
         explanation,
       });
 
+    if (input.action === "agent_instructions:update") {
+      if (input.resource.type === "agent" && input.resource.agentId === input.actorAgentId &&
+          await hasOwnerChatInstructionAuthority(db, {
+            companyId: boundary.companyId,
+            agentId: input.actorAgentId,
+            runId: input.actor.runId,
+            userId: input.actor.onBehalfOfUserId,
+          })) {
+        // Continue through self-instruction permissions, explicit protected
+        // change restrictions, and the responsible user's current edit access.
+        return null;
+      }
+      return lowTrustDeny(
+        "This low-trust run cannot change persistent agent instructions, including AGENTS.md. Self-edits require a direct message in the authorized user's chat with this agent. Outside-triggered work and subtasks do not inherit that authority; ask the authorized user to request the edit in their chat or apply it directly.",
+      );
+    }
+
     if (
       input.action === "company_scope:read" ||
       // Agent creation is a company-wide privileged action. The default-on
@@ -1005,7 +1038,6 @@ export function authorizationService(db: Db | DbTransaction) {
       input.action === "decision_triage:manage" ||
       input.action === "agent_config:read" ||
       input.action === "agent_config:update" ||
-      input.action === "agent_instructions:update" ||
       input.action === "skill_config:update" ||
       input.action === "inbox:manage" ||
       input.action === "runtime:manage" ||
@@ -1930,6 +1962,7 @@ export function authorizationService(db: Db | DbTransaction) {
       });
     const lowTrustDecision = await decideLowTrustAccess({
       actorAgentId,
+      actor: input.actor,
       action: input.action,
       resource: input.resource,
       resolution: trustResolution,
