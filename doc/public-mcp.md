@@ -258,3 +258,23 @@ fixtures; no credentials are issued and no work is delegated.
 The Cloud repository's `web` Storybook has **Assistant connections / Hosted
 connection** for sign-in, organization selection, and the create-and-return
 flow. OAuth redirects between the two services remain mocked in these previews.
+
+### Guided assistant walkthrough
+
+Open **Assistant connections → Start here → Guided walkthrough** for a
+presenter-led story about Alex connecting Acme Research. Each step explains
+where Alex is, what to try, what happens next, and a question to discuss.
+Next/Back and numbered chapters control the explanation independently of the
+interactive product preview; Reset this screen restores that step’s fixture.
+Each screen starts fresh, so sample state does not persist between chapters.
+
+The Cloud walkthrough covers sign-in, choosing or creating an organization,
+readiness, and the handoff. The Paperclip walkthrough covers the experimental
+setting, team consent, example delegation and retrieval conversations, and
+revocation. Assistant conversations are explicitly illustrative; product
+screens use isolated service fixtures. No paid work or real OAuth runs here.
+
+Local cross-links expect Paperclip Storybook on port 6106 and Cloud on 6107.
+When published elsewhere, open the companion Storybook separately. Each
+walkthrough works independently. **Navigation check** is a separate interaction
+story so the presentation itself never advances automatically.
