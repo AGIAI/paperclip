@@ -139,6 +139,11 @@ export function stockHarnessSourceDigest() {
     "../../server/src/onboarding-assets/default/AGENTS.md",
     "../../packages/adapter-utils/src/server-utils.ts",
     "../../packages/shared/src/connection-intent-guidance.ts",
+    "../../packages/paperclip-runner/src/contracts/completion-result.ts",
+    "../../packages/paperclip-runner/src/drivers/codex/codex-driver-values.ts",
+    "../../packages/paperclip-runner/src/drivers/runner-tool-bridge.ts",
+    "../../packages/paperclip-runner/src/drivers/opencode/mcp-bridge.ts",
+    "../../server/src/services/native-runtime/native-session-resume.ts",
   ]) hash.update(source).update(readFileSync(new URL(source, import.meta.url)));
   hash.update(JSON.stringify(stockHarnessSkillSources()));
   return hash.digest("hex");

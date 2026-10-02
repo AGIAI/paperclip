@@ -135,6 +135,30 @@ and existing-test update.
   `paperclip_finish`/`paperclip_block` guidance must not leak into legacy
   completion paths, which use the operational skill and API.
 
+Dotta approved the six proposed 2.3 changes and clarified that native tool
+guidance must stay separate from legacy runners on 2026-10-02. Legacy adapters
+use their existing Paperclip skill/API and adapter completion paths; they must
+not inherit instructions to call unavailable native finish/block tools.
+
+- [ ] **2.3.1 Share native finish/block tool documentation.** First slice:
+  one canonical description per tool for Codex and native MCP bridges; refresh
+  retained provider threads through the native tool-contract fingerprint.
+  Executable coverage: SH-4-tools checks actual wire/catalog delivery across
+  all five native provider kinds; SH-4-resume checks v13 checkpoint rotation
+  without changing the Paperclip task or prior history. Live qualification is
+  pending; use native profile comparisons, with legacy results kept separate.
+- [ ] **2.3.2 Move document/file delivery procedures into native tool docs.**
+  Include the live server override and preserve prepared versus delivered receipts.
+- [ ] **2.3.3 Move hiring/dependency recipes into native discovery/tool docs.**
+  Preserve existing blocker IDs and workspace-release behavior.
+- [ ] **2.3.4 Reduce the fixed native prompt.** Retain the pre-choice connection
+  cue and the one-accepted-result boundary.
+- [ ] **2.3.5 Remove repeated native task/backend procedures.** Preserve runtime
+  facts and specialized mode, answer, and recovery constraints.
+- [ ] **2.3.6 Qualify the combined native reduction.** Record prompt/tool
+  revisions, exact source fingerprints, fresh/resumed sessions, and matched
+  GitHub behavior results before claiming improvement.
+
 ### Follow-up 2.1 implementation and verification
 
 The common task and conversation defaults now share the same identity sentence

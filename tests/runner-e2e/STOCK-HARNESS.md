@@ -14,6 +14,13 @@ agent-creation route materialize the shipped default.
 | SH-1: native Codex preserves vendor base instructions | Serialized start/resume requests from the TypeScript driver, recovery paths, runnerd transport, Runner Lab/live sessions, and Rust provider use additive developer instructions. | Real new native Codex hires execute the three journeys below. Task success alone cannot prove vendor base preservation. |
 | SH-2: identity-only default hire manual | Existing public agent-creation and onboarding-asset tests cover default, custom, and CEO exceptions. | The public bundle is exactly one `AGENTS.md` containing the eight-word shipped identity, checked before provider execution and again during cleanup. |
 | SH-3: reduced shared legacy task/chat defaults and resume delta | Shared prompt tests and ACPX, Codex, OpenCode, Pi, Hermes, and Cursor Cloud adapter regressions retain runtime context and exclude removed generic procedures. | Actual legacy `adapter.invoke` prompts retain fresh identity/connection guidance, omit the removed procedures, and have complete receipts for every observed run. |
+| SH-4: shared native finish/block tool guidance | Actual authenticated MCP catalogs, Codex start/resume frames, serialized daemon catalogs for all five native provider kinds, and rotation of a retained v13 thread to the new tool contract. | The three native profiles run the existing skill, continuation, and chat journeys. Configured coverage is not a live qualification result. |
+
+SH-4 changes native Runner tools only. Legacy adapters do not receive
+`paperclip_finish` or `paperclip_block` from this change. Their skill/API
+completion paths remain separate. The shared legacy prompt tests in SH-3
+continue to check their exact minimal defaults. The fixed native prompt and
+task constraints are not reduced in this first tool-documentation slice.
 
 `pnpm test:e2e:runner:stock-harness` runs these credential-free prerequisites,
 including the Rust test. It writes JSON reports, the source SHA, a working-source
