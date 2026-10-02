@@ -114,7 +114,7 @@ describe("Pi edit, validation and public artifact oracle", () => {
       const prompt = cell.task.buildPrompt("fixture");
       expect(prompt.includes("register_deliverable")).toBe(cell.profile.qualificationCandidate === "pi");
     }
-    expect(runnerMatrix.filter(c => c.profile.qualificationCandidate === "pi")).toHaveLength(25);
+    expect(runnerMatrix.filter(c => c.profile.qualificationCandidate === "pi")).toHaveLength(26);
   });
   it.each(["local", "daytona"] as const)("seeds once and collects public %s evidence", async environment => {
     const root = await mkdtemp(join(tmpdir(), "pi-file-evidence-"));
