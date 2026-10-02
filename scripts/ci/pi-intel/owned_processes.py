@@ -11,9 +11,9 @@ def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
 def atomic_json(path, value):
     path=pathlib.Path(path); tmp=path.with_suffix('.tmp')
     tmp.write_text(json.dumps(value,indent=2)+'\n'); tmp.chmod(0o600); tmp.replace(path)
-def process_table():
+def process_table(*, timeout=2):
     result={}
-    for line in subprocess.check_output(['/bin/ps','-axo','pid=,ppid=,lstart=,stat=,comm='],text=True,timeout=2).splitlines():
+    for line in subprocess.check_output(['/bin/ps','-axo','pid=,ppid=,lstart=,stat=,comm='],text=True,timeout=timeout).splitlines():
         row=line.split(maxsplit=8)
         if len(row)!=9: continue
         status={'R':'running','S':'sleeping','I':'idle','T':'stopped','Z':'zombie','U':'uninterruptible'}.get(row[7][:1],'unknown')
@@ -23,9 +23,9 @@ def process_table():
 class ProcessInspectionUnavailable(Exception):
     """No trustworthy argv snapshot; caller must revalidate identity."""
 
-def command_tokens(pid):
+def command_tokens(pid, *, timeout=2):
     # Inspect only an already owned PID; never persist or print this output.
-    try:value=subprocess.check_output(['/bin/ps','-p',str(pid),'-o','command='],text=True,stderr=subprocess.DEVNULL,timeout=2)
+    try:value=subprocess.check_output(['/bin/ps','-p',str(pid),'-o','command='],text=True,stderr=subprocess.DEVNULL,timeout=timeout)
     except (subprocess.SubprocessError,OSError) as error:raise ProcessInspectionUnavailable() from error
     if not value.strip() or len(value)>16384:raise ProcessInspectionUnavailable()
     try:return shlex.split(value)

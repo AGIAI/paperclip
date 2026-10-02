@@ -8,7 +8,7 @@ from retain_pack import verify_archive
 from closed_inventory import closed_tree
 from startup_timing_patch import patch_sidecar
 from owned_processes import OwnedProcesses,atomic_json
-from diagnostic_lifecycle import DiagnosticChild
+from diagnostic_lifecycle import DiagnosticChild,DiagnosticInspection
 HERE=Path(__file__).resolve().parent
 PIN=json.loads((HERE/'startup-diagnostic-inputs.json').read_text())
 
@@ -122,6 +122,8 @@ def execute(args):
   retained=out/'retained-test-state';retained.mkdir(mode=0o700)
   tenv={**env,'PAPERCLIP_TEST_PI_STARTUP_PACKAGE_ROOT':str(pack),'PAPERCLIP_TEST_PI_STARTUP_RUNNER_BINARY':str(daemon),'PI_INTEL_OWNED_TMP':str(scratch),'PI_INTEL_RETAINED_STATE':str(retained)}
   owner=OwnedProcesses(out/'closed-startup-processes.json',scratch,pack,sidecar);active=DiagnosticChild(owner)
+  inspection=DiagnosticInspection(owner,active);owner.table=inspection.table;owner.argv=inspection.argv
+  proof['processInspection']={'activeCadenceSeconds':0.5,'maximumCallSeconds':5,'defaultSharedCallSeconds':2,'deadlineCap':'remaining active70s or existing cleanup100s','activeFailuresFatal':True,'activeInspectionRetries':0}
   row={'label':'original-closed-startup-test-with-diagnostic-sidecar','argv':[str(node),'--import',str(HERE/'retain-test-state.mjs'),'--test',str(test)],'outerDeadlineSeconds':70,'originalTestTimeoutMs':60000,'originalAdmissionLimitMs':30000,'startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'startedMonotonicNs':str(time.monotonic_ns())};proof['commands'].append(row);proof['status']='diagnostic_running';save()
   try:
    with (out/'closed-startup.log').open('xb') as log:

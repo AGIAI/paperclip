@@ -2,7 +2,10 @@ import copy,hashlib,json,os,subprocess,tempfile,unittest
 from pathlib import Path
 from startup_timing_patch import patch_sidecar,ORIGINAL_SHA
 from startup_diagnostic import validate_pack_delta,validate_timing_sink,reject_sink_failure
-from diagnostic_lifecycle import DiagnosticChild
+from diagnostic_lifecycle import DiagnosticChild,DiagnosticInspection
+from owned_processes import process_table,command_tokens,ProcessInspectionUnavailable
+from unittest.mock import patch
+from types import SimpleNamespace
 
 class FakeProcess:
  pid=111;returncode=0
@@ -123,5 +126,70 @@ class DiagnosticTests(unittest.TestCase):
   def factory():raise OSError('spawn uncertainty')
   with self.assertRaises(OSError):c.execute(factory,1)
   self.assertTrue(c.uncertain)
+
+class DiagnosticInspectionTests(unittest.TestCase):
+ def fixture(self,now=10,active_end=80,cleanup_end=None):
+  self.now=now
+  owner=SimpleNamespace(stop_deadline=cleanup_end)
+  child=SimpleNamespace(deadline=active_end,clock=lambda:self.now)
+  return owner,child,DiagnosticInspection(owner,child)
+ def test_shared_inspection_defaults_and_exact_commands(self):
+  with patch('owned_processes.subprocess.check_output',return_value='') as run:
+   self.assertEqual(process_table(),{})
+   run.assert_called_once_with(['/bin/ps','-axo','pid=,ppid=,lstart=,stat=,comm='],text=True,timeout=2)
+  with patch('owned_processes.subprocess.check_output',return_value='node /owned/sidecar') as run:
+   self.assertEqual(command_tokens(123),['node','/owned/sidecar'])
+   run.assert_called_once_with(['/bin/ps','-p','123','-o','command='],text=True,stderr=subprocess.DEVNULL,timeout=2)
+ def test_diagnostic_maximum_and_remaining_active_budget(self):
+  _,_,inspection=self.fixture()
+  with patch('owned_processes.subprocess.check_output',return_value='node') as run:
+   inspection.table();self.assertEqual(run.call_args.kwargs['timeout'],5)
+   inspection.argv(123);self.assertEqual(run.call_args.kwargs['timeout'],5)
+   self.now=79.75;inspection.table();self.assertEqual(run.call_args.kwargs['timeout'],.25)
+   self.now=79.9;inspection.argv(123);self.assertAlmostEqual(run.call_args.kwargs['timeout'],.1)
+ def test_cleanup_budget_replaces_expired_active_deadline(self):
+  owner,_,inspection=self.fixture(now=90,active_end=80,cleanup_end=190)
+  with patch('owned_processes.subprocess.check_output',return_value='node') as run:
+   inspection.table();self.assertEqual(run.call_args.kwargs['timeout'],5)
+   self.now=189.75;inspection.argv(123);self.assertEqual(run.call_args.kwargs['timeout'],.25)
+ def test_expired_or_unpublished_deadlines_never_launch_inspection(self):
+  for active_end,cleanup_end in [(10,None),(None,None),(80,10)]:
+   _,_,inspection=self.fixture(active_end=active_end,cleanup_end=cleanup_end)
+   with patch('owned_processes.subprocess.check_output') as run:
+    for invoke in [inspection.table,lambda:inspection.argv(123)]:
+     with self.assertRaises(RuntimeError):invoke()
+    run.assert_not_called()
+ def test_active_argv_failure_fatal_cleanup_policy_preserved(self):
+  owner,_,inspection=self.fixture()
+  with patch('owned_processes.subprocess.check_output',side_effect=subprocess.TimeoutExpired('ps',5)) as run:
+   with self.assertRaisesRegex(RuntimeError,'active argv inspection'):inspection.argv(123)
+   self.assertEqual(run.call_count,1)
+   owner.stop_deadline=110
+   with self.assertRaises(ProcessInspectionUnavailable):inspection.argv(123)
+   self.assertEqual(run.call_count,2)
+ def test_active_cadence_half_second_and_deadline_capped(self):
+  owner=FakeOwner();child=DiagnosticChild(owner);process=FakeProcess();process.poll=lambda:None
+  self.now=0;sleeps=[]
+  def sleep(duration):sleeps.append(duration);self.now+=duration
+  with self.assertRaisesRegex(RuntimeError,'outer deadline'):
+   child.execute(lambda:process,1.2,clock=lambda:self.now,sleep=sleep)
+  self.assertEqual(len(sleeps),3);self.assertEqual(sleeps[:2],[.5,.5]);self.assertAlmostEqual(sleeps[2],.2)
+  self.assertTrue(child.retired);self.assertEqual(owner.stops,1)
+ def test_active_table_timeout_fatal_retired_once_without_retry(self):
+  owner=FakeOwner();child=DiagnosticChild(owner);process=FakeProcess();process.poll=lambda:None
+  calls=[]
+  def observe(pid):
+   calls.append(pid)
+   if len(calls)==2:raise subprocess.TimeoutExpired('ps',5)
+  owner.observe=observe
+  with self.assertRaises(subprocess.TimeoutExpired):child.execute(lambda:process,70)
+  self.assertEqual(calls,[111,111]);self.assertEqual(owner.stops,1);self.assertTrue(child.retired)
+  with self.assertRaises(RuntimeError):child.execute(lambda:self.fail('second launch'),70)
+ def test_inspection_failure_with_cleanup_error_stays_uncertain(self):
+  owner=FakeOwner(fail_stop=True);child=DiagnosticChild(owner)
+  owner.observe=lambda pid:(_ for _ in ()).throw(subprocess.TimeoutExpired('ps',5))
+  with self.assertRaisesRegex(RuntimeError,'stop failed'):child.execute(lambda:FakeProcess(),70)
+  self.assertTrue(child.uncertain);self.assertEqual(owner.stops,1)
+  with self.assertRaises(RuntimeError):child.execute(lambda:self.fail('second launch'),70)
 
 if __name__=='__main__':unittest.main()
