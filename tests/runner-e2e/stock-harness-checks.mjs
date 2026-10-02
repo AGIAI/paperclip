@@ -73,6 +73,9 @@ export function sourceFingerprint() {
     "packages/paperclip-runner/src/live/runnerd-codex-transport.ts",
     "packages/paperclip-runner/src/live/live-session.ts",
     "packages/paperclip-runner/runner/crates/runner-core/src/codex_provider.rs",
+    "packages/paperclip-runner/runner/crates/runner-core/src/bin/fake-codex-app-server.rs",
+    "packages/paperclip-runner/runner/Cargo.toml", "packages/paperclip-runner/runner/Cargo.lock",
+    "packages/paperclip-runner/runner/crates/runner-core/Cargo.toml",
     "packages/paperclip-runner/runner/crates/runner-core/tests/codex_provider.rs",
   ]);
   const sourceErrors = [];
@@ -90,6 +93,7 @@ export function assertPreflightReceipt(report, current) {
       report.setup?.passed !== true || report.setup?.exitCode !== 0 ||
       report.setup?.sdkExitCode !== 0 || report.setup?.runnerdExitCode !== 0 ||
       report.setup?.runnerdSha256 !== current.runnerdSha256 ||
+      report.setup?.fakeCodexSha256 !== current.fakeCodexSha256 ||
       report.providerCalls !== 0 || report.sourceSha !== current.sha ||
       report.sourceFingerprint !== current.fingerprint || report.sourceErrors?.length !== 0 ||
       !Array.isArray(report.gates) || report.gates.length !== expected.length ||
@@ -115,6 +119,8 @@ export function main(args = process.argv.slice(2)) {
       sha: git.stdout.trim(), fingerprint: source.fingerprint,
       runnerdSha256: createHash("sha256").update(readFileSync(join(root,
         "packages/paperclip-runner/runner/target/debug", `paperclip-runnerd${process.platform === "win32" ? ".exe" : ""}`))).digest("hex"),
+      fakeCodexSha256: createHash("sha256").update(readFileSync(join(root,
+        "packages/paperclip-runner/runner/target/debug/fake-codex-app-server"))).digest("hex"),
     });
     const output = resolve(verify, "..");
     for (const gate of stockHarnessGates) {
@@ -143,7 +149,7 @@ export function main(args = process.argv.slice(2)) {
   // cells do not download native artifacts, so compile it before TS discovery.
   const runnerd = setupRun.status === 0 ? spawnSync("cargo", ["build", "--locked",
     ...(args.includes("--allow-rust-network") ? [] : ["--offline"]),
-    "-p", "paperclip-runner-core", "--bin", "paperclip-runnerd"], {
+    "--workspace", "--bins"], {
     cwd: join(root, "packages/paperclip-runner/runner"), env, encoding: "utf8", timeout: 10 * 60_000,
   }) : null;
   writeFileSync(join(output, "runnerd-build.txt"), `${runnerd?.stdout ?? ""}\n${runnerd?.stderr ?? ""}`);
@@ -163,6 +169,8 @@ export function main(args = process.argv.slice(2)) {
   const runnerdBinary = join(root, "packages/paperclip-runner/runner/target/debug",
     `paperclip-runnerd${process.platform === "win32" ? ".exe" : ""}`);
   setup.runnerdSha256 = createHash("sha256").update(readFileSync(runnerdBinary)).digest("hex");
+  setup.fakeCodexSha256 = createHash("sha256").update(readFileSync(join(root,
+    "packages/paperclip-runner/runner/target/debug/fake-codex-app-server"))).digest("hex");
   const results = [];
   for (const gate of stockHarnessGates) {
     console.log(`Checking ${gate.id}: ${gate.name}`);
