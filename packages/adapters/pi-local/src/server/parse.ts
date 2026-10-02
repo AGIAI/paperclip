@@ -8,7 +8,7 @@ interface ParsedPiOutput {
     inputTokens: number;
     outputTokens: number;
     cachedInputTokens: number;
-    costUsd: number;
+    costUsd: number | null;
   };
   finalMessage: string | null;
   toolCalls: Array<{ toolCallId: string; toolName: string; args: unknown; result: string | null; isError: boolean }>;
@@ -37,12 +37,17 @@ export function parsePiJsonl(stdout: string): ParsedPiOutput {
       inputTokens: 0,
       outputTokens: 0,
       cachedInputTokens: 0,
-      costUsd: 0,
+      costUsd: null,
     },
     finalMessage: null,
     toolCalls: [],
   };
 
+  let missingCost = false;
+  function addCost(value: unknown) {
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) result.usage.costUsd = (result.usage.costUsd ?? 0) + value;
+    else missingCost = true;
+  }
   let currentToolCall: { toolCallId: string; toolName: string; args: unknown } | null = null;
 
   for (const rawLine of stdout.split(/\r?\n/)) {
@@ -117,15 +122,13 @@ export function parsePiJsonl(stdout: string): ParsedPiOutput {
         // Extract usage and cost from assistant message
         const usage = asRecord(message.usage);
         if (usage) {
-          result.usage.inputTokens += asNumber(usage.input, 0);
+          result.usage.inputTokens += asNumber(usage.input, 0) + asNumber(usage.cacheWrite, 0);
           result.usage.outputTokens += asNumber(usage.output, 0);
           result.usage.cachedInputTokens += asNumber(usage.cacheRead, 0);
           
           // Pi stores cost in usage.cost.total (and broken down in usage.cost.input, etc.)
           const cost = asRecord(usage.cost);
-          if (cost) {
-            result.usage.costUsd += asNumber(cost.total, 0);
-          }
+          addCost(cost?.total);
         }
       }
       
@@ -213,21 +216,18 @@ export function parsePiJsonl(stdout: string): ParsedPiOutput {
       const usage = asRecord(event.usage);
       if (usage) {
         // Support both Pi format (input/output/cacheRead) and generic format (inputTokens/outputTokens/cachedInputTokens)
-        result.usage.inputTokens += asNumber(usage.inputTokens ?? usage.input, 0);
+        result.usage.inputTokens += asNumber(usage.inputTokens ?? usage.input, 0) + asNumber(usage.cacheWrite, 0);
         result.usage.outputTokens += asNumber(usage.outputTokens ?? usage.output, 0);
         result.usage.cachedInputTokens += asNumber(usage.cachedInputTokens ?? usage.cacheRead, 0);
         
         // Cost may be in usage.costUsd (direct) or usage.cost.total (Pi format)
         const cost = asRecord(usage.cost);
-        if (cost) {
-          result.usage.costUsd += asNumber(cost.total ?? usage.costUsd, 0);
-        } else {
-          result.usage.costUsd += asNumber(usage.costUsd, 0);
-        }
+        addCost(cost?.total ?? usage.costUsd);
       }
     }
   }
 
+  if (missingCost) result.usage.costUsd = null;
   return result;
 }
 

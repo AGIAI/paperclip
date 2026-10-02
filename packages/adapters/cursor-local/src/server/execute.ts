@@ -1,4 +1,5 @@
 import { createProviderStoppedBoundary } from "@paperclipai/adapter-utils/provider-stopped-boundary";
+import { createUsageCheckpointLog } from "@paperclipai/adapter-utils/usage-checkpoint";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -626,11 +627,16 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       });
     }
 
+    const accountingLog = createUsageCheckpointLog(onLog, ctx.onUsage, stdout => {
+      const parsed = parseCursorJsonl(stdout);
+      const provider = resolveProviderFromModel(model);
+      return { usage: parsed.usage, costUsd: parsed.costUsd, usageBasis: "per_run", provider, biller: resolveCursorBiller(effectiveEnv, billingType, provider), billingType, model, complete: false };
+    });
     let stdoutLineBuffer = "";
     const emitNormalizedStdoutLine = async (rawLine: string) => {
       const normalized = normalizeCursorStreamLine(rawLine);
       if (!normalized.line) return;
-      await onLog(normalized.stream ?? "stdout", `${normalized.line}\n`);
+      await accountingLog(normalized.stream ?? "stdout", `${normalized.line}\n`);
     };
     const flushStdoutChunk = async (chunk: string, finalize = false) => {
       const combined = `${stdoutLineBuffer}${chunk}`;
@@ -698,6 +704,14 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         exitCode: attempt.proc.exitCode,
         signal: attempt.proc.signal,
         timedOut: true,
+          usage: attempt.parsed.usage,
+          usageBasis: "per_run",
+          provider: providerFromModel,
+          biller: resolveCursorBiller(effectiveEnv,
+          billingType, providerFromModel),
+          model,
+          billingType,
+          costUsd: attempt.parsed.costUsd,
         errorMessage: `Timed out after ${timeoutSec}s`,
         clearSession: clearSessionOnMissingSession,
       };
@@ -729,6 +743,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       exitCode: attempt.proc.exitCode,
       signal: attempt.proc.signal,
       timedOut: false,
+      usageBasis: "per_run",
       errorMessage:
         (attempt.proc.exitCode ?? 0) === 0
           ? null

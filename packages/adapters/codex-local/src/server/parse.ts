@@ -89,7 +89,8 @@ export function parseCodexJsonl(stdout: string) {
   return {
     sessionId,
     summary: finalMessage?.trim() ?? "",
-    usage,
+    // Codex includes cache hits in input_tokens; Paperclip stores them separately.
+    usage: { ...usage, inputTokens: Math.max(0, usage.inputTokens - usage.cachedInputTokens) },
     usageBasis: "per_run" as const,
     errorMessage,
     sawProtocolEvent,

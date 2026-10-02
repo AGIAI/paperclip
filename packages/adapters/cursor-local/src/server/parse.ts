@@ -65,6 +65,14 @@ export function parseCursorJsonl(stdout: string) {
   const messages: string[] = [];
   let errorMessage: string | null = null;
   let totalCostUsd = 0;
+  let reportedCost = false;
+  let missingCost = false;
+  const addCost = (value: unknown) => {
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+      totalCostUsd += value;
+      reportedCost = true;
+    } else missingCost = true;
+  };
   const usage = {
     inputTokens: 0,
     cachedInputTokens: 0,
@@ -102,7 +110,7 @@ export function parseCursorJsonl(stdout: string) {
         usageObj.output_tokens,
         asNumber(usageObj.outputTokens, 0),
       );
-      totalCostUsd += asNumber(event.total_cost_usd, asNumber(event.cost_usd, asNumber(event.cost, 0)));
+      addCost(event.total_cost_usd ?? event.cost_usd ?? event.cost);
 
       const isError = event.is_error === true || asString(event.subtype, "").toLowerCase() === "error";
       const resultText = asString(event.result, "").trim();
@@ -143,10 +151,10 @@ export function parseCursorJsonl(stdout: string) {
       const part = parseObject(event.part);
       const tokens = parseObject(part.tokens);
       const cache = parseObject(tokens.cache);
-      usage.inputTokens += asNumber(tokens.input, 0);
+      usage.inputTokens += asNumber(tokens.input, 0) + asNumber(cache.write, 0);
       usage.cachedInputTokens += asNumber(cache.read, 0);
       usage.outputTokens += asNumber(tokens.output, 0);
-      totalCostUsd += asNumber(part.cost, 0);
+      addCost(part.cost);
       continue;
     }
   }
@@ -155,7 +163,7 @@ export function parseCursorJsonl(stdout: string) {
     sessionId,
     summary: messages.join("\n\n").trim(),
     usage,
-    costUsd: totalCostUsd > 0 ? totalCostUsd : null,
+    costUsd: reportedCost && !missingCost ? totalCostUsd : null,
     errorMessage,
   };
 }

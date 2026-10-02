@@ -54,11 +54,25 @@ export function claudeModelUsageTotals(modelUsage: unknown): UsageSummary | null
   return { inputTokens, outputTokens, cachedInputTokens };
 }
 
+export function claudeModelReceipts(modelUsage: unknown) {
+  const entries = Object.entries(parseObject(modelUsage));
+  if (!entries.length) return undefined;
+  const receipts = entries.map(([model, raw]) => {
+    const entry = parseObject(raw);
+    const usage = claudeModelUsageTotals({ [model]: entry });
+    const costUsd = entry.costUSD;
+    return usage && typeof costUsd === "number" && Number.isFinite(costUsd) && costUsd >= 0 ? { model, usage, costUsd } : null;
+  });
+  return receipts.every((part) => part !== null) ? receipts : undefined;
+}
+
 export function parseClaudeStreamJson(stdout: string) {
   let sessionId: string | null = null;
   let model = "";
   let finalResult: Record<string, unknown> | null = null;
   const assistantTexts: string[] = [];
+  const messageUsage = new Map<string, UsageSummary>();
+  let anonymousMessage = 0;
 
   for (const rawLine of stdout.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -76,6 +90,16 @@ export function parseClaudeStreamJson(stdout: string) {
     if (type === "assistant") {
       sessionId = asString(event.session_id, sessionId ?? "") || sessionId;
       const message = parseObject(event.message);
+      const observed = parseObject(message.usage);
+      if (Object.keys(observed).length > 0) {
+        const key = asString(message.id, "") || `anonymous:${anonymousMessage++}`;
+        const previous = messageUsage.get(key);
+        messageUsage.set(key, {
+          inputTokens: Math.max(previous?.inputTokens ?? 0, asNumber(observed.input_tokens, 0) + asNumber(observed.cache_creation_input_tokens, 0)),
+          cachedInputTokens: Math.max(previous?.cachedInputTokens ?? 0, asNumber(observed.cache_read_input_tokens, 0)),
+          outputTokens: Math.max(previous?.outputTokens ?? 0, asNumber(observed.output_tokens, 0)),
+        });
+      }
       const content = Array.isArray(message.content) ? message.content : [];
       for (const entry of content) {
         if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
@@ -99,8 +123,11 @@ export function parseClaudeStreamJson(stdout: string) {
       sessionId,
       model,
       costUsd: null as number | null,
-      usage: null as UsageSummary | null,
-      usageBasis: null as "per_run" | null,
+      usage: messageUsage.size ? [...messageUsage.values()].reduce<UsageSummary>((total, part) => ({
+        inputTokens: total.inputTokens + part.inputTokens, outputTokens: total.outputTokens + part.outputTokens,
+        cachedInputTokens: (total.cachedInputTokens ?? 0) + (part.cachedInputTokens ?? 0),
+      }), { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 }) : null,
+      usageBasis: "per_run" as const,
       summary: assistantTexts.join("\n\n").trim(),
       resultJson: null as Record<string, unknown> | null,
     };
@@ -109,7 +136,7 @@ export function parseClaudeStreamJson(stdout: string) {
   const modelUsageTotals = claudeModelUsageTotals(finalResult.modelUsage);
   const usageObj = parseObject(finalResult.usage);
   const usage: UsageSummary = modelUsageTotals ?? {
-    inputTokens: asNumber(usageObj.input_tokens, 0),
+    inputTokens: asNumber(usageObj.input_tokens, 0) + asNumber(usageObj.cache_creation_input_tokens, 0),
     cachedInputTokens: asNumber(usageObj.cache_read_input_tokens, 0),
     outputTokens: asNumber(usageObj.output_tokens, 0),
   };

@@ -1,4 +1,5 @@
 import { createProviderStoppedBoundary } from "@paperclipai/adapter-utils/provider-stopped-boundary";
+import { createUsageCheckpointLog } from "@paperclipai/adapter-utils/usage-checkpoint";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -744,7 +745,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         graceSec,
         onSpawn,
         onRuntimeProgress: ctx.onRuntimeProgress,
-        onLog: bufferedOnLog,
+        onLog: createUsageCheckpointLog(bufferedOnLog, ctx.onUsage, stdout => {
+          const parsed = parsePiJsonl(stdout);
+          return { usage: parsed.usage, costUsd: parsed.usage.costUsd, usageBasis: "per_run", provider, biller: resolvePiBiller(runtimeEnv, provider), billingType: "unknown", model, complete: false };
+        }),
         runLogTail: paperclipBridge?.runLogTail,
         settleRunDisposition: paperclipBridge?.settleRunDisposition,
       });
@@ -774,6 +778,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           exitCode: attempt.proc.exitCode,
           signal: attempt.proc.signal,
           timedOut: true,
+        usage: attempt.parsed.usage, usageBasis: "per_run", provider, biller: resolvePiBiller(runtimeEnv, provider), model, billingType: "unknown", costUsd: attempt.parsed.usage.costUsd,
           errorMessage: `Timed out after ${timeoutSec}s`,
           clearSession: clearSessionOnMissingSession,
         };
@@ -805,6 +810,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         exitCode: effectiveExitCode,
         signal: attempt.proc.signal,
         timedOut: false,
+      usageBasis: "per_run",
         errorMessage: (effectiveExitCode ?? 0) === 0 ? null : fallbackErrorMessage,
         // Forward the transport-level error code from the run-disposition seam.
         // A lost duplex control channel surfaces the typed `duplex_channel_lost`

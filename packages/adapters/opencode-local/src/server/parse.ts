@@ -29,7 +29,8 @@ export function parseOpenCodeJsonl(stdout: string) {
     cachedInputTokens: 0,
     outputTokens: 0,
   };
-  let costUsd = 0;
+  let costUsd: number | null = null;
+  let missingCost = false;
 
   for (const rawLine of stdout.split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -54,10 +55,11 @@ export function parseOpenCodeJsonl(stdout: string) {
       const part = parseObject(event.part);
       const tokens = parseObject(part.tokens);
       const cache = parseObject(tokens.cache);
-      usage.inputTokens += asNumber(tokens.input, 0);
+      usage.inputTokens += asNumber(tokens.input, 0) + asNumber(cache.write, 0);
       usage.cachedInputTokens += asNumber(cache.read, 0);
       usage.outputTokens += asNumber(tokens.output, 0) + asNumber(tokens.reasoning, 0);
-      costUsd += asNumber(part.cost, 0);
+      if (typeof part.cost === "number" && Number.isFinite(part.cost) && part.cost >= 0) costUsd = (costUsd ?? 0) + part.cost;
+      else missingCost = true;
       continue;
     }
 
@@ -82,7 +84,7 @@ export function parseOpenCodeJsonl(stdout: string) {
     sessionId,
     summary: messages.join("\n\n").trim(),
     usage,
-    costUsd,
+    costUsd: missingCost ? null : costUsd,
     errorMessage: errors.length > 0 ? errors.join("\n") : null,
     toolErrors,
   };

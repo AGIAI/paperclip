@@ -1,4 +1,5 @@
 import { createProviderStoppedBoundary } from "@paperclipai/adapter-utils/provider-stopped-boundary";
+import { createUsageCheckpointLog } from "@paperclipai/adapter-utils/usage-checkpoint";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1318,6 +1319,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         }
       };
 
+      const accountingLog = createUsageCheckpointLog(onLog, ctx.onUsage, stdout => {
+        const parsed = parseCodexJsonl(stdout);
+        return { usage: parsed.usage, usageBasis: "per_run", provider: "openai", biller: resolveCodexBiller(effectiveEnv, billingType), billingType, model, costUsd: null, complete: parsed.sawProtocolTerminalEvent };
+      });
       try {
         const proc = await runAdapterExecutionTargetProcess(runId, runtimeExecutionTarget, command, args, {
           onProcessStopped: providerStop.beginInvocation(),
@@ -1331,7 +1336,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           onLog: async (stream, chunk) => {
             monitor?.noteOutputChunk(stream, chunk);
             if (stream === "stdout") {
-              await onLog(stream, chunk);
+              await accountingLog(stream, chunk);
               return;
             }
             const cleaned = stripCodexRolloutNoise(chunk);
@@ -1423,6 +1428,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           exitCode: attempt.proc.exitCode,
           signal: attempt.proc.signal,
           timedOut: true,
+          usage: attempt.parsed.usage,
+          usageBasis: "per_run",
+          provider: "openai",
+          biller: resolveCodexBiller(effectiveEnv, billingType),
+          model,
+          billingType,
+          costUsd: null,
           errorMessage: `Timed out after ${timeoutSec}s`,
           clearSession: clearSessionOnMissingSession,
         };

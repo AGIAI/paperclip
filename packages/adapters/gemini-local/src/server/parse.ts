@@ -58,21 +58,19 @@ function accumulateUsage(
   const usageMetadata = parseObject(usage.usageMetadata);
   const source = Object.keys(usageMetadata).length > 0 ? usageMetadata : usage;
 
-  target.inputTokens += asNumber(
-    source.input_tokens,
-    asNumber(source.inputTokens, asNumber(source.promptTokenCount, 0)),
-  );
-  target.cachedInputTokens += asNumber(
-    source.cached_input_tokens,
-    asNumber(
-      source.cachedInputTokens,
-      asNumber(source.cachedContentTokenCount, asNumber(source.cached, 0)),
-    ),
-  );
-  target.outputTokens += asNumber(
-    source.output_tokens,
-    asNumber(source.outputTokens, asNumber(source.candidatesTokenCount, 0)),
-  );
+  // Gemini CLI's input_tokens is the full prompt; input is uncached input.
+  // https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/output/stream-json-formatter.ts
+  const cached = asNumber(source.cached_input_tokens,
+    asNumber(source.cachedInputTokens, asNumber(source.cachedContentTokenCount, asNumber(source.cached, 0))));
+  const prompt = asNumber(source.input_tokens, asNumber(source.inputTokens, asNumber(source.promptTokenCount, 0)));
+  const toolInput = asNumber(source.toolUsePromptTokenCount, 0);
+  target.inputTokens += Math.max(0, asNumber(source.input, prompt - cached)) + toolInput;
+  target.cachedInputTokens += cached;
+  // The streaming CLI omits a separate thought count, but includes it in total_tokens.
+  const response = asNumber(source.output_tokens, asNumber(source.outputTokens, asNumber(source.candidatesTokenCount, 0)));
+  const total = asNumber(source.total_tokens, asNumber(source.totalTokenCount, 0));
+  target.outputTokens += Math.max(response + asNumber(source.thoughtsTokenCount, 0), total - prompt - toolInput);
+
 }
 
 export function parseGeminiJsonl(stdout: string) {
@@ -145,7 +143,8 @@ export function parseGeminiJsonl(stdout: string) {
         asString(event.text, "").trim() ||
         asString(event.response, "").trim();
       if (resultText && messages.length === 0) messages.push(resultText);
-      costUsd = asNumber(event.total_cost_usd, asNumber(event.cost_usd, asNumber(event.cost, costUsd ?? 0))) || costUsd;
+      const reportedCost = [event.total_cost_usd, event.cost_usd, event.cost].find((value) => typeof value === "number" && Number.isFinite(value) && value >= 0);
+      if (typeof reportedCost === "number") costUsd = reportedCost;
       const status = asString(event.status, "").toLowerCase();
       const isError =
         event.is_error === true ||
@@ -183,7 +182,8 @@ export function parseGeminiJsonl(stdout: string) {
 
     if (type === "step_finish" || event.usage || event.usageMetadata) {
       accumulateUsage(usage, event.usage ?? event.usageMetadata);
-      costUsd = asNumber(event.total_cost_usd, asNumber(event.cost_usd, asNumber(event.cost, costUsd ?? 0))) || costUsd;
+      const reportedCost = [event.total_cost_usd, event.cost_usd, event.cost].find((value) => typeof value === "number" && Number.isFinite(value) && value >= 0);
+      if (typeof reportedCost === "number") costUsd = reportedCost;
       continue;
     }
   }
