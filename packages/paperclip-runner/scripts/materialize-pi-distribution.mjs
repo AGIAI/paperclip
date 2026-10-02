@@ -109,6 +109,19 @@ export function piDistributionBootstrapSource() {
   ].join("\n");
 }
 
+/** The already hash-verified Node archive also pins setup's package manager. */
+export async function resolvePiBundledNpm(nodeRoot) {
+  const npmRoot = join(nodeRoot, "lib/node_modules/npm");
+  const manifest = join(npmRoot, "package.json");
+  const entry = join(npmRoot, "bin/npm-cli.js");
+  for (const path of [manifest, entry]) {
+    const info = await lstat(path);
+    if (!info.isFile() || info.isSymbolicLink() || info.nlink !== 1 || await realpath(path) !== path) throw new Error("Pinned Pi npm has an invalid archive entry");
+  }
+  if (JSON.parse(await readFile(manifest, "utf8")).version !== "11.19.0") throw new Error("Pinned Pi Node archive has an unexpected npm version");
+  return entry;
+}
+
 /** Build on the target platform. No lifecycle scripts, model requests, or auth. */
 export async function materializePiDistribution({ outputRoot, nodeExecutable, npmExecutable = "npm", inputs, checkCancelled = () => {} }) {
   // Cancellation is observed between bounded subprocesses. A setup signal must
@@ -131,6 +144,7 @@ export async function materializePiDistribution({ outputRoot, nodeExecutable, np
     const target = `${process.platform}-${process.arch}`;
     const nodePin = PI_NODE_DISTRIBUTIONS[target];
     let node;
+    let bundledNpm;
     if (nodeExecutable) node = await realpath(nodeExecutable);
     else {
       const archiveName = `node-v${PI_NODE_VERSION}-${target}.tar.gz`;
@@ -145,8 +159,9 @@ export async function materializePiDistribution({ outputRoot, nodeExecutable, np
       if (hash(bytes) !== nodePin.archiveSha256) throw new Error("Pi Node archive does not match its release pin");
       const archivePath = join(staging, archiveName); await writeFile(archivePath, bytes);
       const nodeRoot = join(staging, "node-extract"); await mkdir(nodeRoot);
-      await runOwned("tar", ["-xzf", archivePath, "-C", nodeRoot, "--strip-components=2", `node-v${PI_NODE_VERSION}-${target}/bin/node`], { timeout: 30_000 });
-      node = join(nodeRoot, "node");
+      await runOwned("tar", ["-xzf", archivePath, "-C", nodeRoot, "--strip-components=1", `node-v${PI_NODE_VERSION}-${target}/bin/node`, `node-v${PI_NODE_VERSION}-${target}/lib/node_modules/npm`], { timeout: 30_000 });
+      node = join(nodeRoot, "bin/node");
+      bundledNpm = await resolvePiBundledNpm(nodeRoot);
     }
     if (hash(await readFile(node)) !== nodePin.executableSha256 || (await lstat(node)).size !== nodePin.executableSize) throw new Error("Pi Node executable does not match its target release pin");
     const version = (await runOwned(node, ["--version"], { env: {}, timeout: buildNodeStartupTimeout() })).stdout.trim();
@@ -161,7 +176,10 @@ export async function materializePiDistribution({ outputRoot, nodeExecutable, np
     // .npmrc. Public registry downloads need no private application credential.
     const environment = Object.fromEntries(["PATH", "LANG", "LC_ALL", "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"].flatMap((key) => typeof process.env[key] === "string" ? [[key, process.env[key]]] : []));
     environment.HOME = buildHome;
-    await runOwned(npmExecutable, piDistributionInstallCommand(), { cwd: runtimeRoot, env: environment, timeout: 300_000, maxBuffer: 4 * 1024 * 1024 });
+    // npm 10 prunes non-host packages bundled by upstream Pi, unlike the npm
+    // 11.19.0 used to qualify this complete closure. Public setup must use the
+    // npm pinned by the verified Node archive, never whichever npm is on PATH.
+    await runOwned(bundledNpm ? node : npmExecutable, [...(bundledNpm ? [bundledNpm] : []), ...piDistributionInstallCommand()], { cwd: runtimeRoot, env: environment, timeout: 300_000, maxBuffer: 4 * 1024 * 1024 });
     const installedLockBytes = await readFile(join(runtimeRoot, "package-lock.json"));
     if (!installedLockBytes.equals(await readFile(join(inputLockDirectory, "package-lock.json")))) throw new Error("Pi installation changed its committed lock");
     const lock = JSON.parse(installedLockBytes.toString("utf8"));
