@@ -166,8 +166,8 @@ describe("IssueMonitorBanner / IssueMonitorComposerStrip rendering", () => {
     flushSync(() => root.render(<><IssueMonitorBanner issue={issue} onCheckNow={vi.fn()} /><IssueMonitorComposerStrip issue={issue} onCheckNow={vi.fn()} /></>));
     expect(container.textContent).toContain("Pool exhausted");
     expect(container.textContent).toContain("Usage recheck in 1m");
-    expect(container.textContent).toContain("This task keeps its account");
-    expect(container.textContent).toContain("The selected account stays pinned.");
+    expect(container.textContent).toContain("Tasks with a selected account keep it while waiting.");
+    expect(container.textContent).toContain("Work resumes when usage permits.");
     expect(container.textContent).not.toContain("Attempt 1");
     expect(container.querySelector("button")).not.toBeNull();
     flushSync(() => root.unmount());

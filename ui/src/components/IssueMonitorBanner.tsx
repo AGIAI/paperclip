@@ -85,8 +85,8 @@ export function buildMonitorSurfaceCopy(
     return {
       bannerTitle: "Pool exhausted",
       stripTitle: "Pool exhausted",
-      bannerMeta: [`Usage recheck ${eta} · ${absolute} (your time)`, "This task keeps its account and resumes when usage permits."],
-      stripMeta: [`Usage recheck ${eta} · ${absolute}`, "The selected account stays pinned."],
+      bannerMeta: [`Usage recheck ${eta} · ${absolute} (your time)`, "Tasks with a selected account keep it while waiting. Work resumes when usage permits."],
+      stripMeta: [`Usage recheck ${eta} · ${absolute}`, "Tasks with a selected account keep it while waiting."],
       tone: "info",
     };
   }
