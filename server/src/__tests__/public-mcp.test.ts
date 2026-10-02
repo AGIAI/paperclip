@@ -4,6 +4,7 @@ import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { activityLog, mcpEventSubscriptions, createDb, authUsers, companies, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
+import { instanceSettingsService } from "../services/instance-settings.js";
 import { createPublicMcpOAuth, publicMcpConfig, hashMcpSecret } from "../services/public-mcp/oauth.js";
 import { McpApiError, createMcpApiDispatch, createPublicMcpExecutor, publicMcpCapabilities } from "../services/public-mcp/capabilities.js";
 import { publicMcpIngressRoutes, publicMcpManagementRoutes } from "../routes/public-mcp.js";
@@ -29,10 +30,12 @@ const verifier = randomBytes(32).toString("base64url");
 const challenge = createHash("sha256").update(verifier).digest("base64url");
 
 describe("public MCP configuration", () => {
-  it("is opt-in and requires an HTTPS origin outside loopback", () => {
+  it("uses the configured origin independently of the retired environment gate", () => {
     expect(publicMcpConfig({})).toBeNull();
-    expect(() => publicMcpConfig({ PAPERCLIP_PUBLIC_MCP_ENABLED: "true", PAPERCLIP_PUBLIC_URL: "http://example.com" })).toThrow();
-    expect(publicMcpConfig({ PAPERCLIP_PUBLIC_MCP_ENABLED: "true", PAPERCLIP_PUBLIC_URL: "http://localhost:3100" })?.resource).toBe("http://localhost:3100/mcp/paperclip");
+    expect(() => publicMcpConfig({ PAPERCLIP_PUBLIC_URL: "http://example.com" })).toThrow();
+    expect(publicMcpConfig({ PAPERCLIP_PUBLIC_URL: "http://localhost:3100" })?.resource).toBe("http://localhost:3100/mcp/paperclip");
+    expect(publicMcpConfig({}, "https://paperclip.example")?.origin).toBe("https://paperclip.example");
+    expect(publicMcpConfig({ PAPERCLIP_PUBLIC_MCP_ENABLED: "true" })).toBeNull();
     expect(publicMcpCapabilities.map((c) => c.name)).not.toEqual(expect.arrayContaining(["run_tool", "call_api"]));
   });
 });
@@ -46,6 +49,8 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     temp = await startEmbeddedPostgresTestDatabase("paperclip-public-mcp-");
     db = createDb(temp.connectionString);
     oauth = createPublicMcpOAuth(db, config);
+    expect(await oauth.isEnabled()).toBe(false);
+    await instanceSettingsService(db).updateExperimental({ enablePublicMcp: true });
   }, 90000);
   afterAll(async () => { await temp?.cleanup(); vi.unstubAllEnvs(); });
 
@@ -89,6 +94,35 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     const stored = await db.select().from(mcpOauthTokens).where(eq(mcpOauthTokens.grantId, principal.grant.id));
     expect(stored.map((t) => t.tokenHash)).toContain(hashMcpSecret(f.tokens.access_token));
     expect(JSON.stringify(stored)).not.toContain(f.tokens.access_token);
+  });
+
+  it("reads the experimental switch live and keeps connection revocation available while disabled", async () => {
+    const f = await fixture();
+    const revocable = await fixture();
+    const settings = instanceSettingsService(db);
+    const dispatch = vi.fn();
+    const execute = createPublicMcpExecutor(db, oauth, dispatch);
+    const app = express(); app.use(express.json());
+    app.use(publicMcpIngressRoutes(oauth, execute));
+    app.use((req, _res, next) => { req.actor = f.actor; next(); });
+    app.use("/api", publicMcpManagementRoutes(oauth));
+    try {
+      await settings.updateExperimental({ enablePublicMcp: false });
+      expect(await createPublicMcpOAuth(db, config).isEnabled()).toBe(false);
+      for (const path of ["/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource/mcp/paperclip"]) {
+        expect((await request(app).get(path)).status).toBe(503);
+      }
+      expect((await request(app).post("/mcp/paperclip").set("Authorization", `Bearer ${f.tokens.access_token}`).send({})).status).toBe(503);
+      await expect(oauth.register({ client_name: "disabled", redirect_uris: [redirectUri] })).rejects.toMatchObject({ status: 503 });
+      await expect(oauth.token({ grant_type: "refresh_token", client_id: f.client.client_id, resource: config.resource, refresh_token: f.tokens.refresh_token })).rejects.toMatchObject({ status: 503 });
+      await expect(execute(f.tokens.access_token, "paperclip_list_agents", { companyId: f.company.id })).rejects.toMatchObject({ status: 503 });
+      expect(dispatch).not.toHaveBeenCalled();
+      expect((await request(app).get("/api/mcp/connections")).status).toBe(200);
+      expect((await request(app).post("/mcp/oauth/revoke").send({ token: revocable.tokens.access_token, client_id: revocable.client.client_id })).status).toBe(200);
+    } finally { await settings.updateExperimental({ enablePublicMcp: true }); }
+    expect((await request(app).get("/.well-known/oauth-authorization-server")).status).toBe(200);
+    await expect(oauth.authenticate(f.tokens.access_token)).resolves.toMatchObject({ grant: { userId: f.actor.userId } });
+    await expect(oauth.authenticate(revocable.tokens.access_token)).rejects.toThrow();
   });
 
   it("rotates refresh tokens and persists revocation on replay", async () => {
@@ -453,6 +487,25 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     await f.service.subscribe(f.principal, f.input);
     await f.service.tick();
     expect(f.received.filter(r => r.body.eventId)).toHaveLength(1);
+    await f.service.unsubscribe(f.principal, f.input);
+  });
+
+  it("pauses queued event delivery and new subscriptions while the experimental switch is off", async () => {
+    const f = await eventFixture();
+    const settings = instanceSettingsService(db);
+    await f.service.subscribe(f.principal, f.input);
+    await f.activity(); f.setStatus(503); await f.service.tick();
+    const count = f.received.length;
+    try {
+      await settings.updateExperimental({ enablePublicMcp: false });
+      f.advance(10_000); f.setStatus(204);
+      await f.service.tick();
+      expect(f.received).toHaveLength(count);
+      await expect(f.service.subscribe(f.principal, f.input)).rejects.toMatchObject({ status: 503 });
+      await expect(oauth.authorizeGrant(f.principal.grant.id)).rejects.toMatchObject({ status: 503 });
+    } finally { await settings.updateExperimental({ enablePublicMcp: true }); }
+    await f.service.tick();
+    expect(f.received).toHaveLength(count + 1);
     await f.service.unsubscribe(f.principal, f.input);
   });
 

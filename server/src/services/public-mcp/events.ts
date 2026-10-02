@@ -75,6 +75,7 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
   }
 
   async function subscribe(principal: McpPrincipal, raw: unknown, cloud?: CloudEventAuthority) {
+    await oauth.assertEnabled();
     const requestedAt = new Date(now());
     const input = subscribeSchema.parse(raw);
     validate(input);
@@ -207,6 +208,7 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
   }
   let running: Promise<void> | null = null;
   const tick = () => running ?? (running = (async () => {
+    if (!await oauth.isEnabled()) return;
     await db.delete(subscriptions).where(lt(subscriptions.expiresAt, new Date(now() - 7 * 24 * hour)));
     const active = await db.select().from(subscriptions).where(and(isNull(subscriptions.stoppedAt), gt(subscriptions.expiresAt, new Date(now())))).orderBy(asc(subscriptions.scannedAt)).limit(20);
     for (const s of active) await enqueue(s);

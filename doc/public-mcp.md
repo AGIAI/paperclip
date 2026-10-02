@@ -9,12 +9,22 @@ separate. The accepted roadmap is in
 
 ## Enable an instance
 
-Apply database migrations with the normal instance upgrade workflow. Set:
+Apply database migrations with the normal instance upgrade workflow. In Paperclip,
+open **Settings → Experimental → Assistant connections (MCP)** and turn it on.
+Instance administrators can change this setting. It is off by default and takes
+effect immediately without restarting the server.
+
+Use the instance's configured authentication public URL, or explicitly set:
 
 ```sh
-PAPERCLIP_PUBLIC_MCP_ENABLED=true
 PAPERCLIP_PUBLIC_URL=https://YOUR-PAPERCLIP-HOST
 ```
+
+The retired `PAPERCLIP_PUBLIC_MCP_ENABLED` variable has no effect. The persisted
+`enablePublicMcp` setting controls discovery, sign-in, tools and event delivery.
+Turning it off blocks new calls and deliveries; already delegated work continues.
+Connection management and revocation remain available. Turning it back on allows
+unexpired connections and subscriptions to resume.
 
 The URL must be an origin without a path, credentials, query or fragment. HTTP
 is allowed only for localhost/loopback development. The feature is disabled by
