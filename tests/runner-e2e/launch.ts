@@ -52,6 +52,8 @@ import {
 } from "./types.js";
 import { assertRunnerE2EPrerequisites } from "./prerequisites.js";
 import { assertNativeCompletionSelection, prepareNativeCompletionPreflight, NATIVE_COMPLETION_PREFLIGHT_ENV } from "./native-completion-admission.js";
+import { prepareStockHarnessPreflight, STOCK_PREFLIGHT_ENV } from "./stock-harness-admission.js";
+
 import {
   reapNewDetachedDarwinSharedMemory,
   snapshotDarwinSharedMemory,
@@ -1091,6 +1093,10 @@ async function main() {
     const nativeCampaignDirectory = path.join(resultsRoot, nativeCampaignId);
     await mkdir(nativeCampaignDirectory, { recursive: true });
     process.env[NATIVE_COMPLETION_PREFLIGHT_ENV] = prepareNativeCompletionPreflight(nativeCampaignDirectory);
+  }
+  if (executions.some(execution => execution.suite.id === "stock-harness")) {
+    process.env[STOCK_PREFLIGHT_ENV] = prepareStockHarnessPreflight();
+
   }
 
   await loadLocalEnvironment(process.env);

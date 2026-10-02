@@ -110,6 +110,9 @@ export function stockHarnessSourceDigest() {
   for (const source of [
     "stock-harness.ts", "context-integrity-cases.ts", "context-integrity-scoring.ts",
     "context-integrity-flow.ts", "chat-cases.ts", "chat-flow.ts", "live-fixtures.ts", "runner.spec.ts",
+    "stock-harness-checks.mjs", "stock-harness-admission.ts",
+    "../../server/src/onboarding-assets/default/AGENTS.md",
+    "../../packages/adapter-utils/src/server-utils.ts",
   ]) hash.update(source).update(readFileSync(new URL(source, import.meta.url)));
   return hash.digest("hex");
 }
