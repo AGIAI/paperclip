@@ -26,7 +26,7 @@ vi.mock("@playwright/test", () => ({ expect: (actual: any, message?: string) => 
   toHaveCount: async (value: number) => { if (typeof actual.count === "function") expect(actual.count()).toBe(value); },
 }) }));
 
-async function exercise(taskId: string, remote: boolean, failure?: "mutation" | "incomplete" | "missing-ack" | "missing-comment" | "foreign-comment" | "foreign-queued-body") {
+async function exercise(taskId: string, remote: boolean, failure?: "mutation" | "incomplete" | "missing-ack" | "missing-comment" | "foreign-comment" | "foreign-queued-body" | "steer-rejected") {
   harness.target = ""; harness.prompt = ""; harness.message = ""; harness.mutation = failure === "mutation"; harness.incomplete = failure === "incomplete";
   const task = piControlTasks.find(t => t.id === taskId)!, stopCase = taskId === "pending-permission-stop";
   const workspacePath = await mkdtemp(join(tmpdir(), "pi-controls-fixture-"));
@@ -77,7 +77,9 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
   };
   const waiters: Array<{ predicate: (request: any) => boolean; resolve: (request: any) => void }> = [];
   function postBrowser(path: string, body: unknown) {
-    const request = { url: () => `http://fixture${path}`, method: () => "POST", postDataJSON: () => body };
+    const rejected = failure === "steer-rejected" && path.endsWith("/steer");
+    const request = { url: () => `http://fixture${path}`, method: () => "POST", postDataJSON: () => body,
+      response: async () => ({ ok: () => !rejected, status: () => rejected ? 409 : 200 }) };
     const waiter = waiters.find(w => w.predicate(request)); if (!waiter) throw new Error("Browser request was not awaited");
     waiter.resolve(request); waiters.splice(waiters.indexOf(waiter), 1);
   }
@@ -134,6 +136,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
       observe: () => {}, capture: async () => {}, evidence: async (name: string, value: unknown) => saved.set(name, structuredClone(value)), remoteBootstrap,
       registerCleanupAssertion: (fn: () => Promise<any>) => localCleanup.push(fn), registerBeforeEnvironmentTeardownAssertion: (fn: () => Promise<any>) => remoteCleanup.push(fn) } as any);
     if (failure === "missing-ack") { await expect(call).rejects.toThrow("acknowledgement"); expect(browserDeclines).toBe(0); }
+    else if (failure === "steer-rejected") { await expect(call).rejects.toThrow("steering rejected: HTTP 409"); expect(browserDeclines).toBe(0); }
     else if (failure === "foreign-queued-body") { await expect(call).rejects.toThrow("browser comment queued"); expect(browserSteers).toBe(0); expect(browserDeclines).toBe(0); }
     else if (remote && (failure === "mutation" || failure === "incomplete")) await expect(call).rejects.toThrow();
     else {
@@ -174,4 +177,5 @@ it.each(["mutation", "incomplete"] as const)("fails local cleanup on %s despite 
 it.each(["mutation", "incomplete"] as const)("fails remote lifetime proof on %s despite an absent target", failure => exercise("same-turn-steering", true, failure));
 it("never denies the native write before the steering acknowledgement exists", () => exercise("same-turn-steering", false, "missing-ack"));
 it("rejects a queued body that differs from the exact browser submission", () => exercise("same-turn-steering", false, "foreign-queued-body"));
+it("stops before denial when the real steering API rejects the request", () => exercise("same-turn-steering", false, "steer-rejected"));
 it.each(["missing-comment", "foreign-comment"] as const)("retains and rejects %s during cleanup without fabricating persisted output", failure => exercise("same-turn-steering", false, failure));

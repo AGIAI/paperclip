@@ -773,6 +773,28 @@ pub struct AcpxCommandExecutor {
     launch_profile: Option<AcpxLaunchProfile>,
 }
 
+// The durable command's turn and the live provider callback have separate IDs.
+// Legacy direct callers use turnId for both; an explicit provider binding must
+// never fall back to the durable ID if it is malformed.
+fn turn_control_provider_turn_id(payload: &Value) -> Result<&str, DurableRunnerError> {
+    let durable_turn_id = payload
+        .get("turnId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| DurableRunnerError::invalid("turn.steer payload.turnId is required"))?;
+    let provider_turn_id = match payload.get("providerTurnId") {
+        None => durable_turn_id,
+        Some(value) => value.as_str().ok_or_else(|| {
+            DurableRunnerError::invalid("turn.steer payload.providerTurnId must be a string")
+        })?,
+    };
+    if !is_stable_id(provider_turn_id, DURABLE_STABLE_ID_CHARS) {
+        return Err(DurableRunnerError::invalid(
+            "turn.steer provider turn identity is invalid",
+        ));
+    }
+    Ok(provider_turn_id)
+}
+
 impl AcpxCommandExecutor {
     pub fn with_runner_config(state_dir: impl Into<PathBuf>, config: &DurableRunnerConfig) -> Self {
         Self {
@@ -1490,10 +1512,7 @@ impl AcpxCommandExecutor {
             .get("text")
             .and_then(Value::as_str)
             .ok_or_else(|| DurableRunnerError::invalid("turn.steer payload.text is required"))?;
-        let turn_id = payload
-            .get("turnId")
-            .and_then(Value::as_str)
-            .ok_or_else(|| DurableRunnerError::invalid("turn.steer payload.turnId is required"))?;
+        let turn_id = turn_control_provider_turn_id(payload)?;
         let mode = match payload.get("mode") {
             None => "steer",
             Some(Value::String(mode)) => mode.as_str(),
@@ -2834,6 +2853,31 @@ mod tests {
             assert!(error.to_string().contains("mode must be a string"));
         }
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn turn_control_uses_the_explicit_live_provider_binding() {
+        let command = json!({"turnId":"durable-turn", "providerTurnId":"provider-turn"});
+        assert_eq!(
+            turn_control_provider_turn_id(&command).unwrap(),
+            "provider-turn"
+        );
+        let legacy = json!({"turnId":"provider-turn"});
+        assert_eq!(
+            turn_control_provider_turn_id(&legacy).unwrap(),
+            "provider-turn"
+        );
+        for malformed in [
+            Value::Null,
+            json!(false),
+            json!(1),
+            json!(""),
+            json!("bad\0id"),
+        ] {
+            let command = json!({"turnId":"provider-turn", "providerTurnId":malformed});
+            assert!(turn_control_provider_turn_id(&command).is_err());
+        }
+        assert!(turn_control_provider_turn_id(&json!({"providerTurnId":"provider-turn"})).is_err());
     }
 
     #[test]

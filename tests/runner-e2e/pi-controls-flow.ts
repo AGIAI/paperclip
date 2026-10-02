@@ -189,8 +189,11 @@ export async function runPiControlsFlow(input: {
       const route = `/api/issues/${issue.id}/queued-comments/${commentId}/steer`;
       const posted = page.waitForRequest(request => new URL(request.url()).pathname === route && request.method() === "POST");
       await page.getByTestId(`task-chat-queued-steer-${commentId}`).click();
-      const body = (await posted).postDataJSON();
+      const steeringRequest = await posted;
+      const body = steeringRequest.postDataJSON();
       check("exact-browser-steer", body.queueId === queueId && body.revision === queue.revision && body.targetRunId === pending.scope.runId, "Browser steers the exact queued comment into the active run");
+      const response = await steeringRequest.response();
+      if (!response?.ok()) throw new Error(`Pi native steering rejected: HTTP ${response?.status() ?? "missing"}`);
       steered = { pending, commentId, queueId, marker };
       await pollUntil({ label: "Pi same-turn steering acknowledgement", deadlineAt: input.deadlineAt, intervalMs: 200, load,
         accept: state => { assertSamePiPending(pending, observePiControlPending({ ...state, scope: scope() })); readPiSteeringAcknowledgement({ ...state, ...steered! }); return true; } });

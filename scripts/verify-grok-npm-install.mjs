@@ -129,7 +129,8 @@ try {
   assert.equal(receipt.status, 'installed_verified');
   assert.equal(receipt.target, 'linux-x64');
   assert.equal(readFileSync(join(consumer, 'package-lock.json'), 'utf8'), consumerLock, 'Pi setup must preserve the consumer dependency graph');
-  console.log(isolated(['node', '/packages/pi-public-install-probe.mjs', '/consumer/node_modules/@paperclipai/server']).toString().trim());
+  // Verified launch leases also materialize the runtime in private scratch.
+  console.log(isolated(['node', '/packages/pi-public-install-probe.mjs', '/consumer/node_modules/@paperclipai/server'], { temporarySizeMiB: 2048 }).toString().trim());
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

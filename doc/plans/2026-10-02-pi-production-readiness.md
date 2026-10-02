@@ -94,6 +94,20 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   received one diagnostic shard rerun; it is not counted as passing yet.
 - Earlier evidence in `doc/architecture/runner-pi-capabilities.md` is historical
   and must not be counted as qualification of a new source revision.
+- At `2a6107c04`, normal public Pi setup and closed admission pass on ARM and
+  Intel Mac (7.5 and 29.5 seconds). Intel uses a fresh compiled x64 daemon,
+  packaged before installation through the normal public CLI/server graph.
+- The fresh steering attempt at `2a6107c04` reaches the real public Steer API
+  but receives `409 steering_stale_turn`. Rust checks the durable command ID
+  against the live provider turn even though the facade supplies a separate
+  `providerTurnId`. The correction uses that explicit provider binding, rejects
+  malformed bindings without fallback and keeps the existing live-turn fence.
+  All 333 core tests and 68 control calibrations pass. The browser fixture now
+  ends immediately on a rejected steering POST before sending any denial.
+- Linux CI now completes normal Pi setup with bounded larger scratch space.
+  Its offline launch probe still returns an unclassified startup rejection;
+  the verifier gives that launch's private runtime snapshots the same bounded
+  scratch capacity. This is not counted as a passing Linux receipt yet.
 
 ## Rollout and rollback
 
