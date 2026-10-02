@@ -1,7 +1,7 @@
 {
   "schema": "paperclip.stock-harness-comparison.v1",
   "variant": "previous-instructions",
-  "candidateSha": "ac6ddefb589c18fa9c30946db40e58499e9fb0e0",
+  "candidateSha": "712dc98cf52a26fafd1c894e40c081da991c4fa7",
   "restoredInstructionsFrom": "e00d10d5d5594f6e2d1e8cf4e0ec81c074b0bd88",
   "nativeCodex14920": "held-constant; no before/after performance claim",
   "productionDifferences": [

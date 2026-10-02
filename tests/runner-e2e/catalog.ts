@@ -1226,7 +1226,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     expectedMatrixSize: 24,
     definitionMetadata: {
       version: 1, instructions: "historical-default-hire-comparison", scheduling: "explicit-only",
-      comparison: { variant: "previous-instructions", candidateSha: "ac6ddefb589c18fa9c30946db40e58499e9fb0e0", restoredFrom: "e00d10d5d5594f6e2d1e8cf4e0ec81c074b0bd88", nativeCodexFix: "held-constant-14920" },
+      comparison: { variant: "previous-instructions", candidateSha: "712dc98cf52a26fafd1c894e40c081da991c4fa7", restoredFrom: "e00d10d5d5594f6e2d1e8cf4e0ec81c074b0bd88", nativeCodexFix: "held-constant-14920" },
       sourceDigest: stockHarnessSourceDigest(),
       grading: "public-default-bundle-and-delivered-prompts-plus-independent-lifecycle-oracles",
       vendorBaseEvidence: "required deterministic Codex driver/runnerd/Rust gate; task success is not vendor-base proof",
