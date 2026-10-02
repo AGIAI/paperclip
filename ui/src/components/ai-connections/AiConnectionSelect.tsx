@@ -26,6 +26,7 @@ export function AiConnectionSelect({
   error,
   onRetry,
   onConnect,
+  onReconnect,
   onChange,
   adapterType,
 }: AiConnectionPickerProps & { adapterType: string }) {
@@ -148,6 +149,9 @@ export function AiConnectionSelect({
           <SelectItem value="connect">Connect an account…</SelectItem>
         </SelectContent>
       </Select>
+      {!readOnly && onReconnect && !loading && !error && (
+        <Button type="button" variant="outline" onClick={onReconnect}>Reconnect account</Button>
+      )}
       {error && (
         <div className="space-y-2">
           <p role="alert" className="text-sm text-destructive">

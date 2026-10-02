@@ -54,7 +54,7 @@ const accounts: AiManagedConnectionSummary[] = [
     status: "connected",
   },
 ];
-function Providers() {
+function Providers({ canManageConnections = true }: { canManageConnections?: boolean }) {
   const [client] = useState(() => {
     const query = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -63,12 +63,14 @@ function Providers() {
       ["agents", companyId, "provider-access"],
       [{ id: "nova", name: "Nova" }],
     );
+    query.setQueryData(["ai-connections", companyId, "nova"], { currentUserId: "you", connections: accounts, canManageConnections });
     return query;
   });
   return (
     <QueryClientProvider client={client}>
       <AiProviderSetup
         companyId={companyId}
+        agentId="nova"
         onCancel={() => {}}
         onComplete={() => {}}
       />
@@ -149,5 +151,15 @@ export const CompatibleConnectionDropdown: Story = {
     await expect(
       within(canvasElement).getByRole("combobox", { name: "Connection" }),
     ).toHaveTextContent("Company OpenRouter");
+  },
+};
+
+export const MemberProviderAccess: Story = {
+  render: () => <Providers canManageConnections={false} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "OpenAI" }));
+    await expect(canvas.getByText("Which agents can use this connection?", { exact: true })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Continue", exact: true })).toBeEnabled();
   },
 };

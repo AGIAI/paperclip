@@ -40,7 +40,7 @@ const state = vi.hoisted(() => ({
   openNewIssue: vi.fn(),
 }));
 const managedApi = vi.hoisted(() => ({
-  list: vi.fn(async () => ({ currentUserId: "user-1", connections: [] })),
+  list: vi.fn(async () => ({ currentUserId: "user-1", canManageConnections: true, connections: [] })),
   create: vi.fn(async () => ({ connectionId: "managed-connection", grantId: "managed-grant" })),
   setDefault: vi.fn(async () => ({})),
 }));

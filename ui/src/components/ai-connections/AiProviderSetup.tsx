@@ -99,7 +99,7 @@ export function AiProviderSetup({
   const [ownership, setOwnership] = useState<"personal" | "shared">(
     reconnect?.ownership ?? "personal",
   );
-  const [allAgents, setAllAgents] = useState(!agentId);
+  const [allAgentsChoice, setAllAgents] = useState<boolean>();
   const [agentIds, setAgentIds] = useState(new Set(agentId ? [agentId] : []));
   const [protocol, setProtocol] = useState<AiProviderRouting["protocol"]>(
     reconnect?.routing?.protocol ?? "responses",
@@ -119,6 +119,12 @@ export function AiProviderSetup({
   const [secretAccessKey, setSecretAccessKey] = useState("");
   const [sessionToken, setSessionToken] = useState("");
   const client = useQueryClient();
+  const accounts = useQuery({
+    queryKey: ["ai-connections", companyId, agentId],
+    queryFn: () => aiConnectionsApi.list(companyId, agentId),
+  });
+  const canManageConnections = accounts.data?.canManageConnections ?? false;
+  const allAgents = allAgentsChoice ?? (!agentId && canManageConnections);
   const agents = useQuery({
     queryKey: ["agents", companyId, "provider-access"],
     queryFn: () => agentsApi.list(companyId),
@@ -270,6 +276,7 @@ export function AiProviderSetup({
         </>
       ) : step === "access" ? (
         <>
+          {accounts.error && <p role="alert" className="text-sm text-destructive">Could not load connection permissions. <Button type="button" variant="ghost" onClick={() => void accounts.refetch()}>Retry</Button></p>}
           {agents.error && (
             <p role="alert" className="text-sm text-destructive">
               Could not load agents. Try again.
@@ -277,6 +284,8 @@ export function AiProviderSetup({
           )}
           <AccessStepContent
             agents={agents.data ?? []}
+            pending={accounts.isPending || Boolean(accounts.error)}
+            capabilities={{ canCreateOrganizationGrant: canManageConnections, canSetCompanyInstall: canManageConnections }}
             authKind="api_key"
             grantKind={ownership === "shared" ? "organization" : "user"}
             grantKinds={["user", "organization"]}

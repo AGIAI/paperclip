@@ -1,3 +1,4 @@
+import { normalizeLegacyPrpStructuredRunResult } from "../protocol/result-normalization.js";
 import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import {
@@ -184,6 +185,18 @@ describe("provider-neutral completion result schema", () => {
     providerResult.completionClaim.criteria[0]!.status = "passed";
     providerResult.verification = [{ commandOrCheck: "model check", status: "pass" } as never];
     expect(providerValidate(providerResult)).toBe(true);
+  });
+
+  it.each([undefined, null, "", "   ", "artifact:verified-result"])("normalizes optional verification artifact metadata (%s)", (artifactRef) => {
+    const providerValidate = new Ajv2020({ strict: false }).compile(PRP_COMPLETION_RESULT_PROVIDER_INPUT_SCHEMA);
+    const input = { ...structuredClone(baseResult), verification: [{ commandOrCheck: "Check answer", status: "passed", artifactRef }] };
+    expect(providerValidate(input)).toBe(true);
+    const normalized = normalizeLegacyPrpStructuredRunResult(input);
+    expect(validate(normalized)).toBe(true);
+    expect(normalized).toMatchObject({ verification: [{ commandOrCheck: "Check answer", status: "passed" }] });
+    if (artifactRef?.trim()) expect(normalized).toHaveProperty("verification.0.artifactRef", artifactRef);
+    else expect(normalized).not.toHaveProperty("verification.0.artifactRef");
+    expect(providerValidate({ ...input, verification: [{ ...input.verification[0], artifactRef: 42 }] })).toBe(false);
   });
 
   it("requires a reason code for verification that was not run", () => {

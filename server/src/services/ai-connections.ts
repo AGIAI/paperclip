@@ -1,5 +1,6 @@
 import { syncConnectionCredentialBindings } from "./connection-credential-bindings.js";
 import { createHash, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { and, eq, inArray, or } from "drizzle-orm";
 import {
   type Db,
@@ -488,7 +489,7 @@ export function aiConnectionService(db: Db) {
         input.provider
     )
       throw unprocessable("Reconnect cannot change providers");
-    if (reconnect && JSON.stringify((reconnect.connection.config.ai as AiConnectionMetadata).routing) !== JSON.stringify(routing))
+    if (reconnect && !isDeepStrictEqual((reconnect.connection.config.ai as AiConnectionMetadata).routing, routing))
       throw unprocessable("Reconnect must retain this connection’s routing. Create another connection to change its destination.");
     if (
       reconnect &&

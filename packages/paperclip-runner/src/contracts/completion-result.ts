@@ -268,7 +268,10 @@ const providerVerificationCompatibilitySchema = {
       detail: { type: "string" },
       result: { type: "string" },
       cwd: { type: "string" },
-      artifactRef: { type: "string", minLength: 1 },
+      artifactRef: {
+        type: ["string", "null"],
+        description: "Reference to a real verification artifact. Omit or use null when no artifact exists; empty values are normalized away.",
+      },
     },
   },
 } as const;

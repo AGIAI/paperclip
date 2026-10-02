@@ -588,5 +588,10 @@ probe isolation, and new-runner home/environment boundaries. The isolated local
 test-drive exercised live OpenRouter requests using the Codex and Claude CLI
 probes, then completed real tasks using Codex, Claude, and OpenCode New Runner.
 The app walkthrough verified connection selection, saving, and completed tasks.
+A follow-up Codex/OpenRouter acceptance test ran a shell calculation, completed
+the task, then resumed from a new user message and completed a second shell
+calculation with the prior context. Reconnect coverage round-trips routing
+through PostgreSQL JSONB and verifies that credential rotation retains identity
+and agent access.
 Bedrock and private gateway credentials were not available for live verification;
 their mapping and validation are covered by deterministic tests.

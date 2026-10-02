@@ -144,6 +144,24 @@ describe("managed AI connections", () => {
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, saved.grantId));
     await expect(service.select({ ...input, binding: selected, userId: "alice", adapterType: "codex_local", model: "openai/gpt-5.4" })).rejects.toThrow("Reconnect");
   });
+  it("reconnects JSONB routing without changing its identity or access", async () => {
+    const routing = { kind: "gateway", protocol: "responses", auth: "bearer", baseUrl: "https://gateway.example/v1", models: [{ id: "gateway-model" }] } as const;
+    const input = { provider: "openai", method: "api_key", name: "Reconnect gateway", ownership: "personal", allAgents: false, agentIds: [agentId], routing: { ...routing, models: [...routing.models] } } as const;
+    const saved = await service.save(companyId, "alice", { ...input, agentIds: [...input.agentIds] }, "old-gateway-credential");
+    const [stored] = await db.select().from(toolConnections).where(eq(toolConnections.id, saved.connectionId));
+    expect(stored!.config.ai).toMatchObject({ routing });
+    // PostgreSQL JSONB reorders object keys; compare values, not serialization.
+    const reordered = { models: [...routing.models], auth: routing.auth, baseUrl: routing.baseUrl, protocol: routing.protocol, kind: routing.kind };
+    expect(await service.save(companyId, "alice", { ...input, agentIds: [], allAgents: true, connectionId: saved.connectionId, routing: reordered }, "new-gateway-credential")).toEqual(saved);
+    const selection = { companyId, agentId, userId: "alice", adapterType: "codex_local", binding: { provider: "openai", method: "api_key", mode: "delegated", ...saved } } as const;
+    const selected = await service.select(selection);
+    expect(await service.credential(selected)).toBe("new-gateway-credential");
+    const installs = await db.select().from(toolConnectionInstalls).where(eq(toolConnectionInstalls.connectionId, saved.connectionId));
+    expect(installs).toEqual([expect.objectContaining({ targetType: "agent", targetId: agentId })]);
+    await expect(service.save(companyId, "alice", { ...input, agentIds: [agentId], connectionId: saved.connectionId, routing: { ...reordered, baseUrl: "https://different.example/v1" } }, "rejected-credential")).rejects.toThrow("retain");
+    expect(await service.credential(await service.select(selection))).toBe("new-gateway-credential");
+  });
+
   it("saves no-auth endpoints without a secret and refuses protocol mismatches", async () => {
     const routing = { kind: "local", protocol: "chat", auth: "none", baseUrl: "http://localhost:11434/v1", models: [] } as const;
     const saved = await service.save(companyId, "alice", { provider: "openai", method: "api_key", name: "Local", ownership: "personal", allAgents: true, agentIds: [], routing: { ...routing, models: [] } }, "");

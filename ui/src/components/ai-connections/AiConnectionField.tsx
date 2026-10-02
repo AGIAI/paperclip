@@ -97,7 +97,7 @@ export function AiConnectionField({
   const openConnection = (reconnect?: AiManagedConnectionSummary) => {
     returnFocus.current = document.activeElement as HTMLElement;
     setReconnecting(reconnect);
-    setAdvancedSetup(false);
+    setAdvancedSetup(!reconnect && provider === "openrouter");
     setAllAgents(accounts.data?.canManageConnections ?? false);
     setSavedAccount(undefined);
     selectDefault.reset();
@@ -211,7 +211,7 @@ export function AiConnectionField({
             initialMethod={reconnecting?.method ?? method}
             fixedMethod={Boolean(reconnecting)}
             connectionId={reconnecting?.id}
-            name={reconnecting?.name ?? `My ${provider === "anthropic" ? "Claude" : provider === "openai" ? "OpenAI" : provider === "xai" ? "Grok" : "OpenRouter"} ${method === "subscription" ? "subscription" : "API"}`}
+            name={reconnecting?.name ?? `My ${provider === "anthropic" ? "Claude" : provider === "openai" ? "OpenAI" : provider === "xai" ? "Grok" : provider === "google" ? "Gemini" : "OpenRouter"} ${method === "subscription" ? "subscription" : "API"}`}
             ownership="personal"
             agentIds={agentId ? [agentId] : []}
             allAgents={allAgents}
