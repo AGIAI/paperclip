@@ -9,7 +9,7 @@ function recording(generation: "legacy" | "native" = "legacy"): StockHarnessEvid
     bundle: { entryFile: "AGENTS.md", files: [{ path: "AGENTS.md", content: STOCK_HIRE_IDENTITY }] },
     runIds: ["fresh", "resumed"],
     invocations: generation === "native" ? [] : [
-      { runId: "fresh", prompt: "You are agent agent (QA).\nConnection tools:\nUse connections_search.\nCurrent assignment.", promptMetrics: { heartbeatPromptChars: 113 } },
+      { runId: "fresh", prompt: "You are agent agent (QA).\nConnection tools:\nUse connections_search.\nCurrent assignment.\nAfter 2 consecutive failures of the same control-plane write", promptMetrics: { heartbeatPromptChars: 113 } },
       { runId: "resumed", prompt: "Paperclip Resume Delta\nCurrent ordered comments.", promptMetrics: { heartbeatPromptChars: 0 } },
     ],
   };
@@ -67,8 +67,7 @@ describe("stock harness Product E2E", () => {
     ["missing-invocation", (e: StockHarnessEvidence) => { e.invocations.pop(); }, "invocation-evidence-complete"],
     ["empty-prompt", (e: StockHarnessEvidence) => { e.invocations[1]!.prompt = ""; }, "invocation-evidence-complete"],
     ["malformed-prompt", (e: StockHarnessEvidence) => { e.invocations[1]!.prompt = { text: "hidden" }; }, "invocation-evidence-complete"],
-    ["old-startup", (e: StockHarnessEvidence) => { e.invocations[0]!.prompt += "\nExecution contract:"; }, "generic-procedures-absent"],
-    ["old-resume", (e: StockHarnessEvidence) => { e.invocations[1]!.prompt += "\na successful process exit or final response is not sufficient"; }, "generic-procedures-absent"],
+    ["missing-historical-procedures", (e: StockHarnessEvidence) => { e.invocations[0]!.prompt = "You are agent agent. Connection tools: connections_search"; }, "historical-generic-procedures-observed"],
     ["missing-connections", (e: StockHarnessEvidence) => { e.invocations[0]!.prompt = "You are agent agent."; }, "fresh-default-delivered"],
     ["missing-fresh-evidence", (e: StockHarnessEvidence) => { e.invocations[0]!.promptMetrics = {}; }, "fresh-default-delivered"],
     ["wrong-budget", (e: StockHarnessEvidence) => { e.budgets.agentMonthlyCents = 0; }, "budget-hard-stops"],

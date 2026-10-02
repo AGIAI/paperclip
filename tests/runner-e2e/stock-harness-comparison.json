@@ -1,0 +1,29 @@
+{
+  "schema": "paperclip.stock-harness-comparison.v1",
+  "variant": "previous-instructions",
+  "candidateSha": "a63437069de58d22ee5adbcb6a6202c007dcf037",
+  "restoredInstructionsFrom": "e00d10d5d5594f6e2d1e8cf4e0ec81c074b0bd88",
+  "nativeCodex14920": "held-constant; no before/after performance claim",
+  "productionDifferences": [
+    "server/src/onboarding-assets/default/AGENTS.md",
+    "packages/adapter-utils/src/server-utils.ts"
+  ],
+  "structuralOracle": "Historical manual exact content and observed generic procedures; independent behavioral graders unchanged",
+  "expectedMatrixCells": 24,
+  "expectedProviderTurns": 48,
+  "maxInitialCampaignsPerVariant": 1,
+  "behavioralSources": {
+    "context-integrity-cases.ts": "201d05f8257c1121a94dd9d8a22f08b9db80555e388013ffeabb65e301499fd2",
+    "context-integrity-scoring.ts": "50d370044e45386ba87fb23ca63c228b96bb8373d67bb7e82e8b2a89eb23f252",
+    "context-integrity-flow.ts": "63bcb7bdba4c80b15ff5872f16383844456eab0c5a10627da5d3487a26821c6a",
+    "chat-cases.ts": "754b251bdd42605e147da9081b663329234260d2b13df0df3d44562e362b14ca",
+    "chat-flow.ts": "11fc506559da61315ce04a877f6b38a055e71e532fecfcf62c749a1d3bf985e7",
+    "live-fixtures.ts": "1ef80209cc53cc514a8e58af4c2225e38ec15b20acf17ca7564506ca6617ac3e",
+    "runner.spec.ts": "41090ca983607edb2a6c21975dccf6ee84dde723ad31f60b7f39c42b65446fa1",
+    "types.ts": "c45dc3b2366457449ec9e7d413f930605dec88ea93a14ce5c5a5f445a27d148c"
+  },
+  "instructionSha256": {
+    "manual": "e4d2375d722602cd744403292d99f6e6c9b7e8014d9cdfa6f9811ace03428e5f",
+    "shared": "819026782b92f37064fca354ddbca685b3c05f1869ec560e40d8a757b0a8aee9"
+  }
+}
