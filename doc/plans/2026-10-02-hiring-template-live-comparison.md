@@ -1,6 +1,6 @@
 # Matched hiring template qualification
 
-TL;DR: No live outcomes are graded yet. There are **0 established new failures, 0 established new passes, 0 established unchanged outcomes, and 2 pending profile pairs**. Pending pairs cannot establish whether the reduced hiring templates made task outcomes worse. PR #14985 was merged after current-head CI and 5/5 review; live qualification remains separate and in progress.
+TL;DR: The first paired result is **Claude Fail → Fail**, with **0 new overall machine failures, 0 new passes, 1 unchanged failure, and 1 pending Codex pair**. Both Claude variants hired/reused the coder, saved two correct independently checked JSON documents and preserved the first. The original strict five-turn assertion fails in both: each has **7 successful runs**, including 2 automatic task-completion chat wakes. Both instruction-read coverage results are **uncomparable**; this partial evidence cannot establish non-regression. Candidate coder-template content is exact; baseline content is not. PR #14985 is merged; no models have been rerun.
 
 ## Frozen comparison
 
@@ -18,9 +18,17 @@ The hiring fixture digest is `4d7f18420889325af89aa48eaaf021e8178aa6d26d504b9204
 | Profile / model | Historical outcome | Reduced-template outcome | Source/read coverage | Paired conclusion |
 | --- | --- | --- | --- | --- |
 | Native Codex / gpt-5.6-sol | Pending | Pending | Pending | Unknown |
-| Native ACPX Claude / claude-sonnet-5 | Pending | Pending | Pending | Unknown |
+| Native ACPX Claude / claude-sonnet-5 | Fail: strict turn count | Fail: strict turn count | Both uncomparable; candidate exact coder body passes, baseline fails | Unchanged machine failure; core delivery succeeds both |
 
-Each cell uses the actual production default CEO bundle with no custom manual and explicitly requests the production hiring skill and coder reference. It should create exactly one reusable coder, preserve that coder’s managed template and skill selection, produce two independently scored saved JSON documents in separate tasks, preserve the first, and report ownership/status. Expected scope is 5 turns per cell, **4 cells / 20 turns total**, 15 minutes per cell, **zero automatic retries**, with $10 company and lead monthly hard stops. Costs, actual run count, timings and cleanup are pending retained evidence; they are not assumed zero.
+Each cell uses the actual production default CEO bundle with no custom manual and explicitly requests the production hiring skill and coder reference. It should create exactly one reusable coder, preserve that coder’s managed template and skill selection, produce two independently scored saved JSON documents in separate tasks, preserve the first, and report ownership/status. Expected scope is 5 turns per cell, **4 cells / 20 turns total**, 15 minutes per cell, **zero automatic retries**, with $10 company and lead monthly hard stops. Completed Claude scope is 14 actual successful runs across both variants, including four automatic completion-wake runs beyond the expected ten; these are controller wakes, not automatic attempt retries. Candidate duration is 281.627 s, baseline 292.031 s. Native usage reports zero cost, so actual model charges remain unknown; runtime is unmetered. Codex timing/cost/run count and final campaign publication remain pending.
+
+## Original Claude failures and limits
+
+Both original result files report `Hiring-template workflow outcome failed: five-successful-turns`; their verdicts are retained. The other six independently scored outcome checks pass in each variant: exactly one coder, correct execution account, both tasks completed by that coder, correct first and second JSON artifacts, and original document/revision preservation. The two extra lead runs in each ledger have `wakeReason: chat_task_completed`; all seven runs succeeded. This reveals a strict-count oracle limitation to diagnose separately rather than silently passing the original results.
+
+Both variants have zero recognized pre-hire skill/read receipts, making coverage uncomparable. Served source fingerprints, actual default CEO bundle selection, assigned skill, durable saved instructions and skills all pass. The candidate’s requested coder example matches exactly; the baseline’s does not. Further retained-event inspection will distinguish redacted/unrecognized read evidence from omitted reads and explain the baseline body difference. No production cause or performance-equivalence claim is inferred from missing receipts.
+
+The [JSON report](2026-10-02-hiring-template-live-comparison.json) records each original check, exact source/proof hashes, remote 705-assertion admission, zero-retry invocation policy, and the sanitized chronological run ledgers. It excludes raw provider session IDs, credentials and hidden reasoning. Source revisions are unchanged. Codex remains pending.
 
 ## Admission boundaries
 
