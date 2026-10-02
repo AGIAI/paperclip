@@ -13,6 +13,7 @@ describe("stock harness instruction revision", () => {
     "packages/paperclip-runner/src/contracts/completion-result.ts", "packages/paperclip-runner/src/drivers/codex/codex-driver-values.ts",
     "packages/paperclip-runner/src/drivers/runner-tool-bridge.ts", "packages/paperclip-runner/src/drivers/opencode/mcp-bridge.ts",
     "server/src/services/native-runtime/native-session-resume.ts",
+    "tests/runner-e2e/native-completion-case.ts",
   ])(
     "changes when the evaluated %s changes", source => {
       vi.mocked(readFileSync).mockImplementation(() => Buffer.from("unchanged"));

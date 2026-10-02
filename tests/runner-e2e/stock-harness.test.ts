@@ -16,20 +16,21 @@ function recording(generation: "legacy" | "native" = "legacy"): StockHarnessEvid
 }
 
 describe("stock harness Product E2E", () => {
-  it("registers 26 explicit local cells with the original cases and two focused delivery repair cells", () => {
+  it("registers 29 explicit local cells with the original cases and two focused delivery repair cells", () => {
     const cells = runnerMatrix.filter(row => row.suite.id === "stock-harness");
-    expect(cells).toHaveLength(26);
+    expect(cells).toHaveLength(29);
     expect(new Set(cells.map(row => row.profile.id))).toEqual(new Set([
       "legacy-codex", "legacy-claude", "legacy-opencode", "legacy-acp-codex", "legacy-acp-claude",
       "runner-codex", "runner-acpx-claude", "runner-opencode",
     ]));
     expect(new Set(cells.map(row => row.task.id))).toEqual(new Set([
       "ordered-comment-continuation", "assigned-skill-explicit-invocation", "continuity-restart",
-      "assigned-skill-paperclip-document",
+      "assigned-skill-paperclip-document", "native-blocked-report",
     ]));
     expect(cells.every(row => row.suite.manualOnly && row.environment.id === "local")).toBe(true);
-    expect(cells.reduce((turns, row) => turns + row.task.expectedRunCount, 0)).toBe(50);
+    expect(cells.reduce((turns, row) => turns + row.task.expectedRunCount, 0)).toBe(53);
     expect(cells.filter(row => row.task.id === "assigned-skill-paperclip-document").map(row => row.profile.id).sort()).toEqual(["legacy-claude", "legacy-opencode"]);
+    expect(cells.filter(row => row.task.id === "native-blocked-report").every(row => row.profile.generation === "native")).toBe(true);
     expect(cells[0]!.suite.definitionMetadata?.sourceDigest).toMatch(/^[a-f0-9]{64}$/);
   });
 

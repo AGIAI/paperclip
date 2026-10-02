@@ -7,6 +7,7 @@ import { accountingTasks } from "./accounting-cases.js";
 import { continuationTasks } from "./continuation-cases.js";
 import { contextIntegrityTasks, paperclipDocumentTask } from "./context-integrity-cases.js";
 import { productionDefaultHireProfile, stockHarnessSourceDigest, stockHarnessSkillSources } from "./stock-harness.js";
+import { nativeBlockedReportTask } from "./native-completion-case.js";
 import { lifecycleLiveTasks, lifecycleLiveDefinitionDigest } from "./lifecycle-live-cases.js";
 import { everydayTasks, productionStoryProfile } from "./everyday-cases.js";
 
@@ -1217,22 +1218,26 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     id: "stock-harness",
     label: "Stock harness with Paperclip",
     manualOnly: true,
-    description: "Production-default hires, reduced shared prompts, assigned skills, continuation, and persistent chat.",
+    description: "Production-default hires, reduced shared prompts, assigned skills, continuation, persistent chat, and native blocker reporting.",
     groups: ["stock-harness", "native", "legacy"],
     profiles: [...contextIntegrityProfiles.filter(profile => !pendingContextIntegrityProfiles.includes(profile)),
       runnerProfiles.find(profile => profile.id === "legacy-opencode")!].map(productionDefaultHireProfile),
     environments: [localEnvironment],
-    tasks: [...contextIntegrityTasks, chatTasks.find(task => task.id === "continuity-restart")!, paperclipDocumentTask],
-    expectedMatrixSize: 26,
-    excludedExecutionIds: ["legacy-codex", "legacy-acp-codex", "legacy-acp-claude", "runner-codex", "runner-acpx-claude", "runner-opencode"]
-      .map(profile => `stock-harness.${profile}.local.${paperclipDocumentTask.id}`),
+    tasks: [...contextIntegrityTasks, chatTasks.find(task => task.id === "continuity-restart")!, paperclipDocumentTask, nativeBlockedReportTask],
+    expectedMatrixSize: 29,
+    excludedExecutionIds: [
+      ...["legacy-codex", "legacy-acp-codex", "legacy-acp-claude", "runner-codex", "runner-acpx-claude", "runner-opencode"]
+        .map(profile => `stock-harness.${profile}.local.${paperclipDocumentTask.id}`),
+      ...["legacy-codex", "legacy-claude", "legacy-opencode", "legacy-acp-codex", "legacy-acp-claude"]
+        .map(profile => `stock-harness.${profile}.local.native-blocked-report`),
+    ],
     definitionMetadata: {
       version: 2, instructions: "production-default-hire", scheduling: "explicit-only",
       sourceDigest: stockHarnessSourceDigest(),
       operationalSkillSources: stockHarnessSkillSources(),
       grading: "public-default-bundle-and-delivered-prompts-plus-independent-lifecycle-oracles",
       vendorBaseEvidence: "required deterministic Codex driver/runnerd/Rust gate; task success is not vendor-base proof",
-      paidCalls: "one skill turn, two ordered-comment turns, three chat turns per profile",
+      paidCalls: "one skill turn, two ordered-comment turns, three chat turns per profile; one native-only blocker turn",
     },
   },
   {

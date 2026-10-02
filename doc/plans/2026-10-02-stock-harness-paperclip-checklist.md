@@ -154,6 +154,12 @@ not inherit instructions to call unavailable native finish/block tools.
   and all 900 E2E support tests. Runner core/surface compilation and E2E typecheck
   passed. Both exact SH-4 gates passed (14 selected assertions; unrelated cases
   explicitly skipped). Repository-wide and paid qualification remain pending.
+  Qualification now includes a native-only concrete blocker case on Codex,
+  ACPX Claude, and OpenCode. It checks persisted blocker disposition, owner,
+  action, scope, and the visible explanation. Positive and seven plausible
+  negative oracle calibrations passed. The current suite has 27 cells and 51
+  expected turns; the earlier manual/shared comparison remains 24 cells per
+  variant. No native paid qualification has run at this point.
 - [ ] **2.3.2 Move document/file delivery procedures into native tool docs.**
   Include the live server override and preserve prepared versus delivered receipts.
 - [ ] **2.3.3 Move hiring/dependency recipes into native discovery/tool docs.**

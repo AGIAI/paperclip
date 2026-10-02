@@ -444,7 +444,8 @@ pnpm test:e2e:runner -- --id context-integrity.runner-codex.local.ordered-commen
 
 `stock-harness` reuses ordered continuation, assigned-skill invocation, and chat
 restart journeys with production-default hires instead of the custom QA manual.
-Its 24 explicit local cells cover eight legacy/native profiles and are excluded
+Its 27 explicit local cells cover eight legacy/native profiles, including a
+native-only concrete blocker report, and are excluded
 from `--all`. Run `pnpm test:e2e:runner:stock-harness` for the credential-free
 instruction-layering, hire, and shared-prompt prerequisites. The
 [suite contract](STOCK-HARNESS.md) maps each change to its graders, budgets,
