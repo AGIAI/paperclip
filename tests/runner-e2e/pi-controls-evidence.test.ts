@@ -16,8 +16,35 @@ function cancelled() {
   const binding = { pending, caller: piControlCaller, cancellationRequestId: piCancellationId, dispatchMonotonicNs: String(BigInt(pending.observedMonotonicNs) + 1n) };
   return { f, binding, read: () => readPiStopSettlement({ ...f.state(), ...binding }) };
 }
+function streamedWrite() {
+  const f = piControlFixture();
+  f.events.pop();
+  event(f.events[0]!).payload = { ...f.tool, target: null, inputUpdated: false };
+  f.append("tool.execution.progressed", { ...f.tool, target: null, inputUpdated: true });
+  f.append("tool.execution.progressed", { ...f.tool, inputUpdated: true });
+  f.append("runtime_request.created", { request: f.request });
+  return f;
+}
 describe("Pi pending control identity", () => {
   it("accepts Pi native permission/start without invented provider notices", () => expect(piControlFixture().pending()).toMatchObject({ toolCallId: "pi-tool", executionId: "pi-tool", turnId: "turn" }));
+  it("accepts streamed arguments only after the same execution proves its exact path", () => {
+    const f = streamedWrite();
+    expect(f.pending()).toMatchObject({ startedSourceSeq: 1, requestSourceSeq: 4 });
+  });
+  it.each([
+    ["no complete target", (f: ReturnType<typeof streamedWrite>) => { event(f.events[2]!).payload.target = null; }],
+    ["conflicting partial target", f => { event(f.events[1]!).payload.target = "other.txt"; }],
+    ["target lost after admission", f => { f.append("tool.execution.progressed", { ...f.tool, target: null }); }],
+    ["different execution supplied target", f => { event(f.events[2]!).payload.executionId = "other"; }],
+    ["terminal before target", f => { f.events[1]!.eventType = event(f.events[1]!).eventType = "tool.execution.completed"; event(f.events[1]!).payload.status = "failed"; }],
+  ] satisfies Array<[string, (f: ReturnType<typeof streamedWrite>) => void]>)("rejects streamed write with %s", (_name, mutate) => {
+    const f = streamedWrite(); mutate(f); expect(() => f.pending()).toThrow();
+  });
+  it("retains the partial start hash through actual callback cancellation", () => {
+    const f = streamedWrite(), pending = f.pending(); f.cancel();
+    expect(readPiStopSettlement({ ...f.state(), pending, caller: piControlCaller, cancellationRequestId: piCancellationId,
+      dispatchMonotonicNs: String(BigInt(pending.observedMonotonicNs) + 1n) })).toMatchObject({ normalCompletionAccepted: false });
+  });
   it("admits permission-first ACP only after both canonical boundaries exist", () => {
     const f = piControlFixture(); f.events.reverse();
     f.events.forEach((r, i) => { r.seq = event(r).sourceSeq = i + 1; event(r).sourceEventId = `source:run:${i + 1}`; });

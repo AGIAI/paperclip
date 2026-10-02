@@ -408,7 +408,7 @@ The explicit-only `pi-controls` suite adds `pending-permission-stop` and
 `same-turn-steering` on local and Daytona, each with one provider run, a
 120-second active-turn timeout and a 300-second attempt budget. These four
 control cases retain their behavior; the current matrix totals 26 Pi cells.
-Pi 1/profile 12 and coverage revisions intentionally change the affected suite
+Pi 1/profile 13 and coverage revisions intentionally change the affected suite
 fingerprints, so older qualification receipts cannot be reused. Catalog presence and
 deterministic calibration do not constitute paid qualification.
 
@@ -420,6 +420,12 @@ tool ID is joined to the canonical execution ID using the existing runnerd
 identity mapping. Pi does not emit Cursor/Copilot diagnostic notices; those
 notices are never synthesized. Earlier native reads can provide orientation;
 other native operations cannot substitute for the observed write.
+
+Native tool arguments can arrive after the start event. An earlier null target
+is allowed only until the same execution first supplies the exact expected
+path. Missing targets, conflicting paths, another execution's path, or a later
+loss of the proven path fail. The original start and permission rows remain
+bound by retained hashes through control dispatch and settlement.
 
 Stop awaits the pending evidence write and rereads that boundary before sending
 one caller UUID to the public cancel API. It requires the original request's

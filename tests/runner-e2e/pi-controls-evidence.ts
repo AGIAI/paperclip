@@ -46,11 +46,17 @@ function origin(events: readonly unknown[], scope: PiControlScope) {
   const native = rows.filter(x => x.event.eventType.startsWith("tool.execution.") && rec(x.event.payload).transport === "builtin");
   const write = native.filter(x => rec(x.event.payload).executionId === executionId);
   const started = write.filter(x => x.event.eventType === "tool.execution.started");
+  // Pi streams native tool arguments. The start and early progress rows can
+  // have no path yet; the pending permission is admissible only after this
+  // same execution provides the exact target. Conflicting paths and loss of a
+  // previously known path still fail, including after denial or cancellation.
+  const targetIndex = write.findIndex(x => x.event.payload.target === scope.target);
   requireProof(started.length === 1 && write.filter(x => x.event.eventType === "tool.execution.completed").length <= 1
-    && write[0] === started[0]
-    && write.every(x => ["tool.execution.started", "tool.execution.progressed", "tool.execution.completed"].includes(x.event.eventType)
+    && write[0] === started[0] && targetIndex >= 0
+    && write.every((x, index) => ["tool.execution.started", "tool.execution.progressed", "tool.execution.completed"].includes(x.event.eventType)
       && x.event.payload.schema === "paperclip.tool.execution.v1" && x.event.payload.name === "write" && x.event.payload.operation === "edit"
-      && x.event.payload.target === scope.target && x.event.payload.status === (x.event.eventType === "tool.execution.completed" ? "failed" : "running")), "exact native write lifecycle missing");
+      && (x.event.payload.target === scope.target || (index < targetIndex && x.event.payload.target === null && x.event.eventType !== "tool.execution.completed"))
+      && x.event.payload.status === (x.event.eventType === "tool.execution.completed" ? "failed" : "running")), "exact native write lifecycle missing");
   requireProof(!write.some((x, index) => x.event.eventType === "tool.execution.completed" && index !== write.length - 1), "write activity after terminal");
   // Read-only orientation/bootstrap can precede the write. Never exempt another
   // edit, shell execution, or unknown native operation as an alleged bootstrap.

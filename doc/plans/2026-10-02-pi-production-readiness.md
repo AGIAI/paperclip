@@ -22,8 +22,8 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed local restart and three-turn warm continuity pass at `f5f57e380`. Provider-death and Stop remain required. |
 | Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | Historical partial passes exist. Full final-source campaign remains required. |
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | Historical get-task-context pass. Final-source roster remains required. |
-| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Fresh ARM public installation passes. Linux source/image build is running. Final-source Intel/Linux/Daytona receipts remain required. |
-| Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | Existing focused invariants need final-source verification. The qualification key cap is not proof of Paperclip budget enforcement. |
+| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Fresh ARM public installation and normal packaged no-key probe pass. The Linux fleet job is queued. Final-source Intel/Linux/Daytona receipts remain required. |
+| Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live Stop remains required. The qualification key cap is not proof of Paperclip budget enforcement. |
 | Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Draft #14956 is stacked on #14924. Prerequisite PRs #14921–#14924 remain open. No merge or release. |
 
 ## Bounded execution
@@ -61,6 +61,23 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 - Credential-free ARM startup through the installed CLI, server and database
   passed. Normal Pi setup verifies the profile-13 closure. Full transport and
   recovery regressions at `780471702` passed 216 tests.
+- At `f5f57e380`, the explicit Runner `get-task-context` case passes. The next
+  case, `context-before-action`, times out after 120 seconds: four context tools
+  succeed, but the requested progress mutation and terminal do not arrive.
+  Its canonical timeout grade remains unchanged; no automatic retry occurred.
+- The local pending-permission Stop attempt at `f5f57e380` fails. Retained
+  Product events contain the native write and pending permission. The oracle
+  incorrectly rejects legitimate earlier null paths while arguments stream,
+  so it never sends Stop. The correction admits those partial rows only until
+  the same execution proves the exact path. Missing/conflicting/lost paths and
+  foreign executions still fail. All 66 control calibrations pass; the failed
+  paid attempt stays failed and requires a fresh journey after the correction.
+- The public-install verifier now packs the public CLI as well as the server,
+  runs normal explicit Pi setup in its isolated consumer, then proves closed
+  startup offline. Its standalone ARM probe passes in 7.9 seconds with no
+  credentials, prompts, binary override or borrowed workspace package.
+- Draft #14956 at `2b3d7ff0a` has a fresh Greptile 5/5, the Linux finding is
+  resolved, and its CI checks pass. Subsequent changes require a fresh review.
 - Earlier evidence in `doc/architecture/runner-pi-capabilities.md` is historical
   and must not be counted as qualification of a new source revision.
 
