@@ -20,8 +20,17 @@ including the Rust test. It writes JSON reports, the source SHA, a working-sourc
 fingerprint, selected checks, test counts, and `providerCalls: 0` under
 `results/stock-harness-preflight-<UTC>/`. Missing reports or required skipped
 assertions fail. Unrelated native tests filtered by the name selector remain
-explicitly skipped; they are not counted as executed coverage. Run this gate
-before qualifying live cells; the live launcher does not run Cargo implicitly.
+explicitly skipped; they are not counted as executed coverage. The live launcher
+runs the prerequisites automatically before loading local credentials or starting
+an isolated provider instance. Its subprocess receives only allowlisted toolchain
+and operating-system variables. Disposable GitHub runners may resolve Cargo
+dependencies; local prerequisites retain offline Cargo execution.
+
+The direct Playwright path also requires the retained prerequisite receipt. It
+verifies the exact checkout SHA, evaluated-source fingerprint, all requested
+Vitest reports and required assertions, and the Rust result before creating a
+company. Missing, stale, partial, or failed prerequisites cannot qualify a cell.
+Oracle/admission calibration is itself included in the prerequisite gate.
 
 ## Live matrix
 
@@ -77,8 +86,9 @@ existing secret sanitizer; screenshots remain the original captured pixels.
 
 The oracle's identity is independent of the implementation constant, so changing
 the shipped manual cannot silently change the expected result. The suite
-definition digest incorporates the fixture, journeys, grader, and execution
-integration sources. Positive and plausible-negative support tests exercise
+definition digest incorporates the evaluated default manual and shared prompt
+implementation, fixture, journeys, grader, prerequisite, and execution integration
+sources. Positive and plausible-negative support tests exercise
 missing/malformed receipts, manual regrowth, removed startup/resume procedures,
 absent connection guidance, and budget drift. Existing calibrated lifecycle
 graders still own task/chat success.
@@ -108,3 +118,41 @@ need a provider-session reset to restore a previously replaced vendor base.
 Private Runner protocol definitions remain separate: they use mock control-plane
 operations and cannot substitute for this public hiring and assembled-prompt
 coverage.
+
+## GitHub qualification and matched comparison
+
+The instruction reductions and coverage are under review in
+[PR #14948](https://github.com/paperclipai/paperclip/pull/14948).
+The first diagnostic native Codex skill cell
+[passed on GitHub](https://github.com/paperclipai/paperclip/actions/runs/37034213743)
+at `a63437069de58d22ee5adbcb6a6202c007dcf037`. All seven independent skill/task
+checks passed; the provider run lasted 34.745 seconds and the cell 56.660 seconds.
+Its tiny public hire bundle and budget receipts passed, and cleanup passed.
+This diagnostic predates enforced prerequisite admission and the expanded source
+digest, so it is retained separately from the final qualification matrix.
+
+Dispatch the trusted workflow from `master`, with `target_branch` naming the
+same-repository candidate and an exact cell selector first. The workflow resolves
+that target once to an immutable SHA. Never dispatch target-controlled workflow
+definitions with protected credentials. Protected environments, scoped provider
+keys, frozen target dependencies, report sanitization, publication, and existing
+bounded retry/cleanup policies retain their existing owners.
+
+A temporary `codex/stock-harness-previous-instructions` branch compares the same
+24 cells with the previous default manual and shared startup/resume prompts.
+It holds merged native Codex fix #14920 constant. Only those two production
+instruction sources differ. Its explicit historical structural oracle expects
+the old manual and records old generic procedures; the candidate's reduction
+assertions remain mandatory. Historical tests verify that prior contract.
+The independent skill/context/chat journeys, behavioral graders, fixtures,
+models, effort, tools, permissions, and credentials are identical. The retained
+comparison manifest records their hashes and the restored instruction revision.
+
+One full campaign per variant initially expects 48 provider turns, plus any
+existing bounded automatic retries; the earlier one-cell diagnostic remains
+separate. Compare behavioral results by profile and journey, with missing
+evidence unqualified. Keep structural instruction differences separate from task
+success. Report every attempt, failure attribution, provider timing, token usage,
+reported costs and unknown spend. A reported zero subtotal is not proof of zero
+provider spending. This small single-trial matrix cannot establish general coding
+quality or broad performance equivalence, and does not compare #14920 before/after.

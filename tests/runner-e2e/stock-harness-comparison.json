@@ -1,7 +1,7 @@
 {
   "schema": "paperclip.stock-harness-comparison.v1",
   "variant": "previous-instructions",
-  "candidateSha": "a63437069de58d22ee5adbcb6a6202c007dcf037",
+  "candidateSha": "36e987246b649927e96ce1184cd616c4e490106e",
   "restoredInstructionsFrom": "e00d10d5d5594f6e2d1e8cf4e0ec81c074b0bd88",
   "nativeCodex14920": "held-constant; no before/after performance claim",
   "productionDifferences": [
@@ -19,7 +19,9 @@
     "chat-cases.ts": "754b251bdd42605e147da9081b663329234260d2b13df0df3d44562e362b14ca",
     "chat-flow.ts": "11fc506559da61315ce04a877f6b38a055e71e532fecfcf62c749a1d3bf985e7",
     "live-fixtures.ts": "1ef80209cc53cc514a8e58af4c2225e38ec15b20acf17ca7564506ca6617ac3e",
-    "runner.spec.ts": "41090ca983607edb2a6c21975dccf6ee84dde723ad31f60b7f39c42b65446fa1",
+    "runner.spec.ts": "14d57e0f9131b3f1981ac593464738d01362008eefe85ea836075c794681fa85",
+    "launch.ts": "5ada6ca5484542f028b29fc603dc7992213d4c06fa9046834bd7d23c4511b847",
+    "stock-harness-admission.ts": "c9775d77d48f8d59ba1197a7e5769f14db0c7d33f5e2a2968a04466e083d63ff",
     "types.ts": "c45dc3b2366457449ec9e7d413f930605dec88ea93a14ce5c5a5f445a27d148c"
   },
   "instructionSha256": {

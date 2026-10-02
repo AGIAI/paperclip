@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gradeGate, stockHarnessGates } from "./stock-harness-checks.mjs";
+import { assertPreflightReceipt, gradeGate, stockHarnessGates } from "./stock-harness-checks.mjs";
 
 const gate = { id: "SH-test", name: "Boundary", files: ["boundary.test.ts"], required: ["must preserve instructions"] };
 const report = () => ({ testResults: [{ name: "/repo/boundary.test.ts", status: "passed",
@@ -7,7 +7,7 @@ const report = () => ({ testResults: [{ name: "/repo/boundary.test.ts", status: 
 numTotalTests: 1, numPassedTests: 1, numFailedTests: 0, numPendingTests: 0 });
 describe("stock harness prerequisite coverage", () => {
   it("maps every implemented change to an executable gate", () => {
-    expect(stockHarnessGates.map(gate => gate.id)).toEqual(["SH-1", "SH-2", "SH-3", "SH-3-hermes"]);
+    expect(stockHarnessGates.map(gate => gate.id)).toEqual(["SH-1", "SH-2", "SH-3", "SH-3-hermes", "SH-eval"]);
     expect(stockHarnessGates.every(gate => gate.files.length > 0 && gate.required.length > 0)).toBe(true);
   });
   it("accepts an executed passing boundary", () => expect(gradeGate(gate, report(), 0).passed).toBe(true));
@@ -36,5 +36,25 @@ describe("stock harness prerequisite coverage", () => {
   it("rejects a requested file absent from Vitest discovery even when required names pass", () => {
     expect(gradeGate({ ...gate, files: [...gate.files, "undiscovered.test.ts"] }, report(), 0).passed).toBe(false);
     expect(stockHarnessGates.find(gate => gate.id === "SH-3-hermes").cwd).toBe("packages/adapters/hermes");
+  });
+});
+
+describe("stock harness prerequisite admission", () => {
+  const current = { sha: "a".repeat(40), fingerprint: "b".repeat(64) };
+  const receipt = () => ({ schema: "paperclip.stock-harness-preflight.v1", passed: true,
+    providerCalls: 0, sourceSha: current.sha, sourceFingerprint: current.fingerprint,
+    sourceErrors: [], gates: [...stockHarnessGates.map(g => g.id), "SH-1-rust"].map(id => ({ id, passed: true, exitCode: 0 })) });
+  it("admits the same passing source revision", () => expect(assertPreflightReceipt(receipt(), current).passed).toBe(true));
+  it.each([
+    ["old SHA", r => { r.sourceSha = "c".repeat(40); }],
+    ["changed source", r => { r.sourceFingerprint = "d".repeat(64); }],
+    ["failed boundary", r => { r.gates[0].passed = false; }],
+    ["nonzero exit", r => { r.gates[0].exitCode = 1; }],
+    ["missing Rust", r => { r.gates.pop(); }],
+    ["duplicate boundary", r => { r.gates[1] = r.gates[0]; }],
+    ["provider calls", r => { r.providerCalls = 1; }],
+    ["missing source", r => { r.sourceErrors.push("missing.ts"); }],
+  ])("rejects %s before providers", (_name, mutate) => {
+    const r = receipt(); mutate(r); expect(() => assertPreflightReceipt(r, current)).toThrow("exact source SHA and fingerprint");
   });
 });
