@@ -45,6 +45,24 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 
 ## Evidence so far
 
+- At `342287678`, normal public profile-14 admission passes on ARM Mac in
+  23.8 seconds and Intel Mac in 53.5 seconds. Fresh installed steering returns
+  HTTP 200 and retains one exact correlation-bound acknowledgement. The full
+  journey fails at Deny: steering splits the transcript display and the UI
+  incorrectly marks the older, still-live permission cancelled. A real widget
+  regression reproduces the missing button. The correction derives request
+  state from the whole run, carries pending cards to the live tail, and keeps
+  closed cards at their original position. All 281 focused UI/projection and
+  performance checks, UI typecheck and token gates pass. The paid failure and
+  cleanup grade remain unchanged; all seven journalled owned processes later
+  retire. A new installed journey must verify actual denial and consumption.
+- Full workspace build and typecheck pass at `342287678`; core native tests
+  pass 333 cases. The broader native integration run fails one Codex interrupt
+  recovery case with `provider startup ownership remains unadmitted`; isolated
+  diagnosis reproduces it. Do not count that broader run as passing. Current
+  CI passes its other checks and Greptile is 5/5, but Linux Canary retains
+  `session_handshake_timeout`. The exact-source local image build cannot reach
+  the Docker daemon and produces no usable image. Linux and Daytona remain held.
 - At `36e712104`, installed steering returns HTTP 200 and the native command
   journal records accepted delivery. The public API retains the correct
   correlation-bound acknowledgement at source sequence 65 and also a
