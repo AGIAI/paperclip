@@ -5,7 +5,7 @@ import { stockHarnessSourceDigest, stockHarnessSkillSources } from "./stock-harn
 vi.mock("node:fs", async importOriginal => ({ ...await importOriginal<typeof import("node:fs")>(), readFileSync: vi.fn() }));
 
 describe("stock harness instruction revision", () => {
-  it.each(["server/src/onboarding-assets/default/AGENTS.md", "packages/adapter-utils/src/server-utils.ts", "packages/shared/src/connection-intent-guidance.ts", "skills/paperclip/SKILL.md", "skills/paperclip/references/issue-documents.md"])(
+  it.each(["server/src/onboarding-assets/default/AGENTS.md", "packages/adapter-utils/src/server-utils.ts", "packages/shared/src/connection-intent-guidance.ts", "skills/paperclip/SKILL.md", "skills/paperclip/references/issue-documents.md", "packages/paperclip-runner/generated/capability/capabilities.yaml", "packages/paperclip-runner/spec/capability/capabilities.yaml", "tests/runner-e2e/stock-harness-manifest.ts"])(
     "changes when the evaluated %s changes", source => {
       vi.mocked(readFileSync).mockImplementation(() => Buffer.from("unchanged"));
       const original = stockHarnessSourceDigest();
