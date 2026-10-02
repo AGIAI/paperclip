@@ -6,6 +6,7 @@ import { blockerTasks, blockerProfile } from "./blocker-cases.js";
 import { accountingTasks } from "./accounting-cases.js";
 import { continuationTasks } from "./continuation-cases.js";
 import { contextIntegrityTasks } from "./context-integrity-cases.js";
+import { nativeBlockedReportTask } from "./native-completion-case.js";
 import { productionDefaultHireProfile, stockHarnessSourceDigest } from "./stock-harness.js";
 import { lifecycleLiveTasks, lifecycleLiveDefinitionDigest } from "./lifecycle-live-cases.js";
 import { everydayTasks, productionStoryProfile } from "./everyday-cases.js";
@@ -1217,19 +1218,21 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     id: "stock-harness",
     label: "Stock harness with Paperclip",
     manualOnly: true,
-    description: "Production-default hires, reduced shared prompts, assigned skills, continuation, and persistent chat.",
+    description: "Production-default hires, reduced shared prompts, assigned skills, continuation, persistent chat, and native blocker reporting.",
     groups: ["stock-harness", "native", "legacy"],
     profiles: [...contextIntegrityProfiles.filter(profile => !pendingContextIntegrityProfiles.includes(profile)),
       runnerProfiles.find(profile => profile.id === "legacy-opencode")!].map(productionDefaultHireProfile),
     environments: [localEnvironment],
-    tasks: [...contextIntegrityTasks, chatTasks.find(task => task.id === "continuity-restart")!],
-    expectedMatrixSize: 24,
+    tasks: [...contextIntegrityTasks, chatTasks.find(task => task.id === "continuity-restart")!, nativeBlockedReportTask],
+    excludedExecutionIds: ["legacy-codex", "legacy-claude", "legacy-opencode", "legacy-acp-codex", "legacy-acp-claude"]
+      .map(profile => `stock-harness.${profile}.local.native-blocked-report`),
+    expectedMatrixSize: 27,
     definitionMetadata: {
-      version: 1, instructions: "production-default-hire", scheduling: "explicit-only",
+      version: 2, instructions: "production-default-hire", scheduling: "explicit-only",
       sourceDigest: stockHarnessSourceDigest(),
       grading: "public-default-bundle-and-delivered-prompts-plus-independent-lifecycle-oracles",
       vendorBaseEvidence: "required deterministic Codex driver/runnerd/Rust gate; task success is not vendor-base proof",
-      paidCalls: "one skill turn, two ordered-comment turns, three chat turns per profile",
+      paidCalls: "one skill turn, two ordered-comment turns, three chat turns per profile; one native-only blocker turn",
     },
   },
   {

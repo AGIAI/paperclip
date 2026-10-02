@@ -56,11 +56,13 @@ export const stockHarnessGates = [
     config: "tests/runner-e2e/vitest.config.ts",
     files: ["tests/runner-e2e/stock-harness.test.ts", "tests/runner-e2e/stock-harness-checks.test.mjs",
       "tests/runner-e2e/stock-harness-admission.test.ts", "tests/runner-e2e/stock-harness-digest.test.ts",
-      "tests/runner-e2e/select-rerun-artifacts.test.ts"],
+      "tests/runner-e2e/select-rerun-artifacts.test.ts", "tests/runner-e2e/native-completion-case.test.ts"],
     required: ["rejects old SHA before providers", "allows toolchain paths and excludes every present or future credential",
       "changes when the evaluated server/src/onboarding-assets/default/AGENTS.md changes",
       "changes when the evaluated packages/adapter-utils/src/server-utils.ts changes",
       "changes when the evaluated packages/shared/src/connection-intent-guidance.ts changes",
+      "changes when the evaluated tests/runner-e2e/native-completion-case.ts changes",
+      "accepts the persisted blocker, owner and exact requested unblock action",
       "retains credential-free prerequisites inside the exact campaign root"] },
 ];
 
@@ -84,6 +86,7 @@ export function sourceFingerprint() {
     ...stockHarnessGates.flatMap(gate => gate.files.map(file => join(gate.cwd, file))),
     "tests/runner-e2e/stock-harness.ts", "tests/runner-e2e/stock-harness-checks.mjs", "tests/runner-e2e/catalog.ts",
     "tests/runner-e2e/stock-harness-admission.ts", "tests/runner-e2e/launch.ts", "tests/runner-e2e/runner.spec.ts",
+    "tests/runner-e2e/native-completion-case.ts",
     "packages/adapter-utils/src/server-utils.ts", "packages/shared/src/connection-intent-guidance.ts",
     "server/src/onboarding-assets/default/AGENTS.md", "server/src/routes/agents.ts", "scripts/ensure-plugin-build-deps.mjs",
     "packages/paperclip-runner/src/drivers/codex/codex-app-server-driver-impl.ts",

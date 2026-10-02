@@ -14,7 +14,7 @@ agent-creation route materialize the shipped default.
 | SH-1: native Codex preserves vendor base instructions | Serialized start/resume requests from the TypeScript driver, recovery paths, runnerd transport, Runner Lab/live sessions, and Rust provider use additive developer instructions. | Real new native Codex hires execute the three journeys below. Task success alone cannot prove vendor base preservation. |
 | SH-2: identity-only default hire manual | Existing public agent-creation and onboarding-asset tests cover default, custom, and CEO exceptions. | The public bundle is exactly one `AGENTS.md` containing the eight-word shipped identity, checked before provider execution and again during cleanup. |
 | SH-3: reduced shared legacy task/chat defaults and resume delta | Shared prompt tests and ACPX, Codex, OpenCode, Pi, Hermes, and Cursor Cloud adapter regressions retain runtime context and exclude removed generic procedures. | Actual legacy `adapter.invoke` prompts retain fresh identity/connection guidance, omit the removed procedures, and have complete receipts for every observed run. |
-| SH-4: shared native finish/block tool guidance | Actual authenticated MCP catalogs, Codex start/resume frames, serialized daemon catalogs for all five native provider kinds, and rotation of a retained v13 thread to the new tool contract. | The three native profiles run the existing skill, continuation, and chat journeys. Configured coverage is not a live qualification result. |
+| SH-4: shared native finish/block tool guidance | Actual authenticated MCP catalogs, Codex start/resume frames, serialized daemon catalogs for all five native provider kinds, and rotation of a retained v13 thread to the new tool contract. | The three native profiles run the existing completion journeys and a concrete blocker case. The blocker oracle checks persisted disposition, owner, action, scope, and the visible final explanation. Configured coverage is not a live qualification result. |
 
 SH-4 changes native Runner tools only. Legacy adapters do not receive
 `paperclip_finish` or `paperclip_block` from this change. Their skill/API
@@ -43,8 +43,9 @@ Oracle/admission calibration is itself included in the prerequisite gate.
 
 ## Live matrix
 
-There are 24 explicit local cells: these eight existing profiles each run three
-existing journeys with independently calibrated graders.
+There are 27 explicit local cells: these eight existing profiles each run three
+existing journeys. The three native profiles also run one concrete blocker case.
+All journeys have independently calibrated graders.
 
 - Legacy: `legacy-codex`, `legacy-claude`, `legacy-opencode`,
   `legacy-acp-codex`, `legacy-acp-claude`.
@@ -55,8 +56,10 @@ existing journeys with independently calibrated graders.
 | `assigned-skill-explicit-invocation` | 1 | Public skill creation/pinning, an explicit skill request, and saved output containing the marker available only in the skill body. | 12 minutes |
 | `ordered-comment-continuation` | 2 | Initial report followed by three ordered public comments, including repeated wording and a changed scope; final saved report preserves the ledger and requested scope. | 12 minutes |
 | `continuity-restart` | 3 | Task-backed chat retains the requested context across a server restart and subsequent replies. | 15 minutes |
+| `native-blocked-report` (native profiles only) | 1 | A persisted whole-task blocker identifies Release Owner and the exact requested unblock action; its visible explanation includes the marker. | 5 minutes |
 
-A full matrix expects 48 provider turns. Models, credentials, effort,
+A full current matrix expects 51 provider turns. The earlier manual/shared-prompt
+comparison used the original 24 cells and expected 48 turns. Models, credentials, effort,
 permissions, assigned skills, environment, and managed secret references are
 inherited from the existing profile; only its QA manual is omitted. Both company
 and agent receive a 1,000-cent monthly hard stop before provider execution,
@@ -106,6 +109,12 @@ The skill oracle proves the requested pinned skill's output marker reached the
 saved result without appearing in the task request or follow-up comments. Skill
 tool/read event detection is retained as supporting evidence; it is not a
 required cross-provider tool-trace assertion.
+
+The native blocker request supplies the blocking facts and desired user outcome;
+it does not prescribe a tool name or completion payload. Its grader rejects a
+visible claim without a persisted native report, the wrong owner/action/scope,
+a completed-work report, a legacy runtime, and a failed run. It uses the ordinary
+public task-creation and completion flow, screenshots, cleanup, and billing rules.
 
 ## Qualification status
 
