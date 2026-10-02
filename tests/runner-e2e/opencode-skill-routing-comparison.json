@@ -1,0 +1,26 @@
+{
+  "schema": "paperclip.opencode-skill-routing.baseline/v1",
+  "candidateSha": "fe9dc1e3c518825242ed889ab9c8352986f8c2ed",
+  "priorSkillSha": "b85668c4065d66e08026218a6bd48a3d22ddd4c9",
+  "expectedCellsPerVariant": 2,
+  "expectedProviderTurnsPerVariant": 2,
+  "heldConstant": [
+    "tiny manual/shared prompts",
+    "native Codex additive base fix",
+    "future explicit clickable UI-link fixture and calibrated grader",
+    "models/effort/auth/permissions/tools/budgets",
+    "all other tracked repository source bytes"
+  ],
+  "onlyChangedProductionSources": [
+    {
+      "path": "skills/paperclip/SKILL.md",
+      "candidateSha256": "6ca593effe18704f8014ac4e8155f7513c0701aa3c61d3cf0b96d3366c92f0e1",
+      "baselineSha256": "768522e081c1ec43dee4a5794539f7b597ee3708c634d05e388c874df283cc53"
+    },
+    {
+      "path": "skills/paperclip/references/issue-documents.md",
+      "candidateSha256": "a6141e8ba4510b683418197d58598d5a14db2641c49c869ae8aca4e2b05aca97",
+      "baselineSha256": "353845a406b1b4948487c348c86eb7b8c89a55ae67afe203100eee10aee46336"
+    }
+  ]
+}
