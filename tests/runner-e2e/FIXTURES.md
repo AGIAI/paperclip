@@ -114,6 +114,14 @@ a deletion through public file APIs. Native turns 2 and 3 must copy/hash only th
 changed memory file, with a saved receipt and the same provider PID. Journal and
 Git stress fixtures retain fixed external bundles as controls. Keep the stable-PID
 oracle strict; `instruction-persistence` also covers cold restarts and quota handling.
+The explicit `rich-acp-warm-continuity` fixture uses the workspace-only prompt:
+ACP providers retain their unchanged AGENT_HOME and must preserve the same native
+session, runner instance, provider session, PID, and process start fingerprint.
+It does not request personal-file edits, because changed ACP agent files require
+provider retirement before collection. Pi's separate `agent-files-fresh-run`
+case retains changed-home save and fresh-task restoration coverage. This split
+does not weaken the stable-process oracle or change the Codex checkpoint fixture.
+
 Native turns 1 and 2 include an actionable human review in the completion report's `attentionRequests`. Paperclip creates the review gate from that report. An explicit question-tool wait yields the turn and suppresses its final prose, so it is not interchangeable with this completion-review fixture. Turn 3 reports Done without another review.
 
 Every selected case runs in its own isolated Paperclip process, and independent

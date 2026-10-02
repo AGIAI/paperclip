@@ -143,7 +143,7 @@ describe("Pi controls catalog admission", () => {
     expect(hashes).toEqual({
       "pi-native": "5038d59a5176ca215bc29b2d532c1d51d134442b046dd230c1e060050109964d",
       "native-active-stop": "99682b2b106d816a011834fae5a944ed7729958893709d5b83a19b6f595e7e4d",
-      "rich-acp-warm-continuity": "3000c64a9879b95926add1d822530c8812b70a223e94219766554d9c0092eedf",
+      "rich-acp-warm-continuity": "036c0faebc2f6eee5cd22ea38887c9c22650a83561fd08ee83473a565b11bb00",
       "extended-harnesses": "9814841e571cb8bb1dc5188a8577245896e0ce8c851294ac5dea9e3d42689db6",
     });
     expect(runnerMatrix.filter(c => c.profile.qualificationCandidate === "pi" && c.suite.id !== "pi-controls")).toHaveLength(22);
