@@ -254,6 +254,7 @@ export class OpenCodeServerDriver implements HarnessDriver {
         recovered: false,
         reason: redact(String(error), [
           this.#options.environment?.OPENROUTER_API_KEY,
+          this.#options.environment?.PAPERCLIP_AI_PROVIDER_KEY,
         ]),
       };
     }
@@ -1970,14 +1971,15 @@ async function startRuntime(input: {
   const assignedMcp = nativeMcpLaunchBinding(
     input.options.environment ?? process.env,
   );
-  input.trace?.addSensitiveValues([
+  const sensitiveValues = [
     password,
     authHeader,
     bridge.secret,
     assignedMcp?.token,
     input.options.environment?.OPENROUTER_API_KEY,
     input.options.environment?.PAPERCLIP_AI_PROVIDER_KEY,
-  ]);
+  ].filter((value): value is string => Boolean(value));
+  input.trace?.addSensitiveValues(sensitiveValues);
   const instructionRoot =
     input.options.runtimeContext?.instructions.bundle.rootPath;
   const [modelProvider, ...modelIdParts] = input.options.model.split("/");
@@ -2089,10 +2091,7 @@ async function startRuntime(input: {
   let diagnostics = "";
   child.stderr?.on("data", (chunk) => {
     const raw = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
-    const redactedDiagnostic = redact(raw.toString("utf8"), [
-      password,
-      input.options.environment?.OPENROUTER_API_KEY,
-    ]);
+    const redactedDiagnostic = redact(raw.toString("utf8"), sensitiveValues);
     diagnostics = `${diagnostics}${redactedDiagnostic}`.slice(-8_192);
     const frameId = input.trace?.frame({
       direction: "provider_stderr",
@@ -2155,10 +2154,7 @@ async function startRuntime(input: {
       process: child,
       bridge,
       trace: input.trace,
-      sensitiveValues: [
-        password,
-        input.options.environment?.OPENROUTER_API_KEY,
-      ].filter((value): value is string => Boolean(value)),
+      sensitiveValues,
       close: async (closeInput = {}) => {
         await bridge.close().catch(() => {});
         if (child.exitCode === null && child.signalCode === null && child.pid) {
