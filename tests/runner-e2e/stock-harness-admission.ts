@@ -5,6 +5,14 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "../..");
 export const STOCK_PREFLIGHT_ENV = "PAPERCLIP_RUNNER_E2E_STOCK_PREFLIGHT";
 
+// Comparison-ref admission and retry policy. Ordinary PR sources are unchanged.
+export function requiresStockHarnessPrerequisites(suiteId: string) {
+  return suiteId === "stock-harness" || suiteId === "hiring-templates";
+}
+export function effectiveAutomaticRetries(suiteId: string, configured: number) {
+  return suiteId === "hiring-templates" ? 0 : configured;
+}
+
 // An allowlist keeps every provider credential, ambient auth override, and GH
 // token out of the prerequisite subprocess, including secrets added later.
 export function stockPreflightEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {

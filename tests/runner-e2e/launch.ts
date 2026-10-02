@@ -50,7 +50,7 @@ import {
   type RunnerE2EResult,
 } from "./types.js";
 import { assertRunnerE2EPrerequisites } from "./prerequisites.js";
-import { prepareStockHarnessPreflight, STOCK_PREFLIGHT_ENV } from "./stock-harness-admission.js";
+import { prepareStockHarnessPreflight, STOCK_PREFLIGHT_ENV, requiresStockHarnessPrerequisites, effectiveAutomaticRetries } from "./stock-harness-admission.js";
 import {
   reapNewDetachedDarwinSharedMemory,
   snapshotDarwinSharedMemory,
@@ -1028,7 +1028,7 @@ async function runExecutionWithRetry(input: {
     options.debug ||
     firstResult.status !== "failed" ||
     !firstResult.failureClass ||
-    !shouldRetryFailure(firstResult.failureClass, options.maxAutomaticRetries)
+    !shouldRetryFailure(firstResult.failureClass, effectiveAutomaticRetries(execution.suite.id, options.maxAutomaticRetries))
   ) {
     return firstResult;
   }
@@ -1105,7 +1105,7 @@ async function main() {
   );
   const summaryDir = path.join(resultsRoot, campaignId);
   await mkdir(summaryDir, { recursive: true });
-  if (executions.some(execution => execution.suite.id === "stock-harness")) {
+  if (executions.some(execution => requiresStockHarnessPrerequisites(execution.suite.id))) {
     process.env[STOCK_PREFLIGHT_ENV] = prepareStockHarnessPreflight(summaryDir);
   }
 
@@ -1134,7 +1134,8 @@ async function main() {
     `${JSON.stringify(
       {
         version: 1,
-        maxAutomaticRetries: options.maxAutomaticRetries,
+        maxAutomaticRetries: Math.max(...executions.map(execution => effectiveAutomaticRetries(execution.suite.id, options.maxAutomaticRetries))),
+        perExecution: executions.map(execution => ({ id: execution.id, maxAutomaticRetries: effectiveAutomaticRetries(execution.suite.id, options.maxAutomaticRetries) })),
         retryClasses: ["transient_infrastructure", "provider_variance"],
       },
       null,

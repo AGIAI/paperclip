@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { spawnSync } from "node:child_process";
-import { prepareStockHarnessPreflight, stockPreflightEnvironment, verifyStockHarnessPreflight } from "./stock-harness-admission.js";
+import { prepareStockHarnessPreflight, stockPreflightEnvironment, verifyStockHarnessPreflight, requiresStockHarnessPrerequisites, effectiveAutomaticRetries } from "./stock-harness-admission.js";
 import { CREDENTIAL_NAMES } from "./types.js";
 
 vi.mock("node:child_process", () => ({ spawnSync: vi.fn() }));
@@ -40,5 +40,17 @@ describe("stock harness credential-free admission", () => {
   it("refuses failed receipt verification", () => {
     spawn.mockReturnValue({ status: 1, stderr: "stale source" } as ReturnType<typeof spawnSync>);
     expect(() => verifyStockHarnessPreflight("/fixture/preflight.json")).toThrow("stale source");
+  });
+});
+
+describe("frozen hiring comparison admission", () => {
+  it("admits stock and hiring suites without expanding other campaigns", () => {
+    expect(requiresStockHarnessPrerequisites("stock-harness")).toBe(true);
+    expect(requiresStockHarnessPrerequisites("hiring-templates")).toBe(true);
+    expect(requiresStockHarnessPrerequisites("chat")).toBe(false);
+  });
+  it("never retries a hiring model attempt, including infrastructure failures", () => {
+    for (const configured of [0, 1]) expect(effectiveAutomaticRetries("hiring-templates", configured)).toBe(0);
+    expect(effectiveAutomaticRetries("stock-harness", 1)).toBe(1);
   });
 });

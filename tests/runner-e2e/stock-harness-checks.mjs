@@ -19,7 +19,7 @@ export const stockHarnessGates = [
     "preserves stock Codex instructions on prepared recovery", "preserves stock Codex instructions on direct recovery",
     "captures exact provider frames and correlates", "exposes native completion consistently on fresh and resumed sessions",
     "passes caller-supplied native system instructions"] },
-  { id: "SH-2", name: "Production-default hire bundle", cwd: ".", files: [
+  { id: "SH-2", name: "Production-default hire bundle", cwd: ".", testPattern: "^(?!.*materializes only the CEO entry file).*$", files: [
     "server/src/__tests__/agent-skills-routes.test.ts",
     "server/src/services/onboarding-first-task-assets.test.ts",
   ], required: ["materializes minimal default instructions for non-CEO agents with no prompt template"] },
@@ -64,6 +64,12 @@ export const stockHarnessGates = [
       "changes when the evaluated tests/runner-e2e/native-completion-case.ts changes",
       "accepts the persisted blocker, owner and exact requested unblock action",
       "retains credential-free prerequisites inside the exact campaign root"] },
+  { id: "SH-hiring", name: "Matched production hiring oracle and source coverage", cwd: ".",
+    config: "tests/runner-e2e/vitest.config.ts",
+    files: ["tests/runner-e2e/hiring-template.test.ts", "tests/runner-e2e/catalog.test.ts", "tests/runner-e2e/live-fixtures.test.ts", "tests/runner-e2e/hiring-comparison-context.test.mjs"],
+    required: ["compares each revision's bundle and example without imposing candidate length on baseline",
+      "accepts only supported direct read arguments", "reads the actual default CEO selection and served hiring files",
+      "validates the selected CEO files against this variant's loader", "matches the canonical team catalog to this variant's production sources"] },
 ];
 
 export function gradeGate(gate, report, exitCode) {
@@ -82,7 +88,13 @@ export function gradeGate(gate, report, exitCode) {
 
 export function sourceFingerprint() {
   const hash = createHash("sha256");
+  const hiringContext = JSON.parse(readFileSync(join(root, "tests/runner-e2e/hiring-comparison-context.json"), "utf8"));
   const sources = new Set([
+    ...hiringContext.restoredProductionFiles,
+    ...["AGENTS.md", "HEARTBEAT.md", "SOUL.md", "TOOLS.md"].map(file => `server/src/onboarding-assets/ceo/${file}`),
+    "tests/runner-e2e/hiring-comparison-context.json",
+    ...["cases", "flow", "scoring"].map(part => `tests/runner-e2e/hiring-template-${part}.ts`),
+    "tests/runner-e2e/fixtures/hiring-templates/coder.d7bdfc4.md",
     ...stockHarnessGates.flatMap(gate => gate.files.map(file => join(gate.cwd, file))),
     "tests/runner-e2e/stock-harness.ts", "tests/runner-e2e/stock-harness-checks.mjs", "tests/runner-e2e/catalog.ts",
     "tests/runner-e2e/stock-harness-admission.ts", "tests/runner-e2e/launch.ts", "tests/runner-e2e/runner.spec.ts",

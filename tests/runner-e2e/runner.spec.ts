@@ -16,7 +16,7 @@ import { runEverydayFlow } from "./everyday-flow.js";
 import { gradeTaskTitle } from "./task-titles.js";
 import { runContextIntegrityFlow } from "./context-integrity-flow.js";
 import { captureStockHarness, gradeStockHarness, gradeStockHire } from "./stock-harness.js";
-import { verifyStockHarnessPreflight, STOCK_PREFLIGHT_ENV } from "./stock-harness-admission.js";
+import { verifyStockHarnessPreflight, STOCK_PREFLIGHT_ENV, requiresStockHarnessPrerequisites } from "./stock-harness-admission.js";
 import { createTaskThroughUi, submitTaskReply } from "./user-actions.js";
 
 import { runFirstTaskFlow, setupFirstTaskFixtures } from "./first-task-flow.js";
@@ -817,7 +817,7 @@ for (const execution of executions) {
     });
 
     try {
-      if (execution.suite.id === "stock-harness") {
+      if (requiresStockHarnessPrerequisites(execution.suite.id)) {
         const receipt = verifyStockHarnessPreflight(process.env[STOCK_PREFLIGHT_ENV]);
         await writeSanitizedJson(snapshotsDir, "stock-harness-preflight.json", receipt, secrets);
       }
