@@ -1099,8 +1099,14 @@ async function main() {
   // Keep admission before local-env loading and credential checks. Pending
   // profiles remain discoverable, but cannot reach a provider.
   assertRunnerE2EPrerequisites(executions);
+  const campaignId = cleanId(
+    process.env.PAPERCLIP_E2E_CAMPAIGN_ID ??
+      `local-${new Date().toISOString().replace(/[:.]/g, "-")}`,
+  );
+  const summaryDir = path.join(resultsRoot, campaignId);
+  await mkdir(summaryDir, { recursive: true });
   if (executions.some(execution => execution.suite.id === "stock-harness")) {
-    process.env[STOCK_PREFLIGHT_ENV] = prepareStockHarnessPreflight();
+    process.env[STOCK_PREFLIGHT_ENV] = prepareStockHarnessPreflight(summaryDir);
   }
 
   await loadLocalEnvironment(process.env);
@@ -1123,12 +1129,6 @@ async function main() {
     );
   }
 
-  const campaignId = cleanId(
-    process.env.PAPERCLIP_E2E_CAMPAIGN_ID ??
-      `local-${new Date().toISOString().replace(/[:.]/g, "-")}`,
-  );
-  const summaryDir = path.join(resultsRoot, campaignId);
-  await mkdir(summaryDir, { recursive: true });
   await writeFile(
     path.join(summaryDir, "invocation-policy.json"),
     `${JSON.stringify(

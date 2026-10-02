@@ -157,6 +157,22 @@ protocol fixture absent. It also stopped before paid providers. Setup uses the
 package's ordinary locked workspace `--bins` build, covering both the daemon
 and its fixture; verification binds both binaries to the retained receipt.
 
+That final cold pilot passed all 537 prerequisites on GitHub and reached Claude
+Sonnet 4.6. It saved a workspace `task-output.md` and completed the issue, while
+the independent durable-document oracle found no Paperclip issue document.
+The pinned skill's phrase "task document" does not explicitly name storage in
+Paperclip; matched historical results must precede any regression attribution.
+The task, instruction delivery, budget, and cleanup receipts remain retained.
+
+Its trusted merged report rejected the prerequisite folder alongside the campaign
+root and synthesized a missing-result infrastructure error. Raw packaged cell
+results were uploaded and remain inspectable. Prerequisites now live under the
+exact campaign root; the unchanged trusted selector contract is calibrated in
+the mandatory gate. The initial full matched campaigns at `f02d8d0df` and
+`12c5433c6` retain their original raw results and publication outcomes. Any
+reconstructed comparison must declare directory-layout recovery and preserve
+every result, hash, original failure, and assertion.
+
 Dispatch the trusted workflow from `master`, with `target_branch` naming the
 same-repository candidate and an exact cell selector first. The workflow resolves
 that target once to an immutable SHA. Never dispatch target-controlled workflow
