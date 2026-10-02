@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Frozen Pi1 native Intel qualification evidence; no keys, prompts, or publication."""
-import argparse,datetime,difflib,hashlib,json,os,platform,shutil,signal,subprocess,sys,tempfile,time
+"""Frozen Pi native Intel evidence; synthetic loopback only, no external providers or publication."""
+import argparse,re,datetime,difflib,hashlib,json,os,platform,shutil,signal,subprocess,sys,tempfile,time
 from pathlib import Path
 from closed_inventory import closed_tree
 from owned_processes import OwnedProcesses,atomic_json
@@ -93,6 +93,17 @@ def reuse_native_daemon(archive,stage,out,scratch,run,receipt,save):
     require(receipt['daemonBuildMetadata']==INPUTS['expectedDaemonBuildMetadata'],'Wrong daemon build metadata')
     require(sha(daemon)==pin['selectedFiles']['paperclip-runnerd']['sha256'],'Reused daemon changed during verification')
     save();return daemon
+
+def activate_profile13():
+    global INPUTS, PIN, SOURCE
+    inputs=json.loads((HERE/'profile13-inputs.json').read_text())
+    pin=inputs['localComparison']
+    require(isinstance(pin.get('sourceRevision'),str) and re.fullmatch(r'[a-f0-9]{40}',pin['sourceRevision']) is not None,'Final profile13 source is not frozen')
+    require(isinstance(pin.get('sourceArchiveSha256'),str) and re.fullmatch(r'[a-f0-9]{64}',pin['sourceArchiveSha256']) is not None,'Final profile13 archive is not frozen')
+    require('nativeDaemonReuse' not in inputs and inputs['normalProviderSelection']['pi']['profileVersion']==13,'Profile13 requires fresh native compilation')
+    tests=inputs.get('testSourcePins',{})
+    require(set(tests)=={'pi-closed-startup.test.mjs','pi-native-package-contract.test.mjs','pi-acp-package-contract.test.mjs'} and all(isinstance(value,str) and re.fullmatch(r'[a-f0-9]{64}',value) is not None for value in tests.values()),'Profile13 test source pins missing or malformed')
+    INPUTS=inputs;PIN=pin;SOURCE=pin['sourceRevision']
 
 def execute(args):
     stage=args.source.resolve(strict=True);out=args.output.resolve()
@@ -193,10 +204,11 @@ def execute(args):
         run([pnpm,'install','--frozen-lockfile','--ignore-scripts','--package-import-method','copy'],'install',600)
         source_guard.verify_source(stage,SOURCE,PIN['resolvedLockSha256'])
         run([pnpm,'--filter','@paperclipai/paperclip-runner','build:typescript'],'typescript',600)
-        daemon=reuse_native_daemon(args.native_archive,stage,out,scratch,run,receipt,save)
+        daemon=(build_native_daemon(stage,scratch,env,run,receipt,save) if args.fresh_profile13
+                else reuse_native_daemon(args.native_archive,stage,out,scratch,run,receipt,save))
         pack=scratch/'provider-pack'
         run([node,'packages/paperclip-runner/scripts/build-provider-pack.mjs',pack],'pack-build',600)
-        verified=json.loads(run([node,HERE/'verify-pack.mjs',pack,SOURCE,'darwin','x64'],'pack-verify',180))
+        verified=json.loads(run([node,HERE/('verify-pack-profile13.mjs' if args.fresh_profile13 else 'verify-pack.mjs'),pack,SOURCE,'darwin','x64'],'pack-verify',180))
         require(sha(pack/'node_modules/node/bin/node')==PIN['nodeSha256'],'Pack Node mismatch')
         authority=source_guard.capture_authority(stage,pack)
         source_guard.verify_source(stage,SOURCE,PIN['resolvedLockSha256'],pack,authority)
@@ -205,8 +217,10 @@ def execute(args):
         receipt['providerPackArchive']=retain_pack(pack,out/'provider-pack.tar.gz',authority['pack'])
         save()
         test=stage/'packages/paperclip-runner/test/pi-closed-startup.test.mjs'
-        require(sha(test)=='a2fea9fb7a5d8b9282123f0b680023060438fcb1ff8f5676733e319c0ae5df30','Closed startup test changed')
-        receipt['testSourceSha256']={n:sha(stage/'packages/paperclip-runner/test'/n) for n in ['pi-closed-startup.test.mjs','pi-native-package-contract.test.mjs','pi-acp-package-contract.test.mjs']};save()
+        require(sha(test)==INPUTS.get('testSourcePins',{}).get('pi-closed-startup.test.mjs','a2fea9fb7a5d8b9282123f0b680023060438fcb1ff8f5676733e319c0ae5df30'),'Closed startup test changed')
+        receipt['testSourceSha256']={n:sha(stage/'packages/paperclip-runner/test'/n) for n in ['pi-closed-startup.test.mjs','pi-native-package-contract.test.mjs','pi-acp-package-contract.test.mjs']}
+        if args.fresh_profile13:require(receipt['testSourceSha256']==INPUTS['testSourcePins'],'Profile13 test sources changed')
+        save()
         retained=out/'retained-test-state';retained.mkdir(mode=0o700)
         testenv={'HOME':str(scratch/'home'),'TMPDIR':str(scratch),'PATH':'/usr/bin:/bin','LANG':'en_US.UTF-8',
           'PI_INTEL_OWNED_TMP':str(scratch),'PI_INTEL_RETAINED_STATE':str(retained),
@@ -233,4 +247,9 @@ def execute(args):
         receipt['finishedAt']=datetime.datetime.now(datetime.timezone.utc).isoformat();save()
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--source',type=Path,required=True);parser.add_argument('--native-archive',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);execute(parser.parse_args())
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--source',type=Path,required=True)
+    native=parser.add_mutually_exclusive_group(required=True)
+    native.add_argument('--native-archive',type=Path);native.add_argument('--fresh-profile13',action='store_true')
+    parser.add_argument('--output',type=Path,required=True);args=parser.parse_args()
+    if args.fresh_profile13:activate_profile13()
+    execute(args)

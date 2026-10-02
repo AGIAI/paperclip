@@ -51,14 +51,14 @@ export function verifyNormalPiSelection(payload, platform, architecture) {
   requireTrue(inputs.normalProviderSelection?.pi?.qualification === 'qualified' && inputs.normalProviderSelection.pi.profileVersion === 12 && inputs.normalProviderSelection.pi.profileDigest === candidate.profileDigest, 'Normal selection input mismatch');
   return candidate;
 }
-export function verifyPack(pack, source, platform, architecture) {
+export function verifyPack(pack, source, platform, architecture, verifySelection = verifyNormalPiSelection) {
   const manifest = JSON.parse(readFileSync(join(pack, 'provider-pack.json')));
   const p = manifest.payload;
   requireTrue(manifest.schema === 'paperclip-runner/remote-provider-pack/v1', 'Wrong schema');
   requireTrue(manifest.digest === `sha256:${createHash('sha256').update(canonicalJson(p)).digest('hex')}`, 'Canonical manifest mismatch');
   requireTrue(p.runnerSourceRevision === source, 'Wrong source');
   requireTrue(p.target.platform === platform && p.target.architecture === architecture, 'Wrong target');
-  const candidate = verifyNormalPiSelection(p, platform, architecture);
+  const candidate = verifySelection(p, platform, architecture);
   const checks = [checkedArtifact(pack, candidate, 'directory')];
   for (const entry of Object.values(p.artifacts)) checks.push(checkedArtifact(pack, entry, 'file'));
   requireTrue(sha256Tree(join(pack, 'dist')) === p.distDigest, 'Packed dist mismatch');
