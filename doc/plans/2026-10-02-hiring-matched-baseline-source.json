@@ -1,0 +1,117 @@
+{
+  "schema": "paperclip.hiring-matched-baseline.v1",
+  "candidateSourceSha": "9f5404ad3aacbe76777952759414d34fd381e674",
+  "historicalHiringSourceSha": "d7bdfc422cadcc407f2945e211833a8382b80117",
+  "commonReducedAndNativeSourceSha": "f46492a45354eff21b83946407f5a7642cbaa2d6",
+  "hiringFixtureDigest": "4d7f18420889325af89aa48eaaf021e8178aa6d26d504b92041635a15741f004",
+  "restoredProductionFiles": [
+    "packages/teams-catalog/catalog/bundled/company-defaults/core-exec-team/TEAM.md",
+    "packages/teams-catalog/catalog/bundled/company-defaults/core-exec-team/agents/ceo/AGENTS.md",
+    "packages/teams-catalog/catalog/bundled/company-defaults/core-exec-team/agents/cto/AGENTS.md",
+    "packages/teams-catalog/catalog/bundled/company-defaults/core-exec-team/agents/qa/AGENTS.md",
+    "packages/teams-catalog/catalog/bundled/product/product-design/TEAM.md",
+    "packages/teams-catalog/catalog/bundled/product/product-design/agents/ux-designer/AGENTS.md",
+    "packages/teams-catalog/catalog/bundled/software-development/product-engineering/agents/cto/AGENTS.md",
+    "packages/teams-catalog/catalog/bundled/software-development/product-engineering/agents/qa/AGENTS.md",
+    "packages/teams-catalog/catalog/bundled/software-development/product-engineering/agents/senior-coder/AGENTS.md",
+    "packages/teams-catalog/generated/catalog.json",
+    "server/src/onboarding-assets/ceo/AGENTS.md",
+    "server/src/onboarding-assets/first-task/chief-of-staff/AGENTS.md",
+    "server/src/services/default-agent-instructions.ts",
+    "skills/paperclip-create-agent/SKILL.md",
+    "skills/paperclip-create-agent/references/agent-instruction-templates.md",
+    "skills/paperclip-create-agent/references/agents/coder.md",
+    "skills/paperclip-create-agent/references/agents/qa.md",
+    "skills/paperclip-create-agent/references/agents/securityengineer.md",
+    "skills/paperclip-create-agent/references/agents/uxdesigner.md",
+    "skills/paperclip-create-agent/references/baseline-role-guide.md",
+    "skills/paperclip-create-agent/references/draft-review-checklist.md"
+  ],
+  "productionSourceHashes": {
+    "packages/teams-catalog/catalog/bundled/company-defaults/core-exec-team/TEAM.md": {
+      "candidate": "e0c38e9af1a5dd1888fb81a72feba75a9ab1be4c78d8ceb658e2e5cd621c5096",
+      "baseline": "4ab4f57f147e89a56a6753755d7ef142d91741b3c0159f2e53fb333cd2779eaf"
+    },
+    "packages/teams-catalog/catalog/bundled/company-defaults/core-exec-team/agents/ceo/AGENTS.md": {
+      "candidate": "75848c6f794646a93e23bc73b80d31ef0eb8b83c105423eb98ea29e7685d2fd0",
+      "baseline": "50f580c51807762265f09c6fe7bf32d7701d64caeb30595bfd577b2f5087c21b"
+    },
+    "packages/teams-catalog/catalog/bundled/company-defaults/core-exec-team/agents/cto/AGENTS.md": {
+      "candidate": "d33bfdecdf2edcedde25599c72c383445365c595430109469a3919bf9cb12a3d",
+      "baseline": "596e2e9fe08d7368b3b0cfe72c2635ea80444d92a2c0414157bfb0a17773fcaf"
+    },
+    "packages/teams-catalog/catalog/bundled/company-defaults/core-exec-team/agents/qa/AGENTS.md": {
+      "candidate": "8b7fbdd93c0ecebddc1c87fb87d201340bd5f90297015da6cacd1681e7be70b8",
+      "baseline": "2a139b88b4b98516048395c569c1bc74fd31cdc2da65db410e9779b8d92c0343"
+    },
+    "packages/teams-catalog/catalog/bundled/product/product-design/TEAM.md": {
+      "candidate": "f950f4f77a26afa458ca0696994b51353a6bcfac81471fdc00c05f63950fcac5",
+      "baseline": "205be8d3ef6c1f5e73729207913c387eee4cc9379191c3ce6d943fcf9ca2545d"
+    },
+    "packages/teams-catalog/catalog/bundled/product/product-design/agents/ux-designer/AGENTS.md": {
+      "candidate": "301f2c7ed92bdd98036c06530588c77d74c3a3c6a8b9c724a3d35fee1142af6f",
+      "baseline": "f5a4b5696d8249e9f9d808a4373c2a1e6b07faa463e72f83fd9d5bed98d2022f"
+    },
+    "packages/teams-catalog/catalog/bundled/software-development/product-engineering/agents/cto/AGENTS.md": {
+      "candidate": "28849cb94cb506c4437fa4f9fa19dccb3e29b16175a9b99204a006dac721da48",
+      "baseline": "0a1a73ec9e5008056bca0a26325131ded2fcf4c4680a5014ba1e13400b32c173"
+    },
+    "packages/teams-catalog/catalog/bundled/software-development/product-engineering/agents/qa/AGENTS.md": {
+      "candidate": "577f585f6db5271cb7335861debe91fc3201fba9e1565e32611e957ddfab8e05",
+      "baseline": "2d5738f831aa772befa3471c844a0c9e611584be668e3ec82580ca9e92dc13fc"
+    },
+    "packages/teams-catalog/catalog/bundled/software-development/product-engineering/agents/senior-coder/AGENTS.md": {
+      "candidate": "e03e0eef79adc04b4ee558ac920bf2ef0581e9494510b7a12d5f1aea70858f18",
+      "baseline": "b61071518755d9e584c099ae2082c7a78448d09586093ee91393082fe10872b5"
+    },
+    "packages/teams-catalog/generated/catalog.json": {
+      "candidate": "e924b338b5bf24004eb57ca6a60daa7ae7e9c06b277e64ac8887e1379f16d492",
+      "baseline": "28384fe47f2a24eee2f24f662bc3ac9725307df9c3b4f3106155c51a82e6db1c"
+    },
+    "server/src/onboarding-assets/ceo/AGENTS.md": {
+      "candidate": "780fc699350b54471d8ff071716973b5cda184fbd202185f030db6fdc259c879",
+      "baseline": "089ef9fc2f12934c882910ae35df048597729ee84d437a75d88ce8100c9f1862"
+    },
+    "server/src/onboarding-assets/first-task/chief-of-staff/AGENTS.md": {
+      "candidate": "d568332c7209f19d03c89faba5c5405dd2da2c4edc9a1b87c41ed90aea75859d",
+      "baseline": "986e1607ccd1faa80e2269afee1fc92e5b26eb89c8e76e38ab13b80ecd93f062"
+    },
+    "server/src/services/default-agent-instructions.ts": {
+      "candidate": "8bd3b59f900c132db5ed89b96524f35ba7c8dafb9d58db1dac888430f08c4d63",
+      "baseline": "5350ea86587087135b2ef46962d07a23a88078e03d67b234ecbfbefd7aa0e023"
+    },
+    "skills/paperclip-create-agent/SKILL.md": {
+      "candidate": "00e3063a40bbe32592171fa613956bc1b503fe0a41c4973c8dae7b8cdf8c148a",
+      "baseline": "66b935b273e2fd2f0abedc960b72c2063656c457633ac1bcc943b5fb274539f4"
+    },
+    "skills/paperclip-create-agent/references/agent-instruction-templates.md": {
+      "candidate": "9ce87fc420b41e951cab664655886d0ee50fa253cb5b8647b4a7afa4a6082d2d",
+      "baseline": "45787eaf0b7b751c5684518b73219b154af32b9cc23f99cbab539b365b83da6c"
+    },
+    "skills/paperclip-create-agent/references/agents/coder.md": {
+      "candidate": "e04a25fbc8bb29910b2f4a3719730b8840553b0524ce1ec570617701aca20650",
+      "baseline": "766c6f5db907f3dc2e317d540feb80e77358202c59d759449228a32450fa6202"
+    },
+    "skills/paperclip-create-agent/references/agents/qa.md": {
+      "candidate": "2f1fc8f4c082ccac9f0a0428c8fba8e12fc50405dc39f3d3976da0afd2f25676",
+      "baseline": "405119037d216deaa6476b0f21b69329115dfee9d10064b6820973a91c05bf65"
+    },
+    "skills/paperclip-create-agent/references/agents/securityengineer.md": {
+      "candidate": "9eecf981844ab1f5896dd1bae6b76acce8471c448841608c5655497d691ba1a0",
+      "baseline": "cd4f34687e873de4c9f0c6c43f268f8d95a43e283b20092c6e6216e0ec68dee4"
+    },
+    "skills/paperclip-create-agent/references/agents/uxdesigner.md": {
+      "candidate": "f6341c7dd4ce19b7f90e613ad1b46b3f4ba2b5ac19bde1b7b3b4a60ec0376b43",
+      "baseline": "d44fe590bf20e743cdf7f3de5a365d679e61335165d1da02d78e926a928adc3d"
+    },
+    "skills/paperclip-create-agent/references/baseline-role-guide.md": {
+      "candidate": "0841c5c483526d8d64c7217df7164bca7f3f03edcf4578f2baefcca01cd156b0",
+      "baseline": "9b86775beb3ea62a821a1593abe0e1a280b64944fc68fe76388ec29f8f1a9932"
+    },
+    "skills/paperclip-create-agent/references/draft-review-checklist.md": {
+      "candidate": "1cbe0577a9888f31467f5c7beea01d0aa6435da2a0f577b5fdd3b5fe773984ad",
+      "baseline": "517eb8d0033e2713053574c7a7ce685e2229fa9f61d094db70271c321dbfe397"
+    }
+  },
+  "policy": "Only the pinned historical hiring production sources and derived team catalog differ. The reduced generic manual, shared prompts, operational skill, native completion guidance, eval fixture/oracle, admission glue, models/effort/auth/permissions and no-automatic-retry policy are held constant."
+}
