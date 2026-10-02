@@ -68,13 +68,6 @@ export const BedrockEnvironmentIdentity: Story = {
     initialMethod: "identity",
   },
 };
-export const BedrockAccessKeys: Story = {
-  args: {
-    initialStep: "connect",
-    initialProvider: "bedrock",
-    initialMethod: "aws-keys",
-  },
-};
 export const GoogleVertexIdentity: Story = {
   args: {
     initialStep: "connect",
@@ -111,7 +104,7 @@ export const InvalidCredential: Story = {
   args: { initialStep: "connect", initialError: "credential" },
 };
 export const MobileBedrock: Story = {
-  ...BedrockAccessKeys,
+  ...BedrockApiKey,
   globals: { viewport: { value: "mobile", isRotated: false } },
 };
 export const CustomEndpointWalkthrough: Story = {

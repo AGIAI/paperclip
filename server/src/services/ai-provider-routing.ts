@@ -1,5 +1,4 @@
 import {
-  aiAwsCredentialsSchema,
   aiRoutingBaseUrl,
   aiRoutingModel,
   type AiProviderRouting,
@@ -22,12 +21,7 @@ export function managedProviderRouting(
     env.AWS_REGION = route.region!;
     env.AWS_DEFAULT_REGION = route.region!;
     env.AWS_EC2_METADATA_DISABLED = "true";
-    if (route.auth === "aws_credentials") {
-      const aws = aiAwsCredentialsSchema.parse(JSON.parse(credential));
-      env.AWS_ACCESS_KEY_ID = aws.accessKeyId;
-      env.AWS_SECRET_ACCESS_KEY = aws.secretAccessKey;
-      env.AWS_SESSION_TOKEN = aws.sessionToken ?? "";
-    } else env.AWS_BEARER_TOKEN_BEDROCK = credential;
+    env.AWS_BEARER_TOKEN_BEDROCK = credential;
   } else if (harness === "codex_local") {
     env.PAPERCLIP_AI_PROVIDER_KEY = credential;
     codexConfig = `model_provider = "paperclip"\n[model_providers.paperclip]\nname = "Paperclip connection"\nbase_url = ${JSON.stringify(baseUrl)}\nwire_api = "responses"\nrequires_openai_auth = false\n${route.auth === "none" ? "" : 'env_key = "PAPERCLIP_AI_PROVIDER_KEY"\n'}`;

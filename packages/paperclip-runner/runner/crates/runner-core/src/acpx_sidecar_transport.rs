@@ -100,9 +100,6 @@ impl AcpxSidecarTransport {
                 "ANTHROPIC_API_KEY",
                 "CLAUDE_CODE_OAUTH_TOKEN",
                 "ANTHROPIC_AUTH_TOKEN",
-                "AWS_ACCESS_KEY_ID",
-                "AWS_SECRET_ACCESS_KEY",
-                "AWS_SESSION_TOKEN",
                 "AWS_BEARER_TOKEN_BEDROCK",
             ],
             "codex" => &[

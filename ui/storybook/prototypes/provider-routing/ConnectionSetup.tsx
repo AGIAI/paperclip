@@ -305,9 +305,6 @@ export function ConnectionSetup({
                     },
                   ]
                 : []),
-              ...(isAws
-                ? [{ value: "aws-keys", label: "AWS access keys" }]
-                : []),
               ...(provider === "custom"
                 ? [
                     { value: "header", label: "Custom authentication header" },

@@ -162,7 +162,11 @@ export function AiConnectionSelect({
           </Button>
         </div>
       )}
-      {unavailable ? (
+      {value?.mode === "responsible_user" && !personal && !loading && !error ? (
+        <p role="alert" className="text-sm text-destructive">
+          You have no default account for this provider. Connect an account or choose another connection.
+        </p>
+      ) : unavailable ? (
         <p role="alert" className="text-sm text-destructive">
           This connection is unavailable. Choose another connection.
         </p>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { aiProviderRoutingSchema, aiAwsCredentialsSchema, aiRoutingHarness, isAiRoutingCompatible, type AiProviderRouting } from "./ai-provider-routing.js";
+import { aiProviderRoutingSchema, aiRoutingHarness, isAiRoutingCompatible, type AiProviderRouting } from "./ai-provider-routing.js";
 
 /** Runtime authentication is a separate transport, never a tool or channel. */
 export const connectionPurposeTransportSchema = z.discriminatedUnion(
@@ -183,7 +183,6 @@ export const createAiConnectionSchema = z
     name: z.string().trim().min(1).max(160),
     ownership: z.enum(["personal", "shared"]),
     routing: aiProviderRoutingSchema.optional(),
-    awsCredentials: aiAwsCredentialsSchema.optional(),
     apiKey: z.string().trim().min(1).max(32768).optional(),
     loginSessionId: z.string().max(128).optional(),
     connectionId: z.string().uuid().optional(),
@@ -198,9 +197,8 @@ export const createAiConnectionSchema = z
       ctx.addIssue({ code: "custom", message: "Routing requires the matching provider and API authentication." });
     if (v.routing && ["gateway", "local"].includes(v.routing.kind) && v.provider !== (v.routing.protocol === "messages" ? "anthropic" : "openai"))
       ctx.addIssue({ code: "custom", message: "The provider must match the endpoint’s API format." });
-    if (v.awsCredentials && v.routing?.auth !== "aws_credentials") ctx.addIssue({ code: "custom", message: "AWS credentials require AWS authentication." });
-    if (v.routing?.auth === "none" || v.routing?.auth === "aws_credentials") {
-      if (v.apiKey || v.loginSessionId || (v.routing.auth === "aws_credentials" ? !v.awsCredentials : Boolean(v.awsCredentials))) ctx.addIssue({ code: "custom", message: "Provide only the selected authentication method." });
+    if (v.routing?.auth === "none") {
+      if (v.apiKey || v.loginSessionId) ctx.addIssue({ code: "custom", message: "Provide only the selected authentication method." });
       return;
     }
     if (

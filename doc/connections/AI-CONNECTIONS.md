@@ -535,7 +535,7 @@ credentials belong to the connection; the model belongs to the agent.
 | Harness | Implemented managed routes |
 | --- | --- |
 | Codex legacy and Codex New Runner (app-server) | OpenRouter; custom/local OpenAI Responses endpoints |
-| Claude legacy and Claude New Runner (ACPX) | OpenRouter; custom/local Anthropic Messages; Bedrock API key or AWS access keys with optional session token |
+| Claude legacy and Claude New Runner (ACPX) | OpenRouter; custom/local Anthropic Messages; Bedrock API key |
 | OpenCode legacy and New Runner | OpenRouter; custom/local Chat Completions |
 | Hermes local | OpenRouter; custom/local Chat Completions |
 | Gemini CLI, Grok | Their native API connections; custom routes are not advertised |
@@ -593,5 +593,10 @@ the task, then resumed from a new user message and completed a second shell
 calculation with the prior context. Reconnect coverage round-trips routing
 through PostgreSQL JSONB and verifies that credential rotation retains identity
 and agent access.
+General AWS access keys are not accepted or forwarded to Claude; use a Bedrock
+API key. Support for AWS roles requires a credential broker before it can ship.
+A subsequent OpenCode tool-use check reached OpenRouter but was denied terminal
+access; its follow-up ended with `process_lost`. Treat OpenCode tool-use acceptance
+as unresolved rather than inferring it from a completed task status.
 Bedrock and private gateway credentials were not available for live verification;
 their mapping and validation are covered by deterministic tests.

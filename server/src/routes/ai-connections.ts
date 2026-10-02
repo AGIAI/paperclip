@@ -303,7 +303,7 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
         companyId,
         userId,
         input,
-        input.awsCredentials ? JSON.stringify(input.awsCredentials) : input.apiKey ?? "",
+        input.apiKey ?? "",
         undefined,
         attemptStartedAt,
       );

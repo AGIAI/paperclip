@@ -47,7 +47,7 @@ const providers = [
   {
     id: "bedrock",
     name: "Amazon Bedrock",
-    description: "AWS credentials or Bedrock API key",
+    description: "Bedrock API key and AWS region",
     advanced: true,
   },
   {
@@ -115,9 +115,6 @@ export function AiProviderSetup({
     reconnect?.routing?.models.map((m) => m.id).join(", ") ?? "",
   );
   const [apiKey, setApiKey] = useState("");
-  const [accessKeyId, setAccessKeyId] = useState("");
-  const [secretAccessKey, setSecretAccessKey] = useState("");
-  const [sessionToken, setSessionToken] = useState("");
   const client = useQueryClient();
   const accounts = useQuery({
     queryKey: ["ai-connections", companyId, agentId],
@@ -130,9 +127,7 @@ export function AiProviderSetup({
     queryFn: () => agentsApi.list(companyId),
   });
   const label = providers.find((p) => p.id === provider)?.name ?? "provider";
-  const advanced = ["openrouter", "bedrock", "gateway", "local"].includes(
-    provider ?? "",
-  );
+  const advanced = reconnect ? Boolean(reconnect.routing) : ["openrouter", "bedrock", "gateway", "local"].includes(provider ?? "");
   const nativeProvider: AiProvider =
     provider === "bedrock"
       ? "anthropic"
@@ -198,25 +193,13 @@ export function AiProviderSetup({
           agentIds: [...agentIds],
           connectionId: reconnect?.id,
           routing,
-          ...(auth === "aws_credentials"
-            ? {
-                awsCredentials: {
-                  accessKeyId,
-                  secretAccessKey,
-                  ...(sessionToken ? { sessionToken } : {}),
-                },
-              }
-            : auth !== "none"
-              ? { apiKey }
-              : {}),
+          ...(auth !== "none" ? { apiKey } : {}),
         }),
       );
     },
     onSuccess: complete,
     onSettled: () => {
       setApiKey("");
-      setSecretAccessKey("");
-      setSessionToken("");
     },
   });
   const choices = (advancedOnly: boolean) => (
@@ -308,6 +291,7 @@ export function AiProviderSetup({
           provider={nativeProvider}
           connectionId={reconnect?.id}
           initialMethod={reconnect?.method}
+          fixedMethod={Boolean(reconnect)}
           name={name}
           hideName
           ownership={ownership}
@@ -398,11 +382,7 @@ export function AiProviderSetup({
                       ? "Bedrock API key"
                       : "Bearer token"}
                   </SelectItem>
-                  {provider === "bedrock" ? (
-                    <SelectItem value="aws_credentials">
-                      AWS access keys
-                    </SelectItem>
-                  ) : (
+                  {provider !== "bedrock" && (
                     <>
                       {protocol === "messages" && (
                         <SelectItem value="api_key">
@@ -416,39 +396,7 @@ export function AiProviderSetup({
               </Select>
             </label>
           )}
-          {auth === "aws_credentials" ? (
-            <>
-              <label className="block space-y-2 text-xs text-muted-foreground">
-                AWS access key ID
-                <Input
-                  aria-label="AWS access key ID"
-                  value={accessKeyId}
-                  onChange={(e) => setAccessKeyId(e.target.value)}
-                  autoComplete="off"
-                />
-              </label>
-              <label className="block space-y-2 text-xs text-muted-foreground">
-                AWS secret access key
-                <Input
-                  aria-label="AWS secret access key"
-                  type="password"
-                  value={secretAccessKey}
-                  onChange={(e) => setSecretAccessKey(e.target.value)}
-                  autoComplete="new-password"
-                />
-              </label>
-              <label className="block space-y-2 text-xs text-muted-foreground">
-                Session token (optional)
-                <Input
-                  aria-label="Session token"
-                  type="password"
-                  value={sessionToken}
-                  onChange={(e) => setSessionToken(e.target.value)}
-                  autoComplete="new-password"
-                />
-              </label>
-            </>
-          ) : (
+          {
             auth !== "none" && (
               <label className="block space-y-2 text-xs text-muted-foreground">
                 API key
@@ -461,7 +409,7 @@ export function AiProviderSetup({
                 />
               </label>
             )
-          )}
+          }
           <details>
             <summary className="cursor-pointer text-sm text-muted-foreground">
               Advanced model settings
@@ -504,9 +452,7 @@ export function AiProviderSetup({
               type="submit"
               disabled={
                 save.isPending ||
-                (auth === "aws_credentials"
-                  ? !accessKeyId || !secretAccessKey
-                  : auth !== "none" && !apiKey.trim())
+                (auth !== "none" && !apiKey.trim())
               }
             >
               {save.isPending

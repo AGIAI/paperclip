@@ -73,7 +73,7 @@ explicitly opening advanced setup, and preserving a custom selection on collapse
 1. **01 Onboarding:** current default sign-in shape, saved reuse, and optional
    “Use another provider or gateway” entry under Advanced. Walk through setup into an agent.
 2. **02 Connect:** provider → Access → Connect; OpenRouter API key, Bedrock region
-   with API key/AWS credentials/environment identity, Google Vertex identity,
+   with a Bedrock API key; exploratory environment identity, Google Vertex identity,
    custom Responses/Messages endpoints, custom auth header, and local endpoint.
 3. **03 Agent:** harness/connection/model ownership, new and legacy runners,
    model discovery and manual alias, incompatibility, loading/empty/denied states,
@@ -111,3 +111,8 @@ pnpm build-storybook
 The walkthrough stories include interaction assertions. Review all story renders,
 walkthrough results, internal links, and representative light/dark mobile layouts
 in the browser.
+
+Production Bedrock setup accepts only a Bedrock API key. General AWS access keys
+are excluded until a credential broker can contain them. Environment identity,
+Vertex, and arbitrary-header stories remain design explorations, not shipped
+provider options.

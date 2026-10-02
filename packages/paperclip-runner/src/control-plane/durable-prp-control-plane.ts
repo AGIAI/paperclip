@@ -3400,7 +3400,7 @@ function runnerEnvironment(
       if (value !== undefined) environment[key] = value;
     }
     if (explicitSource.CLAUDE_CODE_USE_BEDROCK === "1") {
-      for (const key of ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_BEARER_TOKEN_BEDROCK"] as const) {
+      for (const key of ["AWS_BEARER_TOKEN_BEDROCK"] as const) {
         if (explicitSource[key] !== undefined) environment[key] = explicitSource[key];
       }
     }

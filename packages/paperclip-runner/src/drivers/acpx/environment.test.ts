@@ -11,6 +11,7 @@ describe("ACPX launch environment", () => {
       ANTHROPIC_AUTH_TOKEN: "selected-key",
       CLAUDE_CODE_USE_BEDROCK: "1", AWS_REGION: "us-east-1",
       AWS_BEARER_TOKEN_BEDROCK: "bedrock-key",
+      AWS_ACCESS_KEY_ID: "general-aws-key", AWS_SECRET_ACCESS_KEY: "general-aws-secret", AWS_SESSION_TOKEN: "general-aws-session",
       PAPERCLIP_AI_PROVIDER_KEY: "codex-key", UNRELATED_SECRET: "private",
     };
     expect(createSanitizedAcpxSpawnInput(source, "claude").env).toEqual({

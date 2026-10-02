@@ -127,7 +127,9 @@ it("does not offer reconnection for a healthy default or another owner's account
 
 it("keeps an ordinary member's new connection scoped to the current agent by default", async () => {
   await mount([], false);
+  expect(document.body.textContent).toContain("You have no default account");
   await click("Connect another account");
+  expect(document.querySelector<HTMLButtonElement>('[role="checkbox"]')!.disabled).toBe(true);
   expect(credentialProps).toMatchObject({ allAgents: false, agentIds: ["agent"] });
 });
 

@@ -7,7 +7,7 @@ export const aiProviderRoutingSchema = z
     protocol: z.enum(["responses", "messages", "chat", "bedrock"]),
     baseUrl: z.string().trim().max(2048).optional(),
     auth: z
-      .enum(["bearer", "api_key", "aws_credentials", "none"])
+      .enum(["bearer", "api_key", "none"])
       .default("bearer"),
     region: z
       .string()
@@ -33,15 +33,14 @@ export const aiProviderRoutingSchema = z
       if (
         route.protocol !== "bedrock" ||
         !route.region ||
-        !["bearer", "aws_credentials"].includes(route.auth) ||
+        route.auth !== "bearer" ||
         route.baseUrl
       )
         invalid(
-          "Bedrock requires a region and AWS credentials or a Bedrock API key.",
+          "Bedrock requires a region and a Bedrock API key.",
         );
     } else if (
       route.protocol === "bedrock" ||
-      route.auth === "aws_credentials" ||
       route.region
     )
       invalid("AWS settings require Bedrock.");
@@ -76,14 +75,6 @@ export const aiProviderRoutingSchema = z
     }
   });
 export type AiProviderRouting = z.infer<typeof aiProviderRoutingSchema>;
-export const aiAwsCredentialsSchema = z
-  .object({
-    accessKeyId: z.string().trim().min(1).max(256),
-    secretAccessKey: z.string().min(1).max(4096),
-    sessionToken: z.string().max(16384).optional(),
-  })
-  .strict();
-
 export function aiRoutingHarness(
   adapter: string,
   provider?: unknown,

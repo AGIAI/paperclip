@@ -160,6 +160,6 @@ export const MemberProviderAccess: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "OpenAI" }));
     await expect(canvas.getByText("Which agents can use this connection?", { exact: true })).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Continue", exact: true })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: /^Continue$/ })).toBeEnabled();
   },
 };

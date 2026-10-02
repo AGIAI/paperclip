@@ -118,30 +118,26 @@ describe("provider routing", () => {
       "openrouter/anthropic/claude-sonnet-4.6",
     );
   });
-  it("projects AWS credentials and disables ambient instance metadata", () => {
+  it("projects only a Bedrock API key and rejects general AWS access keys", () => {
     const routing = aiProviderRoutingSchema.parse({
       kind: "bedrock",
       protocol: "bedrock",
-      auth: "aws_credentials",
+      auth: "bearer",
       region: "us-east-1",
     });
     const projected = managedProviderRouting(
       routing,
       "claude_local",
-      JSON.stringify({
-        accessKeyId: "fixture-id",
-        secretAccessKey: "fixture-secret",
-        sessionToken: "fixture-token",
-      }),
+      "fixture-bedrock-key",
       "bedrock-model",
     );
     expect(projected.env).toMatchObject({
       CLAUDE_CODE_USE_BEDROCK: "1",
       AWS_REGION: "us-east-1",
-      AWS_ACCESS_KEY_ID: "fixture-id",
-      AWS_SECRET_ACCESS_KEY: "fixture-secret",
-      AWS_SESSION_TOKEN: "fixture-token",
+      AWS_BEARER_TOKEN_BEDROCK: "fixture-bedrock-key",
       AWS_EC2_METADATA_DISABLED: "true",
     });
+    expect(aiProviderRoutingSchema.safeParse({ ...routing, auth: "aws_credentials" }).success).toBe(false);
+    for (const key of ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"]) expect(projected.env).not.toHaveProperty(key);
   });
 });
