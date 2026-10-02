@@ -1,7 +1,7 @@
 """Sparse additive instrumentation of one pinned bundle; never edits vendor closure bytes."""
 import hashlib,json
 from source_guard import require
-ORIGINAL_SHA='97eedf930681729c6a1654e6c54bcc9657154e5dd2761f9922f4b01c7358f9f7'
+ORIGINAL_SHA='1f0ee222b2edaad997b898aec6580982afc179fc60e5abc87fa3e6f2386a691f'
 PREFIX='__pcStartupDiagnostic'
 
 def patch_sidecar(original,sink):
@@ -31,13 +31,13 @@ def patch_sidecar(original,sink):
  mark('// src/drivers/acpx/runtime-host.ts','      const commandOwner = createAcpxCommandLeaseOwner(','command.acquire.end')
  mark('// src/drivers/acpx/runtime-host.ts','      runtime = await acquireAbortableAdmissionResource({','runtime.acquire.begin')
  mark('// src/drivers/acpx/pi-installation.ts','async function verifyPiInstallation(profile) {','pi.install.begin',True)
- mark('// src/drivers/acpx/pi-installation.ts','  const verified = await verifyPiRuntimeManifest(runtimeRoot, manifest);','pi.manifest.begin')
- mark('// src/drivers/acpx/pi-installation.ts','  if (verified.manifestDigest !== metadata.manifestDigest)','pi.manifest.end')
+ mark('// src/drivers/acpx/pi-installation.ts','  const entries = await readNativeAcpxDistributionEntries(declaration);','pi.native_manifest.begin')
+ mark('// src/drivers/acpx/pi-installation.ts','  const layout = await verifyPiRuntimeLayoutForNativeSnapshot(runtimeRoot, manifest, { entries }, expectedClosure);','pi.native_manifest.end')
  mark('// src/drivers/acpx/pi-installation.ts','  return Object.freeze({','pi.install.end')
- mark('// src/drivers/acpx/pi-verified-runtime.ts','async function inventoryPiRuntimeFiles(root) {','pi.discovery.begin',True)
+ mark('// src/drivers/acpx/pi-verified-runtime.ts','async function discoverPiRuntimeFiles(root) {','pi.discovery.begin',True)
  mark('// src/drivers/acpx/pi-verified-runtime.ts','  await visit(physicalRoot);','pi.discovery.end',True)
- mark('// src/drivers/acpx/pi-verified-runtime.ts','  for (let index = 0; index < regular.length;','pi.hash.begin')
- mark('// src/drivers/acpx/pi-verified-runtime.ts','  return files;','pi.hash.end')
+ mark('// src/drivers/acpx/pi-verified-runtime.ts','async function verifyPiRuntimeLayoutForNativeSnapshot(root, manifest, nativeManifest, expectedClosureSha256) {','pi.layout.begin',True)
+ mark('// src/drivers/acpx/pi-verified-runtime.ts','  return { manifestDigest };','pi.layout.end')
  mark('// src/drivers/acpx/native-distribution-integrity.ts','async function createNativeAcpxDistributionSnapshot(input, entries) {','snapshot.begin',True)
  mark('// src/drivers/acpx/native-distribution-integrity.ts','    const copyEntry = async (entry) => {','snapshot.directories.end')
  mark('// src/drivers/acpx/native-distribution-integrity.ts','    for (let start = 0; start < entries.length; ) {','snapshot.copy.begin')

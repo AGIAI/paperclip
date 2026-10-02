@@ -104,7 +104,7 @@ def execute(args):
   sidecar=pack/'dist/cli/acpx-runtime-sidecar.cjs';original_sidecar=sidecar.read_bytes();patched,patch=patch_sidecar(original_sidecar,identity)
   # Preserve original file mode; this one private copy now has an explicit diagnostic identity.
   sidecar.write_bytes(patched);atomic_json(out/'sidecar-patch.json',patch)
-  (out/'sidecar.diff').write_text(''.join(difflib.unified_diff(original_sidecar.decode().splitlines(True),patched.decode().splitlines(True),fromfile='original-S-sidecar',tofile='diagnostic-sidecar')))
+  (out/'sidecar.diff').write_text(''.join(difflib.unified_diff(original_sidecar.decode().splitlines(True),patched.decode().splitlines(True),fromfile='original-W-sidecar',tofile='diagnostic-sidecar')))
   command('diagnostic-sidecar-syntax',[node,'--check',sidecar])
   proof['diagnosticPackVerification']=json.loads(command('diagnostic-pack-rebind',[node,HERE/'rebind-diagnostic-pack.mjs',pack,PIN['originalSidecarSha256'],PIN['sourceRevision']],180))
   after_manifest=json.loads((pack/'provider-pack.json').read_text());expected=copy.deepcopy(before_manifest)

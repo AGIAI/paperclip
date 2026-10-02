@@ -1,7 +1,7 @@
 import copy,hashlib,json,os,subprocess,tempfile,unittest
 from pathlib import Path
 from startup_timing_patch import patch_sidecar,ORIGINAL_SHA
-from startup_diagnostic import validate_pack_delta,validate_timing_sink,reject_sink_failure
+from startup_diagnostic import validate_pack_delta,validate_timing_sink,reject_sink_failure,PIN
 from diagnostic_lifecycle import DiagnosticChild,DiagnosticInspection
 from owned_processes import process_table,command_tokens,ProcessInspectionUnavailable
 from unittest.mock import patch
@@ -40,6 +40,35 @@ class DiagnosticTests(unittest.TestCase):
   self.assertEqual(len(proof['phases']),46)
  def test_wrong_original_rejected(self):
   with self.assertRaises(RuntimeError):patch_sidecar(self.original+b' ',{'path':'unused','dev':'1','ino':'2','uid':'3'})
+ def test_retained_w_pack_identity_and_original_test_contract(self):
+  self.assertEqual(PIN['sourceRevision'],'efe019a79f50440d7bd6c3bc6c75fb8f18953093')
+  self.assertEqual(PIN['artifactRunId'],'36952019178')
+  self.assertEqual(PIN['artifactId'],'11204971146')
+  self.assertEqual(PIN['originalSidecarSha256'],ORIGINAL_SHA)
+  self.assertEqual(PIN['selectedFiles']['paperclip-runnerd']['sha256'],PIN['daemonSha256'])
+  self.assertEqual(PIN['selectedFiles']['resolved-pnpm-lock.yaml']['sha256'],PIN['resolvedLockSha256'])
+  self.assertEqual(PIN['testSha256'],'8967cf9c8cd130b68bf9d64abef8cb8d352af00646e2288b341d8c6ae758b47a')
+  self.assertEqual((PIN['executionCount'],PIN['providerCalls'],PIN['timeoutChanges']),(1,0,False))
+  self.assertEqual((PIN['archiveBytesMaximum'],PIN['retentionDays']),(268435456,7))
+ def test_w_markers_follow_outer_layout_and_snapshot_boundaries(self):
+  _,proof=patch_sidecar(self.original,{'path':'/private/tmp/pc-intel-diagnostic-fixture/startup-timings.jsonl','dev':'1','ino':'2','uid':'501'})
+  phases=proof['phases']
+  self.assertFalse(any(p.startswith('pi.hash.') for p in phases))
+  for begin,end in [('pi.native_manifest.begin','pi.native_manifest.end'),('pi.discovery.begin','pi.discovery.end'),('pi.layout.begin','pi.layout.end'),('snapshot.copy.begin','snapshot.copy.end'),('snapshot.seal.begin','snapshot.seal.end')]:
+   self.assertEqual(phases.count(begin),1);self.assertEqual(phases.count(end),1)
+  # Discovery recursion and descriptor-copy loops must not emit one row per file.
+  source=self.original.decode()
+  for begin,end in [('  const visit = async (directory) => {','  await visit(physicalRoot);'),('    const copyEntry = async (entry) => {','    for (let start = 0; start < entries.length; ) {')]:
+   start=source.index(begin);finish=source.index(end,start)
+   interior=[x for x in proof['insertions'] if start < x['offset'] < finish]
+   self.assertEqual(interior,[])
+ def test_missing_terminal_retains_incomplete_classification(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   p,b=self.binding(Path(tmp))
+   p.write_text(''.join(json.dumps({'phase':phase,'ns':str(i)})+'\n' for i,phase in enumerate(['sidecar.entry','session.open.begin','snapshot.copy.begin'])))
+   with self.assertRaisesRegex(RuntimeError,'terminal marks missing'):
+    validate_timing_sink(p,b,{'sidecar.entry','session.open.begin','snapshot.copy.begin','sidecar.exit'})
+   self.assertIn('snapshot.copy.begin',p.read_text())
  def test_numeric_inode_rejected(self):
   with self.assertRaises(RuntimeError):patch_sidecar(self.original,{'path':'/private/tmp/pc-intel-diagnostic-x/startup-timings.jsonl','dev':1,'ino':2,'uid':3})
  def run_prelude(self,extra='',identity_mutation=None):
