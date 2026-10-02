@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { liveAcpxRuntimeRequests } from "./runnerd-codex-transport.js";
 import { FakeCodexTransport, makeDriver, WORKSPACE } from "../drivers/codex/codex-app-server-driver.test-support.js";
+import type { PrpEvent } from "../protocol/replay-contract.js";
 import type { CodexRpcServerRequest } from "../drivers/codex/app-server-transport.js";
 
 function snapshot() {
@@ -86,6 +87,8 @@ describe("live ACP request recovery", () => {
     const recovery = await makeDriver([transport]).recoverSession(recovered!);
     expect(recovery.recovered).toBe(true);
     const session = recovery.session!;
+    const recoveredEvents: PrpEvent[] = [];
+    const drained = (async () => { for await (const event of session.events()) recoveredEvents.push(event); })();
     try {
       expect(session.pendingRuntimeRequests?.().map(request => request.requestId)).toEqual(["input-1", "permission-1"]);
       const resolution = requestId === "input-1"
@@ -95,6 +98,10 @@ describe("live ACP request recovery", () => {
       expect(deliver).toHaveBeenCalledExactlyOnceWith({ requestId, turnId: "turn-1", resolution });
       await expect(session.resolveRuntimeRequest?.({ requestId, turnId: "turn-1", resolution })).rejects.toThrow("no longer pending");
       expect(deliver).toHaveBeenCalledTimes(1);
-    } finally { await session.close(); }
+    } finally {
+      await session.close(); await drained;
+      expect(recoveredEvents.map(event => event.eventType)).not.toContain("runtime_request.created");
+      expect(recoveredEvents.filter(event => event.eventType === "runtime_request.expired").map(event => event.payload.requestId)).not.toContain(requestId);
+    }
   });
 });

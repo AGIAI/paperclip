@@ -8,8 +8,9 @@ reasoning-mode selection and rejects previous profile identities. It is a new
 qualification candidate; profile-12 results below remain historical evidence.
 
 Pi's new field also changes four shared files covered by Copilot's source
-identity. Copilot therefore advances to a still-unqualified profile v13 without
-changing its executable or model. Pi's profile-13 identity and native closure
+identity. The subsequent live callback snapshot changes the shared sidecar again,
+so Copilot now uses still-unqualified profile v14 without changing its executable
+or model. Pi's profile-13 identity and native closure
 remain unchanged. Final artifacts must bind the corrected source; the initial
 ARM startup and 61 contract passes alone do not establish production readiness.
 

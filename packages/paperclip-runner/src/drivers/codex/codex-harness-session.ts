@@ -71,7 +71,7 @@ export class CodexHarnessSession
       stalePendingRuntimeRequests: input.stalePendingRuntimeRequests?.filter(request => !restoredIds.has(request.requestId)),
     });
     for (const request of restored) {
-      void handleServerRequest(this, request).catch(error => this.failProtocol(
+      void handleServerRequest(this, request, { restored: true }).catch(error => this.failProtocol(
         "runtime_request_recovery_failed", error instanceof Error ? error.message : String(error),
       ));
     }
