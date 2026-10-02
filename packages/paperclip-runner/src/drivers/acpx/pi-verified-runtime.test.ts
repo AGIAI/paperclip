@@ -1,13 +1,15 @@
-import { link, lstat, mkdir, mkdtemp, open, readdir, realpath, rename, rm, symlink, writeFile, type FileHandle } from "node:fs/promises";
+import { chmod, link, lstat, mkdir, mkdtemp, open, readdir, realpath, rename, rm, symlink, writeFile, type FileHandle } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { inventoryPiRuntimeFiles, PI_RUNTIME_MANIFEST_SCHEMA, verifyPiRuntimeManifest, type PiRuntimeManifest } from "./pi-verified-runtime.js";
+import { inventoryPiRuntimeFiles, PI_RUNTIME_MANIFEST_SCHEMA, verifyPiRuntimeManifest, verifyPiRuntimeLayoutForNativeSnapshot, type PiRuntimeManifest } from "./pi-verified-runtime.js";
+
+import { verifyNativeAcpxInstallation } from "./installation-integrity.js";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const original = await importOriginal<typeof import("node:fs/promises")>();
-  return { ...original, lstat: vi.fn(original.lstat), readdir: vi.fn(original.readdir) };
+  return { ...original, open: vi.fn(original.open), lstat: vi.fn(original.lstat), readdir: vi.fn(original.readdir) };
 });
 
 const temporary: string[] = [];
@@ -145,5 +147,80 @@ describe("Pi complete runtime manifest", () => {
     await rm(join(root, "escape"));
     await link(join(root, "pi.js"), join(root, "hardlink.js"));
     await expect(inventoryPiRuntimeFiles(root)).rejects.toThrow("writable name");
+  });
+});
+
+async function nativeFixture() {
+  const { root, manifest } = await fixture();
+  await chmod(join(root, "node"), 0o500);
+  const entries = await Promise.all(manifest.files.map(async entry => ({
+    path: entry.path, sha256: entry.sha256.slice(7), size: (await lstat(join(root, entry.path))).size,
+    executable: entry.path === "node",
+  })));
+  entries.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  const closure = createHash("sha256").update(JSON.stringify(entries)).digest("hex");
+  const manifestPath = root + "-native.json"; temporary.push(manifestPath);
+  await writeFile(manifestPath, JSON.stringify({ entries }));
+  const input = { distributionRoot: root, manifestPath, expectedClosureSha256: closure, executable: "node", entrypoint: "wrapper.js", fixedArguments: [] };
+  return { root, manifest, entries, closure, input };
+}
+
+describe("Pi native launch layout admission", () => {
+  it("cross-binds declarations without opening content, then freshly hashes every command snapshot", async () => {
+    const f = await nativeFixture();
+    const expected = await verifyPiRuntimeManifest(f.root, f.manifest);
+    vi.mocked(open).mockClear();
+    expect(await verifyPiRuntimeLayoutForNativeSnapshot(f.root, f.manifest, { entries: f.entries }, f.closure)).toEqual({ manifestDigest: expected.manifestDigest });
+    expect(open).not.toHaveBeenCalled();
+    const installation = await verifyNativeAcpxInstallation(f.input);
+    const lease = await installation.openCommand(); await lease.close();
+    const opened = vi.mocked(open).mock.calls.map(([path]) => String(path));
+    for (const entry of f.entries) expect(opened).toContain(join(await realpath(f.root), entry.path));
+    // No cached installation verdict may authorize a later mutable source.
+    await writeFile(join(f.root, "wrapper.js"), "x".repeat(f.entries.find(e => e.path === "wrapper.js")!.size));
+    await expect(installation.openCommand()).rejects.toThrow("digest mismatch");
+  });
+
+  it("rejects a substituted native pin and any Pi/native declaration disagreement", async () => {
+    const f = await nativeFixture();
+    await expect(verifyPiRuntimeLayoutForNativeSnapshot(f.root, f.manifest, { entries: f.entries }, "0".repeat(64))).rejects.toThrow("manifest digest mismatch");
+    const altered = structuredClone(f.manifest); altered.files[0]!.sha256 = `sha256:${"0".repeat(64)}`;
+    await expect(verifyPiRuntimeLayoutForNativeSnapshot(f.root, altered, { entries: f.entries }, f.closure)).rejects.toThrow("pinned native closure");
+    altered.files.shift();
+    await expect(verifyPiRuntimeLayoutForNativeSnapshot(f.root, altered, { entries: f.entries }, f.closure)).rejects.toThrow("pinned native closure");
+  });
+
+  it("rejects extra or missing files during complete structural discovery", async () => {
+    const f = await nativeFixture();
+    await writeFile(join(f.root, "extra"), "not admitted");
+    await expect(verifyPiRuntimeLayoutForNativeSnapshot(f.root, f.manifest, { entries: f.entries }, f.closure)).rejects.toThrow("package graph");
+    await rm(join(f.root, "extra")); await rm(join(f.root, "assets/image.wasm"));
+    await expect(verifyPiRuntimeLayoutForNativeSnapshot(f.root, f.manifest, { entries: f.entries }, f.closure)).rejects.toThrow("package graph");
+  });
+
+  it("rejects links even when their names appear in the pinned closure", async () => {
+    const f = await nativeFixture();
+    await rm(join(f.root, "pi.js")); await symlink("wrapper.js", join(f.root, "pi.js"));
+    await expect(verifyPiRuntimeLayoutForNativeSnapshot(f.root, f.manifest, { entries: f.entries }, f.closure)).rejects.toThrow("package graph");
+    await rm(join(f.root, "pi.js")); await link(join(f.root, "wrapper.js"), join(f.root, "pi.js"));
+    await expect(verifyPiRuntimeLayoutForNativeSnapshot(f.root, f.manifest, { entries: f.entries }, f.closure)).rejects.toThrow("writable name");
+  });
+
+  it("never treats layout success as byte admission for same-size corruption", async () => {
+    const f = await nativeFixture();
+    await writeFile(join(f.root, "wrapper.js"), "x".repeat(f.entries.find(e => e.path === "wrapper.js")!.size));
+    await expect(verifyPiRuntimeLayoutForNativeSnapshot(f.root, f.manifest, { entries: f.entries }, f.closure)).resolves.toHaveProperty("manifestDigest");
+    // The independent generic verifier retains its original full-byte guarantee.
+    await expect(verifyPiRuntimeManifest(f.root, f.manifest)).rejects.toThrow("package graph");
+    const installation = await verifyNativeAcpxInstallation(f.input);
+    await expect(installation.openCommand()).rejects.toThrow("digest mismatch");
+  });
+
+  it("rechecks source identities after layout, before granting any command lease", async () => {
+    const f = await nativeFixture();
+    await verifyPiRuntimeLayoutForNativeSnapshot(f.root, f.manifest, { entries: f.entries }, f.closure);
+    const installation = await verifyNativeAcpxInstallation(f.input);
+    await rm(join(f.root, "wrapper.js")); await symlink("pi.js", join(f.root, "wrapper.js"));
+    await expect(installation.openCommand()).rejects.toThrow("symbolic link");
   });
 });

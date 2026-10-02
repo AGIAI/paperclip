@@ -3,6 +3,8 @@ import { constants } from "node:fs";
 import { lstat, open, readdir, readlink, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
+import { parseNativeAcpxDistributionEntries } from "./native-distribution-integrity.js";
+
 export const PI_RUNTIME_MANIFEST_SCHEMA = "paperclip.pi-runtime-files.v1" as const;
 export interface PiRuntimeFile {
   path: string;
@@ -33,12 +35,8 @@ const PI_INVENTORY_DISCOVERY_CONCURRENCY = 32;
 
 function hash(bytes: Uint8Array | string): string { return `sha256:${createHash("sha256").update(bytes).digest("hex")}`; }
 
-/**
- * Inventory a complete provider pack, not just Pi's cli.js. Native modules,
- * WASM, data, package metadata, and the owned extension all participate.
- * Used while building a pack; the caller records/signs this immutable result.
- */
-export async function inventoryPiRuntimeFiles(root: string): Promise<PiRuntimeFile[]> {
+/** Discover the complete graph with the same path, link and identity checks for both callers. */
+async function discoverPiRuntimeFiles(root: string): Promise<{ files: PiRuntimeFile[]; regular: Array<{ path: string; entry: PiRuntimeFile }> }> {
   const physicalRoot = await realpath(root);
   if ((await lstat(root)).isSymbolicLink()) throw new Error("Pi runtime root must not be a symlink");
   const files: PiRuntimeFile[] = [];
@@ -80,6 +78,16 @@ export async function inventoryPiRuntimeFiles(root: string): Promise<PiRuntimeFi
     }
   };
   await visit(physicalRoot);
+  return { files, regular };
+}
+
+/**
+ * Inventory a complete provider pack, not just Pi's cli.js. Native modules,
+ * WASM, data, package metadata, and the owned extension all participate.
+ * Used while building a pack; the caller records/signs this immutable result.
+ */
+export async function inventoryPiRuntimeFiles(root: string): Promise<PiRuntimeFile[]> {
+  const { files, regular } = await discoverPiRuntimeFiles(root);
   // Keep discovery order independent of completion order. Do not cache: every
   // admission still reads every regular file through its checked descriptor.
   for (let index = 0; index < regular.length; index += PI_INVENTORY_HASH_CONCURRENCY) {
@@ -114,6 +122,13 @@ async function hashFile(path: string): Promise<string> {
 export async function verifyPiRuntimeManifest(
   root: string, manifest: PiRuntimeManifest,
 ): Promise<{ environment: Record<string, string>; manifestDigest: string }> {
+  const { sorted, unique } = validatePiRuntimeManifest(manifest);
+  const actual = (await inventoryPiRuntimeFiles(root)).sort((a, b) => a.path.localeCompare(b.path, "en"));
+  if (JSON.stringify(actual) !== JSON.stringify(sorted)) throw new Error("Pi runtime package graph differs from its qualified manifest");
+  return bindPiRuntimeManifestPaths(root, manifest, sorted, unique);
+}
+
+function validatePiRuntimeManifest(manifest: PiRuntimeManifest): { sorted: PiRuntimeFile[]; unique: Set<string> } {
   if (manifest.schema !== PI_RUNTIME_MANIFEST_SCHEMA || !Array.isArray(manifest.files) || manifest.files.length === 0 || manifest.files.length > 100_000) throw new Error("Pi runtime manifest is invalid");
   const unique = new Set<string>();
   for (const entry of manifest.files) {
@@ -125,8 +140,10 @@ export async function verifyPiRuntimeManifest(
     ? { path: entry.path, kind: entry.kind, sha256: entry.sha256 }
     : { path: entry.path, kind: entry.kind, target: entry.target, sha256: entry.sha256 })
     .sort((a, b) => a.path.localeCompare(b.path, "en"));
-  const actual = (await inventoryPiRuntimeFiles(root)).sort((a, b) => a.path.localeCompare(b.path, "en"));
-  if (JSON.stringify(actual) !== JSON.stringify(sorted)) throw new Error("Pi runtime package graph differs from its qualified manifest");
+  return { sorted, unique };
+}
+
+async function bindPiRuntimeManifestPaths(root: string, manifest: PiRuntimeManifest, sorted: PiRuntimeFile[], unique: Set<string>): Promise<{ environment: Record<string, string>; manifestDigest: string }> {
   const physicalRoot = await realpath(root);
   const boundPath = async (path: string): Promise<string> => {
     if (!safeRelative(path) || !unique.has(path)) throw new Error("Pi executable is absent from its manifest");
@@ -143,4 +160,27 @@ export async function verifyPiRuntimeManifest(
     },
     manifestDigest: hash(JSON.stringify({ ...manifest, files: sorted })),
   };
+}
+
+/**
+ * Pi's native launch already hashes every byte while creating its immutable
+ * command snapshot. Check layout and both declarations here, without doing a
+ * second byte pass. This result is NOT byte admission and cannot launch code;
+ * the caller must still acquire a freshly verified native command snapshot.
+ * The generic full-byte verifier above remains independent of this path.
+ */
+export async function verifyPiRuntimeLayoutForNativeSnapshot(
+  root: string, manifest: PiRuntimeManifest,
+  nativeManifest: unknown, expectedClosureSha256: string,
+): Promise<{ manifestDigest: string }> {
+  const entries = parseNativeAcpxDistributionEntries(nativeManifest, expectedClosureSha256);
+  const { sorted, unique } = validatePiRuntimeManifest(manifest);
+  const nativeFiles: PiRuntimeFile[] = entries.map((entry): PiRuntimeFile => ({ path: entry.path, kind: "file", sha256: `sha256:${entry.sha256}` }))
+    .sort((a, b) => a.path.localeCompare(b.path, "en"));
+  if (JSON.stringify(nativeFiles) !== JSON.stringify(sorted)) throw new Error("Pi runtime manifest differs from its pinned native closure");
+  const { files } = await discoverPiRuntimeFiles(root);
+  const layout = (values: PiRuntimeFile[]) => values.map(({ path, kind }) => ({ path, kind })).sort((a, b) => a.path.localeCompare(b.path, "en"));
+  if (JSON.stringify(layout(files)) !== JSON.stringify(layout(sorted))) throw new Error("Pi runtime package graph differs from its qualified manifest");
+  const { manifestDigest } = await bindPiRuntimeManifestPaths(root, manifest, sorted, unique);
+  return { manifestDigest };
 }
