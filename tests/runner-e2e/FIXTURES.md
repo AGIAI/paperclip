@@ -309,6 +309,12 @@ no database writes, private hooks, or fabricated provider results are allowed.
 `native-pending-controller-restart` restarts the public controller while one Pi
 input callback remains unanswered. It requires the same durable interaction,
 request, live run, native session, turn and producer before and after restart.
+For local execution, the public run's exact PID, process group and start identity
+must identify an already-observed durable runner under this controller. The test
+preserves only that runner tree during restart, checks the same live identity
+afterward, and keeps the old process owner for complete final cleanup alongside
+the replacement controller. Other controller children are retired normally.
+Remote execution does not infer local process authority from remote PIDs.
 Only then does the browser submit previously undisclosed text. One durable
 resolution, one original successful turn and independently read exact workspace
 JSON prove delivery. A replacement run, replay, cancellation, expiry, rewritten
