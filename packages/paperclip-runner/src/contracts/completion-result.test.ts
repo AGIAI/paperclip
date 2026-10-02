@@ -1,12 +1,13 @@
+// Explicit historical oracle for the matched native-guidance baseline.
+const PRP_COMPLETION_TOOL_DESCRIPTION = "Return the one semantic completion result for this task, including an explicit response_wake yield when waiting for the next response.";
+const PRP_BLOCK_TOOL_DESCRIPTION = "Return the one semantic result when the task cannot continue.";
 import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 import {
   PRP_BLOCK_RESULT_OUTPUT_SCHEMA,
   PRP_BLOCK_RESULT_PROVIDER_INPUT_SCHEMA,
-  PRP_BLOCK_TOOL_DESCRIPTION,
   PRP_COMPLETION_RESULT_OUTPUT_SCHEMA,
   PRP_COMPLETION_RESULT_PROVIDER_INPUT_SCHEMA,
-  PRP_COMPLETION_TOOL_DESCRIPTION,
 } from "./completion-result.js";
 import { codexSemanticToolSpecs } from "../drivers/codex/codex-driver-values.js";
 

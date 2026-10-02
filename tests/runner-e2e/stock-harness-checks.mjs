@@ -48,10 +48,10 @@ export const stockHarnessGates = [
     "preserves stock Codex instructions on prepared recovery", "preserves stock Codex instructions on direct recovery",
     ...["codex", "opencode", "claude_managed", "aws_agentcore", "acpx"].map(provider =>
       `preserves answer and internal wait descriptions in the serialized native ${provider} tool catalog`)] },
-  { id: "SH-4-resume", name: "Refresh retained native completion guidance", cwd: ".", files: [
+  { id: "SH-4-resume", name: "Historical native fingerprint and retained-session compatibility", cwd: ".", files: [
     "server/src/services/native-runtime/native-session-resume.test.ts",
   ], testPattern: "refreshes retained",
-  required: ["native completion tool guidance"] },
+  required: ["refreshes retained completion descriptions without changing the Paperclip task or prior history"] },
   { id: "SH-eval", name: "Independent oracle and qualification admission", cwd: ".",
     config: "tests/runner-e2e/vitest.config.ts",
     files: ["tests/runner-e2e/stock-harness.test.ts", "tests/runner-e2e/stock-harness-checks.test.mjs",

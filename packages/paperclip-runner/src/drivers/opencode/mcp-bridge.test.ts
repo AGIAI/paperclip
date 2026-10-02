@@ -1,9 +1,10 @@
+// Explicit historical oracle for the matched native-guidance baseline.
+const PRP_COMPLETION_TOOL_DESCRIPTION = "Return the semantic completion result.";
+const PRP_BLOCK_TOOL_DESCRIPTION = "Return the semantic blocked result.";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PRP_BLOCK_RESULT_PROVIDER_INPUT_SCHEMA,
-  PRP_BLOCK_TOOL_DESCRIPTION,
   PRP_COMPLETION_RESULT_PROVIDER_INPUT_SCHEMA,
-  PRP_COMPLETION_TOOL_DESCRIPTION,
 } from "../../contracts/completion-result.js";
 
 import { canonicalOpenCodeMcpToolName, startOpenCodeMcpBridge, type OpenCodeMcpBridge } from "./mcp-bridge.js";

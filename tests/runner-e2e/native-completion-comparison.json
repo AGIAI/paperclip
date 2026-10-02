@@ -1,0 +1,46 @@
+{
+  "schema": "paperclip.native-completion.matched-baseline/v1",
+  "candidateSha": "55ce97b675e1ed68cc171fe44b729147209a7e24",
+  "historicalInstructionSourceSha": "5837aa44425ea134fc33a96c502c22d6a32b6866",
+  "heldConstant": [
+    "merged native Codex base fix #14920",
+    "tiny default hire manual",
+    "reduced shared startup/resume prompts",
+    "all fixtures, models, effort, permissions, auth and behavioral graders"
+  ],
+  "productionSourcesRestored": [
+    "packages/paperclip-runner/src/contracts/completion-result.ts",
+    "packages/paperclip-runner/src/drivers/codex/codex-driver-values.ts",
+    "packages/paperclip-runner/src/drivers/runner-tool-bridge.ts",
+    "packages/paperclip-runner/src/drivers/opencode/mcp-bridge.ts",
+    "server/src/services/native-runtime/native-session-resume.ts"
+  ],
+  "historicalStructuralOracles": "Same authenticated/wire/catalog gates expect the explicit historical descriptions. The v13 baseline does not run the candidate-only v13-to-v14 rotation assertion; its prior compatibility cases remain mandatory. Candidate graders are unchanged.",
+  "behavioralSourceHashes": {
+    "tests/runner-e2e/native-completion-case.ts": "6ecd17a78aad20eea36d5ea0f039f22255ea2e61115e16a5e2b1543c72e9a622",
+    "tests/runner-e2e/native-completion-case.test.ts": "253910919bef2dce5509e4005a635b16c518d4940a870c7bbc100898ce8afe83",
+    "tests/runner-e2e/context-integrity-cases.ts": "201d05f8257c1121a94dd9d8a22f08b9db80555e388013ffeabb65e301499fd2",
+    "tests/runner-e2e/context-integrity-flow.ts": "63bcb7bdba4c80b15ff5872f16383844456eab0c5a10627da5d3487a26821c6a",
+    "tests/runner-e2e/context-integrity-scoring.ts": "50d370044e45386ba87fb23ca63c228b96bb8373d67bb7e82e8b2a89eb23f252",
+    "tests/runner-e2e/matchers.ts": "852dc82ca9b4d5d1b2e902407c1df5ff0343313e71175805b6a444c55ff69957",
+    "tests/runner-e2e/runner.spec.ts": "14d57e0f9131b3f1981ac593464738d01362008eefe85ea836075c794681fa85",
+    "tests/runner-e2e/live-fixtures.ts": "1ef80209cc53cc514a8e58af4c2225e38ec15b20acf17ca7564506ca6617ac3e",
+    "tests/runner-e2e/catalog.ts": "7d6fd220dcac80296ba0c73a0febf9975a9b6f28085359d52ca605b598c40ec7",
+    "tests/runner-e2e/stock-harness.ts": "9ce135aabe82f532eca9f16bfd00689c3279bbacf9f68e247a4332ba8a0d4c3c",
+    "tests/runner-e2e/stock-harness-admission.ts": "4cad5e7e703029651d79b5ace4b22368da3b326fed46fe38366c6f95d24b4451",
+    "tests/runner-e2e/launch.ts": "b020d6fd8a4ae00e008215a49b937bbc65208e66341113a4e548c3d4b492ff4a"
+  },
+  "selection": {
+    "profiles": [
+      "runner-codex",
+      "runner-acpx-claude",
+      "runner-opencode"
+    ],
+    "cases": [
+      "assigned-skill-explicit-invocation",
+      "native-blocked-report"
+    ],
+    "expectedCells": 6,
+    "expectedProviderTurns": 6
+  }
+}

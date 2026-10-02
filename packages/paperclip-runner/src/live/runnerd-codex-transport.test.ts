@@ -1,3 +1,6 @@
+// Explicit historical oracle for the matched native-guidance baseline.
+const PRP_COMPLETION_TOOL_DESCRIPTION = "Return the one semantic completion result for this task, including an explicit response_wake yield when waiting for the next response.";
+const PRP_BLOCK_TOOL_DESCRIPTION = "Return the one semantic result when the task cannot continue.";
 import {
   chmod,
   cp,
@@ -55,8 +58,6 @@ import {
   createCodexTaskEnvelope,
 } from "../contracts/codex.js";
 import {
-  PRP_BLOCK_TOOL_DESCRIPTION,
-  PRP_COMPLETION_TOOL_DESCRIPTION,
 } from "../contracts/completion-result.js";
 import {
   CodexAppServerDriver,
