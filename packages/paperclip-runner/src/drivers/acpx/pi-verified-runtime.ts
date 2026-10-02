@@ -3,8 +3,6 @@ import { constants } from "node:fs";
 import { lstat, open, readdir, readlink, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-import { parseNativeAcpxDistributionEntries } from "./native-distribution-integrity.js";
-
 export const PI_RUNTIME_MANIFEST_SCHEMA = "paperclip.pi-runtime-files.v1" as const;
 export interface PiRuntimeFile {
   path: string;
@@ -173,6 +171,9 @@ export async function verifyPiRuntimeLayoutForNativeSnapshot(
   root: string, manifest: PiRuntimeManifest,
   nativeManifest: unknown, expectedClosureSha256: string,
 ): Promise<{ manifestDigest: string }> {
+  // The materializer imports the generic verifier directly from TypeScript.
+  // Resolve the compiled native helper only on the runtime snapshot path.
+  const { parseNativeAcpxDistributionEntries } = await import("./native-distribution-integrity.js");
   const entries = parseNativeAcpxDistributionEntries(nativeManifest, expectedClosureSha256);
   const { sorted, unique } = validatePiRuntimeManifest(manifest);
   const nativeFiles: PiRuntimeFile[] = entries.map((entry): PiRuntimeFile => ({ path: entry.path, kind: "file", sha256: `sha256:${entry.sha256}` }))
