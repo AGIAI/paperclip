@@ -611,6 +611,29 @@ describe("OpenCodeServerDriver", () => {
     }
   });
 
+  it("projects a custom connection into the isolated OpenCode config", async () => {
+    await chmod(fixture, 0o755);
+    const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-routing-"));
+    roots.push(root);
+    const driver = new OpenCodeServerDriver({
+      model: "paperclip/team/model-alias",
+      runtimeDirectory: root,
+      command: fixture,
+      environment: { PATH: process.env.PATH, PAPERCLIP_AI_PROVIDER_URL: "https://gateway.example/v1", PAPERCLIP_AI_PROVIDER_KEY: "selected-gateway-key" },
+    });
+    const session = await driver.openSession({ runId: "routing", normalizedSessionId: "routing", workingDirectory: root });
+    try {
+      const configPath = join(root, "routing", "config", "opencode", "opencode.json");
+      expect(JSON.parse(await readFile(configPath, "utf8"))).toMatchObject({
+        model: "paperclip/team/model-alias", small_model: "paperclip/team/model-alias", plugin: [],
+        provider: { paperclip: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://gateway.example/v1", apiKey: "selected-gateway-key" }, models: { "team/model-alias": { name: "team/model-alias" } } } },
+      });
+      expect((await stat(configPath)).mode & 0o777).toBe(0o600);
+    } finally {
+      await session.close({ reason: "test" });
+    }
+  });
+
   it("starts an authenticated isolated server, creates a session, streams usage, aborts, and cleans up", async () => {
     await chmod(fixture, 0o755);
     const root = await mkdtemp(join(tmpdir(), "paperclip-opencode-driver-"));

@@ -5,6 +5,23 @@ afterEach(() => vi.unstubAllEnvs());
 import { ACPX_CREDENTIAL_BINDING_ENV, createAcpxCredentialBinding, createAcpxSidecarHostEnvironment, createSanitizedAcpxSpawnInput } from "./environment.js";
 
 describe("ACPX launch environment", () => {
+  it("keeps gateway and Bedrock settings confined to the selected harness", () => {
+    const source = {
+      ANTHROPIC_BASE_URL: "https://gateway.example",
+      ANTHROPIC_AUTH_TOKEN: "selected-key",
+      CLAUDE_CODE_USE_BEDROCK: "1", AWS_REGION: "us-east-1",
+      AWS_BEARER_TOKEN_BEDROCK: "bedrock-key",
+      PAPERCLIP_AI_PROVIDER_KEY: "codex-key", UNRELATED_SECRET: "private",
+    };
+    expect(createSanitizedAcpxSpawnInput(source, "claude").env).toEqual({
+      ANTHROPIC_BASE_URL: source.ANTHROPIC_BASE_URL,
+      ANTHROPIC_AUTH_TOKEN: "selected-key", CLAUDE_CODE_USE_BEDROCK: "1",
+      AWS_REGION: "us-east-1", AWS_BEARER_TOKEN_BEDROCK: "bedrock-key",
+    });
+    expect(createSanitizedAcpxSpawnInput(source, "codex").env).toEqual({ PAPERCLIP_AI_PROVIDER_KEY: "codex-key" });
+    expect(createSanitizedAcpxSpawnInput(source, "cursor").env).toEqual({});
+  });
+
   it("projects only the selected agent's credentials and runtime allowlist", () => {
     const source = {
       PATH: "/bin",

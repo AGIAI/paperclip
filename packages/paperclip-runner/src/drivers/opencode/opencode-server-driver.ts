@@ -1976,6 +1976,7 @@ async function startRuntime(input: {
     bridge.secret,
     assignedMcp?.token,
     input.options.environment?.OPENROUTER_API_KEY,
+    input.options.environment?.PAPERCLIP_AI_PROVIDER_KEY,
   ]);
   const instructionRoot =
     input.options.runtimeContext?.instructions.bundle.rootPath;
@@ -1995,6 +1996,14 @@ async function startRuntime(input: {
     // provider instead of silently falling back or rejecting a newer model.
     provider: {
       [modelProvider!]: {
+        ...(modelProvider === "paperclip" && input.options.environment?.PAPERCLIP_AI_PROVIDER_URL ? {
+          npm: "@ai-sdk/openai-compatible",
+          name: "Paperclip connection",
+          options: {
+            baseURL: input.options.environment.PAPERCLIP_AI_PROVIDER_URL,
+            apiKey: input.options.environment.PAPERCLIP_AI_PROVIDER_KEY ?? "",
+          },
+        } : {}),
         models: {
           [providerModelId]: { name: providerModelId },
         },

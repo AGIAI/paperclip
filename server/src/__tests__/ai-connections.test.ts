@@ -120,6 +120,40 @@ describe("managed AI connections", () => {
     } finally { fetchSpy.mockRestore(); }
   });
 
+  it("vaults routed credentials, enforces compatibility and access, and configures both Codex runners", async () => {
+    const routing = { kind: "openrouter", protocol: "responses", auth: "bearer", models: [{ id: "openai/gpt-5.4" }] } as const;
+    const saved = await service.save(companyId, "alice", { provider: "openrouter", method: "api_key", name: "Routed test", ownership: "personal", apiKey: "fixture", allAgents: true, agentIds: [], routing: { ...routing, models: [...routing.models] } }, "fixture-routed-credential");
+    const selected = { provider: "openrouter", method: "api_key", mode: "delegated", ...saved } as const;
+    expect(JSON.stringify(await service.list(companyId, "alice"))).not.toContain("fixture-routed-credential");
+    expect(await service.list(companyId, "alice")).toEqual(expect.arrayContaining([expect.objectContaining({ id: saved.connectionId, routing, isDefault: false })]));
+    await expect(service.setDefault(companyId, "alice", saved.grantId)).rejects.toThrow("explicit connection");
+    await expect(service.select({ ...input, binding: selected, userId: "bob", adapterType: "codex_local", model: "openai/gpt-5.4" })).rejects.toThrow("not shared");
+    await expect(service.select({ ...input, companyId: otherCompanyId, binding: selected, userId: "alice", adapterType: "codex_local" })).rejects.toThrow();
+    for (const adapterType of ["codex_local", "paperclip_runner"]) {
+      const runtime = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: "alice", binding: selected, adapterType, config: { provider: "codex", model: "openai/gpt-5.4", env: { OPENAI_API_KEY: "ambient" } } });
+      try {
+        expect(runtime.config.env.OPENAI_API_KEY).toBe("");
+        expect(runtime.config.env.PAPERCLIP_AI_PROVIDER_KEY).toBe("fixture-routed-credential");
+        const toml = await readFile(path.join(String(runtime.config.env.CODEX_HOME), "config.toml"), "utf8");
+        expect(toml).toContain('base_url = "https://openrouter.ai/api/v1"');
+        expect(toml).toContain('wire_api = "responses"');
+        expect(toml).not.toContain("fixture-routed-credential");
+      } finally { await runtime.cleanup(); }
+    }
+    await expect(service.save(companyId, "alice", { provider: "openrouter", method: "api_key", name: "Routed test", ownership: "personal", apiKey: "fixture", connectionId: saved.connectionId, allAgents: true, agentIds: [], routing: { ...routing, kind: "gateway", baseUrl: "https://other.example/v1", models: [] } }, "fixture-replacement")).rejects.toThrow("retain");
+    await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, saved.grantId));
+    await expect(service.select({ ...input, binding: selected, userId: "alice", adapterType: "codex_local", model: "openai/gpt-5.4" })).rejects.toThrow("Reconnect");
+  });
+  it("saves no-auth endpoints without a secret and refuses protocol mismatches", async () => {
+    const routing = { kind: "local", protocol: "chat", auth: "none", baseUrl: "http://localhost:11434/v1", models: [] } as const;
+    const saved = await service.save(companyId, "alice", { provider: "openai", method: "api_key", name: "Local", ownership: "personal", allAgents: true, agentIds: [], routing: { ...routing, models: [] } }, "");
+    const selected = { provider: "openai", method: "api_key", mode: "delegated", ...saved } as const;
+    await expect(service.select({ ...input, binding: selected, userId: "alice", adapterType: "codex_local" })).rejects.toThrow("incompatible");
+    const row = await service.select({ ...input, binding: selected, userId: "alice", adapterType: "opencode_local", model: "qwen" });
+    expect(row.grant.credentialSecretRefs).toEqual([]);
+    expect(await service.credential(row)).toBe("");
+  });
+
   it.each([
     ["anthropic", false], ["openai", false], ["anthropic", true], ["openai", true],
   ] as const)("turns a %s auth failure into one card and resumes after repair (switch method: %s)", async (provider, switchMethod) => {
