@@ -131,6 +131,19 @@ describe("provider-neutral completion result schema", () => {
     expect(validate(response)).toBe(false);
   });
 
+  it.each(["done", "needs_review", "completed"])("accepts explicit no-continuation at the provider boundary for %s", (disposition) => {
+    const providerValidate = new Ajv2020({ allErrors: true, strict: false })
+      .compile(PRP_COMPLETION_RESULT_PROVIDER_INPUT_SCHEMA);
+    const response = {
+      ...structuredClone(baseResult),
+      reportedWorkDisposition: disposition,
+      continuation: null,
+    };
+    expect(providerValidate(response)).toBe(true);
+    // The canonical output remains strict; normalization removes only null.
+    expect(validate(response)).toBe(false);
+  });
+
   it("exposes concrete completion fields while retaining response-wake validation", () => {
     // The live Codex code-mode renderer reduced a conditional-only root allOf
     // to `args: unknown`. Keep this tool object-shaped for provider discovery.
@@ -154,6 +167,7 @@ describe("provider-neutral completion result schema", () => {
     };
     expect(providerValidate(yielded)).toBe(true);
     expect(providerValidate({ ...yielded, continuation: undefined })).toBe(false);
+    expect(providerValidate({ ...yielded, continuation: null })).toBe(false);
     expect(providerValidate({ ...yielded, continuation: { kind: "response_wake" } })).toBe(false);
     expect(providerValidate({
       ...yielded, continuation: { ...yielded.continuation, kind: "same_agent" },

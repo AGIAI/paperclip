@@ -355,15 +355,23 @@ export const PRP_COMPLETION_RESULT_PROVIDER_INPUT_SCHEMA = {
     reportedWorkDisposition: { enum: ["done", "needs_review", "yielded", "completed"] },
     verification: providerVerificationCompatibilitySchema,
     attentionRequests: providerAttentionCompatibilitySchema,
-    continuation: responseWakeContinuationSchema,
+    // Responses-compatible gateways can require every declared property in
+    // tool calls. Give non-yielding results an explicit absence value instead
+    // of forcing callers to invent a response-wake continuation.
+    continuation: {
+      ...responseWakeContinuationSchema,
+      type: ["object", "null"],
+      description:
+        "Use null or omit this field for done, completed, or needs_review. Only yielded requires a response-wake object with kind, summary, and idempotencyKey.",
+    },
   },
   // Keep the provider-facing root a concrete object. Codex code-mode renders a
   // root allOf containing only an if/then constraint as `args: unknown`, hiding
   // every required field from the model. This equivalent direct conditional
   // preserves validation without obscuring the object-shaped tool signature.
   if: { properties: { reportedWorkDisposition: { const: "yielded" } }, required: ["reportedWorkDisposition"] },
-  then: { required: ["continuation"] },
-  else: { not: { required: ["continuation"] } },
+  then: { required: ["continuation"], properties: { continuation: { type: "object" } } },
+  else: { properties: { continuation: { type: "null" } } },
 } as const;
 
 export const PRP_BLOCK_RESULT_PROVIDER_INPUT_SCHEMA = {
