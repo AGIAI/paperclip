@@ -142,6 +142,13 @@ the ordinary server dependency builder first, retains its output and exit status
 and refuses admission when setup fails. A cold legacy pilot must pass before the
 full matrix retry.
 
+The [fixed legacy pilot](https://github.com/paperclipai/paperclip/actions/runs/37039240025)
+at `4163dbfd0fd4d145bfa52b4d7f80eb59a362ee36` passed SDK setup, hire/shared
+prompt/oracle checks and the Rust additive test. It stopped before providers:
+the real daemon-frame test lacked the cold `paperclip-runnerd` binary. Setup now
+builds that daemon from the locked Rust source before TypeScript gates, retains
+`runnerd-build.txt`, and requires both setup exits in the admission receipt.
+
 Dispatch the trusted workflow from `master`, with `target_branch` naming the
 same-repository candidate and an exact cell selector first. The workflow resolves
 that target once to an immutable SHA. Never dispatch target-controlled workflow
