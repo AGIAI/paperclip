@@ -151,6 +151,11 @@ builds that daemon from the locked Rust source before TypeScript gates, retains
 The required daemon-frame test selects that built debug binary explicitly,
 without replacing staged product binaries. The receipt records its SHA-256;
 verification rejects a changed binary before provider admission.
+The [next cold pilot](https://github.com/paperclipai/paperclip/actions/runs/37040493183)
+at `ac6ddefb589c18fa9c30946db40e58499e9fb0e0` then found the required fake Codex
+protocol fixture absent. It also stopped before paid providers. Setup uses the
+package's ordinary locked workspace `--bins` build, covering both the daemon
+and its fixture; verification binds both binaries to the retained receipt.
 
 Dispatch the trusted workflow from `master`, with `target_branch` naming the
 same-repository candidate and an exact cell selector first. The workflow resolves

@@ -40,9 +40,10 @@ describe("stock harness prerequisite coverage", () => {
 });
 
 describe("stock harness prerequisite admission", () => {
-  const current = { sha: "a".repeat(40), fingerprint: "b".repeat(64), runnerdSha256: "c".repeat(64) };
+  const current = { sha: "a".repeat(40), fingerprint: "b".repeat(64), runnerdSha256: "c".repeat(64), fakeCodexSha256: "e".repeat(64) };
   const receipt = () => ({ schema: "paperclip.stock-harness-preflight.v3", passed: true,
-    setup: { passed: true, exitCode: 0, sdkExitCode: 0, runnerdExitCode: 0, runnerdSha256: current.runnerdSha256 },
+    setup: { passed: true, exitCode: 0, sdkExitCode: 0, runnerdExitCode: 0, runnerdSha256: current.runnerdSha256,
+      fakeCodexSha256: current.fakeCodexSha256 },
     providerCalls: 0, sourceSha: current.sha, sourceFingerprint: current.fingerprint,
     sourceErrors: [], gates: [...stockHarnessGates.map(g => g.id), "SH-1-rust"].map(id => ({ id, passed: true, exitCode: 0 })) });
   it("admits the same passing source revision", () => expect(assertPreflightReceipt(receipt(), current).passed).toBe(true));
@@ -58,6 +59,7 @@ describe("stock harness prerequisite admission", () => {
     ["failed cold setup", r => { r.setup.passed = false; r.setup.exitCode = 1; }],
     ["missing daemon build", r => { delete r.setup.runnerdExitCode; }],
     ["changed daemon binary", r => { r.setup.runnerdSha256 = "d".repeat(64); }],
+    ["changed protocol fixture", r => { r.setup.fakeCodexSha256 = "d".repeat(64); }],
   ])("rejects %s before providers", (_name, mutate) => {
     const r = receipt(); mutate(r); expect(() => assertPreflightReceipt(r, current)).toThrow("exact source SHA and fingerprint");
   });
