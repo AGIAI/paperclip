@@ -1,7 +1,7 @@
 {
   "schema": "paperclip.hiring-templates.live-comparison.v1",
-  "state": "partial_one_paired_original_machine_failure_codex_pending",
-  "measuredAt": "2026-10-02T23:21:09.508950+00:00",
+  "state": "complete_original_machine_grades_two_failed_uncomparable_pairs",
+  "measuredAt": "2026-10-02T23:37:55.021983+00:00",
   "mergedHiringPr": "https://github.com/paperclipai/paperclip/pull/14985",
   "mergedHiringSha": "862a5758ba0e88a33232c1f1fa645e85c38a3113",
   "sourceProof": {
@@ -997,10 +997,410 @@
   "pairedResults": [
     {
       "profile": "runner-codex",
-      "candidate": "pending",
-      "baseline": "pending",
-      "coverage": "pending",
-      "newRegression": "unknown"
+      "candidate": "failed",
+      "baseline": "failed",
+      "coverage": "uncomparable in both variants",
+      "newRegression": "No new overall machine failure in this pair; strict turn-count failure is unchanged. Source/read coverage prevents a non-regression claim.",
+      "details": {
+        "candidate": {
+          "machineVerdict": "failed",
+          "failureClass": "candidate_failure",
+          "error": "Hiring-template workflow outcome failed: five-successful-turns",
+          "source": {
+            "sha": "9f5404ad3aacbe76777952759414d34fd381e674",
+            "ref": "refs/heads/codex/hiring-stock-context-qualified",
+            "workflowRunUrl": "https://github.com/paperclipai/paperclip/actions/runs/37075466208"
+          },
+          "definitionDigest": "4d7f18420889325af89aa48eaaf021e8178aa6d26d504b92041635a15741f004",
+          "graderOutcomePassed": false,
+          "comparisonStatus": "uncomparable",
+          "checks": [
+            {
+              "id": "one-coder-hire",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "Exactly one permanent coding teammate reports to the lead."
+            },
+            {
+              "id": "execution-account",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "Hire keeps the lead model and managed account binding."
+            },
+            {
+              "id": "two-worker-tasks",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "Both independent tasks are completed by the same coder in the chosen project."
+            },
+            {
+              "id": "five-successful-turns",
+              "dimension": "outcome",
+              "passed": false,
+              "detail": "Five turns include one actual coder execution for each task, attributed to the managed account."
+            },
+            {
+              "id": "initial-json-artifact",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "Independent computation checks each original input/value and worker authorship."
+            },
+            {
+              "id": "reused-json-artifact",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "The reused coder applies the changed separator to every input."
+            },
+            {
+              "id": "original-preserved",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "Reuse preserves the original document, revision and task identity."
+            },
+            {
+              "id": "source-fingerprints",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "Served instruction and hiring source bytes match the evaluated revision."
+            },
+            {
+              "id": "production-ceo-bundle",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "The API-created lead receives this revision's default CEO bundle, without a fixture override."
+            },
+            {
+              "id": "assigned-hiring-skill",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "Production CEO defaults assign the hiring skill."
+            },
+            {
+              "id": "production-source-reads",
+              "dimension": "coverage",
+              "passed": false,
+              "detail": "Completed lead read receipts before the hire prove the explicitly requested skill, guide, checklist and coder example paths. Unrecognized or missing reads leave coverage uncomparable."
+            },
+            {
+              "id": "supplied-coder-instructions",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "Saved hired instructions use the source revision's coder example with its company/name placeholders filled."
+            },
+            {
+              "id": "hired-instructions-durable",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "The same saved instruction bundle survives the reused worker execution."
+            },
+            {
+              "id": "hired-skills-durable",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "The saved skill selections survive the reused worker execution."
+            }
+          ],
+          "readReceiptCount": 0,
+          "instructionSizes": {
+            "ceo": {
+              "AGENTS.md": {
+                "bytes": 134,
+                "words": 20
+              }
+            },
+            "coder": {
+              "bytes": 219,
+              "words": 23
+            }
+          },
+          "actualRunCount": 7,
+          "runLedger": [
+            {
+              "ordinal": 1,
+              "role": "lead",
+              "status": "succeeded",
+              "wakeReason": "issue_commented",
+              "work": "chat",
+              "startedAt": "2026-10-02T23:12:10.954Z",
+              "finishedAt": "2026-10-02T23:15:03.482Z"
+            },
+            {
+              "ordinal": 2,
+              "role": "coder",
+              "status": "succeeded",
+              "wakeReason": "issue_assigned",
+              "work": "first",
+              "startedAt": "2026-10-02T23:13:56.879Z",
+              "finishedAt": "2026-10-02T23:14:36.487Z"
+            },
+            {
+              "ordinal": 3,
+              "role": "lead",
+              "status": "succeeded",
+              "wakeReason": "chat_task_completed",
+              "work": "chat",
+              "startedAt": "2026-10-02T23:15:04.863Z",
+              "finishedAt": "2026-10-02T23:15:36.612Z"
+            },
+            {
+              "ordinal": 4,
+              "role": "lead",
+              "status": "succeeded",
+              "wakeReason": "issue_commented",
+              "work": "chat",
+              "startedAt": "2026-10-02T23:15:36.997Z",
+              "finishedAt": "2026-10-02T23:16:36.495Z"
+            },
+            {
+              "ordinal": 5,
+              "role": "coder",
+              "status": "succeeded",
+              "wakeReason": "issue_assigned",
+              "work": "second",
+              "startedAt": "2026-10-02T23:16:06.538Z",
+              "finishedAt": "2026-10-02T23:16:51.117Z"
+            },
+            {
+              "ordinal": 6,
+              "role": "lead",
+              "status": "succeeded",
+              "wakeReason": "chat_task_completed",
+              "work": "chat",
+              "startedAt": "2026-10-02T23:16:51.413Z",
+              "finishedAt": "2026-10-02T23:17:23.207Z"
+            },
+            {
+              "ordinal": 7,
+              "role": "lead",
+              "status": "succeeded",
+              "wakeReason": "issue_commented",
+              "work": "chat",
+              "startedAt": "2026-10-02T23:17:23.860Z",
+              "finishedAt": "2026-10-02T23:17:49.359Z"
+            }
+          ],
+          "durationMs": 360588,
+          "reportedCostUsd": 0,
+          "costCoverage": "Native usage reports zero; actual model charges unavailable, runtime unmetered. Not assumed free.",
+          "cleanup": "passed",
+          "proofSha256": {
+            "result": "44cbf64cfabd0257f31fb4d6909018d346f5667b0a7b3d7e855a2ece7e29c292",
+            "hiringTemplate": "9609ddcb81c6bee3c5db97312138b4ea3e294da13ea540e41f363c826a514067",
+            "remotePreflight": "1e650ac0f5f29cccfe7d6b061df3e2cfec9680a8514067b1e2d7229bd0cceaff"
+          },
+          "remotePrerequisites": {
+            "passed": true,
+            "assertions": 705,
+            "fingerprint": "b40293a7b2aaed4681acbc697cc26720b2ed2975833f6330b6280d6c5d6a790a"
+          },
+          "maxAutomaticRetries": 0
+        },
+        "baseline": {
+          "machineVerdict": "failed",
+          "failureClass": "candidate_failure",
+          "error": "Hiring-template workflow outcome failed: five-successful-turns",
+          "source": {
+            "sha": "296a4df85e8bcc97a160fc78c291b17adb828196",
+            "ref": "refs/heads/codex/hiring-stock-historical",
+            "workflowRunUrl": "https://github.com/paperclipai/paperclip/actions/runs/37075469463"
+          },
+          "definitionDigest": "4d7f18420889325af89aa48eaaf021e8178aa6d26d504b92041635a15741f004",
+          "graderOutcomePassed": false,
+          "comparisonStatus": "uncomparable",
+          "checks": [
+            {
+              "id": "one-coder-hire",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "Exactly one permanent coding teammate reports to the lead."
+            },
+            {
+              "id": "execution-account",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "Hire keeps the lead model and managed account binding."
+            },
+            {
+              "id": "two-worker-tasks",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "Both independent tasks are completed by the same coder in the chosen project."
+            },
+            {
+              "id": "five-successful-turns",
+              "dimension": "outcome",
+              "passed": false,
+              "detail": "Five turns include one actual coder execution for each task, attributed to the managed account."
+            },
+            {
+              "id": "initial-json-artifact",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "Independent computation checks each original input/value and worker authorship."
+            },
+            {
+              "id": "reused-json-artifact",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "The reused coder applies the changed separator to every input."
+            },
+            {
+              "id": "original-preserved",
+              "dimension": "outcome",
+              "passed": true,
+              "detail": "Reuse preserves the original document, revision and task identity."
+            },
+            {
+              "id": "source-fingerprints",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "Served instruction and hiring source bytes match the evaluated revision."
+            },
+            {
+              "id": "production-ceo-bundle",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "The API-created lead receives this revision's default CEO bundle, without a fixture override."
+            },
+            {
+              "id": "assigned-hiring-skill",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "Production CEO defaults assign the hiring skill."
+            },
+            {
+              "id": "production-source-reads",
+              "dimension": "coverage",
+              "passed": false,
+              "detail": "Completed lead read receipts before the hire prove the explicitly requested skill, guide, checklist and coder example paths. Unrecognized or missing reads leave coverage uncomparable."
+            },
+            {
+              "id": "supplied-coder-instructions",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "Saved hired instructions use the source revision's coder example with its company/name placeholders filled."
+            },
+            {
+              "id": "hired-instructions-durable",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "The same saved instruction bundle survives the reused worker execution."
+            },
+            {
+              "id": "hired-skills-durable",
+              "dimension": "coverage",
+              "passed": true,
+              "detail": "The saved skill selections survive the reused worker execution."
+            }
+          ],
+          "readReceiptCount": 0,
+          "instructionSizes": {
+            "ceo": {
+              "AGENTS.md": {
+                "bytes": 4703,
+                "words": 716
+              },
+              "HEARTBEAT.md": {
+                "bytes": 5019,
+                "words": 726
+              },
+              "SOUL.md": {
+                "bytes": 2590,
+                "words": 438
+              },
+              "TOOLS.md": {
+                "bytes": 86,
+                "words": 17
+              }
+            },
+            "coder": {
+              "bytes": 3984,
+              "words": 657
+            }
+          },
+          "actualRunCount": 7,
+          "runLedger": [
+            {
+              "ordinal": 1,
+              "role": "lead",
+              "status": "succeeded",
+              "wakeReason": "issue_commented",
+              "work": "chat",
+              "startedAt": "2026-10-02T23:11:40.406Z",
+              "finishedAt": "2026-10-02T23:14:14.656Z"
+            },
+            {
+              "ordinal": 2,
+              "role": "coder",
+              "status": "succeeded",
+              "wakeReason": "issue_assigned",
+              "work": "first",
+              "startedAt": "2026-10-02T23:13:21.482Z",
+              "finishedAt": "2026-10-02T23:14:00.649Z"
+            },
+            {
+              "ordinal": 3,
+              "role": "lead",
+              "status": "succeeded",
+              "wakeReason": "chat_task_completed",
+              "work": "chat",
+              "startedAt": "2026-10-02T23:14:15.037Z",
+              "finishedAt": "2026-10-02T23:14:49.881Z"
+            },
+            {
+              "ordinal": 4,
+              "role": "lead",
+              "status": "succeeded",
+              "wakeReason": "issue_commented",
+              "work": "chat",
+              "startedAt": "2026-10-02T23:14:51.670Z",
+              "finishedAt": "2026-10-02T23:15:40.814Z"
+            },
+            {
+              "ordinal": 5,
+              "role": "coder",
+              "status": "succeeded",
+              "wakeReason": "issue_assigned",
+              "work": "second",
+              "startedAt": "2026-10-02T23:15:19.285Z",
+              "finishedAt": "2026-10-02T23:15:44.461Z"
+            },
+            {
+              "ordinal": 6,
+              "role": "lead",
+              "status": "succeeded",
+              "wakeReason": "chat_task_completed",
+              "work": "chat",
+              "startedAt": "2026-10-02T23:15:44.561Z",
+              "finishedAt": "2026-10-02T23:16:11.548Z"
+            },
+            {
+              "ordinal": 7,
+              "role": "lead",
+              "status": "succeeded",
+              "wakeReason": "issue_commented",
+              "work": "chat",
+              "startedAt": "2026-10-02T23:16:13.541Z",
+              "finishedAt": "2026-10-02T23:16:33.746Z"
+            }
+          ],
+          "durationMs": 311133,
+          "reportedCostUsd": 0,
+          "costCoverage": "Native usage reports zero; actual model charges unavailable, runtime unmetered. Not assumed free.",
+          "cleanup": "passed",
+          "proofSha256": {
+            "result": "d912d8400bfff4f7f922aa6b264f9ce5fff1ba2d893abf03790c4cfea352261f",
+            "hiringTemplate": "88b23e4d2cc8831a5d88b8479cc69c0d1c2e17a6a5243707b4bd19716a244aca",
+            "remotePreflight": "9a5cc10af6cee9964d4d6be4624e7dba1dff6bf4368f714d9590a78b25b53bd5"
+          },
+          "remotePrerequisites": {
+            "passed": true,
+            "assertions": 705,
+            "fingerprint": "3124e05caa711aa050595bb02c4085bde30a7466f5174a2b071946a3e57e6d0d"
+          },
+          "maxAutomaticRetries": 0
+        }
+      }
     },
     {
       "profile": "runner-acpx-claude",
@@ -1189,7 +1589,7 @@
           "durationMs": 281627,
           "reportedCostUsd": 0,
           "costCoverage": "Native usage reports zero; actual model charges unavailable, runtime unmetered. Not assumed free.",
-          "cleanupNumericOrBoolean": "passed",
+          "cleanup": "passed",
           "proofSha256": {
             "result": "a83aecc26ef0af2e231cb364299cf0cb2f2ccd83b6998913dcd33be72d4c0824",
             "hiringTemplate": "4f83f523b955120c5baac18572dce752b278dbc9ff765b940c0e17c37ab28ae0",
@@ -1394,7 +1794,7 @@
           "durationMs": 292031,
           "reportedCostUsd": 0,
           "costCoverage": "Native usage reports zero; actual model charges unavailable, runtime unmetered. Not assumed free.",
-          "cleanupNumericOrBoolean": "passed",
+          "cleanup": "passed",
           "proofSha256": {
             "result": "844763ddc83461b2bea620f153f4bfe0bfee20a27bf33a60017a45c774ce2f6a",
             "hiringTemplate": "27b153798472e206970c46358febdda363cb75f892734757e76994117f0d2c9b",
@@ -1428,14 +1828,31 @@
   "summary": {
     "newOverallMachineFailures": 0,
     "newOverallMachinePasses": 0,
-    "unchangedMachineFailures": 1,
+    "unchangedMachineFailures": 2,
     "unchangedMachinePasses": 0,
-    "pendingPairs": 1,
-    "uncomparablePairs": 1,
-    "coreDeliveryObservations": "Both Claude variants hire/reuse the same coder, deliver two correct authored JSON documents and preserve the first. Strict exactly-five-turn assertion fails because each has seven successful runs, including two automatic chat_task_completed lead wakes.",
-    "coverageDifference": "Candidate saves the exact requested coder template; baseline does not. Both lack recognized pre-hire read receipts.",
-    "actualCompletedRuns": 14,
-    "additionalAutomaticModelRuns": 4,
-    "automaticAttemptRetries": 0
+    "pendingPairs": 0,
+    "uncomparablePairs": 2,
+    "coreDeliveryObservations": "All four cells hire/reuse one coder, deliver two correct independently computed authored JSON documents, and preserve the first document/revision. The same exact-five count fails all four with seven successful runs each, including two automatic task-completion chat wakes.",
+    "coverageDifference": "Both lack recognized pre-hire read receipts. Candidate coder body matches exactly in both profiles; baseline Codex also matches. Baseline Claude only removes six backticks wrapping three existing Markdown links.",
+    "actualCompletedRuns": 28,
+    "additionalAutomaticModelRuns": 8,
+    "automaticAttemptRetries": 0,
+    "cleanupPassedCells": 4,
+    "actualModelCostKnown": false
+  },
+  "analyticalObservations": {
+    "claudeSourceReads": {
+      "bothVariants": "Stock Load skill and three completed Read File operations occur before hire; path targets are null so the original path-based grader recognizes no receipts. Existing payload helper already unwraps the event; no envelope parsing defect established.",
+      "candidate": "Normalized line-numbered output matches the full current guide, checklist, and coder reference bytes.",
+      "baseline": "Retained previews match historical prefixes but are clipped around 4KB with a truncation marker. This does not prove the model lacked the full tool result.",
+      "coverageVerdict": "uncomparable preserved; activation acknowledgment does not prove full skill-body consumption"
+    },
+    "baselineClaudeCoderDifference": {
+      "expectedBytes": 3990,
+      "savedBytes": 3984,
+      "difference": "Six backticks around three existing UX/Security/QA Markdown links removed; role/policy text otherwise identical.",
+      "interpretation": "Original exact-body coverage failure preserved; not classified as a meaningful task-quality improvement or candidate regression."
+    },
+    "lifecycleAccounting": "Separately versioned, provider-free bounded assessment is being calibrated; original machine verdicts and all actual runs/costs remain unchanged."
   }
 }
