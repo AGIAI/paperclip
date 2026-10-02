@@ -945,9 +945,10 @@ function acpxPermissionRequestParams(request: Record<string, unknown>, threadId:
 }
 
 /** Rehydrate only the pending ledger attested by the same live ACP session. */
-export function liveAcpxRuntimeRequests(snapshot: Record<string, unknown>, threadId: string, turnId: string): CodexRpcServerRequest[] {
+export function liveAcpxRuntimeRequests(snapshot: Record<string, unknown>, threadId: string, turnId: string, durableTurnId: string): CodexRpcServerRequest[] {
   if (snapshot.runtimeRequestsLive !== true || snapshot.provider !== "acpx"
     || snapshot.driverSessionId !== threadId || snapshot.activeProviderTurnId !== turnId
+    || snapshot.runtimeRequestTurnId !== durableTurnId || !durableTurnId
     || !turnId || !Array.isArray(snapshot.pendingRuntimeRequests)
     || snapshot.pendingRuntimeRequests.length > 1024) {
     throw new Error("ACPX pending request snapshot binding is invalid");
@@ -958,7 +959,7 @@ export function liveAcpxRuntimeRequests(snapshot: Record<string, unknown>, threa
     const id = request.requestId, method = origin.method;
     if (typeof id !== "string" || !id || id.length > 160 || ids.has(id)
       || request.schema !== "paperclip.runtime_request.v2" || request.status !== "pending"
-      || request.turnId !== turnId || typeof method !== "string") {
+      || request.turnId !== durableTurnId || typeof method !== "string") {
       throw new Error("ACPX pending request snapshot request is invalid");
     }
     ids.add(id);
@@ -3796,7 +3797,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         }
       }
       if (restoreRuntimeRequests && activeProviderTurnId !== null) {
-        this.#restoredRuntimeRequests = liveAcpxRuntimeRequests(snapshot, this.#threadId, activeProviderTurnId);
+        this.#restoredRuntimeRequests = liveAcpxRuntimeRequests(snapshot, this.#threadId, activeProviderTurnId, this.#durableTurnId);
         for (const request of this.#restoredRuntimeRequests) {
           this.#bridgedRuntimeInputs.set(String(request.id), {
             durableTurnId: this.#durableTurnId,

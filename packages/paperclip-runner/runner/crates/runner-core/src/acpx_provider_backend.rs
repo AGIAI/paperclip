@@ -733,6 +733,33 @@ fn validate_pending_runtime_requests(
     Ok(())
 }
 
+fn attested_pending_runtime_requests(
+    pending: &BTreeMap<String, Value>,
+    provider: &crate::acpx_provider_state::AcpxProviderState,
+    live: &BTreeMap<String, String>,
+    durable_turn_id: &str,
+) -> Vec<Value> {
+    pending
+        .values()
+        .filter(|request| {
+            let id = request["requestId"].as_str().unwrap_or("");
+            // Canonical requests bind the durable PRP turn. The sidecar
+            // separately attests the provider-assigned turn.
+            request["turnId"].as_str() == Some(durable_turn_id)
+                && if request["type"] == "input" {
+                    provider
+                        .pending_provider_input_request_id(id)
+                        .and_then(|provider_id| live.get(provider_id))
+                        .is_some_and(|kind| kind == "input")
+                } else {
+                    provider.pending_permission(id).is_some()
+                        && live.get(id).is_some_and(|kind| kind == "permission")
+                }
+        })
+        .cloned()
+        .collect()
+}
+
 pub struct AcpxCommandExecutor {
     state_dir: PathBuf,
     context: AcpxEventProjectionContext,
@@ -1783,30 +1810,16 @@ impl AcpxCommandExecutor {
             ));
         }
         validate_pending_runtime_requests(&state.pending_runtime_requests)?;
-        let requests = state
-            .pending_runtime_requests
-            .values()
-            .filter(|request| {
-                let id = request["requestId"].as_str().unwrap_or("");
-                request["turnId"].as_str() == state.active_turn_id.as_deref()
-                    && if request["type"] == "input" {
-                        session
-                            .state()
-                            .pending_provider_input_request_id(id)
-                            .and_then(|provider_id| live_requests.get(provider_id))
-                            .is_some_and(|kind| kind == "input")
-                    } else {
-                        session.state().pending_permission(id).is_some()
-                            && live_requests
-                                .get(id)
-                                .is_some_and(|kind| kind == "permission")
-                    }
-            })
-            .cloned()
-            .collect::<Vec<_>>();
+        let requests = attested_pending_runtime_requests(
+            &state.pending_runtime_requests,
+            session.state(),
+            &live_requests,
+            &self.context.turn_id,
+        );
         let mut snapshot = self.snapshot()?;
         snapshot.result["pendingRuntimeRequests"] = json!(requests);
         snapshot.result["runtimeRequestsLive"] = json!(true);
+        snapshot.result["runtimeRequestTurnId"] = json!(self.context.turn_id);
         Ok(snapshot)
     }
 
@@ -2441,6 +2454,84 @@ mod tests {
         json!({"schema":"paperclip.runtime_request.v2","requestId":id,"requestKind":"runtime","type":"input","status":"pending",
             "turnId":"turn-1","itemId":"item-1","prompt":"Choose","input":{"schema":"paperclip.question_set.v1","questions":[{"id":"q","prompt":"Choose","answerMode":"text","required":true}]},
             "origin":{"adapter":"acpx-runtime-sidecar","provider":"cursor","method":"cursor/ask_question"}})
+    }
+
+    #[test]
+    fn live_request_snapshot_preserves_durable_turn_and_provider_callback_bindings() {
+        use crate::acpx_provider_state::AcpxProviderState;
+        use crate::acpx_sidecar_transport::AcpxSidecarEvent;
+        use crate::generated_acpx_sidecar_contract::GeneratedAcpxSidecarEventType;
+        let mut provider = AcpxProviderState::new("run-1").unwrap();
+        provider.begin_turn("provider-turn-1").unwrap();
+        let mut projection = context();
+        projection.turn_id = "durable-turn-1".into();
+        projection.provider_turn_id = Some("provider-turn-1".into());
+        let mut pending = BTreeMap::new();
+        for (sequence, event_type, payload) in [
+            (
+                1,
+                GeneratedAcpxSidecarEventType::RuntimeInputRequested,
+                json!({"requestId":"raw input / 1","questionSet":pending_input_request("unused")["input"]}),
+            ),
+            (
+                2,
+                GeneratedAcpxSidecarEventType::RuntimePermissionRequested,
+                json!({"requestId":"permission-1","kind":"execute","title":"Run?","choices":[{"key":"decline","label":"Decline"}]}),
+            ),
+        ] {
+            let event = AcpxSidecarEvent {
+                sequence,
+                event_type,
+                run_id: Some("run-1".into()),
+                turn_id: Some("provider-turn-1".into()),
+                payload,
+            };
+            for event in provider.accept_event(&event).unwrap() {
+                for normalized in project_acpx_state_event(&projection, &event).unwrap() {
+                    if normalized.event_type == "runtime_request.created" {
+                        let request = normalized.payload["request"].clone();
+                        pending.insert(request["requestId"].as_str().unwrap().to_owned(), request);
+                    }
+                }
+            }
+        }
+        validate_pending_runtime_requests(&pending).unwrap();
+        let live = BTreeMap::from([
+            ("raw input / 1".into(), "input".into()),
+            ("permission-1".into(), "permission".into()),
+        ]);
+        let requests =
+            attested_pending_runtime_requests(&pending, &provider, &live, "durable-turn-1");
+        assert_eq!(requests.len(), 2);
+        assert!(requests
+            .iter()
+            .all(|request| request["turnId"] == "durable-turn-1"));
+        assert!(requests
+            .iter()
+            .any(|request| request["requestId"] != "raw input / 1" && request["type"] == "input"));
+        assert!(
+            attested_pending_runtime_requests(&pending, &provider, &live, "provider-turn-1")
+                .is_empty()
+        );
+        assert!(attested_pending_runtime_requests(
+            &pending,
+            &provider,
+            &BTreeMap::new(),
+            "durable-turn-1"
+        )
+        .is_empty());
+        provider.complete_permission("permission-1").unwrap();
+        let input_id = requests
+            .iter()
+            .find(|request| request["type"] == "input")
+            .unwrap()["requestId"]
+            .as_str()
+            .unwrap();
+        provider.complete_input(input_id).unwrap();
+        assert!(
+            attested_pending_runtime_requests(&pending, &provider, &live, "durable-turn-1")
+                .is_empty()
+        );
     }
 
     #[test]

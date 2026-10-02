@@ -397,6 +397,11 @@ macOS runs metadata negatives and explicitly skips this Linux-only calibration.
 That calibration and the earlier fake-Pi wrapper/bridge tests do not count as the
 real paid Product lifecycle proof. This new candidate cell remains unqualified.
 
+The pending-question controller-restart browser matcher accepts only the retained
+issue's UUID or public identifier and the exact retained interaction ID. The UI
+normally posts with the public identifier. Durable request, run, turn, session,
+producer and single-delivery assertions remain required after submission.
+
 ## Pi active controls
 
 The explicit-only `pi-controls` suite adds `pending-permission-stop` and

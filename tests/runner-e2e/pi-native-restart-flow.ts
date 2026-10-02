@@ -161,8 +161,9 @@ export async function runPiPendingControllerRestart(input: {
     await expect(composer()).toHaveCount(1);
     await input.capture("pi-restart-reconnected", "Same Pi question after controller restart", "pi-restart-reconnected.png");
     await composer().locator('[contenteditable="true"],textarea').first().fill(answer);
-    const route = `/api/issues/${pending.issueId}/interactions/${pending.interactionId}/respond`;
-    const submitted = input.page.waitForRequest(request => new URL(request.url()).pathname === route && request.method() === "POST",
+    const issueRefs = [pending.issueId, after.state.issue.identifier].filter(id);
+    const routes = new Set(issueRefs.map(issueRef => `/api/issues/${encodeURIComponent(issueRef)}/interactions/${pending.interactionId}/respond`));
+    const submitted = input.page.waitForRequest(request => routes.has(new URL(request.url()).pathname) && request.method() === "POST",
       { timeout: Math.max(1, input.deadlineAt - Date.now()) });
     const button = input.page.getByRole("button", { name: after.state.interactions[0]!.payload.questionSet.submitLabel ?? "Submit answers", exact: true }).filter({ visible: true });
     await expect(button).toHaveCount(1); await button.click();

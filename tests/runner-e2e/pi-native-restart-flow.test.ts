@@ -164,16 +164,20 @@ it.each([null, {}, { status: "answered", value: "guess" }, { status: "cancelled"
   },
 );
 
-async function flow(failure?: "replaced" | "wrong-file" | "missing-resolution" | "replaced-runner") {
+async function flow(failure?: "replaced" | "wrong-file" | "missing-resolution" | "replaced-runner", issueRef = "issue") {
   const f = fixture(), evidence = new Map<string, any>(), checkpoints: string[] = [];
+  Object.assign(f.state.issue, { identifier: "RUN-1" });
   let answer = "", restarts = 0, submissions = 0, proof: unknown, resolvePost: ((value: unknown) => void) | undefined;
   let postPredicate: ((value: any) => boolean) | undefined;
   const composer: any = { count: () => 1, filter: () => composer, locator: () => composer, first: () => composer,
     fill: async (value: string) => { expect(restarts).toBe(1); answer = value; } };
   const button: any = { count: () => 1, filter: () => button, click: async () => {
     expect(restarts).toBe(1); expect(answer).toMatch(/^PI-RESTART-[a-f0-9]{32}$/); submissions++;
-    const request = { url: () => "http://fixture/api/issues/issue/interactions/interaction/respond", method: () => "POST",
+    const request = { url: () => `http://fixture/api/issues/${issueRef}/interactions/interaction/respond`, method: () => "POST",
       postDataJSON: () => ({ answers: [{ questionId: "answer", optionIds: [], otherText: answer }] }) };
+    expect(postPredicate!({ ...request, url: () => "http://fixture/api/issues/OTHER-1/interactions/interaction/respond" })).toBe(false);
+    expect(postPredicate!({ ...request, url: () => `http://fixture/api/issues/${issueRef}/interactions/other/respond` })).toBe(false);
+    expect(postPredicate!({ ...request, method: () => "GET" })).toBe(false);
     expect(postPredicate!(request)).toBe(true); resolvePost!(request); proof = f.finish(answer);
     if (failure === "missing-resolution") f.events.splice(1, 1);
   } };
@@ -201,5 +205,5 @@ async function flow(failure?: "replaced" | "wrong-file" | "missing-resolution" |
   expect(JSON.stringify(evidence.get("pi-native-restart-before.json"))).not.toContain("PI-RESTART-");
   if (!["replaced", "replaced-runner"].includes(failure ?? "")) expect(evidence.has("pi-native-restart-final.json")).toBe(true);
 }
-it("restarts while unanswered, reloads, then submits hidden text through the exact browser route", () => flow());
+it.each(["issue", "RUN-1"])("restarts while unanswered and submits through the exact %s browser route", issueRef => flow(undefined, issueRef));
 it.each(["replaced", "wrong-file", "missing-resolution", "replaced-runner"] as const)("retains evidence and fails whole flow on %s", failure => flow(failure));

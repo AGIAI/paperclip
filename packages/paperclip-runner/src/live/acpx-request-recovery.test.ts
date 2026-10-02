@@ -6,17 +6,17 @@ import type { CodexRpcServerRequest } from "../drivers/codex/app-server-transpor
 function snapshot() {
   return {
     provider: "acpx", runtimeRequestsLive: true,
-    driverSessionId: "thread-1", activeProviderTurnId: "turn-1",
+    driverSessionId: "thread-1", activeProviderTurnId: "turn-1", runtimeRequestTurnId: "durable-turn-1",
     pendingRuntimeRequests: [{
       schema: "paperclip.runtime_request.v2", requestId: "input-1", type: "input",
-      requestKind: "runtime", status: "pending", turnId: "turn-1", itemId: "question-1",
+      requestKind: "runtime", status: "pending", turnId: "durable-turn-1", itemId: "question-1",
       origin: { adapter: "acpx-runtime-sidecar", provider: "pi", method: "elicitation/create" },
       input: { schema: "paperclip.question_set.v1", questions: [
         { id: "answer", prompt: "Give the answer", required: true, answerMode: "text" },
       ] },
     }, {
       schema: "paperclip.runtime_request.v2", requestId: "permission-1", type: "permission",
-      requestKind: "permission_approval", status: "pending", turnId: "turn-1", itemId: "write-1",
+      requestKind: "permission_approval", status: "pending", turnId: "durable-turn-1", itemId: "write-1",
       prompt: "Allow this write?", choices: [{ key: "deny", label: "Decline", outcome: "cancel" }],
       details: { toolCallId: "write-1" },
       origin: { adapter: "acpx-runtime-sidecar", provider: "pi", method: "session/request_permission" },
@@ -27,10 +27,11 @@ function snapshot() {
 describe("live ACP request recovery", () => {
   it("retains original question, option and permission identities", () => {
     const value = snapshot();
-    const requests = liveAcpxRuntimeRequests(value, "thread-1", "turn-1");
+    const requests = liveAcpxRuntimeRequests(value, "thread-1", "turn-1", "durable-turn-1");
     expect(requests.map(request => [request.id, request.method])).toEqual([
       ["input-1", "elicitation/create"], ["permission-1", "session/request_permission"],
     ]);
+    expect(requests.every(request => request.params.turnId === "turn-1")).toBe(true);
     expect(requests[0]!.params.questionSet).toEqual(value.pendingRuntimeRequests[0]!.input);
     expect(requests[1]!.params).toMatchObject({ choices: value.pendingRuntimeRequests[1]!.choices, toolCallId: "write-1" });
   });
@@ -39,10 +40,11 @@ describe("live ACP request recovery", () => {
     ["missing live attestation", { runtimeRequestsLive: false }],
     ["wrong provider", { provider: "codex" }],
     ["wrong session", { driverSessionId: "other" }],
-    ["wrong turn", { activeProviderTurnId: "other" }],
+    ["wrong provider turn", { activeProviderTurnId: "other" }],
+    ["wrong durable turn", { runtimeRequestTurnId: "other" }],
     ["missing ledger", { pendingRuntimeRequests: null }],
   ])("rejects %s", (_name, change) => {
-    expect(() => liveAcpxRuntimeRequests({ ...snapshot(), ...change }, "thread-1", "turn-1")).toThrow();
+    expect(() => liveAcpxRuntimeRequests({ ...snapshot(), ...change }, "thread-1", "turn-1", "durable-turn-1")).toThrow();
   });
 
   it.each([
@@ -51,18 +53,18 @@ describe("live ACP request recovery", () => {
     { origin: { method: "item/tool/call" } }, { input: null },
   ])("rejects malformed or stale callback %j", change => {
     const value = snapshot();
-    expect(() => liveAcpxRuntimeRequests({ ...value, pendingRuntimeRequests: [{ ...value.pendingRuntimeRequests[0], ...change }] }, "thread-1", "turn-1")).toThrow();
+    expect(() => liveAcpxRuntimeRequests({ ...value, pendingRuntimeRequests: [{ ...value.pendingRuntimeRequests[0], ...change }] }, "thread-1", "turn-1", "durable-turn-1")).toThrow();
   });
 
   it("rejects duplicate or oversized callback ledgers", () => {
     const value = snapshot();
     for (const count of [2, 1025]) {
-      expect(() => liveAcpxRuntimeRequests({ ...value, pendingRuntimeRequests: Array(count).fill(value.pendingRuntimeRequests[0]) }, "thread-1", "turn-1")).toThrow();
+      expect(() => liveAcpxRuntimeRequests({ ...value, pendingRuntimeRequests: Array(count).fill(value.pendingRuntimeRequests[0]) }, "thread-1", "turn-1", "durable-turn-1")).toThrow();
     }
   });
 
   it.each(["input-1", "permission-1"])("restores and delivers %s once after controller recovery", async requestId => {
-    const requests = liveAcpxRuntimeRequests(snapshot(), "thread-1", "turn-1");
+    const requests = liveAcpxRuntimeRequests(snapshot(), "thread-1", "turn-1", "durable-turn-1");
     const originalTransport = new FakeCodexTransport();
     const original = await makeDriver([originalTransport]).openSession({ runId: "run-1", normalizedSessionId: "session-1", workingDirectory: WORKSPACE });
     let recovered: Awaited<ReturnType<typeof original.snapshot>> | undefined;
