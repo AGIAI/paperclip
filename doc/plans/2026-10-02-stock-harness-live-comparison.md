@@ -1,5 +1,7 @@
 # Stock-harness live comparison — 2026-10-02
 
+**TL;DR:** Two newly failing paired cases: classic Claude/OpenCode document delivery. Two newly passing cases: classic and native OpenCode ordered continuation. Seven unchanged failures and 13 unchanged passes. The extra ACP Claude storage symptom occurs beneath an existing credential-guard failure. All 48 results are available; no general performance equivalence is established.
+
 The reduced instructions are **not yet qualified for merge**. Classic Claude and classic OpenCode pass the historical skill-output case but fail with the reduced instructions: they finish without saving a Paperclip task document. Native Codex and native Claude pass all three journeys in both variants. Single trials and ambiguous fixture storage wording limit causal attribution; the failed oracle remains unchanged.
 
 The reductions and evaluation setup are in draft [PR #14948](https://github.com/paperclipai/paperclip/pull/14948). This report and its [safe evidence projection](2026-10-02-stock-harness-live-comparison.json) record the measured revisions rather than claiming the final documentation head was run through the full matrix.
@@ -96,3 +98,13 @@ At `1eb5ba420`, all 557 credential-free prerequisites pass (556 TypeScript plus 
 Repository typecheck and build pass. The complete local Vitest run has 14,870 passed, 83 skipped and three unrelated timing failures; the three affected files pass unchanged narrow reruns (25 auth, 16 reviewed-chat binding, four webhook tests). Original failures are retained rather than calling the first full run green.
 
 PR #14948 stays draft while document delivery is unresolved. Unrepresented harnesses, legacy ACP credential safety, public-receipt clipping, the independent ACP base-replacement issue, existing Claude chat memory behavior and saved-session migration are not qualified away by these results. This small matrix measures skill/context/chat behavior, not broad coding quality or statistical equivalence.
+
+## Retained delivery diagnosis and approved repair
+
+Both failed classic agents loaded the operational Paperclip skill. This is not an observed skill-discovery failure. In the reduced Claude run, the agent wrote a workspace Markdown file before loading Paperclip and then completed the issue without a document API write. The reduced OpenCode run loaded Paperclip, accessed the assigned skill through the public skills API, and wrote a workspace task-document file; it made no document, attachment, or work-product delivery write. Both corresponding historical runs saved a Paperclip issue document.
+
+Claude received the full operational skill, including its existing no-local-only delivery guidance. OpenCode's skill result was explicitly truncated in both variants: the early artifact rule survived, but the later generic document endpoint and plan-only write example were omitted. That truncation is existing behavior, not a newly measured regression. Removing always-on delivery reminders may interact with it, but the combined manual/shared reduction and ambiguous assigned-skill wording prevent a causal attribution to one layer.
+
+Dotta approved a small early API-runtime skill recipe and a generic issue-document reference. The tiny manual remains eight words. The recipe checks the successful write's returned saved revision/content and links the returned key; it does not require another GET after a clear valid receipt. It preserves explicit destinations, downloadable-file delivery, and native document-tool boundaries.
+
+The focused repair comparison will hold the tiny manual/shared prompts fixed and vary only `skills/paperclip/SKILL.md` plus the new `references/issue-documents.md`. Classic Claude and OpenCode each run the preserved original case and an added explicitly Paperclip-storage case: four cells per variant, eight expected provider turns in total. This measures the skill repair separately from the original reduction. The explicit case independently checks public saved body/revision and an agent comment linking the exact same-app document; local-only, missing-revision, wrong-document, local-path, and other-origin outcomes cannot pass. Current state: fixture preparation and source freeze, no repair provider run yet.

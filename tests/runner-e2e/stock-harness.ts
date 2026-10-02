@@ -6,6 +6,19 @@ import type { RunnerProfileFixture } from "./types.js";
 // constants. Otherwise a larger shipped manual could silently update the oracle.
 export const STOCK_HIRE_IDENTITY = "You are an agent in a Paperclip company.\n";
 export const STOCK_TEMPLATE_IDENTITY = "You are agent";
+const SKILL_SOURCES = ["../../skills/paperclip/SKILL.md", "../../skills/paperclip/references/issue-documents.md"];
+export function stockHarnessSkillSources() {
+  return SKILL_SOURCES.map(source => {
+    try {
+      return { path: source.replace(/^\.\.\/\.\.\//, ""), present: true,
+        sha256: createHash("sha256").update(readFileSync(new URL(source, import.meta.url))).digest("hex") };
+    } catch (error) {
+      if (source.endsWith("/references/issue-documents.md") && (error as NodeJS.ErrnoException).code === "ENOENT")
+        return { path: source.replace(/^\.\.\/\.\.\//, ""), present: false, sha256: null };
+      throw error;
+    }
+  });
+}
 const REMOVED_PROCEDURES = [
   "Execution contract:",
   "Start actionable work in this heartbeat",
@@ -115,5 +128,6 @@ export function stockHarnessSourceDigest() {
     "../../packages/adapter-utils/src/server-utils.ts",
     "../../packages/shared/src/connection-intent-guidance.ts",
   ]) hash.update(source).update(readFileSync(new URL(source, import.meta.url)));
+  hash.update(JSON.stringify(stockHarnessSkillSources()));
   return hash.digest("hex");
 }
