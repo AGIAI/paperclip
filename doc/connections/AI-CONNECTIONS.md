@@ -547,7 +547,7 @@ Vertex, ambient AWS identity, arbitrary authentication headers, and automatic
 provider catalog discovery are not part of this implementation.
 
 `config.ai.routing` stores only kind, protocol, URL, auth method, region, and
-optional model IDs/labels. The vault stores keys or the AWS credential bundle.
+optional model IDs/labels. The vault stores provider API keys, including Bedrock API keys.
 Fixed bindings contain only connection/grant identity. The server checks actual
 connection metadata, company, owner/audience, installation, status, and protocol
 before resolving secrets. Advanced connections cannot silently become native
