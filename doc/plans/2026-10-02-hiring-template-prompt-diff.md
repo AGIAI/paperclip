@@ -29,6 +29,88 @@ Baseline: `d6d88b9de2fc766637422cc43f985c747455a1b0`. Word counts below measure 
 - This branch starts from master and is separate from draft PR #14948. The generic non-CEO fallback and shared runtime prompt reductions remain in that PR. It must land for hires using the server fallback to receive the eight-word generic manual.
 - Both native and legacy managed-bundle creation use the shared defaults. No native tool procedure or legacy API procedure is embedded in these role prompts.
 
+## How hires are drafted
+
+| Before | After |
+| --- | --- |
+| Role-specific templates were the default drafting path. | Templates are optional role examples. |
+| Unknown roles required a 60–150-line manual with eight sections. | Start with a short identity and responsibility paragraph. |
+| Every new agent needed an execution contract and repeated task procedures. | Keep reporting lines, capabilities, and skills in their configuration fields. |
+| Templates prescribed reviewers, per-touch comments, and broad domain checklists. | Add detail only for a concrete requirement that the task, repository, skills, or configuration do not already express. |
+| The generated baseline could crowd out company instructions. | Preserve explicit requester instructions. |
+
+The hiring skill still checks authority, adapter schemas, reporting lines, installed skills, timer settings, confidential workflows, and approval state. Its native-tool and legacy-API transport guidance stays separate.
+
+<details><summary>Hiring skill drafting rules: before → after</summary>
+
+```diff
+diff --git a/skills/paperclip-create-agent/SKILL.md b/skills/paperclip-create-agent/SKILL.md
+index 6b2a0da0e..fa9e7b358 100644
+--- a/skills/paperclip-create-agent/SKILL.md
++++ b/skills/paperclip-create-agent/SKILL.md
+@@ -72,21 +72,24 @@ curl -sS "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agent-configura
+
+ Note naming, icon, reporting-line, and adapter conventions the company already follows.
+
+-### 4. Choose the instruction source (required)
++### 4. Describe the role
+
+-This is the single most important decision for hire quality. Pick exactly one path:
++Use a short role paragraph for a new agent: its identity and the responsibility
++it owns. The [role examples](references/agent-instruction-templates.md) are
++optional starting points; for other roles, use the
++[baseline role guide](references/baseline-role-guide.md).
+
+-- **Exact template** — the role matches an entry in the template index. Use the matching file under `references/agents/` as the starting point.
+-- **Adjacent template** — no exact match, but an existing template is close (for example, a "Backend Engineer" hire adapted from `coder.md`, or a "Content Designer" adapted from `uxdesigner.md`). Copy the closest template and adapt deliberately: rename the role, rewrite the role charter, swap domain lenses, and remove sections that do not fit.
+-- **Generic fallback** — no template is close. Use the baseline role guide to construct a new `AGENTS.md` from scratch, filling in each recommended section for the specific role.
++Company-specific instructions supplied by the requester take precedence. Do not
++expand a role description into a generic operating manual. The harness supplies
++Paperclip coordination, skill discovery, and task lifecycle guidance; repository
++instructions and installed skills carry applicable work procedures. Avoid
++adding heartbeat pointers, execution contracts, mandatory per-touch comments,
++fixed reviewer routes, or catalogs of domain concepts to the hire's instructions.
+
+-Template index and when-to-use guidance:
+-`skills/paperclip-create-agent/references/agent-instruction-templates.md`
+-
+-Generic fallback for no-template hires:
+-`skills/paperclip-create-agent/references/baseline-role-guide.md`
+-
+-State which path you took in your hire-request comment so the board can see the reasoning.
++Keep reporting lines in `reportsTo`, capabilities in `capabilities`, and skills
++in `desiredSkills`. Add instruction detail only for a concrete company or role
++requirement that those fields, the task, repository instructions, or installed
++skills do not already express.
+
+ ### 5. Discover allowed agent icons
+
+@@ -107,9 +110,7 @@ curl -sS "$PAPERCLIP_API_URL/llms/agent-icons.txt" \
+ - leave timer heartbeats off by default; only set `runtimeConfig.heartbeat.enabled=true` with an `intervalSec` when the role genuinely needs scheduled recurring work or the user explicitly asked for it
+ - if the role may handle private advisories or sensitive disclosures, confirm a confidential workflow exists first (dedicated skill or documented manual process)
+ - capabilities
+-- managed instructions bundle (`AGENTS.md`) for adapters that support it; avoid durable `promptTemplate` config
+-- for coding or execution agents, include the Paperclip execution contract: start actionable work in the same heartbeat; do not stop at a plan unless planning was requested; leave durable progress with a clear next action; use child issues for long or parallel delegated work instead of polling; mark blocked work with owner/action; respect budget, pause/cancel, approval gates, and company boundaries
+-- instruction text such as `AGENTS.md` built from step 4; for local managed-bundle adapters, send this as top-level `instructionsBundle.files["AGENTS.md"]`. Do not set `adapterConfig.promptTemplate` or `bootstrapPromptTemplate` for new agents.
++- when supplying role instructions from step 4, send them as top-level `instructionsBundle.files["AGENTS.md"]` for managed-bundle adapters. Otherwise use the server default. Do not set `adapterConfig.promptTemplate` or `bootstrapPromptTemplate` for new agents.
+ - source issue linkage (`sourceIssueId` or `sourceIssueIds`) when this hire came from an issue
+
+ ### 7. Review the draft against the quality checklist
+@@ -180,8 +181,8 @@ For each linked issue, either:
+
+ ## References
+
+-- Template index and how to apply a template: `skills/paperclip-create-agent/references/agent-instruction-templates.md`
++- Optional role examples: `skills/paperclip-create-agent/references/agent-instruction-templates.md`
+ - Individual role templates: `skills/paperclip-create-agent/references/agents/`
+-- Generic baseline role guide (no-template fallback): `skills/paperclip-create-agent/references/baseline-role-guide.md`
++- Short role drafting guide: `skills/paperclip-create-agent/references/baseline-role-guide.md`
+ - Pre-submit draft-review checklist: `skills/paperclip-create-agent/references/draft-review-checklist.md`
+ - Endpoint payload shapes and full examples: `skills/paperclip-create-agent/references/api-reference.md`
+```
+
+</details>
+
 ## Actual role prompts
 
 ### Default CEO bundle
@@ -117,7 +199,7 @@ You plan content themes, keep the editorial calendar current, and turn company u
 
 ## Full instruction diffs
 
-The following diffs compare the actual role bodies. The CEO `AGENTS.md` diff is shown here; removing its three siblings from default selection accounts for the remainder of the bundle reduction. Their compatibility source files are unchanged.
+The following diffs compare the actual role bodies. The CEO `AGENTS.md` diff is shown here; removing its three siblings from default selection accounts for the remainder of the bundle reduction. Their compatibility source files are unchanged. The previous bundle also selected [HEARTBEAT.md](https://github.com/paperclipai/paperclip/blob/d6d88b9de2fc766637422cc43f985c747455a1b0/server/src/onboarding-assets/ceo/HEARTBEAT.md), [SOUL.md](https://github.com/paperclipai/paperclip/blob/d6d88b9de2fc766637422cc43f985c747455a1b0/server/src/onboarding-assets/ceo/SOUL.md), and [TOOLS.md](https://github.com/paperclipai/paperclip/blob/d6d88b9de2fc766637422cc43f985c747455a1b0/server/src/onboarding-assets/ceo/TOOLS.md); those links show their complete previous contents.
 
 <details><summary>Default CEO bundle: before → after</summary>
 
@@ -577,9 +659,9 @@ The following diffs compare the actual role bodies. The CEO `AGENTS.md` diff is 
 -
 -# Chat hygiene
 -
--- Everything you post is read by the user. Keep it terse and written for them. Speak simply and be easy to understand. For technical topics speak close to ASD-STE100 so that people understand you. 
+-- Everything you post is read by the user. Keep it terse and written for them. Speak simply and be easy to understand. For technical topics speak close to ASD-STE100 so that people understand you.
 -- Lead with the answer. Never narrate tool calls, API steps, or your own thinking.
--- Ask about material ambiguity that prevents useful work. 
+-- Ask about material ambiguity that prevents useful work.
 -- You have tools from Paperclip, use them
 +You are {{agentName}}, chief of staff for {{organizationName}}. You are the user's main point of contact for carrying out requests and coordinating the company's work.
 ```
@@ -849,6 +931,8 @@ The following diffs compare the actual role bodies. The CEO `AGENTS.md` diff is 
 
 The [independent three-request drafting simulation](2026-10-02-hiring-skill-drafting-evidence.json) produced short backend-engineer and release-coordinator role text, retained requested skills and disabled timers, used inherited authentication without literal credentials, and preserved requester-supplied security instructions exactly. It explicitly left schema confirmation and approval reconciliation pending. No API calls or hires occurred; this is drafting evidence, not live runtime qualification.
 
-Focused verification passes 99 server tests and eight shipped-catalog tests. The full build and repository typecheck pass. The branch includes configuration and import checks for default CEO selection, explicit custom bundles, first-agent rendering, catalog role/reporting/skill metadata, generated catalog bytes, and prepared import sources. The hiring skill also receives a separate drafting simulation with synthetic discovery data. These are not live provider comparisons.
+Focused verification passes 99 server tests and eight shipped-catalog tests. The full build and repository typecheck pass. Credential-free E2E support checks pass 63 files / 842 tests, the E2E typecheck, two-cell hiring discovery, existing 50-cell everyday discovery, and the full 438-cell catalog. The full local `pnpm test:run` was started and stopped before replaying onto newer master, with its original output retained; it is not a completed full-suite pass. Complete checks on the submitted source head run in GitHub CI. The branch includes configuration and import checks for default CEO selection, explicit custom bundles, first-agent rendering, catalog role/reporting/skill metadata, generated catalog bytes, and prepared import sources. The hiring skill also receives a separate drafting simulation with synthetic discovery data. These are not live provider comparisons.
+
+The explicit-only `hiring-templates` suite starts from the source revision's real default CEO, requests the installed hiring skill and coder example, and checks one permanent coder hire, two independently scored saved JSON fixtures, and reuse of that same worker. Its local Codex and ACPX Claude cells expect five provider turns each. Successful source reads before the hire, served source hashes, saved instruction bundles, task ownership, account inheritance, and preservation of the first artifact form the evidence. Long historical templates remain admissible; absent or unrecognized read receipts make coverage uncomparable. These two cells have not yet run live.
 
 Behavioral qualification of the removed CEO delegation/memory policy and QA/UX/security procedures is still outstanding. Existing live `hire-delegate-reuse` starts from a custom CEO studio prompt, so it does not directly qualify the shipped default CEO. The wizard-backed `first-task` suite records the actual first-agent persona and skill snapshots; it covers that selection path but does not by itself qualify hiring from the chief of staff. Preserve that distinction when interpreting existing results. No improved or equivalent outcomes are claimed from smaller prompts or configuration tests.
