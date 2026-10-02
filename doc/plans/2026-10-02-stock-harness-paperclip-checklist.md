@@ -145,21 +145,23 @@ not inherit instructions to call unavailable native finish/block tools.
   retained provider threads through the native tool-contract fingerprint.
   Executable coverage: SH-4-tools checks actual wire/catalog delivery across
   all five native provider kinds; SH-4-resume checks v13 checkpoint rotation
-  without changing the Paperclip task or prior history. Live qualification is
-  pending; use native profile comparisons, with legacy results kept separate.
+  without changing the Paperclip task or prior history. The paired native
+  comparison is complete with the grading limits recorded below; keep legacy
+  results separate.
 
   Implemented in draft [PR #14961](https://github.com/paperclipai/paperclip/pull/14961),
   stacked on #14948 for the eval fixtures. Local verification passed 232 native
   tests, three retained-checkpoint cases, two legacy prompt boundary assertions,
   and all 900 E2E support tests. Runner core/surface compilation and E2E typecheck
   passed. Both exact SH-4 gates passed (14 selected assertions; unrelated cases
-  explicitly skipped). Repository-wide and paid qualification remain pending.
+  explicitly skipped). Fresh repository checks remain pending; the paired paid
+  comparison is complete with original blocker grading limits.
   Qualification now includes a native-only concrete blocker case on Codex,
   ACPX Claude, and OpenCode. It checks persisted blocker disposition, owner,
   action, scope, and the visible explanation. Positive and seven plausible
-  negative oracle calibrations passed. The current suite has 27 cells and 51
+  negative oracle calibrations passed. The current suite has 29 cells and 53
   expected turns; the earlier manual/shared comparison remains 24 cells per
-  variant. No native paid qualification has run at this point.
+  variant. All six paired native cases are now retained: zero new overall failures, three unchanged completion passes, and three original blocker failures. Corrected retained-DOM checks pass separately; Codex exact-action failures remain. See the native comparison report.
 - [ ] **2.3.2 Move document/file delivery procedures into native tool docs.**
   Include the live server override and preserve prepared versus delivered receipts.
 - [ ] **2.3.3 Move hiring/dependency recipes into native discovery/tool docs.**
