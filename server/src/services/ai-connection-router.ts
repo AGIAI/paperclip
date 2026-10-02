@@ -13,6 +13,7 @@ import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 import { resolvePaperclipRunnerProviderProfile, resolvePaperclipRunnerNativeProviderInput } from "./native-runtime/provider-profile.js";
 
 const usageCache = new Map<string, { expires: number; value: AiConnectionUsage }>();
+const usageInFlight = new Map<string, Promise<AiConnectionUsage | undefined>>();
 const routedRuntimeKeys = new Set(["provider", "acpxAgent", "model", "modelReasoningEffort", "reasoningEffort", "effort", "variant"]);
 export function applyAiConnectionRouterTaskSettings(config: Record<string, unknown>, selection: AiConnectionRouterSelection) {
   return { ...Object.fromEntries(Object.entries(config).filter(([key]) => !routedRuntimeKeys.has(key))), ...selection.runtimeConfig };
@@ -148,20 +149,31 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     if (!key) return undefined;
     const cached = usageCache.get(key);
     if (cached && cached.expires > Date.now()) return cached.value;
+    let pending = usageInFlight.get(key);
+    if (!pending) {
+      let probeTimer: ReturnType<typeof setTimeout> | undefined;
+      pending = Promise.race([
+        aiConnectionService(db).probeUsage(companyId, userId, member.binding.connectionId, member.binding.grantId).catch(() => undefined),
+        new Promise<undefined>(resolve => { probeTimer = setTimeout(() => resolve(undefined), 15_000); }),
+      ]).then(value => {
+        if (value) {
+          const resets = value.limits.map(v => Date.parse(v.resetsAt ?? "")).filter(v => Number.isFinite(v) && v > Date.now());
+          if (usageCache.size > 1000) usageCache.clear();
+          usageCache.set(key, { value, expires: Math.min(Date.now() + 60_000, ...resets) });
+        }
+        return value;
+      }).finally(() => { if (probeTimer) clearTimeout(probeTimer); usageInFlight.delete(key); });
+      usageInFlight.set(key, pending);
+    }
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const value = await Promise.race([
-        aiConnectionService(db).probeUsage(companyId, userId, member.binding.connectionId, member.binding.grantId).catch(() => undefined),
-        new Promise<undefined>((resolve) => { timer = setTimeout(() => resolve(undefined), Math.max(0, deadline - Date.now())); }),
+      return await Promise.race([
+        pending,
+        new Promise<undefined>(resolve => { timer = setTimeout(() => resolve(undefined), Math.max(0, deadline - Date.now())); }),
       ]);
-      if (value) {
-        const resets = value.limits.map((v) => Date.parse(v.resetsAt ?? "")).filter((v) => Number.isFinite(v) && v > Date.now());
-        if (usageCache.size > 1000) usageCache.clear();
-        usageCache.set(key, { value, expires: Math.min(Date.now() + 60_000, ...resets) });
-      }
-      return value;
     } finally { if (timer) clearTimeout(timer); }
   }
+
   async function resolve(input: { companyId: string; poolId: string; agentId: string; userId: string | null; adapterType: string; taskKey: string; overrides?: Record<string, unknown>; existingGrantId?: string; requireExisting?: boolean; persisted?: AiConnectionRouterSelection }) {
     const pinWhere = and(eq(aiConnectionTaskPins.companyId, input.companyId), eq(aiConnectionTaskPins.poolId, input.poolId), eq(aiConnectionTaskPins.agentId, input.agentId), eq(aiConnectionTaskPins.taskKey, input.taskKey));
     const validateSelection = async (selection: AiConnectionRouterSelection, client = db) => aiConnectionService(client).select({ companyId: input.companyId, agentId: input.agentId, userId: input.userId, adapterType: input.adapterType, binding: selection.binding, model: selection.runtimeConfig.model, runnerProvider: selection.runtimeConfig.provider, acpxAgent: selection.runtimeConfig.acpxAgent });

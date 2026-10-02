@@ -11,6 +11,8 @@ observations to `onRouteAiConnection`. The plugin proposes an opaque member ID;
 it cannot receive credentials or expand authorization. Pure round robin does
 not probe usage. Usage-aware selection has a shared 15-second probe budget,
 60-second freshness cache and ordinary grant/secret freshness invalidation.
+Concurrent starts share an in-flight probe for the same grant and credential
+freshness. Each caller retains its selection deadline.
 
 One cursor spans all agents in a pool. An allocation transaction locks the
 cursor, checks config and cursor revisions, rechecks authorization, and writes
@@ -23,6 +25,9 @@ Pins snapshot the concrete binding and member profile. Removing or editing a
 member affects future allocations. Composer changes can change a supported
 model or effort, with a note on fallback, but never the account or harness.
 Session reset and compaction retain the pin. Revocation requires operator repair.
+Authentication repair uses the failed run’s durable concrete allocation and
+current member permissions; reconnect-and-continue preserves the agent’s pool
+binding. Changing the agent’s pool invalidates the old repair card.
 A pre-existing managed session can adopt its saved account when it is an
 eligible member; otherwise the operator must explicitly reset the session.
 

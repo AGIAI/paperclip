@@ -306,6 +306,17 @@ export function InstanceExperimentalSettings() {
         />
 
         <ExperimentalToggleCard
+          title="AI connection routers"
+          description="Allow experimental plugins to rotate new tasks through authorized AI accounts. Each task keeps its account and harness; exhausted tasks wait for usage to recover. Install a compatible router plugin and enable a pool separately."
+          checked={experimentalQuery.data?.enableAiConnectionRouters === true}
+          onCheckedChange={(checked) => toggleMutation.mutate({ enableAiConnectionRouters: checked })}
+          disabled={toggleMutation.isPending}
+          settingKey="enableAiConnectionRouters"
+          managed={managedKeys.enableAiConnectionRouters}
+          ariaLabel="Toggle AI connection routers experimental setting"
+        />
+
+        <ExperimentalToggleCard
           title="Beta skills"
           description="Allow agents to pin beta releases of the Paperclip core skill. Disabling this returns every agent to the default live skill without removing saved pins."
           checked={enableBetaSkills}
@@ -442,17 +453,6 @@ export function InstanceExperimentalSettings() {
           settingKey="enableMemoryConnectors"
           managed={managedKeys.enableMemoryConnectors}
           ariaLabel="Toggle memory connectors experimental setting"
-        />
-
-        <ExperimentalToggleCard
-          title="AI connection routers"
-          description="Allow experimental plugins to rotate new tasks through authorized AI accounts. Each task keeps its account and harness; exhausted tasks wait for usage to recover. Install a compatible router plugin and enable a pool separately."
-          checked={experimentalQuery.data?.enableAiConnectionRouters === true}
-          onCheckedChange={(checked) => toggleMutation.mutate({ enableAiConnectionRouters: checked })}
-          disabled={toggleMutation.isPending}
-          settingKey="enableAiConnectionRouters"
-          managed={managedKeys.enableAiConnectionRouters}
-          ariaLabel="Toggle AI connection routers experimental setting"
         />
 
         <ExperimentalToggleCard
