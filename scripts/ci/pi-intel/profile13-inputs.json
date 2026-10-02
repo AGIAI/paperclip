@@ -7,10 +7,10 @@
       "digest": "sha256:1df2a15b93bc3a14fa47fa3315344ba023fe2412048047cdc6f32096a6336564"
     },
     "copilot": {
-      "path": "packages/paperclip-runner/test/fixtures/copilot-profile-v12-identity.json",
-      "sha256": "5d9dc0d3cf2385315b13180af5431a3e1d90ccaa5653b7093a749ef12c2dfe3c",
-      "version": 12,
-      "digest": "sha256:48cecd8dc77a5533240fcf2f29d19be05380da4a79f8e5061480f94241db75a8"
+      "path": "packages/paperclip-runner/test/fixtures/copilot-profile-v13-identity.json",
+      "sha256": "421d0ec0c8f4138684e1d041d703673b2b9fb229d5b4539659a10d0cdf7c6cf9",
+      "version": 13,
+      "digest": "sha256:3ff08fbe76fe4549c9eb01e8794428d8909c65c151d775220f2ec111d9e6f7c1"
     },
     "pi": {
       "path": "packages/paperclip-runner/test-fixtures/pi-acp/profile-v13-identity.json",
@@ -48,13 +48,16 @@
     "packages/paperclip-runner/src/drivers/acpx/pi-verified-runtime.ts": "dfb5f6604da0abc307c4bb514e3dd47354f4b867be28fdeb64273c3c055b68c1",
     "packages/paperclip-runner/src/drivers/acpx/pi-node-pins.ts": "ffc822aff64db315e461cbe44f03d704695de4a4296f643af79386c3556a1d46",
     "packages/paperclip-runner/src/drivers/acpx/pi-closure-pins.ts": "484820c9dd5fd2402edb75fc7cf2f54f000ea4768061c8feb3429f81c0c8e1ce",
-    "packages/paperclip-runner/src/drivers/acpx/qualified-profiles.ts": "3706d7f5ca62b2e6426742813f3d43b8e6b734de7c63ea0973acd7467f58c6a9",
-    "packages/paperclip-runner/package.json": "b5be67eb3190ddaa9baf20a455fae62fc7722b764f89f2cdbdd02a6d6a9dcad3",
+    "packages/paperclip-runner/src/drivers/acpx/qualified-profiles.ts": "d9ffc16fc9272c457ae436f72872866bfbd2725e2fcd9703e79729a37678cb4a",
+    "packages/paperclip-runner/package.json": "da14633b128e56f0f76e96e6911b9d324233078619dbe19ab4a6d81495949dfd",
     "packages/paperclip-runner/src/drivers/acpx/pi-installation.ts": "09a13bdad937b68bf129458d4c00c4ae174c93fad3ae447db3fad922f66c49e5",
     "packages/paperclip-runner/src/drivers/acpx/native-distribution-integrity.ts": "943ba0fb2d27d08b9b0d36778f08c7c0dbdb78893c7564babd4e67f67cf065fe",
-    "packages/paperclip-runner/runner/crates/runner-core/src/acpx_provider_backend.rs": "3b01d1925ea4d0eafa5bbb7c571a95a64c7dec57d8aa597f7001595b4460863d",
+    "packages/paperclip-runner/runner/crates/runner-core/src/acpx_provider_backend.rs": "432b673a9a2354e9ec4117e9603fa250548bd2bb73f7294b4210b26ce92267c6",
     "packages/paperclip-runner/rust-toolchain.toml": "e4c6d27e48d71df0ae66d84f3bc2d5df8cbf5c3cbb3225475a7852d94361a0c5",
-    "packages/paperclip-runner/runner/crates/runner-core/src/bin/paperclip-runnerd.rs": "116d2641e844ba28cd7496d56b44fa405ea8def8940d9e50e9d6b30603602581"
+    "packages/paperclip-runner/runner/crates/runner-core/src/bin/paperclip-runnerd.rs": "116d2641e844ba28cd7496d56b44fa405ea8def8940d9e50e9d6b30603602581",
+    "packages/paperclip-runner/runner/crates/runner-core/src/process_supervisor.rs": "03c550b8f4b362f5bd4fbf1896ad7d69c0fd6094e5f7f40312dc3a0997a4f81a",
+    "packages/paperclip-runner/runner/crates/runner-core/src/qualified_launch.rs": "4de0d3b11160762083fe4be3475d7d23dd46c76dc6b26135fc7c7f0d1441e2a9",
+    "packages/paperclip-runner/runner/crates/runner-core/tests/process_supervisor.rs": "0f79df2ace62eac9562062db4b3ba6a84bae3199ee671cb459eeeaa50511d6e0"
   },
   "permissionPolicySources": {
     "packages/paperclip-runner/src/drivers/acpx/copilot-permission-context.ts": {
@@ -178,8 +181,8 @@
     }
   },
   "localComparison": {
-    "sourceRevision": "f5c5fde380f60937ef26cc5a92e1d6a043e9cddc",
-    "sourceArchiveSha256": "374600761ad9e0268f6e323bc9eb16aff800106d8baf886e39063ebc52d42e8a",
+    "sourceRevision": "bba63f51207de8513ad2d9593694f718fc60ef17",
+    "sourceArchiveSha256": "38ae0523faace6d7797f8cfd5c4b0a018260ce421677e250fb35fbcc0ec8c14e",
     "trackedLockSha256": "e11d69fa8702a906c293c1cb307c71df90d3b1f1617b3c23ebf17fa9a87fec79",
     "resolvedLockSha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
     "nodeSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49",
@@ -233,7 +236,7 @@
   },
   "testSourcePins": {
     "pi-closed-startup.test.mjs": "32bb057e1505082c0ed6b1d71cdd8cdb3271d920c2bea9cdc1ebddedf568c0c4",
-    "pi-native-package-contract.test.mjs": "8a03f65dd5bc52634d683e2fa6157ae53c85063ac91647d1b936cdbd13b58a38",
+    "pi-native-package-contract.test.mjs": "cdeb1b9c5b9363e0cca4ed475f3622251bf514b42d16a3e200b4f6d6d671d24f",
     "pi-acp-package-contract.test.mjs": "b4a7b7dd0887f3d1daa8cb339a73f47cb88ef01857c7a38e14d83ae069f093ba"
   }
 }
