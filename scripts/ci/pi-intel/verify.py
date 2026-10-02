@@ -8,6 +8,7 @@ import source_guard
 from lifecycle import Lifecycle, run_test_cases
 from retain_pack import retain_pack
 from native_daemon_reuse import import_daemon
+from qualification_observer import QualificationInspection, wait_for_owned_command
 
 HERE=Path(__file__).resolve().parent
 INPUTS=json.loads((HERE/'profile-inputs.json').read_text())
@@ -137,13 +138,19 @@ def execute(args):
         receipt['commands'].append(row);save();start=time.monotonic()
         with (out/(label+'.log')).open('x') as log:
             try:
-                if owned:owner=OwnedProcesses(out/(label+'-processes.json'),scratch,stage,pack/'dist/cli/acpx-runtime-sidecar.cjs')
+                if owned:
+                    owner=OwnedProcesses(out/(label+'-processes.json'),scratch,stage,pack/'dist/cli/acpx-runtime-sidecar.cjs')
+                    inspection=QualificationInspection(owner,start+timeout)
+                    owner.table=inspection.table;owner.argv=inspection.argv
+                    row['processInspection']={'maximumCallSeconds':5,'activeCadenceSeconds':.5,'sharedDefaultSeconds':2,
+                                              'deadlineCap':'remaining command or existing owned cleanup phase','activeFailuresFatal':True,'activeInspectionRetries':0}
+                    save()
                 active=subprocess.Popen(row['command'],cwd=cwd,env=command_env or env,stdout=log,stderr=log,start_new_session=True)
-                while active.poll() is None:
-                    if owner:owner.observe(active.pid)
-                    require(time.monotonic()-start<timeout,'Command deadline exceeded: '+label)
-                    time.sleep(.1 if owner else .5)
-                if owner:owner.observe(active.pid)
+                if owner:wait_for_owned_command(active,inspection)
+                else:
+                    while active.poll() is None:
+                        require(time.monotonic()-start<timeout,'Command deadline exceeded: '+label)
+                        time.sleep(.5)
             finally:
                 try:
                     # No reliable returned handle means launch ownership is uncertain.
