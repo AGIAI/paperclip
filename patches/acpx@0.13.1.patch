@@ -523,7 +523,21 @@ index d454fd7c5..6eba74345 100644
  			}));
  			result = claudeAcp ? await withTimeout(createPromise, resolveClaudeAcpSessionCreateTimeoutMs()) : await createPromise;
  		} catch (error) {
-@@ -4864,7 +5099,7 @@ var AcpClient = class {
+@@ -4596,6 +4831,13 @@ var AcpClient = class {
+ 		}
+ 	}
++	async requestExtension(method, params) {
++		closedExtensionMethods([method]);
++		const payload = boundedExtensionRecord(params);
++		const connection = this.getConnection();
++		const result = await this.runConnectionRequest(() => connection.extMethod(method, payload));
++		return boundedExtensionRecord(result);
++	}
+ 	async setSessionModel(sessionId, modelId, controlOverride) {
+ 		const control = this.resolveModelControl(sessionId, controlOverride);
+ 		if (!control) throw new RequestedModelUnsupportedError(`Cannot set model "${modelId}": the ACP session did not advertise a model config option or legacy session/set_model support.`, "missing-capability");
+ 		const resolvedModelId = resolveRequestedModelId({
+@@ -4864,7 +5106,7 @@ var AcpClient = class {
  	}
  	selectAuthMethod(methods) {
  		for (const method of methods) {

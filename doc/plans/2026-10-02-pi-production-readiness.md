@@ -42,6 +42,26 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 
 ## Evidence so far
 
+- At `4237bc369`, the native turn-binding correction advances the steering
+  journey past `steering_stale_turn`, but the provider boundary still rejects
+  delivery. The real patched ACPX client lacks `requestExtension`: its types
+  and runtime callers declare it, while its implementation omits it. A real
+  package regression fails with that exact TypeError before the correction,
+  then passes steering and follow-up during an unanswered prompt afterward.
+  This is a separate runtime correction and needs a fresh installed journey.
+- The corrected Intel public package at `4237bc369` passes credential-free
+  closed startup in 37.8 seconds. Its CI typecheck, build, native tests and
+  browser shards pass. CI retains two failures: a resumed durability test
+  inherits the deliberately killed attempt's 500 ms timeout; the Linux public
+  Pi probe reaches `session_handshake_timeout`. The former gets an explicit
+  resumed-turn bound. The latter remains an admission blocker; accepting a
+  timeout as successful installation would weaken the release gate.
+- The local Linux image build at `4237bc369` fails before a provider starts
+  because the committed lock does not match the source patch configuration.
+  The official image workflow already regenerates its private build lock;
+  local builds must do the same and record that resolved lock's digest.
+  No repository lockfile or workflow changes are required.
+
 - `2b50801b2`: installed restart failed before native answer delivery. The
   durable request turn ID differs from the provider turn ID. The browser's
   issue-identifier route also differed from the matcher's UUID route.
