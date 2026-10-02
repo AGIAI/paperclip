@@ -12,6 +12,7 @@ export interface SidePanelTabProps {
   active: boolean;
   closable?: boolean;
   disabled?: boolean;
+  suppressTooltip?: boolean;
   tabRef?: Ref<HTMLButtonElement>;
   dragHandleProps?: ButtonHTMLAttributes<HTMLButtonElement>;
   onSelect: () => void;
@@ -31,6 +32,7 @@ export function SidePanelTab({
   active,
   closable = true,
   disabled = false,
+  suppressTooltip = false,
   tabRef,
   dragHandleProps,
   onSelect,
@@ -92,7 +94,7 @@ export function SidePanelTab({
         className,
       )}
     >
-      <Tooltip open={labelIsTruncated ? undefined : false}>
+      <Tooltip open={labelIsTruncated && !suppressTooltip ? undefined : false}>
         <TooltipTrigger asChild>
           <button
             {...dragHandleProps}
@@ -150,7 +152,7 @@ export function SidePanelTab({
             ) : null}
           </button>
         </TooltipTrigger>
-        {labelIsTruncated ? <TooltipContent side="bottom">{label}</TooltipContent> : null}
+        {labelIsTruncated && !suppressTooltip ? <TooltipContent side="bottom">{label}</TooltipContent> : null}
       </Tooltip>
       {closable && onClose && (appearance === "streamlined-task" || active) ? (
         <button

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { SidePanelTabs, type SidePanelTabItem } from "@/components/side-panel";
 
@@ -17,6 +17,7 @@ const initialTabs: SidePanelTabItem[] = [
 function TaskSidePanelTabsPreview({ initialActive }: { initialActive: string }) {
   const [tabs, setTabs] = useState(initialTabs);
   const [activeTabId, setActiveTabId] = useState<string | null>(initialActive);
+  const nextTabNumber = useRef(1);
 
   return (
     <div className="w-full border border-border bg-background p-4">
@@ -33,7 +34,12 @@ function TaskSidePanelTabsPreview({ initialActive }: { initialActive: string }) 
           onReorderTabs={(orderedIds) => {
             setTabs(orderedIds.flatMap((id) => tabs.find((tab) => tab.id === id) ?? []));
           }}
-          onAddTab={() => setTabs(initialTabs)}
+          onAddTab={() => {
+            const number = nextTabNumber.current++;
+            const id = `new-tab-${number}`;
+            setTabs((current) => [...current, { id, type: "view", label: `New tab ${number}`, closable: true }]);
+            setActiveTabId(id);
+          }}
           appearance="streamlined-task"
         />
       </div>
@@ -47,7 +53,7 @@ const meta = {
   parameters: {
     docs: {
       description: {
-        component: "Resize the preview to see nine tabs across a wider pane. Hover the tabs and close buttons to inspect the active fill, content-sized width, clipped-label fade, and round close hover.",
+        component: "Resize the preview to see nine starting tabs across a wider pane. Use the plus button to add tabs. Hover the tabs and close buttons to inspect the active fill, content-sized width, clipped-label fade, and round close hover.",
       },
     },
   },

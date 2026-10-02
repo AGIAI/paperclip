@@ -8,14 +8,17 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -24,7 +27,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS as DndCSS } from "@dnd-kit/utilities";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SidePanelTab } from "./SidePanelTab";
@@ -33,6 +36,7 @@ import type { SidePanelTabItem } from "./types";
 interface SortableSidePanelTabProps {
   tab: SidePanelTabItem;
   active: boolean;
+  dragging: boolean;
   appearance: "default" | "streamlined-task";
   showLeadingSeparator: boolean;
   onSelect: () => void;
@@ -44,6 +48,7 @@ interface SortableSidePanelTabProps {
 function SortableSidePanelTab({
   tab,
   active,
+  dragging,
   appearance,
   showLeadingSeparator,
   onSelect,
@@ -64,7 +69,7 @@ function SortableSidePanelTab({
         appearance === "streamlined-task"
           ? "relative mx-0.75 flex w-max min-w-0 max-w-(--side-panel-streamlined-tab-max-width) shrink-0 items-center"
           : "relative",
-        sortable.isDragging && "z-20 opacity-80",
+        sortable.isDragging && (appearance === "streamlined-task" ? "opacity-0" : "z-20 opacity-80"),
       )}
     >
       {showLeadingSeparator ? (
@@ -84,6 +89,7 @@ function SortableSidePanelTab({
         appearance={appearance}
         closable={tab.closable}
         disabled={tab.disabled}
+        suppressTooltip={dragging}
         tabRef={sortable.setActivatorNodeRef}
         dragHandleProps={{
           ...sortable.attributes,
@@ -94,6 +100,43 @@ function SortableSidePanelTab({
         onAuxClick={onAuxClick}
         onKeyDown={onKeyDown}
       />
+    </div>
+  );
+}
+
+function StreamlinedTabDragPreview({
+  tab,
+  active,
+  width,
+  labelIsTruncated,
+}: {
+  tab: SidePanelTabItem;
+  active: boolean;
+  width: number;
+  labelIsTruncated: boolean;
+}) {
+  return (
+    <div
+      aria-hidden
+      data-side-panel-tab-drag-preview={tab.id}
+      style={{ width }}
+      className={cn(
+        "relative flex h-7 min-w-0 items-center rounded-md border border-transparent text-sm font-medium text-foreground shadow-sm",
+        active ? "bg-(--side-panel-streamlined-tab-active-bg)" : "bg-(--side-panel-streamlined-tab-hover-bg)",
+      )}
+    >
+      <span className={cn(
+        "min-w-0 flex-auto overflow-hidden whitespace-nowrap pl-1.5",
+        tab.closable === false ? "pr-1.5" : "pr-6",
+        labelIsTruncated && "side-panel-tab-label-fade",
+      )}>
+        {tab.label}
+      </span>
+      {tab.closable === false ? null : (
+        <span className="absolute right-0.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center text-muted-foreground">
+          <X className="size-3.5" />
+        </span>
+      )}
     </div>
   );
 }
@@ -125,6 +168,7 @@ export function SidePanelTabs({
 }: SidePanelTabsProps) {
   const [announcement, setAnnouncement] = useState("");
   const [showEndFade, setShowEndFade] = useState(false);
+  const [draggedTab, setDraggedTab] = useState<{ id: string; width: number; labelIsTruncated: boolean } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const addControlRef = useRef<HTMLDivElement>(null);
@@ -133,6 +177,7 @@ export function SidePanelTabs({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
   const tabIds = useMemo(() => tabs.map((tab) => tab.id), [tabs]);
+  const draggedTabItem = draggedTab ? tabs.find((tab) => tab.id === draggedTab.id) : null;
 
   function findTabElement(tabId: string, selector: "wrapper" | "target") {
     const attribute = selector === "wrapper"
@@ -238,6 +283,18 @@ export function SidePanelTabs({
     setAnnouncement(`Moved ${tabs[from]?.label ?? "tab"} to position ${to + 1} of ${tabs.length}.`);
   }
 
+  function handleDragStart(event: DragStartEvent) {
+    if (appearance !== "streamlined-task") return;
+    const id = String(event.active.id);
+    const wrapper = findTabElement(id, "wrapper");
+    if (!wrapper) return;
+    setDraggedTab({
+      id,
+      width: wrapper.getBoundingClientRect().width,
+      labelIsTruncated: wrapper.querySelector('[data-truncated="true"]') !== null,
+    });
+  }
+
   return (
     <div className={cn(
       "flex min-w-0 flex-1 items-center",
@@ -256,7 +313,16 @@ export function SidePanelTabs({
             : "overflow-x-auto",
         )}
       >
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={(event) => {
+            handleDragEnd(event);
+            setDraggedTab(null);
+          }}
+          onDragCancel={() => setDraggedTab(null)}
+        >
           <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
             <div className={cn(
               "flex items-center",
@@ -269,6 +335,7 @@ export function SidePanelTabs({
                   key={tab.id}
                   tab={tab}
                   active={tab.id === activeTabId}
+                  dragging={draggedTab !== null}
                   appearance={appearance}
                   showLeadingSeparator={
                     appearance === "default"
@@ -288,6 +355,19 @@ export function SidePanelTabs({
               ))}
             </div>
           </SortableContext>
+          {appearance === "streamlined-task" && typeof document !== "undefined" ? createPortal(
+            <DragOverlay adjustScale={false} className="pointer-events-none z-20">
+              {draggedTab && draggedTabItem ? (
+                <StreamlinedTabDragPreview
+                  tab={draggedTabItem}
+                  active={draggedTab.id === activeTabId}
+                  width={draggedTab.width}
+                  labelIsTruncated={draggedTab.labelIsTruncated}
+                />
+              ) : null}
+            </DragOverlay>,
+            document.body,
+          ) : null}
         </DndContext>
       </div>
       {addControl ? <div ref={addControlRef} className="shrink-0">{addControl}</div> : (onAddTab ? (
