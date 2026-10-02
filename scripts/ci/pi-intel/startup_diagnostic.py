@@ -58,13 +58,49 @@ def reject_sink_failure(logs):
   require(stat.S_ISREG(st.st_mode) and st.st_nlink==1 and st.st_size<=1024*1024,'Diagnostic stderr is missing, linked or oversized')
   require(b'PC_STARTUP_DIAGNOSTIC_SINK_FAILED' not in path.read_bytes(),'Explicit diagnostic sink failure marker')
 
+def post_run_integrity(pack,inventory,daemon,original,test,pin):
+ # Every independent check runs even if another fails or timing was incomplete.
+ checks={};errors={}
+ actions={'pack':lambda:closed_tree(pack)==inventory,
+          'daemon':lambda:sha(daemon)==pin['daemonSha256'],
+          'test':lambda:sha(test)==pin['testSha256']}
+ for name in ['source.tar','source-input-inventory.json','resolved-pnpm-lock.yaml']:
+  actions[name]=lambda name=name:sha(original/name)==pin['selectedFiles'][name]['sha256']
+ for name,check in actions.items():
+  try:
+   require(check(),'Post-run identity mismatch: '+name);checks[name]=True
+  except BaseException as error:checks[name]=False;errors[name]=type(error).__name__+': '+str(error)
+ return {'complete':True,'passed':not errors,'checks':checks,'errors':errors}
+
+def finalize_diagnostic(proof,active,post_check,retain,remove):
+ errors=[]
+ try:
+  if active is not None:
+   if active.child is not None:active.retire(active.child)
+   proof['cleanupUncertain']=active.uncertain
+ except BaseException as error:
+  proof['cleanupUncertain']=True;errors.append('owned cleanup: '+repr(error))
+ try:
+  proof['postRunIntegrity']=post_check()
+  if not proof['postRunIntegrity']['passed']:errors.append('post-run integrity failed')
+ except BaseException as error:errors.append('post-run integrity: '+repr(error))
+ try:retain()
+ except BaseException as error:errors.append('evidence retention: '+repr(error))
+ if not proof['cleanupUncertain']:
+  try:remove();proof['scratchRemoved']=True
+  except BaseException as error:proof['cleanupUncertain']=True;errors.append('scratch cleanup: '+repr(error))
+ else:errors.append('scratch retained after uncertain owned cleanup')
+ if errors:
+  proof.update(status='diagnostic_failed',finalizationErrors=errors)
+  raise RuntimeError('; '.join(errors))
+
 def execute(args):
  out=args.output.resolve();out.mkdir(mode=0o700,parents=True,exist_ok=False)
  scratch=Path(tempfile.mkdtemp(prefix='pc-intel-diagnostic-',dir='/private/tmp'));scratch.chmod(0o700)
  scratch_id=(scratch.stat().st_dev,scratch.stat().st_ino,scratch.stat().st_uid)
  proof={'schema':'paperclip.native-intel-startup-diagnostic/v1','status':'preparing','sourceRevision':PIN['sourceRevision'],'runId':os.environ['GITHUB_RUN_ID'],'trustedWorkflowRevision':os.environ['GITHUB_WORKFLOW_SHA'],'originalQualificationRunId':PIN['artifactRunId'],'startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'isQualification':False,'providerCalls':0,'credentialsRead':False,'runtimePromptsSubmitted':0,'nativeRecompiled':False,'dependencyInstallExecuted':False,'testSourceUnmodified':True,'deadlineChanged':False,'helpers':{p.name:sha(p) for p in HERE.iterdir() if p.is_file()},'commands':[],'cleanupUncertain':False,'scratchRemoved':False,'hardwareBareMetalClaim':False,'physicalColdDiskClaim':False,'cacheNote':'Artifact integrity verification necessarily reads payload before testing; no startup warmup is performed.'}
  def save():atomic_json(out/'receipt.json',proof)
- active=None
+ active=None;pack=None;after=None;daemon=None;original=None;test=None
  def cancelled(sig,_):
   if active is not None:active.cancel('signal '+str(sig))
   else:raise InterruptedError('Diagnostic cancelled')
@@ -104,7 +140,7 @@ def execute(args):
   sidecar=pack/'dist/cli/acpx-runtime-sidecar.cjs';original_sidecar=sidecar.read_bytes();patched,patch=patch_sidecar(original_sidecar,identity)
   # Preserve original file mode; this one private copy now has an explicit diagnostic identity.
   sidecar.write_bytes(patched);atomic_json(out/'sidecar-patch.json',patch)
-  (out/'sidecar.diff').write_text(''.join(difflib.unified_diff(original_sidecar.decode().splitlines(True),patched.decode().splitlines(True),fromfile='original-W-sidecar',tofile='diagnostic-sidecar')))
+  (out/'sidecar.diff').write_text(''.join(difflib.unified_diff(original_sidecar.decode().splitlines(True),patched.decode().splitlines(True),fromfile='original-B9-sidecar',tofile='diagnostic-sidecar')))
   command('diagnostic-sidecar-syntax',[node,'--check',sidecar])
   proof['diagnosticPackVerification']=json.loads(command('diagnostic-pack-rebind',[node,HERE/'rebind-diagnostic-pack.mjs',pack,PIN['originalSidecarSha256'],PIN['sourceRevision']],180))
   after_manifest=json.loads((pack/'provider-pack.json').read_text());expected=copy.deepcopy(before_manifest)
@@ -140,24 +176,25 @@ def execute(args):
   reject_sink_failure([out/'closed-startup.log',*retained.rglob('runnerd.stderr.log')])
   proof['timing']=validate_timing_sink(sink,identity,set(patch['phases']));shutil.copy2(sink,out/'startup-timings.jsonl')
   atomic_json(out/'timing-summary.json',proof['timing'])
-  require(closed_tree(pack)==after and sha(daemon)==PIN['daemonSha256'],'Diagnostic test mutated pack or daemon')
   proof.update(status='diagnostic_complete_original_test_passed' if result==0 else 'diagnostic_complete_original_test_failed',isQualification=False,finishedAt=datetime.datetime.now(datetime.timezone.utc).isoformat());save()
   return result
  except BaseException as error:
-  proof.update(status='diagnostic_failed',errorType=type(error).__name__,error=str(error),finishedAt=datetime.datetime.now(datetime.timezone.utc).isoformat());raise
+  proof.update(status='diagnostic_failed',errorType=type(error).__name__,error=str(error),finishedAt=datetime.datetime.now(datetime.timezone.utc).isoformat())
+  if 'timing' not in proof:proof['timing']={'completeSink':False,'error':type(error).__name__+': '+str(error),'partialEvidenceRetained':(scratch/'startup-timings.jsonl').is_file()}
+  raise
  finally:
-  try:
-   if active is not None:
-    if active.child is not None:active.retire(active.child)
-    proof['cleanupUncertain']=active.uncertain
+  def post_check():
+   if after is None or test is None:return {'complete':False,'passed':False,'reason':'diagnostic pack/test preparation not completed'}
+   return post_run_integrity(pack,after,daemon,original,test,PIN)
+  def retain():
+   if (out/'retained-test-state').is_dir():proof['retainedTestStateInventory']=closed_tree(out/'retained-test-state')
    if (scratch/'startup-timings.jsonl').is_file() and not (out/'startup-timings.jsonl').exists():
     st=(scratch/'startup-timings.jsonl').lstat()
     if stat.S_ISREG(st.st_mode) and st.st_nlink==1 and st.st_size<=32768:shutil.copyfile(scratch/'startup-timings.jsonl',out/'startup-timings.jsonl')
-   require(not proof['cleanupUncertain'],'Retain scratch after uncertain owned process cleanup')
+  def remove():
    st=scratch.lstat();require((st.st_dev,st.st_ino,st.st_uid)==scratch_id and stat.S_ISDIR(st.st_mode),'Scratch identity changed')
-   shutil.rmtree(scratch);proof['scratchRemoved']=True
-  except BaseException as cleanup_error:
-   proof.update(cleanupUncertain=True,cleanupError=type(cleanup_error).__name__+': '+str(cleanup_error));raise
+   shutil.rmtree(scratch)
+  try:finalize_diagnostic(proof,active,post_check,retain,remove)
   finally:save()
 
 if __name__=='__main__':

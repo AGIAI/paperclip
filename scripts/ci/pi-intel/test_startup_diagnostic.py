@@ -1,7 +1,7 @@
 import copy,hashlib,json,os,subprocess,tempfile,unittest
 from pathlib import Path
 from startup_timing_patch import patch_sidecar,ORIGINAL_SHA
-from startup_diagnostic import validate_pack_delta,validate_timing_sink,reject_sink_failure,PIN
+from startup_diagnostic import validate_pack_delta,validate_timing_sink,reject_sink_failure,post_run_integrity,finalize_diagnostic,PIN
 from diagnostic_lifecycle import DiagnosticChild,DiagnosticInspection
 from owned_processes import process_table,command_tokens,ProcessInspectionUnavailable
 from unittest.mock import patch
@@ -37,28 +37,28 @@ class DiagnosticTests(unittest.TestCase):
   for change in reversed(proof['insertions']):
    shift-=len(change['inserted']);at=change['offset']+shift;text=text[:at]+text[at+len(change['inserted']):]
   self.assertEqual(text.encode(),self.original);self.assertEqual(hashlib.sha256(text.encode()).hexdigest(),ORIGINAL_SHA)
-  self.assertEqual(len(proof['phases']),46)
+  self.assertEqual(len(proof['phases']),47)
  def test_wrong_original_rejected(self):
   with self.assertRaises(RuntimeError):patch_sidecar(self.original+b' ',{'path':'unused','dev':'1','ino':'2','uid':'3'})
- def test_retained_w_pack_identity_and_original_test_contract(self):
-  self.assertEqual(PIN['sourceRevision'],'efe019a79f50440d7bd6c3bc6c75fb8f18953093')
-  self.assertEqual(PIN['artifactRunId'],'36952019178')
-  self.assertEqual(PIN['artifactId'],'11204971146')
+ def test_retained_b9_pack_identity_and_original_test_contract(self):
+  self.assertEqual(PIN['sourceRevision'],'b9e5d6ecdb05ab7244c90976e07c950f8d09b15b')
+  self.assertEqual(PIN['artifactRunId'],'36959948724')
+  self.assertEqual(PIN['artifactId'],'11208570718')
   self.assertEqual(PIN['originalSidecarSha256'],ORIGINAL_SHA)
   self.assertEqual(PIN['selectedFiles']['paperclip-runnerd']['sha256'],PIN['daemonSha256'])
   self.assertEqual(PIN['selectedFiles']['resolved-pnpm-lock.yaml']['sha256'],PIN['resolvedLockSha256'])
   self.assertEqual(PIN['testSha256'],'8967cf9c8cd130b68bf9d64abef8cb8d352af00646e2288b341d8c6ae758b47a')
   self.assertEqual((PIN['executionCount'],PIN['providerCalls'],PIN['timeoutChanges']),(1,0,False))
   self.assertEqual((PIN['archiveBytesMaximum'],PIN['retentionDays']),(268435456,7))
- def test_w_markers_follow_outer_layout_and_snapshot_boundaries(self):
+ def test_b9_markers_follow_outer_layout_and_snapshot_boundaries(self):
   _,proof=patch_sidecar(self.original,{'path':'/private/tmp/pc-intel-diagnostic-fixture/startup-timings.jsonl','dev':'1','ino':'2','uid':'501'})
   phases=proof['phases']
   self.assertFalse(any(p.startswith('pi.hash.') for p in phases))
-  for begin,end in [('pi.native_manifest.begin','pi.native_manifest.end'),('pi.discovery.begin','pi.discovery.end'),('pi.layout.begin','pi.layout.end'),('snapshot.copy.begin','snapshot.copy.end'),('snapshot.seal.begin','snapshot.seal.end')]:
+  for begin,end in [('pi.native_manifest.begin','pi.native_manifest.end'),('pi.discovery.begin','pi.discovery.end'),('pi.layout.begin','pi.layout.end'),('snapshot.directories.begin','snapshot.directories.end'),('snapshot.copy.begin','snapshot.copy.end'),('snapshot.seal.begin','snapshot.seal.end')]:
    self.assertEqual(phases.count(begin),1);self.assertEqual(phases.count(end),1)
   # Discovery recursion and descriptor-copy loops must not emit one row per file.
   source=self.original.decode()
-  for begin,end in [('  const visit = async (directory) => {','  await visit(physicalRoot);'),('    const copyEntry = async (entry) => {','    for (let start = 0; start < entries.length; ) {')]:
+  for begin,end in [('  const visit = async (directory) => {','  await visit(physicalRoot);'),('    const copyEntry = async (entry) => {','    const active = /* @__PURE__ */ new Set();')]:
    start=source.index(begin);finish=source.index(end,start)
    interior=[x for x in proof['insertions'] if start < x['offset'] < finish]
    self.assertEqual(interior,[])
@@ -69,6 +69,37 @@ class DiagnosticTests(unittest.TestCase):
    with self.assertRaisesRegex(RuntimeError,'terminal marks missing'):
     validate_timing_sink(p,b,{'sidecar.entry','session.open.begin','snapshot.copy.begin','sidecar.exit'})
    self.assertIn('snapshot.copy.begin',p.read_text())
+ def test_post_run_integrity_drains_checks_after_pack_failure(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   root=Path(tmp);names=['daemon','test','source.tar','source-input-inventory.json','resolved-pnpm-lock.yaml']
+   for name in names:(root/name).write_bytes(name.encode())
+   digest=lambda name:hashlib.sha256(name.encode()).hexdigest()
+   pin={'daemonSha256':digest('daemon'),'testSha256':digest('test'),'selectedFiles':{name:{'sha256':digest(name)} for name in names[2:]}}
+   with patch('startup_diagnostic.closed_tree',side_effect=RuntimeError('mutation')):
+    result=post_run_integrity(root,[],root/'daemon',root,root/'test',pin)
+   self.assertFalse(result['passed']);self.assertTrue(result['complete'])
+   self.assertEqual(result['checks'],{'pack':False,**{name:True for name in names}})
+   (root/'test').write_bytes(b'drift')
+   with patch('startup_diagnostic.closed_tree',return_value=[]):
+    result=post_run_integrity(root,[],root/'daemon',root,root/'test',pin)
+   self.assertFalse(result['passed']);self.assertFalse(result['checks']['test']);self.assertTrue(result['checks']['resolved-pnpm-lock.yaml'])
+ def test_partial_sink_finally_keeps_integrity_and_cleanup(self):
+  proof={'status':'diagnostic_failed','timing':{'completeSink':False},'cleanupUncertain':False};calls=[]
+  finalize_diagnostic(proof,None,lambda:(calls.append('integrity') or {'passed':True}),lambda:calls.append('retain'),lambda:calls.append('remove'))
+  self.assertEqual(calls,['integrity','retain','remove']);self.assertTrue(proof['scratchRemoved']);self.assertFalse(proof['timing']['completeSink']);self.assertEqual(proof['status'],'diagnostic_failed')
+ def test_finalization_integrity_and_retention_errors_do_not_block_cleanup(self):
+  for failed_phase in ['integrity','retain']:
+   proof={'cleanupUncertain':False};calls=[]
+   def step(name):
+    calls.append(name)
+    if name==failed_phase:raise RuntimeError(name)
+    return {'passed':True}
+   with self.assertRaises(RuntimeError):finalize_diagnostic(proof,None,lambda:step('integrity'),lambda:step('retain'),lambda:step('remove'))
+   self.assertEqual(calls,['integrity','retain','remove']);self.assertTrue(proof['scratchRemoved']);self.assertFalse(proof['cleanupUncertain'])
+ def test_uncertain_cleanup_still_records_integrity_but_retains_scratch(self):
+  active=DiagnosticChild(FakeOwner(fail_stop=True));active.child=FakeProcess();proof={'cleanupUncertain':False};calls=[]
+  with self.assertRaises(RuntimeError):finalize_diagnostic(proof,active,lambda:(calls.append('integrity') or {'passed':True}),lambda:calls.append('retain'),lambda:self.fail('uncertain scratch removed'))
+  self.assertEqual(calls,['integrity','retain']);self.assertTrue(proof['cleanupUncertain'])
  def test_numeric_inode_rejected(self):
   with self.assertRaises(RuntimeError):patch_sidecar(self.original,{'path':'/private/tmp/pc-intel-diagnostic-x/startup-timings.jsonl','dev':1,'ino':2,'uid':3})
  def run_prelude(self,extra='',identity_mutation=None):

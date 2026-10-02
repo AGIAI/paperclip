@@ -1,7 +1,7 @@
 """Sparse additive instrumentation of one pinned bundle; never edits vendor closure bytes."""
 import hashlib,json
 from source_guard import require
-ORIGINAL_SHA='1f0ee222b2edaad997b898aec6580982afc179fc60e5abc87fa3e6f2386a691f'
+ORIGINAL_SHA='7462825f4b82bce8e2a69425eafe4ca8b2c8812df345269c82fb75aa21f3043c'
 PREFIX='__pcStartupDiagnostic'
 
 def patch_sidecar(original,sink):
@@ -39,8 +39,9 @@ def patch_sidecar(original,sink):
  mark('// src/drivers/acpx/pi-verified-runtime.ts','async function verifyPiRuntimeLayoutForNativeSnapshot(root, manifest, nativeManifest, expectedClosureSha256) {','pi.layout.begin',True)
  mark('// src/drivers/acpx/pi-verified-runtime.ts','  return { manifestDigest };','pi.layout.end')
  mark('// src/drivers/acpx/native-distribution-integrity.ts','async function createNativeAcpxDistributionSnapshot(input, entries) {','snapshot.begin',True)
+ mark('// src/drivers/acpx/native-distribution-integrity.ts','    for (const depth of [...parentLevels.keys()].sort((a, b) => a - b)) {','snapshot.directories.begin')
  mark('// src/drivers/acpx/native-distribution-integrity.ts','    const copyEntry = async (entry) => {','snapshot.directories.end')
- mark('// src/drivers/acpx/native-distribution-integrity.ts','    for (let start = 0; start < entries.length; ) {','snapshot.copy.begin')
+ mark('// src/drivers/acpx/native-distribution-integrity.ts','    const active = /* @__PURE__ */ new Set();','snapshot.copy.begin')
  mark('// src/drivers/acpx/native-distribution-integrity.ts','    const executable = (0, import_node_path5.join)(packageRoot, ...input.executable.split("/"));','snapshot.copy.end')
  mark('// src/drivers/acpx/native-distribution-integrity.ts','    await directoryBatch([...directories], (path3) => (0, import_promises6.chmod)(path3, 320));','snapshot.seal.begin')
  mark('// src/drivers/acpx/native-distribution-integrity.ts','    return { commandDirectory, bootstrap, snapshot:','snapshot.seal.end')

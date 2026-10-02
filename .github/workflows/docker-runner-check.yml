@@ -32,7 +32,7 @@ on:
         type: boolean
         default: false
       diagnose_pi_startup:
-        description: "Instrument one retained W native Intel startup with unchanged deadlines (diagnostic only, no provider prompts)"
+        description: "Instrument one retained B9 profile12 native Intel startup with unchanged deadlines (diagnostic only, no provider prompts)"
         type: boolean
         default: false
       diagnose_ajv_pack:
@@ -191,7 +191,7 @@ jobs:
             test "$SOURCE_E2E_SUPPORT_ONLY" != true
             test "$DIAGNOSE_AJV" != true
             test "$IMAGE_MODE" != true
-            test "$EXPECTED_SOURCE_SHA" = efe019a79f50440d7bd6c3bc6c75fb8f18953093
+            test "$EXPECTED_SOURCE_SHA" = b9e5d6ecdb05ab7244c90976e07c950f8d09b15b
             test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
             test "$(gh api "repos/$REPOSITORY" --jq '.visibility')" = public
           fi
@@ -257,7 +257,7 @@ jobs:
           if-no-files-found: error
 
   manual_pi_startup_diagnostic:
-    name: Retained W native Intel startup timing diagnostic (not qualification)
+    name: Retained B9 profile12 native Intel startup timing diagnostic (not qualification)
     if: github.event_name == 'workflow_dispatch' && inputs.diagnose_pi_startup
     needs: authorize_manual
     runs-on: macos-15-intel
@@ -278,16 +278,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api repos/paperclipai/paperclip/actions/artifacts/11204971146/zip \
-            > "$RUNNER_TEMP/pi-startup-36952019178.zip"
-          printf '%s  %s\n' 5f9bfabcb5a3d1b3180c2eb6f0eb8ebe58770b0c63a8b7dcbd379729b6c468f9 \
-            "$RUNNER_TEMP/pi-startup-36952019178.zip" | shasum -a 256 --check
+          gh api repos/paperclipai/paperclip/actions/artifacts/11208570718/zip \
+            > "$RUNNER_TEMP/pi-startup-36959948724.zip"
+          printf '%s  %s\n' b82cf6c843006781e2e6d5f0a06e0ff39497ffc457b94a511f8bdda66628aa43 \
+            "$RUNNER_TEMP/pi-startup-36959948724.zip" | shasum -a 256 --check
       - name: Run one instrumented startup with original assertions and deadlines
         timeout-minutes: 18
         run: |
           set -euo pipefail
           python3 -B trusted-ci/scripts/ci/pi-intel/startup_diagnostic.py \
-            --archive "$RUNNER_TEMP/pi-startup-36952019178.zip" \
+            --archive "$RUNNER_TEMP/pi-startup-36959948724.zip" \
             --output "$GITHUB_WORKSPACE/pi-startup-diagnostic-evidence"
       - name: Admit complete diagnostic evidence within the storage bound
         if: always()
