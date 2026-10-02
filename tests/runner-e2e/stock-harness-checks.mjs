@@ -51,7 +51,7 @@ export const stockHarnessGates = [
   { id: "SH-4-resume", name: "Historical native fingerprint and retained-session compatibility", cwd: ".", files: [
     "server/src/services/native-runtime/native-session-resume.test.ts",
   ], testPattern: "refreshes retained",
-  required: ["refreshes retained completion descriptions without changing the Paperclip task or prior history"] },
+  required: ["refreshes retained 'completion descriptions' without changing the Paperclip task or prior history"] },
   { id: "SH-eval", name: "Independent oracle and qualification admission", cwd: ".",
     config: "tests/runner-e2e/vitest.config.ts",
     files: ["tests/runner-e2e/stock-harness.test.ts", "tests/runner-e2e/stock-harness-checks.test.mjs",
