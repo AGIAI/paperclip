@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { Command } from "commander";
 
 /** Resolve the public server dependency, without importing/starting the server. */
@@ -17,6 +17,14 @@ export async function resolvePiProvisioner(serverUrl: string): Promise<string> {
   const provisioner = join(root, "dist/vendor/paperclip-runner/cli/provision-pi.cjs");
   if (await realpath(provisioner) !== provisioner || !(await lstat(provisioner)).isFile()) throw new Error("Pi setup entrypoint escapes its server package");
   return provisioner;
+}
+
+export async function resolveRemoteCompanionImporter(serverUrl: string): Promise<string> {
+  const provisioner = await resolvePiProvisioner(serverUrl);
+  const serverRoot = resolve(dirname(provisioner), "../../../..");
+  const modulePath = join(serverRoot, "dist/services/native-runtime/remote-pi-companion.js");
+  if (await realpath(modulePath) !== modulePath || !(await lstat(modulePath)).isFile()) throw new Error("Remote companion importer escapes its installed server");
+  return modulePath;
 }
 
 export async function setupPiRuntime(): Promise<void> {
@@ -42,8 +50,23 @@ export async function setupPiRuntime(): Promise<void> {
 }
 
 export function registerRuntimeCommands(program: Command): void {
-  program.command("runtime").description("Manage explicitly installed agent runtimes")
-    .command("setup <provider>")
+  const runtime = program.command("runtime").description("Manage explicitly installed agent runtimes");
+  runtime.command("import-remote <directory>")
+    .description("Import a verified Linux Pi companion into the installed server (no downloads)")
+    .requiredOption("--sha256 <digest>", "SHA256 of companion.json from the trusted release")
+    .action(async (directory: string, options: { sha256: string }) => {
+      const modulePath = await resolveRemoteCompanionImporter(import.meta.resolve("@paperclipai/server"));
+      const importer = await import(pathToFileURL(modulePath).href) as { importRemotePiCompanion(input: { directory: string; sha256: string; checkCancelled: () => void }): Promise<unknown> };
+      let cancelled = false;
+      const cancel = () => { cancelled = true; };
+      process.on("SIGINT", cancel); process.on("SIGTERM", cancel);
+      try {
+        const result = await importer.importRemotePiCompanion({ directory, sha256: options.sha256,
+          checkCancelled: () => { if (cancelled) throw new Error("Remote companion import cancelled"); } });
+        console.log(JSON.stringify(result));
+      } finally { process.off("SIGINT", cancel); process.off("SIGTERM", cancel); }
+    });
+  runtime.command("setup <provider>")
     .description("Install and verify the pinned Pi runtime for this host (public downloads; no model calls)")
     .action(async (provider: string) => {
       if (provider !== "pi") throw new Error("Supported explicit runtime setup: paperclipai runtime setup pi");
