@@ -227,3 +227,9 @@ publication failures remain retained; local reconstructed copies move folders
 without editing results, graders or usage. Never dispatch a second development
 campaign for an active target branch: workflow concurrency supersedes the older
 run. Use a separate frozen-source branch when independent campaigns must overlap.
+
+## Focused legacy delivery repair
+
+The original 24 cells and original assigned-skill request/procedure remain unchanged. Two added explicit Paperclip-document cells apply only to classic Claude and OpenCode, making 26 catalog cells (50 expected turns if every cell is selected). The repair campaign selects only the original skill case and new document case for those two profiles: four cells per variant, eight expected turns total. No full matrix rerun is planned.
+
+Both skill sources are recorded in definition/admission digests. The pre-fix baseline restores the old SKILL.md and records the new reference as absent, without copying the new recipe into that baseline. It holds the tiny manual/shared prompts and all fixture/model/auth/effort inputs fixed. The explicit document oracle checks actual public content/revision and an exact same-app document link, with plausible-negative calibrations.

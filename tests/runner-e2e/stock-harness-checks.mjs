@@ -40,7 +40,7 @@ export const stockHarnessGates = [
     required: ["renders standard assignment wake with task authority", "renders scoped planning wake authority"] },
   { id: "SH-eval", name: "Independent oracle and qualification admission", cwd: ".",
     config: "tests/runner-e2e/vitest.config.ts",
-    files: ["tests/runner-e2e/stock-harness.test.ts", "tests/runner-e2e/stock-harness-checks.test.mjs",
+    files: ["tests/runner-e2e/paperclip-document.test.ts", "tests/runner-e2e/stock-harness.test.ts", "tests/runner-e2e/stock-harness-checks.test.mjs",
       "tests/runner-e2e/stock-harness-admission.test.ts", "tests/runner-e2e/stock-harness-digest.test.ts",
       "tests/runner-e2e/select-rerun-artifacts.test.ts"],
     required: ["rejects old SHA before providers", "allows toolchain paths and excludes every present or future credential",
@@ -70,6 +70,7 @@ export function sourceFingerprint() {
     ...stockHarnessGates.flatMap(gate => gate.files.map(file => join(gate.cwd, file))),
     "tests/runner-e2e/stock-harness.ts", "tests/runner-e2e/stock-harness-checks.mjs", "tests/runner-e2e/catalog.ts",
     "tests/runner-e2e/stock-harness-admission.ts", "tests/runner-e2e/launch.ts", "tests/runner-e2e/runner.spec.ts",
+    "tests/runner-e2e/context-integrity-cases.ts", "tests/runner-e2e/context-integrity-flow.ts", "tests/runner-e2e/context-integrity-scoring.ts",
     "packages/adapter-utils/src/server-utils.ts", "packages/shared/src/connection-intent-guidance.ts",
     "server/src/onboarding-assets/default/AGENTS.md", "server/src/routes/agents.ts", "scripts/ensure-plugin-build-deps.mjs",
     "packages/paperclip-runner/src/drivers/codex/codex-app-server-driver-impl.ts",
@@ -82,10 +83,15 @@ export function sourceFingerprint() {
     "packages/paperclip-runner/runner/crates/runner-core/tests/codex_provider.rs",
   ]);
   const sourceErrors = [];
+  sources.add("skills/paperclip/SKILL.md");
+  sources.add("skills/paperclip/references/issue-documents.md");
   for (const source of [...sources].sort()) {
     hash.update(source);
-    try { hash.update(readFileSync(join(root, source))); }
-    catch { sourceErrors.push(source); }
+    try { hash.update("present\0").update(readFileSync(join(root, source))); }
+    catch (error) {
+      if (source === "skills/paperclip/references/issue-documents.md" && error.code === "ENOENT") hash.update("absent\0");
+      else sourceErrors.push(source);
+    }
   }
   return { fingerprint: hash.digest("hex"), sourceErrors };
 }
