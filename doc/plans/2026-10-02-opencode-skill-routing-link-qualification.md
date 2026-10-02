@@ -45,3 +45,19 @@ Reported LLM totals are **$0.0107909015 baseline** and **$0.0107824490 candidate
 The [original combined prompt-removal report](2026-10-02-stock-harness-live-comparison.md) still records two new classic Claude/OpenCode document-delivery failures, two OpenCode ordered-case improvements, and separate unchanged credential/chat failures. The [first recipe repair report](2026-10-02-legacy-document-skill-repair.md) still records Claude's improvement, OpenCode's unresolved local-only output, and the candidate's worse non-clickable explicit handoff. New successes do not erase those earlier observations or establish robustness.
 
 This comparison qualifies only classic OpenCode's two selected journeys. Existing classic Codex/Claude/OpenCode and ACP Codex skill mounts were audited; ACP Claude's names/root-only metadata and unsupported custom ACP delivery remain separate. Hermes/Pi/OpenClaw are not live-qualified here. Native completion descriptions and hiring templates have separate changes and measurements. Both PRs remain draft; no merge or further paid breadth is part of this report.
+
+## Provider-free follow-up after measurement
+
+The approved reference-only follow-up replaces the literal `PAP` link with a
+JavaScript construction using the current `issue.identifier` and the successful
+write receipt's `saved.key`. It is a later source change, **not live-qualified**
+by the frozen candidate above. The independent storage grader now calibrates a
+wrong-company link as failure, and executes the shipped recipe against two
+other company prefixes plus a locked-write redirected document key. All 25
+focused document/source-digest tests, eight inventory calibrations, canonical
+generated metadata checks and E2E typecheck pass. An initial sandboxed support attempt denied localhost/tsx
+pipe creation; the failed attempt is retained, with its affected files rerun
+unchanged under permitted local execution: 906 assertions passed in the original
+921-assertion attempt, and all 82 selected assertions passed in the permitted
+retry, including every originally failed assertion. No new model calls or old verdict
+changes are part of this follow-up.

@@ -32,10 +32,17 @@ with the saved document JSON. Check its `key`, `body`, and `latestRevisionId`
 before claiming delivery. This receipt is sufficient; another GET is unnecessary
 when it confirms the intended content and a saved revision.
 
-Add a clickable Markdown link in the completion comment or response:
-Saved [Task report](/PAP/issues/PAP-123#document-report).
-Use the prefix from the current issue identifier and the key from the write receipt;
-a locked document can redirect an agent's write to a new document.
+Construct a clickable Markdown link from the current issue and successful write
+receipt, then add it to the completion comment or response:
+
+```javascript
+const prefix = issue.identifier.split("-")[0];
+const documentUrl = `/${prefix}/issues/${issue.identifier}#document-${saved.key}`;
+const comment = `Saved [Task report](${documentUrl}).`;
+```
+
+Use the returned key: a locked document can redirect an agent's write to a new
+document.
 
 ## Update or resolve an unclear write
 
