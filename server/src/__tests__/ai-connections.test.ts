@@ -188,6 +188,18 @@ describe("managed AI connections", () => {
     await db.insert(heartbeatRuns).values({ companyId, agentId: id, status: "succeeded", responsibleUserId: "alice", contextSnapshot: { issueId }, createdAt: new Date(Date.now() + 1000) });
     expect(await intents.requestForRunAuthFailure(runId)).toBeNull();
   });
+
+  it("lists quotas only for the current member's accessible subscription accounts", async () => {
+    const user = `quota-${randomUUID()}`;
+    await db.insert(companyMemberships).values({ companyId, principalId: user, principalType: "user", status: "active", membershipRole: "member" });
+    const subscription = await service.save(companyId, user, { provider: "openai", method: "subscription", ownership: "personal", name: "Private quota", loginSessionId: "fixture", allAgents: true, agentIds: [] }, JSON.stringify({ tokens: { access_token: "fixture", account_id: "fixture", refresh_token: "fixture" } }));
+    expect((await service.quotaAccounts(companyId, user)).some(row => row.connection.id === subscription.connectionId)).toBe(true);
+    expect((await service.quotaAccounts(companyId, "bob")).some(row => row.connection.id === subscription.connectionId)).toBe(false);
+    expect(await service.quotaAccounts(otherCompanyId, user)).toEqual([]);
+    await db.update(companyMemberships).set({ status: "inactive" }).where(and(eq(companyMemberships.companyId, companyId), eq(companyMemberships.principalId, user)));
+    expect(await service.quotaAccounts(companyId, user)).toEqual([]);
+  });
+
   it.each([
     ["anthropic", "claude_local", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"],
     ["openai", "codex_local", "CODEX_HOME", "OPENAI_API_KEY"],
