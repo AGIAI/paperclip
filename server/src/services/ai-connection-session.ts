@@ -86,5 +86,18 @@ export function aiConnectionSessionCompatibilityInputs(input: {
   }
   const overrides = input.router && !isDeepStrictEqual(input.issueOverrides, input.originalIssueOverrides)
     ? [input.issueOverrides, input.originalIssueOverrides] : [input.issueOverrides];
-  return variants.flatMap(variant => configs.flatMap(effectiveAdapterConfig => overrides.map(issueOverrides => ({ ...variant, effectiveAdapterConfig, issueOverrides }))));
+  return variants.flatMap(variant => {
+    const previousMode = record(record(variant.agentRuntimeConfig).aiConnection).mode;
+    const modes = input.router
+      ? ["responsible_user", "shared", "delegated"].includes(String(previousMode))
+        ? [previousMode] : ["responsible_user", "shared", "delegated"]
+      : [record(input.effectiveAdapterConfig.managedAiConnection).mode];
+    return configs.flatMap(config => modes.flatMap(mode => overrides.map(issueOverrides => ({
+      ...variant,
+      // Binding mode is also recorded in the managed account attribution.
+      // Keep grant, user, credential epoch, and every other setting unchanged.
+      effectiveAdapterConfig: { ...config, managedAiConnection: { ...record(config.managedAiConnection), mode } },
+      issueOverrides,
+    }))));
+  });
 }

@@ -26,7 +26,7 @@ async function decision(previous: Partial<MetadataInput>, next: Partial<Metadata
 
 describe("AI pool session adoption", () => {
   it.each([binding, { ...binding, mode: "delegated" }, { mode: "responsible_user", provider: "openai", method: "api_key" }])("preserves the exact existing configuration through a compatible binding change: %j", async aiConnection => {
-    expect((await decision({ agentRuntimeConfig: { aiConnection } })).reset).toBe(false);
+    expect((await decision({ agentRuntimeConfig: { aiConnection }, effectiveAdapterConfig: { ...config, managedAiConnection: { ...config.managedAiConnection, mode: aiConnection.mode } } })).reset).toBe(false);
   });
   it("bridges only account-binding edits in revision history", async () => {
     const first = revision("revision-1", null, binding);

@@ -8,6 +8,7 @@ import { createDb, companies, agents, companyMemberships, connectionGrants, plug
 import { startEmbeddedPostgresTestDatabase } from "@paperclipai/db/test-embedded-postgres";
 import type { AiConnectionPoolMember, AiConnectionRouterRequest, AiConnectionRouterResult, PaperclipPluginManifestV1 } from "@paperclipai/shared";
 import { aiConnectionRouterService, AiConnectionPoolExhausted, poolMemberRuntimeConfig, applyAiConnectionRouterTaskSettings } from "../services/ai-connection-router.js";
+import { aiConnectionSessionCompatibilityInputs } from "../services/ai-connection-session.js";
 import { projectPaperclipRunnerTaskConfig, resolvePaperclipRunnerNativeProviderInput } from "../services/native-runtime/provider-profile.js";
 import { aiConnectionService } from "../services/ai-connections.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
@@ -18,7 +19,7 @@ import express from "express";
 import request from "supertest";
 import { aiConnectionRoutes } from "../routes/ai-connections.js";
 import { errorHandler } from "../middleware/index.js";
-import { heartbeatService } from "../services/heartbeat.js";
+import { heartbeatService, buildEffectiveRunSessionConfigMetadata, resolveTaskSessionConfigFreshness } from "../services/heartbeat.js";
 import { connectionIntentService } from "../services/connection-intents.js";
 import { legacyExecutionNeedsReconciliation } from "../services/legacy-execution-recovery.js";
 import { getServerAdapter, registerServerAdapter, unregisterServerAdapter } from "../adapters/index.js";
@@ -274,6 +275,27 @@ describe("durable, authorized connection routing", () => {
     await db.update(plugins).set({ status: "disabled" }).where(eq(plugins.id, pluginId));
     try { await expect(resolve(pool.id, "new")).rejects.toThrow("plugin"); expect(await resolve(pool.id, "recovery", { persisted: selected })).toEqual(selected); await db.delete(toolConnections).where(eq(toolConnections.id, pool.id)); expect(await resolve(pool.id, "recovery", { persisted: selected })).toEqual(selected); }
     finally { await db.update(plugins).set({ status: "ready" }).where(eq(plugins.id, pluginId)); }
+  });
+  it("resumes a responsible-user session through a delegated pool using real managed account configurations", async () => {
+    await aiConnectionService(db).setDefault(companyId, "alice", members[0]!.binding.grantId!);
+    const pool = await makePool({ members: [members[0]!] });
+    const selected = await resolve(pool.id, "managed-mode-adoption", { requireExisting: true, existingGrantId: members[0]!.binding.grantId });
+    const directBinding = { mode: "responsible_user" as const, provider: "openai" as const, method: "api_key" as const };
+    const prepare = { companyId, agentId, responsibleUserId: "alice", adapterType: "paperclip_runner", config: selected.runtimeConfig };
+    const before = await prepareManagedAiRuntime(db, { ...prepare, binding: directBinding });
+    const after = await prepareManagedAiRuntime(db, { ...prepare, binding: selected.binding });
+    try {
+      expect(before.config.managedAiConnection.mode).toBe("responsible_user");
+      expect(after.config.managedAiConnection.mode).toBe("delegated");
+      expect(after.sessionIdentity).toBe(before.sessionIdentity);
+      const common = { adapterType: "paperclip_runner", issueOverrides: null, workspaceConfig: {}, environment: {}, environmentEnv: null, projectEnv: null, routineEnv: null, runtimeSkills: [], agentConfigRevision: null };
+      const previous = await buildEffectiveRunSessionConfigMetadata({ ...common, effectiveAdapterConfig: before.config, managedAiHome: before.home, agentRuntimeConfig: { aiConnection: directBinding } });
+      const currentInput = { ...common, effectiveAdapterConfig: after.config, managedAiHome: after.home, agentRuntimeConfig: { aiConnection: { mode: "router", connectionId: pool.id } } };
+      const current = await buildEffectiveRunSessionConfigMetadata(currentInput);
+      const alternatives = aiConnectionSessionCompatibilityInputs({ ...currentInput, originalIssueOverrides: null, binding: selected.binding, router: true, storedIdentity: before.sessionIdentity, sessionIdentity: after.sessionIdentity, credentialIdentity: after.identity, revisions: [] });
+      const compatibleConfigMetadata = await Promise.all(alternatives.map(candidate => buildEffectiveRunSessionConfigMetadata({ ...currentInput, ...candidate })));
+      expect(resolveTaskSessionConfigFreshness({ hasTaskSession: true, configuredModel: String(selected.runtimeConfig.model), taskSessionParams: { __paperclipConfiguredModel: selected.runtimeConfig.model, __paperclipConfigFingerprint: previous.fingerprint, __paperclipConfigFingerprintVersion: previous.version, __paperclipConfigCategoryFingerprints: previous.categoryFingerprints }, configMetadata: current, compatibleConfigMetadata }).reset).toBe(false);
+    } finally { await before.cleanup(); await after.cleanup(); }
   });
   it("keeps session identity and fingerprints stable on authenticated refresh, but changes them on manual replacement", async () => {
     const input = { companyId, agentId, responsibleUserId: "alice", adapterType: "paperclip_runner", binding: members[0]!.binding, config: { provider: "codex", model: "gpt-5.6-sol" } };
