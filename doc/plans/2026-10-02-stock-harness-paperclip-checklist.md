@@ -3,8 +3,9 @@
 Created: 2026-10-02. Status: item 1 merged for native Codex app-server in
 [PR #14920](https://github.com/paperclipai/paperclip/pull/14920). Item 2's default
 hire manual is reduced to identity only, and common legacy startup/resume
-instructions are reduced locally. Additional carriers and native instructions
-remain open.
+instructions are in [PR #14948](https://github.com/paperclipai/paperclip/pull/14948).
+GitHub live qualification and a matched prior-instruction comparison are in progress.
+Additional carriers and native instructions remain open.
 
 Goal: keep the agent's stock harness behavior and add only what it needs to work
 with Paperclip. Apply this across legacy adapters, the new Runner, and their
@@ -118,7 +119,8 @@ and existing-test update.
   specialized wake contracts, custom templates, skills, and auth.
 - [ ] **2.2 Review additional legacy carriers.** Reduce Hermes local/gateway
   wrappers, review Pi system delivery, and check OpenClaw fresh-wake framing.
-  Preserve transport facts and user configuration.
+  Preserve transport facts and user configuration. Dotta deferred this item on
+  2026-10-02 for a later revisit; it remains open.
 - [ ] **2.3 Reduce native Runner instructions and constraints.** Improve
   discoverable tool documentation first, then shorten fixed guidance and
   consolidate completion rules. Verify prompt revisions, digests, and session
@@ -139,6 +141,16 @@ remain in their existing owners. Skill delivery, runtime authentication,
 custom `promptTemplate`, and `bootstrapPromptTemplate` mechanics are unchanged.
 Hermes's own wrappers and Pi's system carrier remain follow-up 2.2; native
 fixed instructions and full-turn constraints remain follow-up 2.3.
+
+The later read-only 2.2 audit found another OpenClaw-owned HTTP identity,
+checkout/status, delegation, plan-approval and task-discovery wrapper in
+`buildWakeText`. Its short conversation branch is selected when optional task
+Markdown is present, including on ordinary task dispatch. Existing dispatch
+coverage does not assert the absence of conversation waiting language. This is
+a framing concern to verify, not a measured failure. Pi already uses additive
+`--append-system-prompt` delivery and suppresses the duplicate user-prompt copy;
+its next step is a delivery audit with minimal changes. These findings are
+deferred with 2.2 and are not implemented in PR #14948.
 
 The new defaults apply when prompts are assembled after deployment. Existing
 provider sessions can retain earlier startup instructions in their history

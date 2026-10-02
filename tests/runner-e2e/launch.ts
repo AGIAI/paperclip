@@ -50,6 +50,7 @@ import {
   type RunnerE2EResult,
 } from "./types.js";
 import { assertRunnerE2EPrerequisites } from "./prerequisites.js";
+import { prepareStockHarnessPreflight, STOCK_PREFLIGHT_ENV } from "./stock-harness-admission.js";
 import {
   reapNewDetachedDarwinSharedMemory,
   snapshotDarwinSharedMemory,
@@ -1098,6 +1099,9 @@ async function main() {
   // Keep admission before local-env loading and credential checks. Pending
   // profiles remain discoverable, but cannot reach a provider.
   assertRunnerE2EPrerequisites(executions);
+  if (executions.some(execution => execution.suite.id === "stock-harness")) {
+    process.env[STOCK_PREFLIGHT_ENV] = prepareStockHarnessPreflight();
+  }
 
   await loadLocalEnvironment(process.env);
   const missingCredentials = [
