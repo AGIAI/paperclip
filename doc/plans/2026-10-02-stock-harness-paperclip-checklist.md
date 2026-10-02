@@ -135,45 +135,6 @@ and existing-test update.
   `paperclip_finish`/`paperclip_block` guidance must not leak into legacy
   completion paths, which use the operational skill and API.
 
-Dotta approved the six proposed 2.3 changes and clarified that native tool
-guidance must stay separate from legacy runners on 2026-10-02. Legacy adapters
-use their existing Paperclip skill/API and adapter completion paths; they must
-not inherit instructions to call unavailable native finish/block tools.
-
-- [ ] **2.3.1 Share native finish/block tool documentation.** First slice:
-  one canonical description per tool for Codex and native MCP bridges; refresh
-  retained provider threads through the native tool-contract fingerprint.
-  Executable coverage: SH-4-tools checks actual wire/catalog delivery across
-  all five native provider kinds; SH-4-resume checks v13 checkpoint rotation
-  without changing the Paperclip task or prior history. The paired native
-  comparison is complete with the grading limits recorded below; keep legacy
-  results separate.
-
-  Implemented in draft [PR #14961](https://github.com/paperclipai/paperclip/pull/14961),
-  stacked on #14948 for the eval fixtures. Local verification passed 232 native
-  tests, three retained-checkpoint cases, two legacy prompt boundary assertions,
-  and all 900 E2E support tests. Runner core/surface compilation and E2E typecheck
-  passed. Both exact SH-4 gates passed (14 selected assertions; unrelated cases
-  explicitly skipped). Fresh repository checks remain pending; the paired paid
-  comparison is complete with original blocker grading limits.
-  Qualification now includes a native-only concrete blocker case on Codex,
-  ACPX Claude, and OpenCode. It checks persisted blocker disposition, owner,
-  action, scope, and the visible explanation. Positive and seven plausible
-  negative oracle calibrations passed. The current suite has 29 cells and 53
-  expected turns; the earlier manual/shared comparison remains 24 cells per
-  variant. All six paired native cases are now retained: zero new overall failures, three unchanged completion passes, and three original blocker failures. Corrected retained-DOM checks pass separately; Codex exact-action failures remain. See the native comparison report.
-- [ ] **2.3.2 Move document/file delivery procedures into native tool docs.**
-  Include the live server override and preserve prepared versus delivered receipts.
-- [ ] **2.3.3 Move hiring/dependency recipes into native discovery/tool docs.**
-  Preserve existing blocker IDs and workspace-release behavior.
-- [ ] **2.3.4 Reduce the fixed native prompt.** Retain the pre-choice connection
-  cue and the one-accepted-result boundary.
-- [ ] **2.3.5 Remove repeated native task/backend procedures.** Preserve runtime
-  facts and specialized mode, answer, and recovery constraints.
-- [ ] **2.3.6 Qualify the combined native reduction.** Record prompt/tool
-  revisions, exact source fingerprints, fresh/resumed sessions, and matched
-  GitHub behavior results before claiming improvement.
-
 ### Follow-up 2.1 implementation and verification
 
 The common task and conversation defaults now share the same identity sentence
@@ -289,24 +250,23 @@ Starting points: [onboarding assets](../../server/src/onboarding-assets/),
 [hiring skill and references](../../skills/paperclip-create-agent/),
 [teams catalog](../../packages/teams-catalog/catalog/).
 
-Dotta approved hiring implementation in separate draft
-[PR #14985](https://github.com/paperclipai/paperclip/pull/14985), branch
-`codex/tiny-hiring-templates`, published source
-`5b05d9dcf99b7b1e84510735ab04e336d669ee44`. The hiring work owns its
-skill/references, CEO/CoS assets and team catalog. This branch does not change
-those files; PR CI/review and live qualification remain separate from its unit
-checks. [Prompt diffs and preserved scope](https://github.com/paperclipai/paperclip/blob/5b05d9dcf99b7b1e84510735ab04e336d669ee44/doc/plans/2026-10-02-hiring-template-prompt-diff.md).
+Dotta approved and merged [PR #14985](https://github.com/paperclipai/paperclip/pull/14985)
+at `862a5758ba0e88a33232c1f1fa645e85c38a3113`, after corrected source
+`57dcee147ed0b2d2e3cc657cd9e50fb16bf9ec25` passed full CI and fresh Greptile 5/5.
+The hiring skill/references, CEO/CoS assets and team catalog are now on master.
+Their live qualification remains separate from unit/CI verification.
+[Prompt diffs and preserved scope](https://github.com/paperclipai/paperclip/blob/57dcee147ed0b2d2e3cc657cd9e50fb16bf9ec25/doc/plans/2026-10-02-hiring-template-prompt-diff.md).
 
 The read-only audit found four onboarding CEO files (1,897 words), a 164-word
 CoS manual, four role examples (coder 652, QA 619, UX 1,325, security 1,724 words),
 and eight team-catalog manuals. Hiring step 6, the 60–150-line role guide and
 review checklist would regenerate the removed operating policies.
 
-- [ ] **3.1** Reduce role drafting rules, coder/adapted hire examples and matching
+- [x] **3.1** Reduce role drafting rules, coder/adapted hire examples and matching
   catalog coder, preserving metadata, auth, permissions and skill selections.
-- [ ] **3.2** Reduce the CEO bundle/copy, including forced delegation, hiring,
+- [x] **3.2** Reduce the CEO bundle/copy, including forced delegation, hiring,
   memory and repeated API recipes.
-- [ ] **3.3** Review remaining roles/catalog and CoS copy.
+- [x] **3.3** Review remaining roles/catalog and CoS copy.
 - [ ] **3.4** Review specialized built-in/plugin contracts separately; retain
   product-required behavior rather than assuming every rule is redundant.
 
@@ -321,13 +281,24 @@ Its explicit `hiring-templates` suite selects native local Codex and ACPX Claude
 production hiring skill/coder reference, independently scored saved JSON
 artifacts and session reuse. Outcome and source/read coverage are separate;
 missing or redacted receipts do not prove no regression. The existing first-task
-suite covers actual wizard CoS snapshot selection. A matched union qualification
-will hold the reduced manual/shared/operational skill and native completion
-guidance constant while restoring only historical hiring sources in baseline.
-Two cells per variant, five expected provider turns each: four cells / 20 turns,
-15 minutes each, no automatic retries or broader selection. Exact-source
-credential-free admission and frozen refs are required before dispatch; no
-hiring providers have run yet.
+suite covers actual wizard CoS snapshot selection. The matched union holds the
+reduced manual/shared/operational skill and native completion guidance constant,
+restoring only 21 historical hiring production/derived sources in baseline.
+Frozen candidate `9f5404ad3aacbe76777952759414d34fd381e674` and baseline
+`296a4df85e8bcc97a160fc78c291b17adb828196` passed 705 exact-source credential-free
+prerequisites each (704 TypeScript + 1 Rust; zero providers), with 8,242 identical
+other tracked files and matching fixture/model/auth/permissions configuration.
+Only four candidate-specific single-file CEO selection assertions are filtered
+symmetrically; each variant's bundle/source hashes and canonical catalog are
+independently admitted. Two cells per variant, five expected turns each:
+four cells / 20 turns, 15 minutes each, no automatic retries or broader selection.
+The [candidate](https://github.com/paperclipai/paperclip/actions/runs/37075466208)
+and [baseline](https://github.com/paperclipai/paperclip/actions/runs/37075469463)
+protected campaigns completed with all four original cells retained. Both exact pairs are Fail → Fail on the strict five-turn assertion: zero new machine failures/passes, two unchanged failures, zero pending pairs, and two uncomparable source-read pairs. Six other independent outcome checks pass all four cells. Actual scope is 28 successful model runs, including eight automatic task-completion wakes; zero automatic attempt retries, four successful cleanups, actual charges unknown. Historical Claude's exact coder body differs only by six backticks wrapping existing Markdown links; that coverage failure remains separate.
+[Inspect the complete original report](2026-10-02-hiring-template-live-comparison.md).
+Report-only updates preserve both measured refs and merged hiring PR. Separately versioned provider-free lifecycle accounting passes 69/69 calibrations and 12/12 predicates in all four retained attempts: exact five required turns plus two strictly validated known-task notifications. All actual runs/costs remain counted and source-read coverage remains uncomparable. The original normal scorer and chat-flow exact-count guard remain future executable follow-ups; this report does not rewrite their verdicts.
+
+Current mutable PR integration is green: #14948 at `36aa4d81c49a1a8f6f04b1a068fae19aa901955f` has 52 successful checks and two intentional Storybook skips, fresh Greptile 5/5 and zero unresolved threads; #14961 at `9138f570c341c251a5727c32d6615ce238bc8e03` has 52 successful checks, fresh scoped Greptile 5/5 and zero unresolved threads. Both are mergeable but remain draft and unmerged. Their exact-source provider-free prerequisites pass 599 and 637 assertions respectively. The prior deterministic process plan-replay browser failure is retained; rebased current-head CI passes the same assertion without changing the fixture or retrying the old head. Earlier live limitations and failures remain outstanding; green general checks do not remove them.
 
 ## 4. Fix repository context while retaining Paperclip configuration
 
@@ -502,6 +473,8 @@ will address them. Record intentional behavior explicitly rather than as a bug.
 | 2026-10-02 | Dotta approved the measured legacy delivery repair and narrow follow-up qualification. | Early operational skill PUT/receipt/link guidance plus generic issue-document reference; eight-word manual retained. Focused original + explicit Paperclip-storage cases on classic Claude/OpenCode, with only the two skill sources varied. All four pairs completed: Claude original Fail → Pass, Claude explicit Pass → Pass, both OpenCode cases Fail → Fail. Explicit OpenCode handoff worsened beneath the unchanged machine grade (clickable API URL → code-formatted path). [Repair report](2026-10-02-legacy-document-skill-repair.md); no full matrix rerun. Claude chat-memory (F15) and ACP credential/receipt failures (F16) remain separate and unresolved. |
 | 2026-10-02 | Native tool-description comparison completed all six paired cases. | Zero newly failing cases, three unchanged completion passes, three unchanged blocker failures. Claude/OpenCode blocker API matchers pass in both variants; UI matcher wrongly demanded marker-only replies. Codex's exact-action punctuation failure is unchanged. Original failures retained; corrected 10-case browser calibration and separate retained-DOM replay pass all six visible replies. Exact Codex action failures remain. No native fixed-prompt removal measured. |
 | 2026-10-02 | Dotta approved minimal operational skill selection/link correction after retained OpenCode diagnosis. | Candidate `fe9dc1e3c` and baseline `0d7ecfa96d` have two matched Pass → Pass cases, zero new failures/passes and no pending pairs. All four exact-source gates pass 587 checks, all four provider runs and cleanup pass. Candidate original loads Paperclip/reference before delivery, but uses the wrong PAP prefix; baseline original saves publicly later within the same assignment and gives a bare path. Explicit clickable UI links are correct in both. [Complete report](2026-10-02-opencode-skill-routing-link-qualification.md); prior failures retained, no causal or broad quality claim. |
+| 2026-10-02 | Hiring #14985 merged with explicit user authorization at `862a5758ba0e88a33232c1f1fa645e85c38a3113`; its live measurement uses immutable unions. | Corrected production source `57dcee147` had all final checks and fresh 5/5 review. Candidate `9f5404ad3` and historical `296a4df85` share fixture/model/auth/common manual/operational/native context. All four original cells are retained; both pairs Fail → Fail only on exact-five-turn counting, six core checks pass both, source coverage uncomparable. No model reruns. [Complete report](2026-10-02-hiring-template-live-comparison.md). |
+| 2026-10-02 | Both remaining mutable PRs are green after merged-hiring rebase/restack. | #14948 `36aa4d81c`: 52 successful checks / two intentional skips, 599 credential-free prerequisites; #14961 `9138f570c`: 52 successful checks, 637 prerequisites. Both fresh Greptile 5/5, zero unresolved threads, mergeable, draft/unmerged. Prior browser/review failures and all measured refs remain preserved. |
 
 - F18: Native blocker browser assertion required a marker-only reply despite asking for owner/action/reason. Correct marker-plus-explanation checks symmetrically, calibrate contradictory and future-condition replies, retain original verdicts.
 - F19: Original prompt-removal cohorts loaded Paperclip; OpenCode skill truncation omitted the late API recipe. The early repair fixed Claude in one paired trial. In the repaired original OpenCode assignment, Paperclip was first loaded only during disposition recovery after a local-file write. Shared legacy operational-skill delivery/selection needs review before more recipe expansion.
@@ -512,3 +485,6 @@ will address them. Record intentional behavior explicitly rather than as a bug.
 
 For each completed item, add the chosen behavior, changed paths, verification
 results, remaining exceptions, and follow-ups here before checking it off.
+
+- F24: Hiring original oracle requires exactly five total runs, but production adds two legitimate `chat_task_completed` notification runs in every retained cell. All 28 actual runs remain counted. A separately versioned strict lifecycle accounting sidecar passes all four retained attempts with 69/69 calibrations and 12/12 predicates; no blanket run exclusion or original grade rewrite. Source-read coverage remains uncomparable. Future executable scorer and chat-flow count correction remain tracked.
+- F25: Hiring stock read records have null path targets; Codex compound process command/output previews and historical Claude file previews are clipped. Actual read operations are observed before hire, but source-consumption coverage remains uncomparable. Six-backtick historical Claude body mismatch is a distinct exact-template coverage failure.

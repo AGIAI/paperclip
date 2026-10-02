@@ -1,7 +1,7 @@
 {
   "schema": "paperclip.hiring-templates.live-comparison.v1",
-  "state": "complete_original_machine_grades_two_failed_uncomparable_pairs",
-  "measuredAt": "2026-10-02T23:37:55.021983+00:00",
+  "state": "complete_original_grades_with_versioned_provider_free_accounting",
+  "measuredAt": "2026-10-02T23:48:10.793526+00:00",
   "mergedHiringPr": "https://github.com/paperclipai/paperclip/pull/14985",
   "mergedHiringSha": "862a5758ba0e88a33232c1f1fa645e85c38a3113",
   "sourceProof": {
@@ -1853,6 +1853,498 @@
       "difference": "Six backticks around three existing UX/Security/QA Markdown links removed; role/policy text otherwise identical.",
       "interpretation": "Original exact-body coverage failure preserved; not classified as a meaningful task-quality improvement or candidate regression."
     },
-    "lifecycleAccounting": "Separately versioned, provider-free bounded assessment is being calibrated; original machine verdicts and all actual runs/costs remain unchanged."
+    "lifecycleAccounting": "Sidecar v1 calibrated69/69; all4 retained attempts pass12/12 bounded predicates and provenance. Corrected workflow accounting passes all4, while original machine failures and uncomparable source-read coverage remain unchanged.",
+    "codexSourceReads": {
+      "bothVariants": "Completed process compound sed reads before hire have null targets and clipped command/output previews; no omission of reads is established. Original coverage remains uncomparable.",
+      "candidate": {
+        "sourceReadAt": "2026-10-02T23:12:35.385Z",
+        "hireCreatedAt": "2026-10-02T23:13:38.095Z",
+        "reportedOutputBytes": 12529,
+        "outputTruncated": true,
+        "compoundSeparator": ";"
+      },
+      "baseline": {
+        "sourceReadAt": "2026-10-02T23:12:09.262Z",
+        "hireCreatedAt": "2026-10-02T23:12:47.682Z",
+        "reportedOutputBytes": 39766,
+        "outputTruncated": true,
+        "compoundSeparator": "&&"
+      }
+    }
+  },
+  "publication": {
+    "candidate": {
+      "campaignId": "gha-37075466208-1",
+      "workflowConclusion": "failure",
+      "publisherConclusion": "success",
+      "bundleDigest": "71d839417ac279aeb8abe9a18b1c97b28ea47a48a873605b53d2656c53645bca",
+      "dashboard": "https://d1p6rlowie26tp.cloudfront.net/runner-e2e/campaigns/gha-37075466208-1/index.html"
+    },
+    "baseline": {
+      "campaignId": "gha-37075469463-1",
+      "workflowConclusion": "failure",
+      "publisherConclusion": "success",
+      "bundleDigest": "fa9ecb21ef64928d0da58c45f55301f96b12a78f16977194459b08c2d16b1a13",
+      "dashboard": "https://d1p6rlowie26tp.cloudfront.net/runner-e2e/campaigns/gha-37075469463-1/index.html"
+    }
+  },
+  "screenshots": [
+    {
+      "variant": "candidate",
+      "profile": "codex",
+      "id": "hiring-template-created",
+      "sha256": "28ad661cb7b96c87ac923c7451c2e2d291b3efbddfec291878013edf9442252d",
+      "declarationMatches": true,
+      "viewed": true
+    },
+    {
+      "variant": "candidate",
+      "profile": "codex",
+      "id": "failure",
+      "sha256": "07c2bfa717693e86fe72826d954cf0de1671c9afed9e35d157418d6908864a90",
+      "declarationMatches": true,
+      "viewed": true
+    },
+    {
+      "variant": "candidate",
+      "profile": "acpx",
+      "id": "hiring-template-created",
+      "sha256": "1774a8fcc18a20ab05c46552069b1562e18f181a5e71dd1da562ec04026d4b19",
+      "declarationMatches": true,
+      "viewed": true
+    },
+    {
+      "variant": "candidate",
+      "profile": "acpx",
+      "id": "failure",
+      "sha256": "e254320eee3c6ac323c88d1c78c4bbe9e5223b487e6e6c9cba605fdedc894a8f",
+      "declarationMatches": true,
+      "viewed": true
+    },
+    {
+      "variant": "baseline",
+      "profile": "codex",
+      "id": "hiring-template-created",
+      "sha256": "9ab35b7aabfd8ce94d5d76f327832cbf70dfac8384d4edb75bd0ed16718b4085",
+      "declarationMatches": true,
+      "viewed": true
+    },
+    {
+      "variant": "baseline",
+      "profile": "codex",
+      "id": "failure",
+      "sha256": "4145af008e6a3eaa67455570156dd1a62ec516b5f2e8976d093d40a3a8e8f23a",
+      "declarationMatches": true,
+      "viewed": true
+    },
+    {
+      "variant": "baseline",
+      "profile": "acpx",
+      "id": "hiring-template-created",
+      "sha256": "a9e1be79c9b6d5359c97e5eab32fff2b15f6179cc7f534a7a844e97acd96dafd",
+      "declarationMatches": true,
+      "viewed": true
+    },
+    {
+      "variant": "baseline",
+      "profile": "acpx",
+      "id": "failure",
+      "sha256": "04a1a5dfba6bdeab3b004c09810c8ce7b46c1533b1afd87ae19e800d0b8618a6",
+      "declarationMatches": true,
+      "viewed": true
+    }
+  ],
+  "screenshotObservations": "All8 declared images located/hash-verified/viewed. Final Codex variants and candidateClaude show correct task owners and Done. BaselineClaude failure screenshot captures active read work rather than final reply; independent API/result evidence remains retained.",
+  "accountingSidecar": {
+    "schema": "paperclip.hiring-template-turn-accounting.sidecar.v1",
+    "assessmentType": "provider-free retained-evidence analysis; original executable machine grades unchanged",
+    "source": "tests/runner-e2e/hiring-template-turn-accounting.sidecar.mjs",
+    "sourceSha256": "693c639ab4ec159e30dfad98af75e43e91d75d5245ad035dfa66cd9f82a3eef8",
+    "calibrationSource": "tests/runner-e2e/hiring-template-turn-accounting.sidecar.test.mjs",
+    "calibrationSourceSha256": "36f5f03f0c315070aee0a5764fb8df7c32e8152b61df1a7a6d967f08c1ab0758",
+    "calibrations": {
+      "passed": 69,
+      "failed": 0,
+      "skipped": 0
+    },
+    "retainedAssessments": [
+      {
+        "variant": "candidate",
+        "profile": "runner-codex",
+        "schema": "paperclip.hiring-template-turn-accounting.sidecar.v1",
+        "counts": {
+          "requiredWorkTurns": 5,
+          "maximumCompletionTurns": 2,
+          "maximumTotalTurns": 7,
+          "requestedLeadTurns": 3,
+          "coderTurns": 2,
+          "completionTurns": 2,
+          "unclassifiedTurns": 0,
+          "snapshotRunCount": 7,
+          "actualRunCount": 7,
+          "costAccountingRunCount": 7
+        },
+        "predicates": [
+          {
+            "id": "known-fixture-context",
+            "passed": true
+          },
+          {
+            "id": "complete-public-run-ledger",
+            "passed": true
+          },
+          {
+            "id": "exact-five-required-work-turns",
+            "passed": true
+          },
+          {
+            "id": "successful-native-without-retries",
+            "passed": true
+          },
+          {
+            "id": "resolved-company-account-and-identity",
+            "passed": true
+          },
+          {
+            "id": "three-distinct-requested-chat-turns",
+            "passed": true
+          },
+          {
+            "id": "one-coder-execution-per-known-task",
+            "passed": true
+          },
+          {
+            "id": "task-origins-are-first-two-requested-turns",
+            "passed": true
+          },
+          {
+            "id": "bounded-server-completion-receipts",
+            "passed": true
+          },
+          {
+            "id": "completion-runs-have-attributed-chat-replies",
+            "passed": true
+          },
+          {
+            "id": "no-notification-created-extra-tasks",
+            "passed": true
+          },
+          {
+            "id": "original-check-contract-retained",
+            "passed": true
+          }
+        ],
+        "accountingPassed": true,
+        "correctedWorkflowOutcomePassed": true,
+        "original": {
+          "schema": "paperclip.hiring-templates.v1",
+          "definitionDigest": "4d7f18420889325af89aa48eaaf021e8178aa6d26d504b92041635a15741f004",
+          "outcomePassed": false,
+          "countCheckPassed": false,
+          "otherOutcomeChecksPassed": true,
+          "comparisonStatus": "uncomparable",
+          "failedCoverageChecks": [
+            "production-source-reads"
+          ]
+        },
+        "sourceCoverageRegraded": false,
+        "broadEquivalenceEstablished": false,
+        "provenanceValid": true,
+        "originalMachineStatus": "failed",
+        "provenance": {
+          "originalResultSchema": "paperclip.runner-e2e.result/v2",
+          "sourceRevision": "9f5404ad3aacbe76777952759414d34fd381e674",
+          "suiteDefinitionHash": "df6ff6853f39e4a4b919807fb26498955a298832bc965f7a6bbe30f85b2eff2f",
+          "originalResultSha256": "44cbf64cfabd0257f31fb4d6909018d346f5667b0a7b3d7e855a2ece7e29c292",
+          "hiringSnapshotSha256": "9609ddcb81c6bee3c5db97312138b4ea3e294da13ea540e41f363c826a514067",
+          "apiStateSha256": "ef02af29bcf61ff3eace0549ca164a28c7950d1a3e14fc58c89bf9cb0f944b4d",
+          "sidecarSha256": "693c639ab4ec159e30dfad98af75e43e91d75d5245ad035dfa66cd9f82a3eef8"
+        }
+      },
+      {
+        "variant": "candidate",
+        "profile": "runner-acpx-claude",
+        "schema": "paperclip.hiring-template-turn-accounting.sidecar.v1",
+        "counts": {
+          "requiredWorkTurns": 5,
+          "maximumCompletionTurns": 2,
+          "maximumTotalTurns": 7,
+          "requestedLeadTurns": 3,
+          "coderTurns": 2,
+          "completionTurns": 2,
+          "unclassifiedTurns": 0,
+          "snapshotRunCount": 7,
+          "actualRunCount": 7,
+          "costAccountingRunCount": 7
+        },
+        "predicates": [
+          {
+            "id": "known-fixture-context",
+            "passed": true
+          },
+          {
+            "id": "complete-public-run-ledger",
+            "passed": true
+          },
+          {
+            "id": "exact-five-required-work-turns",
+            "passed": true
+          },
+          {
+            "id": "successful-native-without-retries",
+            "passed": true
+          },
+          {
+            "id": "resolved-company-account-and-identity",
+            "passed": true
+          },
+          {
+            "id": "three-distinct-requested-chat-turns",
+            "passed": true
+          },
+          {
+            "id": "one-coder-execution-per-known-task",
+            "passed": true
+          },
+          {
+            "id": "task-origins-are-first-two-requested-turns",
+            "passed": true
+          },
+          {
+            "id": "bounded-server-completion-receipts",
+            "passed": true
+          },
+          {
+            "id": "completion-runs-have-attributed-chat-replies",
+            "passed": true
+          },
+          {
+            "id": "no-notification-created-extra-tasks",
+            "passed": true
+          },
+          {
+            "id": "original-check-contract-retained",
+            "passed": true
+          }
+        ],
+        "accountingPassed": true,
+        "correctedWorkflowOutcomePassed": true,
+        "original": {
+          "schema": "paperclip.hiring-templates.v1",
+          "definitionDigest": "4d7f18420889325af89aa48eaaf021e8178aa6d26d504b92041635a15741f004",
+          "outcomePassed": false,
+          "countCheckPassed": false,
+          "otherOutcomeChecksPassed": true,
+          "comparisonStatus": "uncomparable",
+          "failedCoverageChecks": [
+            "production-source-reads"
+          ]
+        },
+        "sourceCoverageRegraded": false,
+        "broadEquivalenceEstablished": false,
+        "provenanceValid": true,
+        "originalMachineStatus": "failed",
+        "provenance": {
+          "originalResultSchema": "paperclip.runner-e2e.result/v2",
+          "sourceRevision": "9f5404ad3aacbe76777952759414d34fd381e674",
+          "suiteDefinitionHash": "df6ff6853f39e4a4b919807fb26498955a298832bc965f7a6bbe30f85b2eff2f",
+          "originalResultSha256": "a83aecc26ef0af2e231cb364299cf0cb2f2ccd83b6998913dcd33be72d4c0824",
+          "hiringSnapshotSha256": "4f83f523b955120c5baac18572dce752b278dbc9ff765b940c0e17c37ab28ae0",
+          "apiStateSha256": "a208a3e3568fe9aacbec8d683a502a0d304a47571a1b97c229d2936e5d1bb087",
+          "sidecarSha256": "693c639ab4ec159e30dfad98af75e43e91d75d5245ad035dfa66cd9f82a3eef8"
+        }
+      },
+      {
+        "variant": "baseline",
+        "profile": "runner-codex",
+        "schema": "paperclip.hiring-template-turn-accounting.sidecar.v1",
+        "counts": {
+          "requiredWorkTurns": 5,
+          "maximumCompletionTurns": 2,
+          "maximumTotalTurns": 7,
+          "requestedLeadTurns": 3,
+          "coderTurns": 2,
+          "completionTurns": 2,
+          "unclassifiedTurns": 0,
+          "snapshotRunCount": 7,
+          "actualRunCount": 7,
+          "costAccountingRunCount": 7
+        },
+        "predicates": [
+          {
+            "id": "known-fixture-context",
+            "passed": true
+          },
+          {
+            "id": "complete-public-run-ledger",
+            "passed": true
+          },
+          {
+            "id": "exact-five-required-work-turns",
+            "passed": true
+          },
+          {
+            "id": "successful-native-without-retries",
+            "passed": true
+          },
+          {
+            "id": "resolved-company-account-and-identity",
+            "passed": true
+          },
+          {
+            "id": "three-distinct-requested-chat-turns",
+            "passed": true
+          },
+          {
+            "id": "one-coder-execution-per-known-task",
+            "passed": true
+          },
+          {
+            "id": "task-origins-are-first-two-requested-turns",
+            "passed": true
+          },
+          {
+            "id": "bounded-server-completion-receipts",
+            "passed": true
+          },
+          {
+            "id": "completion-runs-have-attributed-chat-replies",
+            "passed": true
+          },
+          {
+            "id": "no-notification-created-extra-tasks",
+            "passed": true
+          },
+          {
+            "id": "original-check-contract-retained",
+            "passed": true
+          }
+        ],
+        "accountingPassed": true,
+        "correctedWorkflowOutcomePassed": true,
+        "original": {
+          "schema": "paperclip.hiring-templates.v1",
+          "definitionDigest": "4d7f18420889325af89aa48eaaf021e8178aa6d26d504b92041635a15741f004",
+          "outcomePassed": false,
+          "countCheckPassed": false,
+          "otherOutcomeChecksPassed": true,
+          "comparisonStatus": "uncomparable",
+          "failedCoverageChecks": [
+            "production-source-reads"
+          ]
+        },
+        "sourceCoverageRegraded": false,
+        "broadEquivalenceEstablished": false,
+        "provenanceValid": true,
+        "originalMachineStatus": "failed",
+        "provenance": {
+          "originalResultSchema": "paperclip.runner-e2e.result/v2",
+          "sourceRevision": "296a4df85e8bcc97a160fc78c291b17adb828196",
+          "suiteDefinitionHash": "df6ff6853f39e4a4b919807fb26498955a298832bc965f7a6bbe30f85b2eff2f",
+          "originalResultSha256": "d912d8400bfff4f7f922aa6b264f9ce5fff1ba2d893abf03790c4cfea352261f",
+          "hiringSnapshotSha256": "88b23e4d2cc8831a5d88b8479cc69c0d1c2e17a6a5243707b4bd19716a244aca",
+          "apiStateSha256": "dff6bb13bb54d45024966d9cfbeb6dbe6f2241e674b0b1350c1384863202a97f",
+          "sidecarSha256": "693c639ab4ec159e30dfad98af75e43e91d75d5245ad035dfa66cd9f82a3eef8"
+        }
+      },
+      {
+        "variant": "baseline",
+        "profile": "runner-acpx-claude",
+        "schema": "paperclip.hiring-template-turn-accounting.sidecar.v1",
+        "counts": {
+          "requiredWorkTurns": 5,
+          "maximumCompletionTurns": 2,
+          "maximumTotalTurns": 7,
+          "requestedLeadTurns": 3,
+          "coderTurns": 2,
+          "completionTurns": 2,
+          "unclassifiedTurns": 0,
+          "snapshotRunCount": 7,
+          "actualRunCount": 7,
+          "costAccountingRunCount": 7
+        },
+        "predicates": [
+          {
+            "id": "known-fixture-context",
+            "passed": true
+          },
+          {
+            "id": "complete-public-run-ledger",
+            "passed": true
+          },
+          {
+            "id": "exact-five-required-work-turns",
+            "passed": true
+          },
+          {
+            "id": "successful-native-without-retries",
+            "passed": true
+          },
+          {
+            "id": "resolved-company-account-and-identity",
+            "passed": true
+          },
+          {
+            "id": "three-distinct-requested-chat-turns",
+            "passed": true
+          },
+          {
+            "id": "one-coder-execution-per-known-task",
+            "passed": true
+          },
+          {
+            "id": "task-origins-are-first-two-requested-turns",
+            "passed": true
+          },
+          {
+            "id": "bounded-server-completion-receipts",
+            "passed": true
+          },
+          {
+            "id": "completion-runs-have-attributed-chat-replies",
+            "passed": true
+          },
+          {
+            "id": "no-notification-created-extra-tasks",
+            "passed": true
+          },
+          {
+            "id": "original-check-contract-retained",
+            "passed": true
+          }
+        ],
+        "accountingPassed": true,
+        "correctedWorkflowOutcomePassed": true,
+        "original": {
+          "schema": "paperclip.hiring-templates.v1",
+          "definitionDigest": "4d7f18420889325af89aa48eaaf021e8178aa6d26d504b92041635a15741f004",
+          "outcomePassed": false,
+          "countCheckPassed": false,
+          "otherOutcomeChecksPassed": true,
+          "comparisonStatus": "uncomparable",
+          "failedCoverageChecks": [
+            "production-source-reads",
+            "supplied-coder-instructions"
+          ]
+        },
+        "sourceCoverageRegraded": false,
+        "broadEquivalenceEstablished": false,
+        "provenanceValid": true,
+        "originalMachineStatus": "failed",
+        "provenance": {
+          "originalResultSchema": "paperclip.runner-e2e.result/v2",
+          "sourceRevision": "296a4df85e8bcc97a160fc78c291b17adb828196",
+          "suiteDefinitionHash": "df6ff6853f39e4a4b919807fb26498955a298832bc965f7a6bbe30f85b2eff2f",
+          "originalResultSha256": "844763ddc83461b2bea620f153f4bfe0bfee20a27bf33a60017a45c774ce2f6a",
+          "hiringSnapshotSha256": "27b153798472e206970c46358febdda363cb75f892734757e76994117f0d2c9b",
+          "apiStateSha256": "441cf7272ea28c5e1182adf48dba09a401e88c6cad3a99e72c8cf3f46b1c5b41",
+          "sidecarSha256": "693c639ab4ec159e30dfad98af75e43e91d75d5245ad035dfa66cd9f82a3eef8"
+        }
+      }
+    ],
+    "sourceCoverageRegraded": false,
+    "newProviderCalls": 0,
+    "allActualRunsRemainCostAccounted": true,
+    "futureExecutableFollowup": "The original hiring scorer and chat-flow exact expectedRunCount=5 guard would both need this bounded rule before future executable runs. Neither frozen source nor original executable result is modified here."
   }
 }
