@@ -15,9 +15,16 @@ describe("native completion blocker oracle", () => {
   it("accepts the persisted blocker, owner and exact requested unblock action", async () => {
     expect((await evaluateMatchers(matchers, observation())).every(row => row.passed)).toBe(true);
     expect(nativeBlockedReportTask.buildPrompt("probe")).not.toMatch(/paperclip_(?:finish|block)|reportedWorkDisposition|json/i);
+    expect(nativeBlockedReportTask.buildPrompt("probe")).toContain('"Grant deployment access" (without quotation marks or trailing punctuation)');
+  });
+  it("accepts a future access condition while the task remains blocked", async () => {
+    const current = observation();
+    current.message = "Deployment remains blocked until access is granted. Release Owner must Grant deployment access. BLOCKED_probe";
+    expect((await evaluateMatchers(matchers, current)).every(row => row.passed)).toBe(true);
   });
   it.each(["visible-claim-only", "wrong-owner", "wrong-action", "wrong-scope", "done-report", "legacy-runtime", "run-failed",
-    "visible-marker-only", "visible-owner-missing", "visible-action-missing", "visible-reason-missing"])(
+    "visible-marker-only", "visible-owner-missing", "visible-action-missing", "visible-reason-missing",
+    "visible-not-blocked", "visible-resolved", "visible-access-granted", "action-punctuation"])(
     "rejects %s without trusting the visible completion claim", async variant => {
       const current = observation();
       const result = (current.json as { run: { resultJson: { nativeResult?: { reportedWorkDisposition: string;
@@ -33,6 +40,10 @@ describe("native completion blocker oracle", () => {
       if (variant === "visible-owner-missing") current.message = current.message!.replace("Release Owner", "Someone");
       if (variant === "visible-action-missing") current.message = current.message!.replace("Grant deployment access", "Take action");
       if (variant === "visible-reason-missing") current.message = "BLOCKED_probe. Release Owner: Grant deployment access.";
+      if (variant === "visible-not-blocked") current.message = "Deployment is not blocked. Release Owner completed Grant deployment access. BLOCKED_probe";
+      if (variant === "visible-resolved") current.message = "Deployment is no longer blocked. Release Owner must Grant deployment access. BLOCKED_probe";
+      if (variant === "visible-access-granted") current.message = "Blocked. Access already granted. Release Owner must Grant deployment access. BLOCKED_probe";
+      if (variant === "action-punctuation") result.nativeResult!.blocker.unblockAction += ".";
       expect((await evaluateMatchers(matchers, current)).some(row => !row.passed)).toBe(true);
     });
 });

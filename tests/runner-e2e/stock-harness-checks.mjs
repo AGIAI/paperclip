@@ -96,6 +96,7 @@ export function sourceFingerprint() {
     ...["capabilities.yaml", "mcp-tool-map.yaml", "eval-traceability.yaml", "capability-contract.md", "downstream-handoff.md"]
       .map(file => `packages/paperclip-runner/generated/capability/${file}`),
     "tests/runner-e2e/native-completion-case.ts",
+    "tests/runner-e2e/native-blocker-visible.ts", "tests/runner-e2e/native-blocker-visible.spec.ts",
     "packages/adapter-utils/src/server-utils.ts", "packages/shared/src/connection-intent-guidance.ts",
     "server/src/onboarding-assets/default/AGENTS.md", "server/src/routes/agents.ts", "scripts/ensure-plugin-build-deps.mjs",
     "packages/paperclip-runner/src/drivers/codex/codex-app-server-driver-impl.ts",
