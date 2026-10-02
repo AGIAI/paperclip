@@ -384,7 +384,7 @@ The explicit-only `pi-controls` suite adds `pending-permission-stop` and
 `same-turn-steering` on local and Daytona, each with one provider run, a
 120-second active-turn timeout and a 300-second attempt budget. These four
 control cases retain their behavior; the current matrix totals 26 Pi cells.
-Pi 1/profile 11 and coverage revisions intentionally change the affected suite
+Pi 1/profile 12 and coverage revisions intentionally change the affected suite
 fingerprints, so older qualification receipts cannot be reused. Catalog presence and
 deterministic calibration do not constitute paid qualification.
 

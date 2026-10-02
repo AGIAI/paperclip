@@ -39,8 +39,9 @@ native-write evidence, caller-owned control acknowledgments, independent
 no-effect/retirement proof and the actual production task UI. Daytona also
 requires the existing immutable image and executable digests. These cells do
 not establish native follow-up queue persistence or provider-death recovery.
-The current Pi matrix has 25 explicit cells (13 local and 12 Daytona), including
-these four controls and the pending-native-question restart cases. Pi's profile
+The current Pi matrix has 26 explicit cells (13 local and 13 Daytona), including
+these four controls, the pending-native-question restart cases, and one Daytona
+provider-death case. Pi's profile
 remains pending; catalog presence is not live qualification.
 
 ## Provider-free browser bootstrap regression
