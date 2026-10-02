@@ -598,5 +598,10 @@ API key. Support for AWS roles requires a credential broker before it can ship.
 A subsequent OpenCode tool-use check reached OpenRouter but was denied terminal
 access; its follow-up ended with `process_lost`. Treat OpenCode tool-use acceptance
 as unresolved rather than inferring it from a completed task status.
-Bedrock and private gateway credentials were not available for live verification;
-their mapping and validation are covered by deterministic tests.
+Live Bedrock verification subsequently passed with a short-lived Bedrock API key,
+region `us-east-1`, and `us.anthropic.claude-sonnet-4-6`. The saved connection
+passed **Run test**. Claude legacy and Claude New Runner each ran a terminal
+calculation, completed the task, and ran a context-dependent follow-up. Actual
+tool output was verified for all four successful runs. Private gateways still
+have deterministic mapping and validation coverage but need live verification
+in the target deployment. Short-lived Bedrock keys must be rotated before expiry.
