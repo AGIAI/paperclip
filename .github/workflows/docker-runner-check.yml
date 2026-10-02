@@ -39,6 +39,10 @@ on:
         description: "Measure exact retained B9 snapshots in four process-start pool4/16 ABBA children (diagnostic only)"
         type: boolean
         default: false
+      pi_startup_overlap:
+        description: "With diagnose_pi_startup, evaluate one unpublished two-module admission-overlap derivative (not qualification)"
+        type: boolean
+        default: false
       diagnose_pi_startup:
         description: "Instrument one retained B9 profile12 native Intel startup with unchanged deadlines (diagnostic only, no provider prompts)"
         type: boolean
@@ -78,7 +82,7 @@ permissions: {}
 concurrency:
   # Different immutable manual sources retain independent evidence; the same
   # source/mode still supersedes itself. Ordinary PR grouping is unchanged.
-  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.diagnose_pi_snapshot_streaming && 'pi-snapshot-streaming' || inputs.diagnose_pi_snapshot_pool && 'pi-snapshot-pool' || inputs.diagnose_pi_startup && 'pi-startup-diagnostic' || inputs.verify_pi_intel && 'pi-native-intel' || inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.source_e2e_support_only && 'source-e2e-support' || inputs.source_root_tests_only && 'source-root-tests' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}${{ github.event_name == 'workflow_dispatch' && inputs.expected_source_sha && format('-{0}', inputs.expected_source_sha) || '' }}
+  group: docker-runner-check-${{ github.event.pull_request.number || github.ref }}-${{ inputs.diagnose_pi_snapshot_streaming && 'pi-snapshot-streaming' || inputs.diagnose_pi_snapshot_pool && 'pi-snapshot-pool' || inputs.pi_startup_overlap && 'pi-startup-overlap' || inputs.diagnose_pi_startup && 'pi-startup-diagnostic' || inputs.verify_pi_intel && 'pi-native-intel' || inputs.diagnose_ajv_pack && 'ajv-diagnostic' || inputs.verify_runner && 'runner-verification' || inputs.source_e2e_support_only && 'source-e2e-support' || inputs.source_root_tests_only && 'source-root-tests' || inputs.verify_source && 'verification' || inputs.verify_public_install && 'public-install' || inputs.build_eval_viewer && 'viewer' || 'image' }}${{ github.event_name == 'workflow_dispatch' && inputs.expected_source_sha && format('-{0}', inputs.expected_source_sha) || '' }}
   cancel-in-progress: true
 
 jobs:
@@ -136,6 +140,7 @@ jobs:
           DIAGNOSE_PI_SNAPSHOT_STREAMING: ${{ inputs.diagnose_pi_snapshot_streaming }}
           DIAGNOSE_PI_SNAPSHOT_POOL: ${{ inputs.diagnose_pi_snapshot_pool }}
           DIAGNOSE_PI_STARTUP: ${{ inputs.diagnose_pi_startup }}
+          PI_STARTUP_OVERLAP: ${{ inputs.pi_startup_overlap }}
           DIAGNOSE_AJV: ${{ inputs.diagnose_ajv_pack }}
           OTHER_MODE: ${{ inputs.publish_eval_image || inputs.verify_source || inputs.verify_public_install || inputs.build_eval_viewer || inputs.verify_pi_intel || inputs.diagnose_pi_startup || inputs.diagnose_pi_snapshot_pool || inputs.diagnose_pi_snapshot_streaming || inputs.source_e2e_support_only }}
         run: |
@@ -194,6 +199,9 @@ jobs:
             # Standard hosted runner minutes are free for this public repository.
             # Artifact storage and unrelated resource costs are not inferred here.
             test "$(gh api "repos/$REPOSITORY" --jq '.visibility')" = public
+          fi
+          if [ "$PI_STARTUP_OVERLAP" = true ]; then
+            test "$DIAGNOSE_PI_STARTUP" = true
           fi
           if [ "$DIAGNOSE_PI_STARTUP" = true ]; then
             test "$DIAGNOSE_PI_SNAPSHOT_STREAMING" != true
@@ -301,7 +309,7 @@ jobs:
 
   manual_pi_startup_diagnostic:
     name: Retained f5 profile13 native Intel startup timing diagnostic (not qualification)
-    if: github.event_name == 'workflow_dispatch' && inputs.diagnose_pi_startup
+    if: github.event_name == 'workflow_dispatch' && inputs.diagnose_pi_startup && !inputs.pi_startup_overlap
     needs: authorize_manual
     runs-on: macos-15-intel
     timeout-minutes: 25
@@ -347,6 +355,57 @@ jobs:
           name: pi-startup-diagnostic-${{ github.run_id }}
           include-hidden-files: true
           path: pi-startup-diagnostic-evidence/
+          retention-days: 7
+          if-no-files-found: error
+
+  manual_pi_startup_overlap:
+    name: Retained f5 native Intel admission overlap prototype (not qualification)
+    if: github.event_name == 'workflow_dispatch' && inputs.diagnose_pi_startup && inputs.pi_startup_overlap
+    needs: authorize_manual
+    runs-on: macos-15-intel
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout trusted diagnostic helpers only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted-ci
+          persist-credentials: false
+      - name: Download exact failed qualification artifacts
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/paperclipai/paperclip/actions/artifacts/11218057612/zip \
+            > "$RUNNER_TEMP/pi-startup-36984851998.zip"
+          printf '%s  %s\n' 5159dcb57b380648679d441a73b87d50334dcca969adc95150e8429a71cbdfeb \
+            "$RUNNER_TEMP/pi-startup-36984851998.zip" | shasum -a 256 --check
+      - name: Run one unpublished overlap startup with original assertions and deadlines
+        timeout-minutes: 18
+        run: |
+          set -euo pipefail
+          python3 -B trusted-ci/scripts/ci/pi-intel/startup_overlap.py \
+            --archive "$RUNNER_TEMP/pi-startup-36984851998.zip" \
+            --output "$GITHUB_WORKSPACE/pi-startup-overlap-evidence"
+      - name: Admit complete diagnostic evidence within the storage bound
+        if: always()
+        id: diagnostic_evidence
+        timeout-minutes: 2
+        run: |
+          python3 -B trusted-ci/scripts/ci/pi-intel/admit_diagnostic_evidence.py \
+            --evidence "$GITHUB_WORKSPACE/pi-startup-overlap-evidence" \
+            --github-output "$GITHUB_OUTPUT"
+      - name: Retain original and prototype identities, assertions and cleanup
+        if: always() && steps.diagnostic_evidence.outputs.admitted == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pi-startup-overlap-${{ github.run_id }}
+          include-hidden-files: true
+          path: pi-startup-overlap-evidence/
           retention-days: 7
           if-no-files-found: error
 

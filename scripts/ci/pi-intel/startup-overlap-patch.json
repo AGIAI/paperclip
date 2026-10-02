@@ -1,0 +1,85 @@
+{
+  "schema": "paperclip.exact-sidecar-overlap-patch/v1",
+  "originalSha256": "ce987993ffb92f449ef0432dee6cd7eb90ea19521ce3d7b51a185fed16ed8c47",
+  "candidateSha256": "b28efa0a99d968dd9304487fdec6890d01186ec9e2c0fc5779508c0d7bd8a9c5",
+  "sourceChanges": [
+    {
+      "path": "packages/paperclip-runner/src/drivers/acpx/pi-installation.ts",
+      "beforeSha256": "09a13bdad937b68bf129458d4c00c4ae174c93fad3ae447db3fad922f66c49e5",
+      "afterSha256": "e9f35098a604637a78431a3717c7afa40e666f7acc673f05296e08e8c4255203"
+    },
+    {
+      "path": "packages/paperclip-runner/src/drivers/acpx/pi-verified-runtime.ts",
+      "beforeSha256": "dfb5f6604da0abc307c4bb514e3dd47354f4b867be28fdeb64273c3c055b68c1",
+      "afterSha256": "2120d9dccaf639ad43266e0d8a2cd33c82f0da4c7ee4646ecf26eba7b7c06d18"
+    }
+  ],
+  "operations": [
+    {
+      "oldStartLine": 73015,
+      "oldLines": [
+        "async function verifyPiRuntimeLayoutForNativeSnapshot(root, manifest, nativeManifest, expectedClosureSha256) {\n"
+      ],
+      "newLines": [
+        "async function preparePiRuntimeLayoutForNativeSnapshot(root, manifest, nativeManifest, expectedClosureSha256) {\n"
+      ]
+    },
+    {
+      "oldStartLine": 73021,
+      "oldLines": [
+        "  const { files } = await discoverPiRuntimeFiles(root);\n",
+        "  const layout = (values) => values.map(({ path: path3, kind }) => ({ path: path3, kind })).sort((a, b) => a.path.localeCompare(b.path, \"en\"));\n",
+        "  if (JSON.stringify(layout(files)) !== JSON.stringify(layout(sorted))) throw new Error(\"Pi runtime package graph differs from its qualified manifest\");\n",
+        "  const { manifestDigest } = await bindPiRuntimeManifestPaths(root, manifest, sorted, unique2);\n",
+        "  return { manifestDigest };\n"
+      ],
+      "newLines": [
+        "  const declaration = { ...manifest, files: sorted };\n",
+        "  const manifestDigest = hash3(JSON.stringify(declaration));\n",
+        "  return Object.freeze({\n",
+        "    manifestDigest,\n",
+        "    async verifyLayout() {\n",
+        "      const { files } = await discoverPiRuntimeFiles(root);\n",
+        "      const layout = (values) => values.map(({ path: path3, kind }) => ({ path: path3, kind })).sort((a, b) => a.path.localeCompare(b.path, \"en\"));\n",
+        "      if (JSON.stringify(layout(files)) !== JSON.stringify(layout(sorted))) throw new Error(\"Pi runtime package graph differs from its qualified manifest\");\n",
+        "      await bindPiRuntimeManifestPaths(root, declaration, sorted, unique2);\n",
+        "    }\n",
+        "  });\n"
+      ]
+    },
+    {
+      "oldStartLine": 73182,
+      "oldLines": [
+        "  const layout = await verifyPiRuntimeLayoutForNativeSnapshot(runtimeRoot, manifest, { entries }, expectedClosure);\n"
+      ],
+      "newLines": [
+        "  const layout = await preparePiRuntimeLayoutForNativeSnapshot(runtimeRoot, manifest, { entries }, expectedClosure);\n"
+      ]
+    },
+    {
+      "oldStartLine": 73191,
+      "oldLines": [
+        "      return native.openCommand();\n"
+      ],
+      "newLines": [
+        "      const [checkedLayout, command] = await Promise.allSettled([\n",
+        "        layout.verifyLayout(),\n",
+        "        native.openCommand()\n",
+        "      ]);\n",
+        "      if (checkedLayout.status === \"rejected\") {\n",
+        "        if (command.status === \"rejected\") throw new AggregateError([checkedLayout.reason, command.reason], \"Pi layout and snapshot admission failed\");\n",
+        "        if (command.status === \"fulfilled\") {\n",
+        "          try {\n",
+        "            await command.value.close();\n",
+        "          } catch (cleanupError) {\n",
+        "            throw new AggregateError([checkedLayout.reason, cleanupError], \"Pi layout admission and unpublished command cleanup failed\");\n",
+        "          }\n",
+        "        }\n",
+        "        throw checkedLayout.reason;\n",
+        "      }\n",
+        "      if (command.status === \"rejected\") throw command.reason;\n",
+        "      return command.value;\n"
+      ]
+    }
+  ]
+}

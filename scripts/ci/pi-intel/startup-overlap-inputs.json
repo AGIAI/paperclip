@@ -1,0 +1,86 @@
+{
+  "schema": "paperclip.native-intel-startup-overlap-input/v1",
+  "sourceRevision": "f5c5fde380f60937ef26cc5a92e1d6a043e9cddc",
+  "resolvedLockSha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
+  "artifactRunId": "36984851998",
+  "artifactId": "11218057612",
+  "artifactWorkflowRevision": "94848f04150ed4f5de7762ff4687c633c7c9cc1a",
+  "artifactZipBytes": 699248654,
+  "artifactZipSha256": "5159dcb57b380648679d441a73b87d50334dcca969adc95150e8429a71cbdfeb",
+  "selectedFiles": {
+    "receipt.json": {
+      "bytes": 31957,
+      "sha256": "28a572c4278ddbf99219dc720f78debc93dc442114478abf39a561390a8c3a7e"
+    },
+    "provider-pack.tar.gz": {
+      "bytes": 648246195,
+      "sha256": "cc4de9c130102fdb94f57556bac8efa225b2ee9035e72661d6b68a254799f8e9"
+    },
+    "provider-pack.json": {
+      "bytes": 2743,
+      "sha256": "11f4dba65bb8d144898b5879271d72ff19920785c294ea32b22510c4442d2537"
+    },
+    "pack-inventory.json": {
+      "bytes": 10353069,
+      "sha256": "8de75e0f0185cbe0d9dfafefa417632e185ed3421fed85469ba20792f7fa8f69"
+    },
+    "paperclip-runnerd": {
+      "bytes": 32036944,
+      "sha256": "cc9dcfb006e78d5808f642152c24304a84d84b80dc33ea352ddbc5ad2e216713"
+    },
+    "source.tar": {
+      "bytes": 141987840,
+      "sha256": "374600761ad9e0268f6e323bc9eb16aff800106d8baf886e39063ebc52d42e8a"
+    },
+    "source-input-inventory.json": {
+      "bytes": 1035823,
+      "sha256": "849fc4f538e592c892c9e5b4eae9d37a606ffca301227d8649a5a6eff9c13edc"
+    },
+    "resolved-pnpm-lock.yaml": {
+      "bytes": 607788,
+      "sha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba"
+    }
+  },
+  "originalSidecarSha256": "ce987993ffb92f449ef0432dee6cd7eb90ea19521ce3d7b51a185fed16ed8c47",
+  "originalPackDigest": "sha256:183e5a337dbf0edd9a3c210b2f539443996cf70ed35b77d281ae0e49d8eeb974",
+  "daemonSha256": "cc9dcfb006e78d5808f642152c24304a84d84b80dc33ea352ddbc5ad2e216713",
+  "nodeSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49",
+  "testPath": "packages/paperclip-runner/test/pi-closed-startup.test.mjs",
+  "testSha256": "32bb057e1505082c0ed6b1d71cdd8cdb3271d920c2bea9cdc1ebddedf568c0c4",
+  "observerSha256": "1fcf353beb90722f90401a7792a5853bf0807d964a1065e3f55b76a63bc4b4cc",
+  "profileDigest": "sha256:fe1e6da01b2a9e4c691ca27cf689d2d6de846a93be6b23fc1e103c9addd7b177",
+  "closureDigest": "sha256:4728e5a4e7fc1ba602c3e219824fb84884b05a06cdd19dd3e521ee312e1b373a",
+  "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+  "originalFailure": "Durable session.open command timed out at original30s; close drain barrier failed secondarily.61 SDK contracts passed; fresh Rust and full normal Pi13 pack verified; cleanup certain.",
+  "executionCount": 1,
+  "providerCalls": 0,
+  "timeoutChanges": false,
+  "archiveBytesMaximum": 268435456,
+  "retentionDays": 7,
+  "profileVersion": 13,
+  "phaseLimit": "No inner-phase instrumentation. Compare original assertion result and test durations only; one run is not statistical performance proof.",
+  "prototypePatchSha256": "34d98771a8ed53576ca7875e0cff6fc5b582f6f8f1a95282b99c3a895bb5621b",
+  "prototypeSidecarSha256": "b28efa0a99d968dd9304487fdec6890d01186ec9e2c0fc5779508c0d7bd8a9c5",
+  "prototypeSource": {
+    "baseRevision": "f5c5fde380f60937ef26cc5a92e1d6a043e9cddc",
+    "reviewedPrototypeBaseRevision": "eac50643213d0902a93a5384bae2f1d6c065c9f2",
+    "changes": [
+      {
+        "path": "packages/paperclip-runner/src/drivers/acpx/pi-installation.ts",
+        "beforeSha256": "09a13bdad937b68bf129458d4c00c4ae174c93fad3ae447db3fad922f66c49e5",
+        "afterSha256": "e9f35098a604637a78431a3717c7afa40e666f7acc673f05296e08e8c4255203"
+      },
+      {
+        "path": "packages/paperclip-runner/src/drivers/acpx/pi-verified-runtime.ts",
+        "beforeSha256": "dfb5f6604da0abc307c4bb514e3dd47354f4b867be28fdeb64273c3c055b68c1",
+        "afterSha256": "2120d9dccaf639ad43266e0d8a2cd33c82f0da4c7ee4646ecf26eba7b7c06d18"
+      }
+    ],
+    "compileReceiptSha256": "98a7acb31f1401a0118707736babd5d7bec9877d106b8e4fe94050517405c8c8",
+    "reviewSha256": "2da03536aae1ff8daec593379184da3941be60fff6f49e08da5071a6e86f2135",
+    "baseReproducedExactly": true,
+    "buildInputsSha256": "20ddd97c8c806a76398688f56a6fccc5f272a475e9ebebbf14c2244d0de079e4",
+    "dependencyTopologySha256": "9de0a7067971b2280b7607656423a5cfc7b238c97424012f320720d41c1b67aa"
+  },
+  "prototypePackDigest": "sha256:6110072039d5b683dde8b19333c16f16255aed51a37cad7f53ed7de340f94103"
+}
