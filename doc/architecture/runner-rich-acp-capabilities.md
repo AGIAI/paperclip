@@ -21,8 +21,27 @@ macOS ARM64 daemon and verified pack pass the original no-key startup test
 The original evidence collector rejected Node 24's summary format after the
 runtime checks had passed. Its failure is preserved; independently reviewed
 offline finalization verifies those same logs and full asset inventories without
-rerunning the tests. Native Intel verification and the final installed-package
+rerunning the tests. The fresh native Intel build also passed all 48 contract
+tests, but its canonical startup failed at the unchanged 30-second deadline
+(35.032 seconds to settlement). A later instrumented run passed at 22.959 seconds;
+it used a read-verified, warmed filesystem state and does not erase the original
+failure. A four-run I/O-pool comparison was inconclusive, so no production
+thread-pool change was adopted. Intel startup and the final installed-package
 local/Daytona tests remain separate gates.
+
+Testing the actual public package installation exposed a packaging defect:
+ambient npm 10 pruned 84 files from the pinned Pi dependency closure. Setup now
+uses npm 11.19.0 bundled in the independently verified Node archive. The repaired
+provisioner reproduces the original profile-12 closure with ambient npm disabled;
+fresh public-package installation proof remains required.
+
+Normal Daytona setup now has an explicit operator command to import a verified
+Linux companion into the installed server. It binds the trusted manifest to the
+installed source, Pi profile, daemon and complete provider-pack inventory, then
+uses the ordinary remote execution path without test-only binary or pack
+overrides. Its 31 focused tests cover asynchronous bounded verification,
+cancellation, existing-cache validation, contained paths and owned cleanup.
+These tests do not establish live Daytona qualification or release publication.
 
 Full repository typecheck, tests, token gates, Product E2E typecheck/unit checks,
 and build passed on the earlier source `efe019a79f50440d7bd6c3bc6c75fb8f18953093`.
