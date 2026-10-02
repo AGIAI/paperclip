@@ -612,6 +612,14 @@ jobs:
         with:
           ref: ${{ needs.authorize_manual.outputs.target_sha }}
           persist-credentials: false
+      - name: Checkout trusted read-only executable observer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .trusted-source-observer
+          sparse-checkout: scripts/ci/source-observer/executable_holders.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - name: Record immutable source and planned checks
         env:
           SOURCE_SHA: ${{ needs.authorize_manual.outputs.target_sha }}
@@ -621,6 +629,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p remote-source-verification
+          git -C .trusted-source-observer rev-parse HEAD > remote-source-verification/observer-source.txt
+          test "$(cat remote-source-verification/observer-source.txt)" = "${{ github.workflow_sha }}"
+          sha256sum .trusted-source-observer/scripts/ci/source-observer/executable_holders.py > remote-source-verification/observer-helper.sha256
           git rev-parse HEAD > remote-source-verification/source.txt
           test "$(cat remote-source-verification/source.txt)" = "$SOURCE_SHA"
           printf '%s\n' "$EXPECTED_LOCK_SHA256" > remote-source-verification/expected-resolved-lock.sha256
@@ -719,9 +730,21 @@ jobs:
           progress_pid=
           checks_started_at=$(date +%s)
           trap 'if [ -n "$progress_pid" ]; then kill "$progress_pid" 2>/dev/null || true; fi' EXIT
+          observe_holders() {
+            # Exact executable identity only: no argv/environment reads or signals.
+            timeout --signal=TERM --kill-after=2s 10s python3 -B \
+              .trusted-source-observer/scripts/ci/source-observer/executable_holders.py \
+              --target "$GITHUB_WORKSPACE/packages/paperclip-runner/dist/bin/paperclip-runnerd" \
+              > "remote-source-verification/check-$index-holders-$1.json" \
+              2> "remote-source-verification/check-$index-holders-$1.stderr"
+            observer_status=$?
+            printf '%s\n' "$observer_status" > "remote-source-verification/check-$index-holders-$1.status"
+            if [ "$observer_status" -ne 0 ]; then status=1; fi
+          }
           while IFS= read -r check; do
             index=$((index + 1))
             echo "Starting $check"
+            observe_holders before
             printf 'running\n' > "remote-source-verification/check-$index.status"
             # test:run executes all groups serially. Recorded server durations
             # alone exceed 85 minutes; ordinary CI distributes them across shards.
@@ -758,6 +781,7 @@ jobs:
             printf '%s\t%s\n' "$check_status" "$check" >> remote-source-verification/check-status.tsv
             if [ "$check_status" -ne 0 ]; then status=1; fi
             echo "Finished $check (exit $check_status)"
+            observe_holders after
           done < remote-source-verification/commands.txt
           exit "$status"
       - name: Audit source and lock closure even on check failure
