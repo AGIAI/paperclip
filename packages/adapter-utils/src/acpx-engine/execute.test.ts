@@ -597,6 +597,9 @@ describe("shared ACPX engine runtime behavior", () => {
     const fresh = await runExecutor(config, { context });
     expect(fresh.turnInputs).toHaveLength(1);
     const prompt = String(fresh.turnInputs[0]?.text ?? "");
+    expect(prompt).toContain("You are agent agent-1");
+    expect(prompt).toContain("Connection tools:");
+    expect(prompt).not.toContain("Execution contract:");
     expect(prompt).toContain(context.paperclipTaskMarkdownAssignment);
     expect(prompt).toContain(context.paperclipTaskCommunicationGuidance);
     expect(prompt).not.toContain('"objective":');
@@ -610,10 +613,18 @@ describe("shared ACPX engine runtime behavior", () => {
     const resumed = await runExecutor(config, { context, runtime: { sessionParams: fresh.result.sessionParams } });
     expect(resumed.sessionInputs[0]?.resumeSessionId).toBe(fresh.result.sessionId);
     const resumedPrompt = String(resumed.turnInputs[0]?.text ?? "");
+    expect(resumedPrompt).not.toContain("Execution contract:");
     expect(resumedPrompt).toContain(context.paperclipTaskMarkdownAssignmentCompact);
     expect(resumedPrompt).not.toContain(context.paperclipTaskCommunicationGuidance);
     expect(resumedPrompt).not.toContain('"id":"comment-first"');
     expect(resumedPrompt).toContain('"id":"comment-second"');
+    const reset = await runExecutor(config, { context });
+    expect(reset.sessionInputs[0]?.resumeSessionId).toBeUndefined();
+    const resetPrompt = String(reset.turnInputs[0]?.text ?? "");
+    expect(resetPrompt).toContain("You are agent agent-1");
+    expect(resetPrompt).toContain("Connection tools:");
+    expect(resetPrompt).toContain(context.paperclipTaskMarkdownAssignment);
+    expect(resetPrompt).not.toContain("Execution contract:");
   });
 
   it("includes Paperclip env and API access notes in the ACPX prompt without leaking the token", async () => {
@@ -747,10 +758,10 @@ describe("shared ACPX engine runtime behavior", () => {
       expect(prompt).not.toContain("Create child issues");
       expect(prompt).not.toContain("Use child issues");
     }
-    expect(String(fresh.meta[0]?.prompt)).toContain(custom ? "Custom agent instructions." : "Continue your Paperclip conversation");
-    expect(String(reset.meta[0]?.prompt)).toContain(custom ? "Custom agent instructions." : "Continue your Paperclip conversation");
+    expect(String(fresh.meta[0]?.prompt)).toContain(custom ? "Custom agent instructions." : "You are agent agent-1");
+    expect(String(reset.meta[0]?.prompt)).toContain(custom ? "Custom agent instructions." : "You are agent agent-1");
     const ordinary = await runExecutor({ ...config, promptTemplate: "" }, { context: { ...context, conversationMode: false } });
-    expect(String(ordinary.meta[0]?.prompt)).toContain("Execution contract:");
+    expect(String(ordinary.meta[0]?.prompt)).not.toContain("Execution contract:");
     expect(String(ordinary.meta[0]?.prompt)).toContain("Create child issues from the approved plan");
   });
 
