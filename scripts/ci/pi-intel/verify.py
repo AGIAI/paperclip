@@ -7,6 +7,7 @@ from owned_processes import OwnedProcesses,atomic_json
 import source_guard
 from lifecycle import Lifecycle, run_test_cases
 from retain_pack import retain_pack
+from native_daemon_reuse import import_daemon
 
 HERE=Path(__file__).resolve().parent
 INPUTS=json.loads((HERE/'profile-inputs.json').read_text())
@@ -73,6 +74,26 @@ def build_native_daemon(stage, scratch, env, run, receipt, save):
     save()
     return daemon
 
+def reuse_native_daemon(archive,stage,out,scratch,run,receipt,save):
+    """Retain original compiler/signature provenance; do not rebuild or re-sign."""
+    pin=INPUTS['nativeDaemonReuse']
+    require(pin['nativeInputEquivalentTo']==SOURCE and pin['claims']['freshNativeCompilation'] is False,'Wrong native reuse authority')
+    daemon=stage/'packages/paperclip-runner/dist/bin/paperclip-runnerd'
+    retained=scratch/'original-native-artifact'
+    reuse=import_daemon(archive,out/'source.tar',retained,daemon,pin)
+    require(reuse['declaredInputCount']==145,'Unexpected native input inventory scope')
+    refs=out/'original-native-provenance';refs.mkdir(mode=0o700)
+    for name in ('receipt.json','source-input-inventory.json','declared-input-equality.json'):
+        shutil.copy2(retained/name,refs/name)
+    receipt.update(nativeRecompiled=False,nativeDaemonReuse=reuse,nativeBuildSource=pin['originalBuildSource'],
+                   originalNativeCompiler=pin['compiler'],daemonSha256=sha(daemon));save()
+    run(['/usr/bin/codesign','--verify','--strict',daemon],'daemon-signature-verify',30)
+    require('Mach-O 64-bit executable x86_64' in run(['/usr/bin/file',daemon],'daemon-architecture',30),'Wrong daemon architecture')
+    receipt['daemonBuildMetadata']=json.loads(run([daemon,'--build-metadata'],'daemon-metadata',30))
+    require(receipt['daemonBuildMetadata']==INPUTS['expectedDaemonBuildMetadata'],'Wrong daemon build metadata')
+    require(sha(daemon)==pin['selectedFiles']['paperclip-runnerd']['sha256'],'Reused daemon changed during verification')
+    save();return daemon
+
 def execute(args):
     stage=args.source.resolve(strict=True);out=args.output.resolve()
     out.mkdir(mode=0o700,parents=True,exist_ok=False)
@@ -81,7 +102,7 @@ def execute(args):
     receipt={'status':'running','sourceRevision':SOURCE,'trustedWorkflowRevision':os.environ['GITHUB_WORKFLOW_SHA'],
              'startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'runId':os.environ['GITHUB_RUN_ID'],'runAttempt':os.environ['GITHUB_RUN_ATTEMPT'],
              'runnerLabel':'macos-15-intel','hostIsBareMetalClaim':False,'providerCalls':0,'credentialsRead':False,
-             'providerPromptsSubmitted':0,'imagePublications':0,'cloudSandboxesCreated':0,'automaticRetries':0,
+             'externalProviderPromptsSubmitted':0,'syntheticLoopbackModelPromptsExpected':True,'imagePublications':0,'cloudSandboxesCreated':0,'automaticRetries':0,
              'model':PIN['model'],'commands':[],'helpers':{p.name:sha(p) for p in HERE.iterdir() if p.is_file()},
              'originalTestSourceUnmodified':True,'cleanupObserverUsed':True,'localComparison':PIN}
     def save():atomic_json(out/'receipt.json',receipt)
@@ -172,7 +193,7 @@ def execute(args):
         run([pnpm,'install','--frozen-lockfile','--ignore-scripts','--package-import-method','copy'],'install',600)
         source_guard.verify_source(stage,SOURCE,PIN['resolvedLockSha256'])
         run([pnpm,'--filter','@paperclipai/paperclip-runner','build:typescript'],'typescript',600)
-        daemon=build_native_daemon(stage,scratch,env,run,receipt,save)
+        daemon=reuse_native_daemon(args.native_archive,stage,out,scratch,run,receipt,save)
         pack=scratch/'provider-pack'
         run([node,'packages/paperclip-runner/scripts/build-provider-pack.mjs',pack],'pack-build',600)
         verified=json.loads(run([node,HERE/'verify-pack.mjs',pack,SOURCE,'darwin','x64'],'pack-verify',180))
@@ -212,4 +233,4 @@ def execute(args):
         receipt['finishedAt']=datetime.datetime.now(datetime.timezone.utc).isoformat();save()
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--source',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);execute(parser.parse_args())
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--source',type=Path,required=True);parser.add_argument('--native-archive',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);execute(parser.parse_args())

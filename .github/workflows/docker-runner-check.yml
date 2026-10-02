@@ -189,7 +189,7 @@ jobs:
             test "$SOURCE_ROOT_TESTS_ONLY" != true
             test "$DIAGNOSE_AJV" != true
             test "$IMAGE_MODE" != true
-            test "$EXPECTED_SOURCE_SHA" = c9de5292d66ea4bad5ad8d2f65288c1c8dc7bfb8
+            test "$EXPECTED_SOURCE_SHA" = 4c58da84fd86a0cd7bc1d952987b031786fc6b2b
             test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
             # Standard hosted runner minutes are free for this public repository.
             # Artifact storage and unrelated resource costs are not inferred here.
@@ -273,12 +273,23 @@ jobs:
         with:
           version: 9.15.4
           package_json_file: candidate/package.json
+      - name: Download exact previously signed B9 native compiler artifact
+        timeout-minutes: 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api repos/paperclipai/paperclip/actions/artifacts/11208570718/zip \
+            > "$RUNNER_TEMP/pi-native-b9.zip"
+          printf '%s  %s\n' b82cf6c843006781e2e6d5f0a06e0ff39497ffc457b94a511f8bdda66628aa43 \
+            "$RUNNER_TEMP/pi-native-b9.zip" | shasum -a 256 --check
       - name: Build frozen pack and run unchanged no-provider contracts once
         timeout-minutes: 55
         run: |
           set -euo pipefail
           python3 -B trusted-ci/scripts/ci/pi-intel/verify.py \
             --source "$GITHUB_WORKSPACE/candidate" \
+            --native-archive "$RUNNER_TEMP/pi-native-b9.zip" \
             --output "$GITHUB_WORKSPACE/pi-intel-evidence"
       - name: Admit complete evidence within the reserved storage bound
         if: always()

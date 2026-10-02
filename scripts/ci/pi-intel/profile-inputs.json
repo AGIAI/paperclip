@@ -41,7 +41,7 @@
     "patches/pi-acp@0.0.33.patch": "93254de82ae779587611748cfb963475c3439e033f1582f06dfdcc7f7b937546",
     "packages/paperclip-runner/scripts/pi-distribution/package.json": "c14f4050ef27dca91d3650e7446bc9927296a926224dba50a0e02f5d9fd4d95b",
     "packages/paperclip-runner/scripts/pi-distribution/package-lock.json": "f4b04d51c4d91a6529dc97af2f3f84c28a220d93a54b5555826c4d9fd30f0939",
-    "packages/paperclip-runner/scripts/materialize-pi-distribution.mjs": "e3233a5e88f099a0b451d2dbdb5e9507e93ff8087c42cc6048620c5a4a2c6452",
+    "packages/paperclip-runner/scripts/materialize-pi-distribution.mjs": "d1130c828b0fc8145b8f59da0bda374323df7b8089b389379dc54275abc5379e",
     "packages/paperclip-runner/scripts/build-node-startup-timeout.mjs": "545dbaf7062b1cd54176dafe3feb8877e5ccf19406f791172a3ad47dbfd73fc4",
     "packages/paperclip-runner/src/drivers/acpx/pi-acp-runtime.ts": "95f74eb44a2e498fbd9461d363fac5b4d5fdae05b9666dca1ac4a632229dfef4",
     "packages/paperclip-runner/src/drivers/acpx/pi-runtime-extension.ts": "f3446be10d984c368c52202e768aefe9b4a25968e09922e98e3f016c9dc0198e",
@@ -178,8 +178,8 @@
     }
   },
   "localComparison": {
-    "sourceRevision": "c9de5292d66ea4bad5ad8d2f65288c1c8dc7bfb8",
-    "sourceArchiveSha256": "5f68b28cde9cf90a3dcf964723270f079bdfe26bc5a324991de07c4a4a6ceda8",
+    "sourceRevision": "4c58da84fd86a0cd7bc1d952987b031786fc6b2b",
+    "sourceArchiveSha256": "7fa9d4979464c09e878dc3776e10f660a89382e1a89c268b1cfe0d23f9a47945",
     "trackedLockSha256": "e11d69fa8702a906c293c1cb307c71df90d3b1f1617b3c23ebf17fa9a87fec79",
     "resolvedLockSha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
     "nodeSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49",
@@ -187,7 +187,7 @@
     "piRuntimeVersion": "1.0.0",
     "piServerVersion": "0.0.33",
     "acpxVersion": "0.13.1",
-    "note": "Fresh exact-source TypeScript, sidecar, native Intel Rust daemon and normal qualified Pi12-only default provider pack. No candidate flag; historical local outputs are not current outputs and no old daemon import is used. Public npm installation is a separate Product proof.",
+    "note": "Fresh exact current-source TypeScript/sidecar and normal qualified Pi12-only pack. Exact signed B9 native daemon reused only after complete145native/source/config/protocol equality; original compiler/build provenance retained. No fresh native compilation or current toolchain equivalence claim. Public npm installation is a separate Product proof.",
     "historicalLocalOutputs": {
       "localPackDigest": "sha256:a7ae16b680c6fcaa9438faa46562ba31519bb0fb42e21b0a4b00e8936c462d89",
       "localDaemonSha256": "c0e9acdd461d5efe4a10f9fd751e8a67beceede4d43593951d7079edad657044",
@@ -229,6 +229,172 @@
       "qualification": "qualified",
       "profileVersion": 12,
       "profileDigest": "sha256:47306e6d2a9b59e8f9189f725ebb7a0a7f91826044d1739e1a35ab31f228ba1f"
+    }
+  },
+  "nativeDaemonReuse": {
+    "schema": "paperclip.native-daemon-reuse/v1",
+    "originalBuildSource": "b9e5d6ecdb05ab7244c90976e07c950f8d09b15b",
+    "nativeInputEquivalentTo": "4c58da84fd86a0cd7bc1d952987b031786fc6b2b",
+    "artifactRunId": "36959948724",
+    "artifactId": "11208570718",
+    "artifactWorkflowRevision": "9541eb18789bac35242eeea3e569b77fa90d1818",
+    "artifactZipBytes": 1076365959,
+    "artifactZipSha256": "b82cf6c843006781e2e6d5f0a06e0ff39497ffc457b94a511f8bdda66628aa43",
+    "sourceArchiveSha256": "b32d8e32639e6527804fe11bfa1aaefcefa87fca31e9155499e6b9a28f69dbd4",
+    "selectedFiles": {
+      "receipt.json": {
+        "bytes": 32763,
+        "sha256": "47ef1f494c59c1249ac42f08308a2fb83edcb0759890960059cc367ebdf12bf0"
+      },
+      "source.tar": {
+        "bytes": 141742080,
+        "sha256": "b32d8e32639e6527804fe11bfa1aaefcefa87fca31e9155499e6b9a28f69dbd4"
+      },
+      "source-input-inventory.json": {
+        "bytes": 1033702,
+        "sha256": "7c160bb1fc4d049378004d014e398d42dabf12e8a73ec9cdda7679113aaa6949"
+      },
+      "paperclip-runnerd": {
+        "bytes": 32035568,
+        "sha256": "29d5b0fc2ae2a552b89a107e3777e2c8ee356ebdbb13a14ceab8865e1cea1d45"
+      }
+    },
+    "originalVerifierSha256": "1e2020d6333618e6a59fa2ec444aa88711cced7aae4f2c78deb04ec7a54eeb97",
+    "compiler": {
+      "rustcSha256": "a1fd557be213adbcfe224e0e05e2903aa3f4b8d9294bed51d97a9d2a0b201e55",
+      "cargoSha256": "07816976dbe29da10bf127b75edcb0f5cd8b8652051b9c79709f8c0898d125d2",
+      "versionVerbose": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: x86_64-apple-darwin\nrelease: 1.97.1\nLLVM version: 22.1.6\n",
+      "cargoVersion": "cargo 1.97.1 (c980f4866 2026-06-30)\n",
+      "jobs": 2,
+      "sdk": {
+        "path": "/Applications/Xcode_16.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+        "version": "15.5",
+        "settings": {
+          "SDKSettings.json": "58a133735f0a55a624a1703067059f6e78925e51725ec6e1f966072e142c9c42",
+          "SDKSettings.plist": "30bf3c8ef32f46d43f68eb91a85eded3e1763edc752a6fd71633eecac4909b28"
+        }
+      },
+      "appleTools": {
+        "clang": {
+          "path": "/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang",
+          "sha256": "4c458256bcdf913774de1bb4a37768244d3b41f32ad55afb2dfec3432f46f4fe"
+        },
+        "ld": {
+          "path": "/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld",
+          "sha256": "648a8aac7f6f829a42305d24dddd7a3cfa48ee0bd9d4e7ec1ded5c51edea372b"
+        }
+      },
+      "target": "x86_64-apple-darwin",
+      "rustflags": "",
+      "targetDirectory": "/private/tmp/pc-intel-ksmcy7ln/target"
+    },
+    "buildCommandTail": [
+      "build",
+      "--release",
+      "--target",
+      "x86_64-apple-darwin",
+      "--manifest-path",
+      "packages/paperclip-runner/runner/Cargo.toml",
+      "--locked",
+      "-p",
+      "paperclip-runner-core",
+      "--bin",
+      "paperclip-runnerd",
+      "-j",
+      "2"
+    ],
+    "daemonBuildMetadata": {
+      "binaryContractVersion": 2,
+      "binaryName": "paperclip-runnerd",
+      "durableSessionCapabilities": [
+        "unlimited_runtime",
+        "connection_lease_renewal"
+      ],
+      "harnessDriverVersion": 1,
+      "nativeExecutionVersion": 1,
+      "packageName": "@paperclipai/paperclip-runner",
+      "packageVersion": "0.0.0",
+      "prp": {
+        "maximumVersion": 2,
+        "minimumVersion": 1,
+        "name": "paperclip.runner"
+      },
+      "prpTransportModes": [
+        "dial_ws_loopback",
+        "dial_wss",
+        "listen_ws"
+      ],
+      "schema": "paperclip-runner/runnerd-build-metadata/v1"
+    },
+    "sourceDeltaAllowed": [
+      "cli/src/__tests__/runtime.test.ts",
+      "cli/src/commands/runtime.ts",
+      "cli/src/index.ts",
+      "doc/architecture/runner-pi-capabilities.md",
+      "doc/architecture/runner-rich-acp-capabilities.md",
+      "packages/adapter-utils/src/paperclip-runner-permissions.test.ts",
+      "packages/adapter-utils/src/paperclip-runner-permissions.ts",
+      "packages/adapters/codex-local/src/ui/build-config.test.ts",
+      "packages/adapters/codex-local/src/ui/build-config.ts",
+      "packages/paperclip-runner/scripts/build-provider-pack.mjs",
+      "packages/paperclip-runner/scripts/build-verified-provider-entrypoints.mjs",
+      "packages/paperclip-runner/scripts/build-verified-provider-entrypoints.test.mjs",
+      "packages/paperclip-runner/scripts/candidate-provider-pack.mjs",
+      "packages/paperclip-runner/scripts/candidate-provider-pack.test.mjs",
+      "packages/paperclip-runner/scripts/materialize-pi-distribution.mjs",
+      "packages/paperclip-runner/scripts/materialize-pi-distribution.test.mjs",
+      "packages/paperclip-runner/scripts/provision-pi-package.test.mjs",
+      "packages/paperclip-runner/scripts/provision-pi.mjs",
+      "packages/paperclip-runner/src/backends/native-backend-factory.test.ts",
+      "packages/paperclip-runner/src/cli/acpx-runtime-sidecar.test.ts",
+      "packages/paperclip-runner/src/cli/eval-session-contract.test.ts",
+      "packages/paperclip-runner/src/cli/eval-session-contract.ts",
+      "packages/paperclip-runner/src/drivers/acpx/capability-profiles.ts",
+      "packages/paperclip-runner/src/drivers/acpx/driver-profile.test.ts",
+      "packages/paperclip-runner/src/drivers/acpx/installation-integrity.ts",
+      "packages/paperclip-runner/src/drivers/acpx/pi-installation.ts",
+      "packages/paperclip-runner/src/drivers/acpx/pi-provision.test.ts",
+      "packages/paperclip-runner/src/drivers/acpx/provider-assets-root.test.ts",
+      "packages/paperclip-runner/src/drivers/acpx/provider-assets-root.ts",
+      "packages/paperclip-runner/src/drivers/acpx/qualified-profiles.ts",
+      "packages/paperclip-runner/src/index.ts",
+      "packages/paperclip-runner/src/live/index.ts",
+      "packages/paperclip-runner/src/live/live-session.test.ts",
+      "packages/paperclip-runner/src/live/live-session.ts",
+      "packages/paperclip-runner/src/live/runnerd-codex-transport.test.ts",
+      "packages/paperclip-runner/src/live/runnerd-codex-transport.ts",
+      "packages/paperclip-runner/test/pi-closed-startup.test.mjs",
+      "scripts/create-runner-remote-companion.mjs",
+      "server/src/__tests__/adapter-registry.test.ts",
+      "server/src/__tests__/remote-pi-companion.test.ts",
+      "server/src/adapters/registry.ts",
+      "server/src/services/heartbeat-runner-provider-config.test.ts",
+      "server/src/services/native-runtime/acpx-qualification.test.ts",
+      "server/src/services/native-runtime/native-session-executor.test.ts",
+      "server/src/services/native-runtime/native-session-executor.ts",
+      "server/src/services/native-runtime/provider-profile.ts",
+      "server/src/services/native-runtime/remote-pi-companion.ts",
+      "server/src/vendor/paperclip-runner/index.ts",
+      "tests/runner-e2e/README.md",
+      "tests/runner-e2e/extended-harnesses.test.ts",
+      "tests/runner-e2e/harness-env.ts",
+      "tests/runner-e2e/installed-cli.test.ts",
+      "tests/runner-e2e/installed-cli.ts",
+      "tests/runner-e2e/launch.ts",
+      "tests/runner-e2e/pi-controls-evidence.test.ts",
+      "tests/runner-e2e/pi-native-cases.test.ts",
+      "tests/runner-e2e/server.ts",
+      "ui/src/adapters/codex-local/config-fields.test.tsx",
+      "ui/src/adapters/codex-local/config-fields.tsx"
+    ],
+    "missingOriginalToolchainEvidence": [
+      "No full Apple SDK content inventory; no current-host toolchain equivalence claimed."
+    ],
+    "claims": {
+      "freshNativeCompilation": false,
+      "currentToolchainEquivalent": false,
+      "originalSignedBytesPreserved": true,
+      "completeDeclaredNativeInputEquality": true
     }
   }
 }
