@@ -97,7 +97,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
         if (failure === "missing-ack") f.run.resultJson.queuedSteeringAcknowledgements = {};
         postBrowser("/api/issues/issue/queued-comments/comment/steer", { queueId: "queue", targetRunId: "run", revision: "revision" });
       } else if (kind === "deny") {
-        browserDeclines++; expect(browserSteers).toBe(1); expect(stopCase).toBe(false); f.finish();
+        browserDeclines++; expect(browserSteers).toBe(1); expect(stopCase).toBe(false); f.finish(steeringMarker);
         f.run.resultJson.presentationDecision = { commentId: "final", reason: "fixture-public-presentation" };
         postBrowser("/api/heartbeat-runs/run/runtime-requests/request/resolve", { turnId: "turn", requestKind: "permission_approval", resolution: { action: "decline" } });
       } else throw new Error(`Unexpected click ${kind}`);

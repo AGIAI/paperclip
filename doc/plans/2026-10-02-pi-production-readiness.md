@@ -22,7 +22,7 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Gate | Acceptance evidence | Current result |
 | --- | --- | --- |
 | Runtime identity and admission | Exact runtime/profile/model; verified effective thinking; startup below the 60-second admission limit; unsupported configuration fails before a prompt | Deterministic checks and ARM installed startup pass. Recheck final source on all supported hosts. |
-| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed local restart and three-turn warm continuity pass at `f5f57e380`. Pending-permission Stop and stale response rejection pass at `03dd6ef93`. Provider-death evidence remains required. |
+| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed profile-14 same-turn steering passes at `dc2b053f3`. Restart and three-turn warm continuity pass at historical `f5f57e380`; pending-permission Stop and stale response rejection pass at `03dd6ef93`. Final-source lifecycle and provider-death evidence remain required. |
 | Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | Historical partial passes exist. Full final-source campaign remains required. |
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | Installed get-task-context passes at `f5f57e380`; context-before-action times out. Five cells remain unexecuted. |
 | Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Historical ARM and Intel public installations pass. Linux CI retains `session_handshake_timeout`; queued fleet jobs were cancelled. Final-source platform receipts, Linux companion and Daytona image remain required. |
@@ -44,6 +44,21 @@ attempt. API key deltas are provisional billing observations. Pi model-catalog
 prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 
 ## Evidence so far
+
+- At `dc2b053f3`, the fresh installed profile-14 steering journey receives a
+  canonical pass in 52 seconds, including cleanup. It proves the exact browser
+  comment, one acknowledgement, denial of the original native write, the hidden
+  instruction in the persisted final comment, succeeded/Done, process retirement
+  and continuous no-effect evidence through cleanup. The original failed grades
+  stay unchanged. No automatic retry or fallback key occurs.
+- Final controls definitions advance to version 6. Steering now requires both
+  linked control-plane records, the matching accepted result, and succeeded/
+  completed/done terminal values. Stop keeps its separate cancellation contract.
+  Missing, foreign, duplicate, premature and contradictory records fail. All
+  129 controls/flow/catalog tests and Product E2E typecheck pass. The successful
+  installed receipt also passes this stricter replay, with no provider call.
+  The version-5 canonical pass remains version-5 evidence; the full final-source
+  matrix remains a release gate.
 
 - At `603ad3726`, the installed steering journey posts Steer (HTTP 200) and
   Deny (HTTP 202) to the original request. The provider consumes the hidden
@@ -186,6 +201,22 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   Its offline launch probe still returns an unclassified startup rejection;
   the verifier gives that launch's private runtime snapshots the same bounded
   scratch capacity. This is not counted as a passing Linux receipt yet.
+
+## Remaining work in order
+
+1. Diagnose Linux closed admission from its real startup and cleanup evidence.
+   Resolve `session_handshake_timeout` and classify the observed Mac ownership
+   contention. Produce the normal Linux public-install and companion receipts,
+   then import an immutable exact-source Daytona image without an override.
+   Do not accept a timeout as an installation pass or widen the admission limit.
+2. Resolve Runner `context-before-action` with a concrete behavioral correction.
+   It currently repeats context calls without the required progress mutation.
+   Do not run an unchanged paid retry. Then execute the remaining explicit
+   Runner cases and the full 26-cell Product matrix on the frozen candidate.
+3. Close the prerequisite review stack and final CI gates. Retain the local
+   Codex interrupt-recovery failure until it is resolved or its host-specific
+   cause is established. Publish only the qualified artifacts, then use the
+   bounded operator rollout below. No merge or release is authorized here.
 
 ## Rollout and rollback
 

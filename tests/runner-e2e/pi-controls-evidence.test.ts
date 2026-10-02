@@ -112,14 +112,7 @@ function steered() {
 }
 describe("Pi same-turn steering", () => {
   function withControlSettlement() {
-    const s = steered();
-    s.f.append("run.result.accepted", { result: { schema: "paperclip.run_result.v1" } }, {
-      sourceKind: "control_plane", sourceInstanceId: "source:control", sourceSeq: 1, sourceEventId: "source:control:run:1",
-    });
-    s.f.append("run.terminal", { schema: "paperclip.prp.terminal.v1", runTerminalState: "succeeded" }, {
-      sourceKind: "control_plane", sourceInstanceId: "source:control", sourceSeq: 2, sourceEventId: "source:control:run:2",
-    });
-    return s;
+    return steered();
   }
   it("keeps exact runner proof when the control plane records result and terminal events", () => {
     expect(withControlSettlement().read()).toMatchObject({ nativeFollowUpTested: false });
@@ -132,6 +125,14 @@ describe("Pi same-turn steering", () => {
     ["reordered control sequence", s => { event(s.f.events.at(-1)!).sourceSeq = 1; event(s.f.events.at(-1)!).sourceEventId = "source:control:run:1"; }],
     ["duplicate control terminal", s => { s.f.append("run.terminal", { schema: "paperclip.prp.terminal.v1" }, { sourceKind: "control_plane", sourceInstanceId: "source:control", sourceSeq: 3, sourceEventId: "source:control:run:3" }); }],
     ["unbound control result", s => { event(s.f.events.at(-2)!).payload.result.schema = "foreign"; }],
+    ["both control records missing", s => { s.f.events.splice(-2); }],
+    ["accepted result missing", s => { s.f.events.splice(-2, 1); }],
+    ["control terminal missing", s => { s.f.events.pop(); }],
+    ["wrong control summary", s => { event(s.f.events.at(-2)!).payload.result.summary = "Finished"; }],
+    ["unfinished control result", s => { event(s.f.events.at(-2)!).payload.result.reportedWorkDisposition = "in_progress"; }],
+    ["failed control terminal", s => { event(s.f.events.at(-1)!).payload.runTerminalState = "failed"; }],
+    ["interrupted control turn", s => { event(s.f.events.at(-1)!).payload.turnTerminalState = "interrupted"; }],
+    ["unfinished control terminal", s => { event(s.f.events.at(-1)!).payload.reportedWorkDisposition = "in_progress"; }],
     ["control terminal before runner completion", s => {
       for (const row of s.f.events.slice(3, 6)) row.seq += 2;
       s.f.events.at(-2)!.seq = 4; s.f.events.at(-1)!.seq = 5;
@@ -189,8 +190,8 @@ describe("Pi controls catalog admission", () => {
     const pi = runnerMatrix.find(c => c.profile.qualificationCandidate === "pi")!.profile;
     expect(pi.modelQualification?.qualificationId).toBe("pi:0.0.33:1.0.0:openrouter");
     expect(runnerSuites.find(s => s.id === "pi-native")!.definitionMetadata).toMatchObject({ version: 4, profileVersion: 14 });
-    expect(runnerSuites.find(s => s.id === "pi-controls")!.definitionMetadata).toMatchObject({ version: 5, profileVersion: 14,
-      controlPlaneSettlement: "scoped-result-and-terminal-after-runner" });
+    expect(runnerSuites.find(s => s.id === "pi-controls")!.definitionMetadata).toMatchObject({ version: 6, profileVersion: 14,
+      controlPlaneSettlement: "required-scoped-result-and-terminal-after-runner" });
     expect(runnerSuites.find(s => s.id === "extended-harnesses")!.definitionMetadata).toMatchObject({ version: 2 });
     for (const cell of runnerMatrix.filter(cell => cell.profile.qualificationCandidate === "pi")) {
       const agent = cell.profile.buildAgent({ environmentId: "environment", environmentFixtureId: cell.environment.id, workspacePath: "/workspace", executionId: cell.id, secretRefs: { OPENROUTER_API_KEY: { type: "secret_ref", secretId: "synthetic", version: "latest" } } });

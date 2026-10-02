@@ -77,7 +77,7 @@ function origin(events: readonly unknown[], scope: PiControlScope) {
   // Read-only orientation/bootstrap can precede the write. Never exempt another
   // edit, shell execution, or unknown native operation as an alleged bootstrap.
   requireProof(native.every(x => rec(x.event.payload).executionId === executionId || (x.event.payload.operation === "read" && x.row.seq < Math.min(card.row.seq, started[0]!.row.seq))), "extra native operation");
-  return { rows, card, request, started: started[0]!, executionId, stream };
+  return { rows, control, card, request, started: started[0]!, executionId, stream };
 }
 export function observePiControlPending(input: PiControlState & { scope: PiControlScope }): PiControlPending {
   const { run, issue, scope } = input, p = origin(input.events, scope);
@@ -138,6 +138,11 @@ export function readPiSteeringAcknowledgement(input: PiControlState & { pending:
 }
 export function readPiSteeringSettlement(input: PiControlState & { pending: PiControlPending; commentId: string; queueId: string; marker: string; finalMessage: string }) {
   const ack = readPiSteeringAcknowledgement(input), p = retained(input), b = input.pending;
+  const accepted = rec(rec(p.control[0]?.event.payload).result), terminalResult = rec(p.control[1]?.event.payload);
+  requireProof(p.control.length === 2 && p.control[0]!.event.eventType === "run.result.accepted" && p.control[1]!.event.eventType === "run.terminal"
+    && accepted.reportedWorkDisposition === "done" && accepted.summary === input.marker
+    && terminalResult.runTerminalState === "succeeded" && terminalResult.turnTerminalState === "completed" && terminalResult.reportedWorkDisposition === "done",
+  "complete matching control-plane settlement required");
   const closed = p.rows.filter(x => closureTypes.has(x.event.eventType)), terminal = p.rows.filter(x => terminalTypes.has(x.event.eventType));
   const failed = p.rows.filter(x => x.event.eventType === "tool.execution.completed" && x.event.payload.executionId === b.executionId);
   requireProof(closed.length === 1 && closed[0]!.event.eventType === "runtime_request.resolved" && closed[0]!.event.payload.requestId === b.requestId && closed[0]!.event.payload.turnId === b.turnId
