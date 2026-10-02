@@ -1797,3 +1797,26 @@ the evaluated checkout byte for byte. The skill snapshot and provider run eviden
 are retained privately alongside the grading checkpoints for failure diagnosis.
 Claude receives a fresh provider home and config directory inside the disposable
 workspace so a user's installed skill cannot shadow the managed skill under test.
+
+### Published-install Pi lane
+
+The 26 explicit Pi cells can run against an independently installed public CLI
+and server instead of the source CLI. Supply all four reviewed pins:
+`PAPERCLIP_RUNNER_E2E_INSTALLED_CLI` (canonical `paperclipai/dist/index.js`),
+`PAPERCLIP_RUNNER_E2E_INSTALLED_CLI_SHA256` (bare SHA-256),
+`PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_ROOT` (canonical resolved public server
+package root), and `PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_SHA256` (its
+`dist/index.js` SHA-256). The CLI must resolve that exact server dependency, with
+matching public package versions. Build/install provenance and the complete
+installed dependency/assets inventory remain separate required evidence; the
+entrypoint checks alone do not prove that closure.
+
+Run the explicit `paperclipai runtime setup pi` for that installation first.
+This lane rejects candidate flags, local/remote daemon overrides, provider asset
+or pack overrides, and Node injection. It launches the installed JavaScript CLI
+without a TypeScript loader, rechecks its pins on controller restart, and records
+`installed-cli-admission.json` in private attempt evidence. It supports only the
+explicit Pi extended, native, controls and warm suites, which require none of the
+source-only response barriers. Cursor/Copilot qualification gates stay intact.
+Pi's historical `qualificationCandidate` fixture selector remains a roster key;
+it no longer grants an opt-in when the source Pi declaration admits normal use.

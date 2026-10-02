@@ -1,3 +1,4 @@
+import { assertInstalledCliSelection, verifyInstalledCli } from "./installed-cli.js";
 import { createProcessTreeOwner, stopOwnedProcessTree } from "./process-tree-owner.js";
 import { randomBytes } from "node:crypto";
 import { prepareCodexCiSandbox, requiresCodexCiSandbox } from "./codex-ci-sandbox.js";
@@ -471,6 +472,8 @@ async function runAttempt(input: {
       "One isolated runner E2E harness cannot mix profiles or environments",
     );
   }
+  assertInstalledCliSelection(process.env, executions);
+  const installedCli = await verifyInstalledCli(process.env, executions);
   const startedAtMs = Date.now();
   const sharedMemoryBaseline = snapshotDarwinSharedMemory();
   const temporaryRoot = await mkdtemp(
@@ -516,7 +519,8 @@ async function runAttempt(input: {
       betterAuthSecret,
     ]);
     attemptSecrets = credentials;
-    const runnerBinary = resolvePaperclipRunnerBinaryForHarness(
+    if (installedCli) await writeFile(path.join(privateDir, "installed-cli-admission.json"), `${JSON.stringify(installedCli, null, 2)}\n`, { mode: 0o600 });
+    const runnerBinary = installedCli ? undefined : resolvePaperclipRunnerBinaryForHarness(
       executions,
       repositoryRoot,
     );
@@ -534,7 +538,7 @@ async function runAttempt(input: {
       PAPERCLIP_RUNNER_E2E_SERVER_LOG: path.join(privateDir, "server.log"),
       PAPERCLIP_RUNNER_BINARY: runnerBinary,
       PAPERCLIP_RUNNER_REMOTE_BINARY_PATH:
-        resolvePaperclipRemoteRunnerBinaryForHarness(executions, runnerBinary),
+        installedCli ? undefined : resolvePaperclipRemoteRunnerBinaryForHarness(executions, runnerBinary),
       // Vite's optimized dependency cache embeds revision query strings. A
       // private per-attempt cache prevents an earlier cell or local rebuild
       // from producing `504 Outdated Optimize Dep` during browser bootstrap.
