@@ -176,7 +176,7 @@ jobs:
             test "$SOURCE_ROOT_TESTS_ONLY" != true
             test "$DIAGNOSE_AJV" != true
             test "$IMAGE_MODE" != true
-            test "$EXPECTED_SOURCE_SHA" = 7b7fcbf96b1725d9d76f7da3a7b472c3665e2cc5
+            test "$EXPECTED_SOURCE_SHA" = efe019a79f50440d7bd6c3bc6c75fb8f18953093
             test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
             # Standard hosted runner minutes are free for this public repository.
             # Artifact storage and unrelated resource costs are not inferred here.
@@ -381,15 +381,71 @@ jobs:
           printf '%s\n' "$status" > remote-runner-verification/exit-code.txt
           tail -n 100 remote-runner-verification/verify.log
           exit "$status"
-      - name: Retain Runner verification evidence
+      - name: Admit complete Runner evidence within the storage bound
         if: always()
+        id: runner_evidence
+        timeout-minutes: 2
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib, json, os, pathlib, shutil
+          root = pathlib.Path('remote-runner-verification')
+          stage = pathlib.Path('remote-runner-evidence-upload')
+          if not root.is_dir() or root.is_symlink(): raise RuntimeError('Runner evidence root is absent or unsafe')
+          if stage.exists() or stage.is_symlink(): raise RuntimeError('Evidence upload stage already exists')
+          runner_root = pathlib.Path('packages/paperclip-runner')
+          if any(p.is_symlink() for p in (runner_root, *runner_root.parents)): raise RuntimeError('Runner output ancestry is a symlink')
+          roots = [root]
+          def walk_error(error): raise error
+          # Owned output directories only: never traverse dependency/workspace symlinks.
+          for parent, directories, _files in os.walk('packages/paperclip-runner', followlinks=False, onerror=walk_error):
+              if any(name in ('playwright-report', 'test-results') for name in _files): raise RuntimeError('Browser evidence root is not a regular directory')
+              for name in list(directories):
+                  path = pathlib.Path(parent) / name
+                  if path.is_symlink():
+                      if name in ('playwright-report', 'test-results'): raise RuntimeError('Browser evidence root is a symlink')
+                      directories.remove(name)
+                  elif name in ('playwright-report', 'test-results'):
+                      roots.append(path)
+                      directories.remove(name)
+          files, size, limit, seen = [], 0, 512 * 1024 * 1024, set()
+          for base in sorted(set(roots)):
+              for parent in (base, *base.parents):
+                  if parent.is_symlink(): raise RuntimeError('Evidence symlink ancestry is not allowed')
+              if not base.is_dir(): raise RuntimeError('Evidence output is not a directory')
+              for path in sorted(base.rglob('*')):
+                  if path.is_symlink(): raise RuntimeError('Evidence symlink is not allowed')
+                  if path.is_dir(): continue
+                  if not path.is_file(): raise RuntimeError('Nonregular evidence is not allowed')
+                  if path in seen: continue
+                  seen.add(path)
+                  size += path.stat().st_size
+                  if size > limit: raise RuntimeError('Complete Runner evidence exceeds 512 MiB bound')
+                  digest = hashlib.sha256()
+                  with path.open('rb') as source:
+                      for chunk in iter(lambda: source.read(1024 * 1024), b''): digest.update(chunk)
+                  files.append({'path': str(path), 'bytes': path.stat().st_size, 'sha256': digest.hexdigest()})
+          inventory = json.dumps({'bytes': size, 'roots': [str(p) for p in roots], 'discovery': 'owned directories; no symlink traversal', 'files': files}, indent=2) + '\n'
+          if not files or size + len(inventory.encode()) > limit: raise RuntimeError('Complete Runner evidence exceeds bound or is absent')
+          stage.mkdir()
+          for item in files:
+              source, destination = pathlib.Path(item['path']), stage / item['path']
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, destination, follow_symlinks=False)
+              if destination.is_symlink() or destination.stat().st_size != item['bytes']: raise RuntimeError('Evidence changed during staging')
+              digest = hashlib.sha256()
+              with destination.open('rb') as copied:
+                  for chunk in iter(lambda: copied.read(1024 * 1024), b''): digest.update(chunk)
+              if digest.hexdigest() != item['sha256']: raise RuntimeError('Evidence digest changed during staging')
+          (stage / 'evidence-inventory.json').write_text(inventory)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output: output.write('admitted=true\n')
+          PYTHON
+      - name: Retain Runner verification evidence
+        if: always() && steps.runner_evidence.outputs.admitted == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: runner-full-verification-${{ github.run_id }}
-          path: |
-            remote-runner-verification/
-            packages/paperclip-runner/**/playwright-report/
-            packages/paperclip-runner/**/test-results/
+          path: remote-runner-evidence-upload/
+          include-hidden-files: true
           retention-days: 14
 
   manual_source_verify:
@@ -437,10 +493,10 @@ jobs:
           if [ "$SOURCE_ROOT_TESTS_ONLY" = true ]; then
             printf '%s\n' 'pnpm test:run' > remote-source-verification/commands.txt
           fi
+          git ls-tree -r -z HEAD > remote-source-verification/source-tree.zlist
+          git archive --format=tar HEAD | sha256sum > remote-source-verification/source-archive.sha256
           if [ "$SOURCE_E2E_SUPPORT_ONLY" = true ]; then
             printf '%s  pnpm-lock.yaml\n' e11d69fa8702a906c293c1cb307c71df90d3b1f1617b3c23ebf17fa9a87fec79 | sha256sum --check --strict
-            git ls-tree -r -z HEAD > remote-source-verification/source-tree.zlist
-            git archive --format=tar HEAD | sha256sum > remote-source-verification/source-archive.sha256
             printf '%s\n' \
               'pnpm test:e2e:runner:typecheck' \
               'pnpm test:e2e:runner:unit' \
@@ -559,8 +615,8 @@ jobs:
             echo "Finished $check (exit $check_status)"
           done < remote-source-verification/commands.txt
           exit "$status"
-      - name: Audit focused source and lock closure even on check failure
-        if: always() && inputs.source_e2e_support_only
+      - name: Audit source and lock closure even on check failure
+        if: always()
         timeout-minutes: 2
         env:
           SOURCE_SHA: ${{ needs.authorize_manual.outputs.target_sha }}
@@ -573,8 +629,14 @@ jobs:
           git rev-parse HEAD > remote-source-verification/final-source.txt
           test "$(cat remote-source-verification/final-source.txt)" = "$SOURCE_SHA" || status=1
           git status --porcelain=v1 --untracked-files=no > remote-source-verification/final-source-status.txt
-          git diff -- . ':(exclude)pnpm-lock.yaml' > remote-source-verification/final-source.diff
-          git diff --quiet -- . ':(exclude)pnpm-lock.yaml' || status=1
+          git diff HEAD -- . ':(exclude)pnpm-lock.yaml' > remote-source-verification/final-source.diff
+          git diff HEAD --quiet -- . ':(exclude)pnpm-lock.yaml' || status=1
+          git ls-tree -r -z HEAD > remote-source-verification/final-source-tree.zlist
+          cmp remote-source-verification/source-tree.zlist remote-source-verification/final-source-tree.zlist || status=1
+          git archive --format=tar HEAD | sha256sum > remote-source-verification/final-source-archive.sha256 || status=1
+          cmp remote-source-verification/source-archive.sha256 remote-source-verification/final-source-archive.sha256 || status=1
+          git show HEAD:pnpm-lock.yaml | sha256sum > remote-source-verification/final-tracked-lock.sha256 || status=1
+          test "$(cut -d ' ' -f 1 remote-source-verification/original-lock.sha256)" = "$(cut -d ' ' -f 1 remote-source-verification/final-tracked-lock.sha256)" || status=1
           printf '%s  pnpm-lock.yaml\n' "$EXPECTED_LOCK_SHA256" | sha256sum --check --strict > remote-source-verification/final-overlay-check.log 2>&1 || status=1
           date -u +%FT%TZ > remote-source-verification/final-audit.finished-at
           printf '%s\n' "$status" > remote-source-verification/final-audit.status
@@ -588,14 +650,15 @@ jobs:
             sha256sum pnpm-lock.yaml > remote-source-verification/final-lock.sha256
             git diff -- pnpm-lock.yaml > remote-source-verification/final-lock.diff
           fi
-      - name: Admit complete focused evidence within the storage bound
-        if: always() && inputs.source_e2e_support_only
+      - name: Admit complete source evidence within the storage bound
+        if: always()
         id: source_e2e_evidence
         timeout-minutes: 2
         run: |
           python3 - <<'PYTHON'
           import hashlib, json, os, pathlib
           root = pathlib.Path('remote-source-verification')
+          if not root.is_dir() or root.is_symlink(): raise RuntimeError('Source evidence root is absent or unsafe')
           files, size, limit = [], 0, 256 * 1024 * 1024
           for path in sorted(root.rglob('*')):
               if path.is_symlink(): raise RuntimeError('Evidence symlink is not allowed')
@@ -613,11 +676,12 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output: output.write('admitted=true\n')
           PYTHON
       - name: Retain source verification evidence even on failure
-        if: always() && (!inputs.source_e2e_support_only || steps.source_e2e_evidence.outputs.admitted == 'true')
+        if: always() && steps.source_e2e_evidence.outputs.admitted == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ inputs.source_e2e_support_only && 'source-e2e-support' || inputs.source_root_tests_only && 'source-root-tests' || 'source-full-verification' }}-${{ github.run_id }}
           path: remote-source-verification/
+          include-hidden-files: true
           retention-days: ${{ inputs.source_e2e_support_only && 7 || 14 }}
 
   manual_ajv_pack_diagnostic:

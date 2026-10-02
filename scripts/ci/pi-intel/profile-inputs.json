@@ -45,7 +45,7 @@
     "packages/paperclip-runner/scripts/build-node-startup-timeout.mjs": "545dbaf7062b1cd54176dafe3feb8877e5ccf19406f791172a3ad47dbfd73fc4",
     "packages/paperclip-runner/src/drivers/acpx/pi-acp-runtime.ts": "a0ec66a03cd9fa32e9aaafc4ac6840115883333000fd079ccba230706b763ac0",
     "packages/paperclip-runner/src/drivers/acpx/pi-runtime-extension.ts": "f3446be10d984c368c52202e768aefe9b4a25968e09922e98e3f016c9dc0198e",
-    "packages/paperclip-runner/src/drivers/acpx/pi-verified-runtime.ts": "bdac057aa749eb2d65fe0fea27cb7eaa0a92015a631875b1fe8b2365c7aa0cb6",
+    "packages/paperclip-runner/src/drivers/acpx/pi-verified-runtime.ts": "dfb5f6604da0abc307c4bb514e3dd47354f4b867be28fdeb64273c3c055b68c1",
     "packages/paperclip-runner/src/drivers/acpx/pi-node-pins.ts": "ffc822aff64db315e461cbe44f03d704695de4a4296f643af79386c3556a1d46",
     "packages/paperclip-runner/src/drivers/acpx/pi-closure-pins.ts": "0941f56ea13b8eb309a345d2a1513e0ec53d201c81c755b356565505bc1df905",
     "packages/paperclip-runner/src/drivers/acpx/qualified-profiles.ts": "20185223c77ce6d5b67b270abdc0debc26166c7d3dd412a1ecea83f980429027",
@@ -174,8 +174,8 @@
     }
   },
   "localComparison": {
-    "sourceRevision": "7b7fcbf96b1725d9d76f7da3a7b472c3665e2cc5",
-    "sourceArchiveSha256": "ca9790a26cb2fb16202d042a65d4c5c7f775f982812d433e74a10f62ab4e7a65",
+    "sourceRevision": "efe019a79f50440d7bd6c3bc6c75fb8f18953093",
+    "sourceArchiveSha256": "587c0f60a30f0ca4b43361830cb611fcaa4a83f492cb7a9fd66b7908b45f72be",
     "trackedLockSha256": "e11d69fa8702a906c293c1cb307c71df90d3b1f1617b3c23ebf17fa9a87fec79",
     "resolvedLockSha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
     "nodeSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49",
@@ -183,7 +183,7 @@
     "piRuntimeVersion": "1.0.0",
     "piServerVersion": "0.0.33",
     "acpxVersion": "0.13.1",
-    "note": "Fresh V TypeScript/sidecar/provider pack; exact retained native Intel daemon from5eba after complete declared-input equality. Historical local pack and S outputs are not current outputs. Original Apple SDK/linker details were not retained; no equivalence or fresh-compilation claim.",
+    "note": "Fresh W TypeScript/sidecar/provider pack; exact retained native Intel daemon from5eba after complete declared-input equality. Historical local pack and S/V outputs are not current outputs. Original Apple SDK/linker details were not retained; no equivalence or fresh-compilation claim.",
     "historicalLocalOutputs": {
       "localPackDigest": "sha256:a7ae16b680c6fcaa9438faa46562ba31519bb0fb42e21b0a4b00e8936c462d89",
       "localDaemonSha256": "c0e9acdd461d5efe4a10f9fd751e8a67beceede4d43593951d7079edad657044",
@@ -194,7 +194,7 @@
   "nativeDaemonReuse": {
     "schema": "paperclip.native-daemon-reuse/v1",
     "originalBuildSource": "5eba61ece929dcfb2b0c1761825a2d9e557c2554",
-    "nativeInputEquivalentTo": "7b7fcbf96b1725d9d76f7da3a7b472c3665e2cc5",
+    "nativeInputEquivalentTo": "efe019a79f50440d7bd6c3bc6c75fb8f18953093",
     "artifactRunId": "36933598154",
     "artifactId": "11197947432",
     "artifactName": "pi-native-intel-36933598154",
@@ -238,6 +238,7 @@
     },
     "sourceDeltaAllowed": [
       "doc/evals.md",
+      "packages/paperclip-runner/scripts/materialize-pi-distribution.test.mjs",
       "packages/paperclip-runner/src/drivers/acpx/native-distribution-integrity.test.ts",
       "packages/paperclip-runner/src/drivers/acpx/native-distribution-integrity.ts",
       "packages/paperclip-runner/src/drivers/acpx/pi-installation.ts",
