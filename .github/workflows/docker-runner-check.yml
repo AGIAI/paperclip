@@ -176,7 +176,7 @@ jobs:
             test "$SOURCE_ROOT_TESTS_ONLY" != true
             test "$DIAGNOSE_AJV" != true
             test "$IMAGE_MODE" != true
-            test "$EXPECTED_SOURCE_SHA" = 586af4d7f3b07aa683338aedb4e5182603b70401
+            test "$EXPECTED_SOURCE_SHA" = 7b7fcbf96b1725d9d76f7da3a7b472c3665e2cc5
             test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
             # Standard hosted runner minutes are free for this public repository.
             # Artifact storage and unrelated resource costs are not inferred here.
