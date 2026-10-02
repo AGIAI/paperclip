@@ -5,6 +5,7 @@ import { CREDENTIAL_NAMES } from "./types.js";
 
 vi.mock("node:child_process", () => ({ spawnSync: vi.fn() }));
 const spawn = vi.mocked(spawnSync);
+const campaignDirectory = "/fixture/results/gha-1-1-stock-harness.fixture";
 beforeEach(() => { vi.resetAllMocks(); vi.unstubAllEnvs(); });
 
 describe("stock harness credential-free admission", () => {
@@ -19,21 +20,21 @@ describe("stock harness credential-free admission", () => {
   });
   it("fails before provider execution when the prerequisite subprocess fails", () => {
     spawn.mockReturnValue({ status: 1 } as ReturnType<typeof spawnSync>);
-    expect(() => prepareStockHarnessPreflight()).toThrow("before provider execution");
+    expect(() => prepareStockHarnessPreflight(campaignDirectory)).toThrow("before provider execution");
     expect(spawn).toHaveBeenCalledTimes(1);
   });
   it("verifies retained evidence after a passing prerequisite subprocess", () => {
     spawn.mockReturnValueOnce({ status: 0 } as ReturnType<typeof spawnSync>);
     spawn.mockReturnValueOnce({ status: 0, stdout: '{"passed":true}' } as ReturnType<typeof spawnSync>);
-    const receipt = prepareStockHarnessPreflight();
-    expect(receipt).toMatch(/stock-harness-preflight-.*\/preflight.json$/);
+    const receipt = prepareStockHarnessPreflight(campaignDirectory);
+    expect(receipt).toMatch(/^\/fixture\/results\/gha-1-1-stock-harness\.fixture\/stock-harness-prerequisites\/[^/]+\/preflight.json$/);
     expect(spawn.mock.calls[1]?.[1]).toContain(`--verify=${receipt}`);
   });
   it("allows Cargo dependency resolution only on the disposable GitHub runner", () => {
     vi.stubEnv("GITHUB_ACTIONS", "true");
     spawn.mockReturnValueOnce({ status: 0 } as ReturnType<typeof spawnSync>);
     spawn.mockReturnValueOnce({ status: 0, stdout: '{}' } as ReturnType<typeof spawnSync>);
-    prepareStockHarnessPreflight();
+    prepareStockHarnessPreflight(campaignDirectory);
     expect(spawn.mock.calls[0]?.[1]).toContain("--allow-rust-network");
   });
   it("refuses failed receipt verification", () => {

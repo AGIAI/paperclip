@@ -23,8 +23,10 @@ export function verifyStockHarnessPreflight(receiptPath: string | undefined) {
   return JSON.parse(run.stdout) as Record<string, unknown>;
 }
 
-export function prepareStockHarnessPreflight() {
-  const output = path.join(root, "tests/runner-e2e/results", `stock-harness-preflight-${randomUUID()}`);
+export function prepareStockHarnessPreflight(campaignDirectory: string) {
+  // The trusted artifact selector admits exactly one campaign root. Keep all
+  // prerequisite evidence inside that root, including pre-provider failures.
+  const output = path.join(campaignDirectory, "stock-harness-prerequisites", randomUUID());
   const receipt = path.join(output, "preflight.json");
   const run = spawnSync(process.execPath, [path.join(root, "tests/runner-e2e/stock-harness-checks.mjs"),
     `--output-dir=${output}`, ...(process.env.GITHUB_ACTIONS === "true" ? ["--allow-rust-network"] : [])], {

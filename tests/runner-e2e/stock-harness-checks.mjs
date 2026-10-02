@@ -41,11 +41,13 @@ export const stockHarnessGates = [
   { id: "SH-eval", name: "Independent oracle and qualification admission", cwd: ".",
     config: "tests/runner-e2e/vitest.config.ts",
     files: ["tests/runner-e2e/stock-harness.test.ts", "tests/runner-e2e/stock-harness-checks.test.mjs",
-      "tests/runner-e2e/stock-harness-admission.test.ts", "tests/runner-e2e/stock-harness-digest.test.ts"],
+      "tests/runner-e2e/stock-harness-admission.test.ts", "tests/runner-e2e/stock-harness-digest.test.ts",
+      "tests/runner-e2e/select-rerun-artifacts.test.ts"],
     required: ["rejects old SHA before providers", "allows toolchain paths and excludes every present or future credential",
       "changes when the evaluated server/src/onboarding-assets/default/AGENTS.md changes",
       "changes when the evaluated packages/adapter-utils/src/server-utils.ts changes",
-      "changes when the evaluated packages/shared/src/connection-intent-guidance.ts changes"] },
+      "changes when the evaluated packages/shared/src/connection-intent-guidance.ts changes",
+      "retains credential-free prerequisites inside the exact campaign root"] },
 ];
 
 export function gradeGate(gate, report, exitCode) {
