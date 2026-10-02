@@ -24,6 +24,8 @@ describe("explicit Paperclip document delivery", () => {
     const { scenario, initial, final } = recording();
     expect(gradeContextIntegrity({ ...scenario, checkpoints: [initial, final] }).every(row => row.passed)).toBe(true);
     expect(scenario.prompt).toContain("Paperclip document");
+    expect(scenario.prompt).toContain("clickable Markdown link");
+    expect(scenario.prompt).toContain("Paperclip task UI");
     expect(scenario.prompt).not.toContain(scenario.marker);
   });
   it.each(["https://paperclip.example/DOC/issues/DOC-1#document-report", "<https://paperclip.example/DOC/issues/DOC-1#document-report>"])("accepts the same-app document link %s", target => {
@@ -31,12 +33,14 @@ describe("explicit Paperclip document delivery", () => {
     final.comments[0]!.body = `Saved [report](${target}).`;
     expect(gradeContextIntegrity({ ...scenario, checkpoints: [initial, final] }).every(row => row.passed)).toBe(true);
   });
-  it.each(["local-only", "missing-revision", "wrong-content", "local-link", "wrong-document-link", "other-app-link", "user-link-only"])(
+  it.each(["local-only", "missing-revision", "wrong-content", "local-link", "wrong-document-link", "other-app-link", "user-link-only", "bare-path", "code-formatted-path"])(
     "rejects plausible %s delivery", variant => {
       const { scenario, initial, final } = recording();
       if (variant === "local-only") { final.documents = []; final.comments[0]!.body = "Saved report.md in the workspace."; }
       if (variant === "missing-revision") final.documents[0]!.latestRevisionId = null;
       if (variant === "wrong-content") final.documents[0]!.body = "A different report";
+      if (variant === "bare-path") final.comments[0]!.body = "Saved /DOC/issues/DOC-1#document-report.";
+      if (variant === "code-formatted-path") final.comments[0]!.body = "Saved `/DOC/issues/DOC-1#document-report`.";
       if (variant === "local-link") final.comments[0]!.body = "Saved [report](./report.md).";
       if (variant === "wrong-document-link") final.comments[0]!.body = "Saved [report](/DOC/issues/DOC-1#document-other).";
       if (variant === "other-app-link") final.comments[0]!.body = "Saved [report](https://other.example/DOC/issues/DOC-1#document-report).";
