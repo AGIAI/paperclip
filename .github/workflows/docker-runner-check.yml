@@ -152,7 +152,7 @@ jobs:
             test "$VERIFY_PI_INTEL" != true
             test "$DIAGNOSE_AJV" != true
             test "$IMAGE_MODE" != true
-            test "$EXPECTED_SOURCE_SHA" = 5cd6d3d5237e3e15394fcc1c7e754c30a63c5169
+            test "$EXPECTED_SOURCE_SHA" = 4c6adcadcbeb95ab3f756d88d16faadc86e22390
             test "$EXPECTED_LOCK_SHA256" = 38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba
             test "$(gh api "repos/$REPOSITORY" --jq '.visibility')" = public
           fi
