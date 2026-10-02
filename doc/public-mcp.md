@@ -275,6 +275,17 @@ revocation. Assistant conversations are explicitly illustrative; product
 screens use isolated service fixtures. No paid work or real OAuth runs here.
 
 Local cross-links expect Paperclip Storybook on port 6106 and Cloud on 6107.
+The default scripts use port 6006; launch these in separate terminals with
+explicit overrides:
+
+```sh
+# From the Paperclip repository's ui/ directory:
+pnpm exec storybook dev --port 6106 --config-dir storybook/.storybook --no-open
+
+# From the paperclip-cloud repository's web/ directory:
+npm run storybook -- --port 6107
+```
+
 When published elsewhere, open the companion Storybook separately. Each
 walkthrough works independently. **Navigation check** is a separate interaction
 story so the presentation itself never advances automatically.
