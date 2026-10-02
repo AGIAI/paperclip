@@ -1,6 +1,6 @@
 {
   "schema": "paperclip.native-completion.matched-baseline/v1",
-  "candidateSha": "55ce97b675e1ed68cc171fe44b729147209a7e24",
+  "candidateSha": "ae34843731ac338bd806a4106cb447134bff402c",
   "historicalInstructionSourceSha": "5837aa44425ea134fc33a96c502c22d6a32b6866",
   "heldConstant": [
     "merged native Codex base fix #14920",
@@ -17,8 +17,8 @@
   ],
   "historicalStructuralOracles": "Same authenticated/wire/catalog gates expect the explicit historical descriptions. The v13 baseline does not run the candidate-only v13-to-v14 rotation assertion; its prior compatibility cases remain mandatory. Candidate graders are unchanged.",
   "behavioralSourceHashes": {
-    "tests/runner-e2e/native-completion-case.ts": "6ecd17a78aad20eea36d5ea0f039f22255ea2e61115e16a5e2b1543c72e9a622",
-    "tests/runner-e2e/native-completion-case.test.ts": "253910919bef2dce5509e4005a635b16c518d4940a870c7bbc100898ce8afe83",
+    "tests/runner-e2e/native-completion-case.ts": "ebe9c5caeef5da5e0cdd82cbab8ed841b79e7d8bf54e891fbae78ad01cc7c8a7",
+    "tests/runner-e2e/native-completion-case.test.ts": "1889cecd7efef36020ce6d8c407f8375f3d79af7fd9351e1eb6b46f08bdbaa4e",
     "tests/runner-e2e/context-integrity-cases.ts": "201d05f8257c1121a94dd9d8a22f08b9db80555e388013ffeabb65e301499fd2",
     "tests/runner-e2e/context-integrity-flow.ts": "63bcb7bdba4c80b15ff5872f16383844456eab0c5a10627da5d3487a26821c6a",
     "tests/runner-e2e/context-integrity-scoring.ts": "50d370044e45386ba87fb23ca63c228b96bb8373d67bb7e82e8b2a89eb23f252",
@@ -42,5 +42,6 @@
     ],
     "expectedCells": 6,
     "expectedProviderTurns": 6
-  }
+  },
+  "sharedGraderCorrection": "Requires visible owner, exact unblock action and a blocking explanation; same corrected grader in both variants."
 }
