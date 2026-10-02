@@ -6,6 +6,7 @@ import { blockerTasks, blockerProfile } from "./blocker-cases.js";
 import { accountingTasks } from "./accounting-cases.js";
 import { continuationTasks } from "./continuation-cases.js";
 import { contextIntegrityTasks } from "./context-integrity-cases.js";
+import { productionDefaultHireProfile, stockHarnessSourceDigest } from "./stock-harness.js";
 import { lifecycleLiveTasks, lifecycleLiveDefinitionDigest } from "./lifecycle-live-cases.js";
 import { everydayTasks, productionStoryProfile } from "./everyday-cases.js";
 
@@ -51,6 +52,7 @@ const SELECTABLE_GROUPS = [
   "chat",
   "onboarding",
   "context-integrity",
+  "stock-harness",
 ] as const;
 const SAMPLE_UUID = "11111111-1111-4111-8111-111111111111";
 
@@ -1209,6 +1211,25 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
       scheduling: "explicit-only",
       paidCalls: "one provider run per skill case; two bounded turns per comment case",
       prerequisiteGate: PENDING_PROFILE_PREREQUISITES,
+    },
+  },
+  {
+    id: "stock-harness",
+    label: "Stock harness with Paperclip",
+    manualOnly: true,
+    description: "Production-default hires, reduced shared prompts, assigned skills, continuation, and persistent chat.",
+    groups: ["stock-harness", "native", "legacy"],
+    profiles: [...contextIntegrityProfiles.filter(profile => !pendingContextIntegrityProfiles.includes(profile)),
+      runnerProfiles.find(profile => profile.id === "legacy-opencode")!].map(productionDefaultHireProfile),
+    environments: [localEnvironment],
+    tasks: [...contextIntegrityTasks, chatTasks.find(task => task.id === "continuity-restart")!],
+    expectedMatrixSize: 24,
+    definitionMetadata: {
+      version: 1, instructions: "production-default-hire", scheduling: "explicit-only",
+      sourceDigest: stockHarnessSourceDigest(),
+      grading: "public-default-bundle-and-delivered-prompts-plus-independent-lifecycle-oracles",
+      vendorBaseEvidence: "required deterministic Codex driver/runnerd/Rust gate; task success is not vendor-base proof",
+      paidCalls: "one skill turn, two ordered-comment turns, three chat turns per profile",
     },
   },
   {
