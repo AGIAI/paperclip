@@ -74,7 +74,7 @@ class FreshNativeBuildRegression(unittest.TestCase):
         self.assertIsNotNone(block)
         pins=dict(re.findall(r"(\w+): '([a-f0-9]{64})'",block.group(1)))
         self.assertEqual({agent:'sha256:'+digest for agent,digest in pins.items()},
-                         {agent:profile['digest'] for agent,profile in INPUTS['profiles'].items()})
+                         {agent:profile['profileDigest'] for agent,profile in INPUTS['normalProviderSelection'].items()})
 
 class CleanupRegression(unittest.TestCase):
     def test_first_cleanup_failure_prevents_second_test_and_scratch_removal(self):

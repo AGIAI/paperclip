@@ -174,17 +174,17 @@ def execute(args):
         run([pnpm,'--filter','@paperclipai/paperclip-runner','build:typescript'],'typescript',600)
         daemon=build_native_daemon(stage,scratch,env,run,receipt,save)
         pack=scratch/'provider-pack'
-        run([node,'packages/paperclip-runner/scripts/build-provider-pack.mjs',pack,'--candidate-providers=pi,copilot,cursor'],'pack-build',600)
+        run([node,'packages/paperclip-runner/scripts/build-provider-pack.mjs',pack],'pack-build',600)
         verified=json.loads(run([node,HERE/'verify-pack.mjs',pack,SOURCE,'darwin','x64'],'pack-verify',180))
         require(sha(pack/'node_modules/node/bin/node')==PIN['nodeSha256'],'Pack Node mismatch')
         authority=source_guard.capture_authority(stage,pack)
         source_guard.verify_source(stage,SOURCE,PIN['resolvedLockSha256'],pack,authority)
         atomic_json(out/'pack-inventory.json',closed_tree(pack));shutil.copy2(pack/'provider-pack.json',out/'provider-pack.json');shutil.copy2(daemon,out/'paperclip-runnerd')
-        receipt.update(packVerification=verified,packManifestSha256=sha(out/'provider-pack.json'),packInventorySha256=sha(out/'pack-inventory.json'),daemonSha256=sha(daemon),nodeSha256=sha(node),outputDigestsAssumedEqual=False)
+        receipt.update(normalProviderSelection=INPUTS['normalProviderSelection'],qualificationOverride=False,packVerification=verified,packManifestSha256=sha(out/'provider-pack.json'),packInventorySha256=sha(out/'pack-inventory.json'),daemonSha256=sha(daemon),nodeSha256=sha(node),outputDigestsAssumedEqual=False)
         receipt['providerPackArchive']=retain_pack(pack,out/'provider-pack.tar.gz',authority['pack'])
         save()
         test=stage/'packages/paperclip-runner/test/pi-closed-startup.test.mjs'
-        require(sha(test)=='8967cf9c8cd130b68bf9d64abef8cb8d352af00646e2288b341d8c6ae758b47a','Closed startup test changed')
+        require(sha(test)=='a2fea9fb7a5d8b9282123f0b680023060438fcb1ff8f5676733e319c0ae5df30','Closed startup test changed')
         receipt['testSourceSha256']={n:sha(stage/'packages/paperclip-runner/test'/n) for n in ['pi-closed-startup.test.mjs','pi-native-package-contract.test.mjs','pi-acp-package-contract.test.mjs']};save()
         retained=out/'retained-test-state';retained.mkdir(mode=0o700)
         testenv={'HOME':str(scratch/'home'),'TMPDIR':str(scratch),'PATH':'/usr/bin:/bin','LANG':'en_US.UTF-8',

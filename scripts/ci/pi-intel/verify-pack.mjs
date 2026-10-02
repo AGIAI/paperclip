@@ -40,6 +40,17 @@ export function checkedArtifact(pack, entry, kind) {
   requireTrue(actual === entry.sha256, 'Artifact bytes mismatch: ' + entry.path);
   return { path: entry.path, kind, sha256: actual };
 }
+export function verifyNormalPiSelection(payload, platform, architecture) {
+  const pins = { pi: '47306e6d2a9b59e8f9189f725ebb7a0a7f91826044d1739e1a35ab31f228ba1f' };
+  const inputs = JSON.parse(readFileSync(new URL('./profile-inputs.json', import.meta.url)));
+  requireTrue(Object.keys(payload.candidateProviders ?? {}).sort().join(',') === 'pi', 'Wrong normal provider set');
+  const candidate = payload.candidateProviders.pi;
+  requireTrue(candidate?.profileDigest === 'sha256:' + pins.pi && candidate.qualification === 'qualified', 'Normal Pi identity mismatch');
+  requireTrue(candidate.path === `provider-assets/pi/${platform}-${architecture}`, 'Unexpected Pi path');
+  requireTrue(candidate.closureDigest === inputs.candidateClosureDigests.pi?.[`${platform}-${architecture}`], 'Native Pi closure pin mismatch');
+  requireTrue(inputs.normalProviderSelection?.pi?.qualification === 'qualified' && inputs.normalProviderSelection.pi.profileVersion === 12 && inputs.normalProviderSelection.pi.profileDigest === candidate.profileDigest, 'Normal selection input mismatch');
+  return candidate;
+}
 export function verifyPack(pack, source, platform, architecture) {
   const manifest = JSON.parse(readFileSync(join(pack, 'provider-pack.json')));
   const p = manifest.payload;
@@ -47,17 +58,8 @@ export function verifyPack(pack, source, platform, architecture) {
   requireTrue(manifest.digest === `sha256:${createHash('sha256').update(canonicalJson(p)).digest('hex')}`, 'Canonical manifest mismatch');
   requireTrue(p.runnerSourceRevision === source, 'Wrong source');
   requireTrue(p.target.platform === platform && p.target.architecture === architecture, 'Wrong target');
-  const pins = { cursor: '1df2a15b93bc3a14fa47fa3315344ba023fe2412048047cdc6f32096a6336564', copilot: '48cecd8dc77a5533240fcf2f29d19be05380da4a79f8e5061480f94241db75a8', pi: '47306e6d2a9b59e8f9189f725ebb7a0a7f91826044d1739e1a35ab31f228ba1f' };
-  requireTrue(Object.keys(p.candidateProviders).sort().join(',') === Object.keys(pins).sort().join(','), 'Wrong candidate set');
-  const closurePins = JSON.parse(readFileSync(new URL('./profile-inputs.json', import.meta.url))).candidateClosureDigests;
-  const checks = [];
-  for (const [agent, digest] of Object.entries(pins)) {
-    const c = p.candidateProviders[agent];
-    requireTrue(c.profileDigest === 'sha256:' + digest && c.qualification === 'pending', 'Candidate identity mismatch');
-    requireTrue(c.path === `provider-assets/${agent}/${platform}-${architecture}`, 'Unexpected candidate path');
-    requireTrue(c.closureDigest === closurePins[agent]?.[`${platform}-${architecture}`], 'Native closure pin mismatch');
-    checks.push(checkedArtifact(pack, c, 'directory'));
-  }
+  const candidate = verifyNormalPiSelection(p, platform, architecture);
+  const checks = [checkedArtifact(pack, candidate, 'directory')];
   for (const entry of Object.values(p.artifacts)) checks.push(checkedArtifact(pack, entry, 'file'));
   requireTrue(sha256Tree(join(pack, 'dist')) === p.distDigest, 'Packed dist mismatch');
   const bridge = createHash('sha256').update(p.artifacts.opencodeProxy.sha256).update('\n').update(p.artifacts.acpxSidecar.sha256).update('\n').update(p.distDigest).digest('hex');

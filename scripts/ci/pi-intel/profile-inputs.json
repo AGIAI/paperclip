@@ -41,16 +41,16 @@
     "patches/pi-acp@0.0.33.patch": "93254de82ae779587611748cfb963475c3439e033f1582f06dfdcc7f7b937546",
     "packages/paperclip-runner/scripts/pi-distribution/package.json": "c14f4050ef27dca91d3650e7446bc9927296a926224dba50a0e02f5d9fd4d95b",
     "packages/paperclip-runner/scripts/pi-distribution/package-lock.json": "f4b04d51c4d91a6529dc97af2f3f84c28a220d93a54b5555826c4d9fd30f0939",
-    "packages/paperclip-runner/scripts/materialize-pi-distribution.mjs": "315e1123abdad82006caca1823e15ba2da0cb1cfe7f0f29534c3830e8bf0682b",
+    "packages/paperclip-runner/scripts/materialize-pi-distribution.mjs": "e3233a5e88f099a0b451d2dbdb5e9507e93ff8087c42cc6048620c5a4a2c6452",
     "packages/paperclip-runner/scripts/build-node-startup-timeout.mjs": "545dbaf7062b1cd54176dafe3feb8877e5ccf19406f791172a3ad47dbfd73fc4",
     "packages/paperclip-runner/src/drivers/acpx/pi-acp-runtime.ts": "95f74eb44a2e498fbd9461d363fac5b4d5fdae05b9666dca1ac4a632229dfef4",
     "packages/paperclip-runner/src/drivers/acpx/pi-runtime-extension.ts": "f3446be10d984c368c52202e768aefe9b4a25968e09922e98e3f016c9dc0198e",
     "packages/paperclip-runner/src/drivers/acpx/pi-verified-runtime.ts": "dfb5f6604da0abc307c4bb514e3dd47354f4b867be28fdeb64273c3c055b68c1",
     "packages/paperclip-runner/src/drivers/acpx/pi-node-pins.ts": "ffc822aff64db315e461cbe44f03d704695de4a4296f643af79386c3556a1d46",
     "packages/paperclip-runner/src/drivers/acpx/pi-closure-pins.ts": "9fdfcd7d7b0bdcbb75fe7d8f7e9228642f32d83bead9813d494b3ee133c2fc5e",
-    "packages/paperclip-runner/src/drivers/acpx/qualified-profiles.ts": "9760d924815554cb0f438c444e1f23a3608fca4a245344b25d15199b743515e5",
+    "packages/paperclip-runner/src/drivers/acpx/qualified-profiles.ts": "ba75c2aa48dbe9bd9779d034d0e8a34eeaf31b16e1462da9b0b4d2aead50d736",
     "packages/paperclip-runner/package.json": "b5be67eb3190ddaa9baf20a455fae62fc7722b764f89f2cdbdd02a6d6a9dcad3",
-    "packages/paperclip-runner/src/drivers/acpx/pi-installation.ts": "a9c4e9c3f003eebd38b35f89a112291ad0620aed57894c878ff6806593911fd7",
+    "packages/paperclip-runner/src/drivers/acpx/pi-installation.ts": "6973263c3a8ab7baaaaa88b96214591204df6c662967e79a0a48ef06addfd2c4",
     "packages/paperclip-runner/src/drivers/acpx/native-distribution-integrity.ts": "943ba0fb2d27d08b9b0d36778f08c7c0dbdb78893c7564babd4e67f67cf065fe",
     "packages/paperclip-runner/runner/crates/runner-core/src/acpx_provider_backend.rs": "3c90ed419b96a3484756954f3c2a8af8c4c8fc4ec5aa2a7725b9df36167dcd72",
     "packages/paperclip-runner/rust-toolchain.toml": "e4c6d27e48d71df0ae66d84f3bc2d5df8cbf5c3cbb3225475a7852d94361a0c5",
@@ -178,8 +178,8 @@
     }
   },
   "localComparison": {
-    "sourceRevision": "b9e5d6ecdb05ab7244c90976e07c950f8d09b15b",
-    "sourceArchiveSha256": "b32d8e32639e6527804fe11bfa1aaefcefa87fca31e9155499e6b9a28f69dbd4",
+    "sourceRevision": "c9de5292d66ea4bad5ad8d2f65288c1c8dc7bfb8",
+    "sourceArchiveSha256": "5f68b28cde9cf90a3dcf964723270f079bdfe26bc5a324991de07c4a4a6ceda8",
     "trackedLockSha256": "e11d69fa8702a906c293c1cb307c71df90d3b1f1617b3c23ebf17fa9a87fec79",
     "resolvedLockSha256": "38338a6867358440c5ab5993eaeb85fb501bc7df65d24acf52fbd63c880ee4ba",
     "nodeSha256": "7abcf39bd37ab251015337ff75304d7555f0d8e88c6e0fbf04bce8ce34636f49",
@@ -187,7 +187,7 @@
     "piRuntimeVersion": "1.0.0",
     "piServerVersion": "0.0.33",
     "acpxVersion": "0.13.1",
-    "note": "Fresh exact-source TypeScript, sidecar, native Intel Rust daemon and Pi12 provider pack. Historical local outputs are not current outputs; no old daemon import or native input-equivalence claim.",
+    "note": "Fresh exact-source TypeScript, sidecar, native Intel Rust daemon and normal qualified Pi12-only default provider pack. No candidate flag; historical local outputs are not current outputs and no old daemon import is used. Public npm installation is a separate Product proof.",
     "historicalLocalOutputs": {
       "localPackDigest": "sha256:a7ae16b680c6fcaa9438faa46562ba31519bb0fb42e21b0a4b00e8936c462d89",
       "localDaemonSha256": "c0e9acdd461d5efe4a10f9fd751e8a67beceede4d43593951d7079edad657044",
@@ -223,5 +223,12 @@
     "target": "x86_64-apple-darwin",
     "jobs": 2,
     "deadlineSeconds": 1500
+  },
+  "normalProviderSelection": {
+    "pi": {
+      "qualification": "qualified",
+      "profileVersion": 12,
+      "profileDigest": "sha256:47306e6d2a9b59e8f9189f725ebb7a0a7f91826044d1739e1a35ab31f228ba1f"
+    }
   }
 }
