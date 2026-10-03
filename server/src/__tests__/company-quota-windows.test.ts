@@ -29,6 +29,7 @@ const db = {
   select: () => ({
     from: () => ({
       leftJoin: () => ({
+      leftJoin: () => ({
       where: async () => [
         {
           id: "secret",
@@ -37,6 +38,7 @@ const db = {
           status: "active",
         },
       ],
+      }),
       }),
     }),
   }),
