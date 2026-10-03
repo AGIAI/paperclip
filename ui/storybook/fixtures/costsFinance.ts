@@ -1,4 +1,4 @@
-import { createFinanceEventSchema, importBillingInvoiceSchema, importProviderCostsSchema, type BillingReconciliation, type FinanceEvent } from "@paperclipai/shared";
+import { normalizeCents, createFinanceEventSchema, importBillingInvoiceSchema, importProviderCostsSchema, type BillingReconciliation, type FinanceEvent } from "@paperclipai/shared";
 
 /** In-memory, per-mount data. Preview actions never contact billing providers. */
 export function createCostsFinanceFixtures(companyId: string) {
@@ -13,7 +13,7 @@ export function createCostsFinanceFixtures(companyId: string) {
     const rows = matching.filter(row => row.metadataJson?.source !== "provider_cost_report");
     const debitCents = rows.filter(row => row.direction === "debit").reduce((sum, row) => sum + row.amountCents, 0);
     const creditCents = rows.filter(row => row.direction === "credit").reduce((sum, row) => sum + row.amountCents, 0);
-    return { currency, providerReportedCents, debitCents, creditCents, netCents: debitCents - creditCents, estimatedDebitCents: 0, eventCount: matching.length };
+    return { currency, providerReportedCents, providerReportedCentsExact: normalizeCents(providerReportedCents), debitCents, debitCentsExact: normalizeCents(debitCents), creditCents, creditCentsExact: normalizeCents(creditCents), netCents: debitCents - creditCents, netCentsExact: normalizeCents(debitCents - creditCents), estimatedDebitCents: 0, estimatedDebitCentsExact: "0.0000000", eventCount: matching.length };
   };
   function record(raw: unknown) {
     const input = createFinanceEventSchema.parse(raw);

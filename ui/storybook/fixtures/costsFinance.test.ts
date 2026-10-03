@@ -28,6 +28,6 @@ describe("Costs story finance actions", () => {
     const provider = { provider: "openai", accountId: "preview-account", scopeIds: ["preview-project"], secretId: secrets[0].id, from: "2026-01-01", to: "2026-01-02" };
     await fixture("accounting/provider-costs/import", request("accounting/provider-costs/import", provider));
     const summary = await (await fixture("costs/finance-summary", request("costs/finance-summary")))!.json();
-    expect(summary).toMatchObject({ debitCents: 50, providerReportedCents: 250, eventCount: 2 });
+    expect(summary).toMatchObject({ debitCents: 50, debitCentsExact: "50.0000000", providerReportedCents: 250, providerReportedCentsExact: "250.0000000", eventCount: 2 });
   });
 });
