@@ -1,0 +1,263 @@
+{
+  "schema": "paperclip.native-completion-hosted-setup-audit.v1",
+  "cells": [
+    {
+      "variant": "candidate",
+      "artifactId": 11263135697,
+      "path": "gha-37091690197-1-native-completion.runner-opencode.local.native-blocked-report/native-completion-prerequisites/b38b4d88-a1ce-4fdb-a3b2-794b2fd575a4/preflight.json",
+      "sha": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
+      "sourceVariant": "candidate",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "9c3240962b10f6d42940ab73f4f272ce0c03f78e5d403a7acd8861486ea8605e",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/candidate-11263135697.json"
+    },
+    {
+      "variant": "candidate",
+      "artifactId": 11263575185,
+      "path": "gha-37091690197-1-native-completion.runner-codex.local.native-blocked-report/native-completion-prerequisites/c9ab259f-ce59-4dea-82cf-6e6c4357bcee/preflight.json",
+      "sha": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
+      "sourceVariant": "candidate",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "893776f7869c7cd931ce8251183106db071755e62dc1b6d40f45cd25c9a09c82",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/candidate-11263575185.json"
+    },
+    {
+      "variant": "candidate",
+      "artifactId": 11263465384,
+      "path": "gha-37091690197-1-native-completion.runner-acpx-claude.local.native-blocked-report/native-completion-prerequisites/f4f5596c-8b27-47d2-af65-a0d0b383bdf6/preflight.json",
+      "sha": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
+      "sourceVariant": "candidate",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "445f58c83f650dee6bf656d55cafe8462018d7e75753e3a43aa1c0c40ce1ff73",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/candidate-11263465384.json"
+    },
+    {
+      "variant": "candidate",
+      "artifactId": 11263645171,
+      "path": "gha-37091690197-1-native-completion.runner-opencode.local.assigned-skill-explicit-invocation/native-completion-prerequisites/b6017e5d-8134-480e-b20b-adff3b6dff12/preflight.json",
+      "sha": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
+      "sourceVariant": "candidate",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "9271cae9e0417db9ed0e41b4d36ca5fa6a9cf3436ab7d694a711baccf8408353",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/candidate-11263645171.json"
+    },
+    {
+      "variant": "candidate",
+      "artifactId": 11262885491,
+      "path": "gha-37091690197-1-native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation/native-completion-prerequisites/03b0cbe6-59ea-4a7e-b303-a5d1dd901b58/preflight.json",
+      "sha": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
+      "sourceVariant": "candidate",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "f8616b3a3ed03056b64f68704138e06f4b1fd3005c487b688fc90a6d0b1e2eb7",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/candidate-11262885491.json"
+    },
+    {
+      "variant": "candidate",
+      "artifactId": 11262710791,
+      "path": "gha-37091690197-1-native-completion.runner-codex.local.assigned-skill-explicit-invocation/native-completion-prerequisites/ec66876e-4e87-4111-a965-84f1f0bcd453/preflight.json",
+      "sha": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
+      "sourceVariant": "candidate",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "caa0e84da82a4a9078719bf9ba2703d4ee9daf51d93b9bf8f04310c036f3b801",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/candidate-11262710791.json"
+    },
+    {
+      "variant": "baseline",
+      "artifactId": 11262646041,
+      "path": "gha-37091691408-1-native-completion.runner-codex.local.assigned-skill-explicit-invocation/native-completion-prerequisites/59a6d45e-03a7-423a-a669-3a99d0c25cbd/preflight.json",
+      "sha": "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+      "sourceVariant": "historical",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "909040ea2580f3fb7009490293623bb05d822912d5ca59d34bbcbf58d88a68ba",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/baseline-11262646041.json"
+    },
+    {
+      "variant": "baseline",
+      "artifactId": 11262599638,
+      "path": "gha-37091691408-1-native-completion.runner-acpx-claude.local.native-blocked-report/native-completion-prerequisites/0cbf5747-500d-4220-a62c-e2d5063af86c/preflight.json",
+      "sha": "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+      "sourceVariant": "historical",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "755516f405638cc409e593d6f0317f7cfa3a6ec24c72f27fd4f563c87bd02845",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/baseline-11262599638.json"
+    },
+    {
+      "variant": "baseline",
+      "artifactId": 11263690016,
+      "path": "gha-37091691408-1-native-completion.runner-codex.local.native-blocked-report/native-completion-prerequisites/40256a72-6c5b-4ad5-90ea-b57100ccc323/preflight.json",
+      "sha": "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+      "sourceVariant": "historical",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "42d6ddd1d3f08dc86026ef7843588d53af284de3fb989e0ee0aca7acd6d1f7a1",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/baseline-11263690016.json"
+    },
+    {
+      "variant": "baseline",
+      "artifactId": 11263160762,
+      "path": "gha-37091691408-1-native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation/native-completion-prerequisites/b3da17b0-ed06-41a8-851b-71b051e6d724/preflight.json",
+      "sha": "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+      "sourceVariant": "historical",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "6a29a2eb82abdb19de8c9e44b231772930d3465d68e75b57636cdec80594cacc",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/baseline-11263160762.json"
+    },
+    {
+      "variant": "baseline",
+      "artifactId": 11263640200,
+      "path": "gha-37091691408-1-native-completion.runner-opencode.local.assigned-skill-explicit-invocation/native-completion-prerequisites/9226a12c-5401-43b5-b063-5bb35f47ddb9/preflight.json",
+      "sha": "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+      "sourceVariant": "historical",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "8df126b3939644d1f4a25217c243cec4debd1ac8e6cf846dde3b39bc6dc14d36",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/baseline-11263640200.json"
+    },
+    {
+      "variant": "baseline",
+      "artifactId": 11263190655,
+      "path": "gha-37091691408-1-native-completion.runner-opencode.local.native-blocked-report/native-completion-prerequisites/94bf9e46-6496-4551-8fb5-6e4274fe7c1f/preflight.json",
+      "sha": "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+      "sourceVariant": "historical",
+      "passed": false,
+      "providerCalls": 0,
+      "layering": false,
+      "immutable": false,
+      "sourceErrors": [],
+      "setup": {
+        "passed": false,
+        "sdkExitCode": null,
+        "runnerTypeScriptExitCode": null,
+        "evidence": []
+      },
+      "gates": [],
+      "receiptSha256": "9fec19be88876990e2fd4e8e04a8b3383ec089b612891efe7a2c10919a247262",
+      "receipt": "2026-10-02-native-completion-master-hosted-setup/baseline-11263190655.json"
+    }
+  ],
+  "providerCalls": 0,
+  "behaviorGraded": false,
+  "sourceByteErrors": 0,
+  "classification": "pre_provider_source_metadata_admission_failure",
+  "candidateWorkflow": 37091690197,
+  "baselineWorkflow": 37091691408
+}

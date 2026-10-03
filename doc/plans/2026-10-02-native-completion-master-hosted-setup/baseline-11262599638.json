@@ -1,0 +1,27 @@
+{
+  "schema": "paperclip.native-completion-preflight.v1",
+  "sourceSha": "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+  "sourceFingerprint": "4b49ad1bd8acaabc4a69700729295fe31395d91aa19fa650e8066988910cc681",
+  "fixtureFingerprint": "38ae4fe73494db231ed50d0c2336762a290cc17ebc54f258bd94f5a0b873ec09",
+  "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+  "variant": "historical",
+  "baseSha": "59c07ede72dc08b8aba149a01cc11e0b7a204621",
+  "archiveSha": "9138f570c341c251a5727c32d6615ce238bc8e03",
+  "sourceErrors": [],
+  "immutable": false,
+  "layering": false,
+  "measuredAt": "2026-10-03T03:06:02.862Z",
+  "providerCalls": 0,
+  "live": "not_run",
+  "expectedCells": 6,
+  "expectedTurns": 6,
+  "maximumAttemptsPerCell": 1,
+  "setup": {
+    "passed": false,
+    "sdkExitCode": null,
+    "runnerTypeScriptExitCode": null,
+    "evidence": []
+  },
+  "gates": [],
+  "passed": false
+}
