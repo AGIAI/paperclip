@@ -267,12 +267,17 @@
   "onlyDeclaredElevenNativeSourcesDiffer": true,
   "fixedMasterContextVerified": true,
   "providerCallsSoFar": null,
-  "liveStatus": "candidate_dispatched_baseline_approval_pending",
+  "liveStatus": "both_dispatched_no_graded_cells",
   "workflowRuns": {
     "candidate": {
       "id": 37098728980,
       "url": "https://github.com/paperclipai/paperclip/actions/runs/37098728980",
       "createdAt": "2026-10-03T05:06:09Z"
+    },
+    "baseline": {
+      "id": 37098815696,
+      "url": "https://github.com/paperclipai/paperclip/actions/runs/37098815696",
+      "createdAt": "2026-10-03T05:07:44Z"
     }
   },
   "preservedZeroProviderCohorts": [
