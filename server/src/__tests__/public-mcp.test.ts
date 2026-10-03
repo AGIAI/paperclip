@@ -491,6 +491,23 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     await f.service.unsubscribe(f.principal, f.input);
   });
 
+  it("keeps the longest promised lifetime when cached refreshes overlap across replicas", async () => {
+    const f = await eventFixture();
+    const first = await f.service.subscribe(f.principal, { ...f.input, ttlMs: 30_000 });
+    const replica = createPublicMcpEvents(db, oauth, f.dispatch, f.options);
+    const refreshed = await Promise.all([
+      f.service.subscribe(f.principal, { ...f.input, ttlMs: 3600_000 }),
+      replica.subscribe(f.principal, { ...f.input, ttlMs: 30_000 }),
+    ]);
+    const [stored] = await db.select().from(mcpEventSubscriptions).where(eq(mcpEventSubscriptions.id, first.id));
+    expect(stored!.expiresAt.getTime()).toBe(f.now() + 3600_000);
+    expect(refreshed.every(r => Date.parse(r.refreshBefore) <= stored!.expiresAt.getTime())).toBe(true);
+    const shorter = await replica.subscribe(f.principal, { ...f.input, ttlMs: 30_000 });
+    expect(Date.parse(shorter.refreshBefore)).toBe(stored!.expiresAt.getTime());
+    expect(f.received).toHaveLength(1);
+    await f.service.unsubscribe(f.principal, f.input);
+  });
+
   it("retries a lost delivery with a stable ID and fresh signature, rotates keys and stops on unsubscribe", async () => {
     const f = await eventFixture();
     await f.service.subscribe(f.principal, f.input);
