@@ -31,6 +31,7 @@ export function nativeCompletionPreflightEnvironment(source: NodeJS.ProcessEnv):
   return Object.fromEntries([
     "PATH", "HOME", "TMPDIR", "TMP", "TEMP", "SYSTEMROOT", "LANG", "LC_ALL",
     "CARGO_HOME", "RUSTUP_HOME", "CI", "GITHUB_ACTIONS",
+    "PAPERCLIP_RUNNER_E2E_SOURCE_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT",
   ].flatMap(name => source[name] === undefined ? [] : [[name, source[name]]]));
 }
 
