@@ -27,10 +27,14 @@ export const AllowDelegation: Story = { play: async context => {
 export const SwitchingOrganizationsResetsConsent: Story = { play: async context => {
   await AllowDelegation.play!(context);
   const c = within(context.canvasElement);
+  await userEvent.click(c.getByRole("checkbox"));
   await userEvent.click(c.getByRole("radio", { name: "Design Partners" }));
   await expect(c.getByRole("checkbox")).not.toBeChecked();
   await expect(c.getByRole("checkbox")).toBeDisabled();
   await expect(c.getByText("Your role in this organization is read-only.")).toBeVisible();
+  await userEvent.click(c.getByRole("radio", { name: "Acme Research" }));
+  await expect(c.getByRole("checkbox")).toBeEnabled();
+  await expect(c.getByRole("checkbox")).not.toBeChecked();
 } };
 export const ReadOnlyRequest: Story = { parameters: { fixture: { request: { clientName: "Claude", redirectOrigin: "https://claude.ai", requestedWrite: false, offlineAccess: false } } } };
 export const SignInRequired: Story = { parameters: { fixture: { request: { requiresSignIn: true, companies: [] } } } };

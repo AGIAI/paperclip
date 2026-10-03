@@ -44,7 +44,7 @@ function McpConnectRequest({ id }: { id: string }) {
           </div> : <fieldset className="space-y-2" disabled={consent.isPending}>
             <legend className="mb-2 text-sm font-medium">Organization</legend>
             {data.companies.map((item) => <label key={item.id} className="flex items-center gap-3 rounded-md border border-border p-3 text-sm">
-              <input type="radio" name="company" aria-label={item.name} value={item.id} checked={companyId === item.id} onChange={() => { setCompanyId(item.id); setWriteEnabled(true); }} />
+              <input type="radio" name="company" aria-label={item.name} value={item.id} checked={companyId === item.id} onChange={() => setCompanyId(item.id)} />
               <CompanyPatternIcon companyName={item.name} logoUrl={item.logoUrl} className="size-12 shrink-0 rounded-lg" />
               <span className="min-w-0 break-words font-medium">{item.name}</span>
             </label>)}

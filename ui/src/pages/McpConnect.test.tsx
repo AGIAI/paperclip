@@ -20,7 +20,10 @@ vi.mock("../api/client", () => ({ api: {
   get: vi.fn(async () => ({
     id: route.id, clientName: "Assistant", redirectOrigin: "https://assistant.example.test",
     requestedWrite: route.requestedWrite, offlineAccess: true, requiresSignIn: false, requestedCompanyId: route.companyId,
-    companies: route.unavailable ? [] : [{ id: route.companyId ?? "company-one", name: "Acme Research", logoUrl: "/api/assets/acme-logo/content", canWrite: route.canWrite }], setupUrl: null,
+    companies: route.unavailable ? [] : [
+      { id: route.companyId ?? "company-one", name: "Acme Research", logoUrl: "/api/assets/acme-logo/content", canWrite: route.canWrite },
+      ...(!route.companyId ? [{ id: "company-two", name: "Design Partners", logoUrl: null, canWrite: true }] : []),
+    ], setupUrl: null,
   })),
   post: vi.fn(() => new Promise(() => {})),
 } }));
@@ -45,7 +48,7 @@ function setup() {
   };
 }
 
-it("defaults eligible writes on after selection, preserves opt-out on refetch, and submits read-only consent", async () => {
+it("defaults eligible writes on and preserves opt-out across organization changes and refetch", async () => {
   const page = setup();
   try {
     await vi.waitFor(() => expect(page.container.querySelector('input[type="radio"]')).not.toBeNull());
@@ -54,6 +57,10 @@ it("defaults eligible writes on after selection, preserves opt-out on refetch, a
     flushSync(() => (page.container.querySelector('input[type="radio"]') as HTMLInputElement).click());
     expect(page.checkbox().getAttribute("aria-checked")).toBe("true");
     flushSync(() => page.checkbox().click());
+    flushSync(() => (page.container.querySelector('input[value="company-two"]') as HTMLInputElement).click());
+    expect(page.checkbox().getAttribute("aria-checked")).toBe("false");
+    flushSync(() => (page.container.querySelector('input[value="company-one"]') as HTMLInputElement).click());
+    expect(page.checkbox().getAttribute("aria-checked")).toBe("false");
     await page.client.invalidateQueries({ queryKey: ["mcp-request", route.id] });
     expect(page.checkbox().getAttribute("aria-checked")).toBe("false");
     flushSync(() => page.connect().click());
