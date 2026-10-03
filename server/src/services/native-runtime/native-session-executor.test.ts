@@ -1150,6 +1150,17 @@ describe("remote provider pack manifest", () => {
     expect(readRemoteProviderPackManifest(root).payload.pins.opencode).toBe(
       "1.18.32",
     );
+    const cursorPath = "provider-assets/cursor/linux-x64";
+    await mkdir(join(root, cursorPath), { recursive: true });
+    await writeFile(join(root, cursorPath, "runtime"), "pinned Cursor runtime");
+    Object.assign(payload, { providers: { cursor: { version: "2026.09.26-dd393fe", profileDigest: digest("cursor-profile"),
+      closureDigest: digest("cursor-closure"), qualification: "pending", path: cursorPath,
+      sha256: sha256DirectoryTree(join(root, cursorPath)) } } });
+    await writeManifest();
+    expect(readRemoteProviderPackManifest(root).payload.providers?.cursor?.version).toBe("2026.09.26-dd393fe");
+    await writeFile(join(root, cursorPath, "runtime"), "substitute Cursor runtime");
+    expect(() => readRemoteProviderPackManifest(root)).toThrow("asset tree digest mismatch");
+    await writeFile(join(root, cursorPath, "runtime"), "pinned Cursor runtime");
     const candidatePath = "provider-assets/pi/linux-x64";
     await mkdir(join(root, candidatePath), { recursive: true });
     await writeFile(join(root, candidatePath, "runtime"), "pinned runtime");

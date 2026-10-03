@@ -29,7 +29,9 @@ export type RunnerTaskFlow =
   | "question_resume_completion"
   | "plan_approval_completion"
   | "warm_three_turn"
-  | "instruction_persistence";
+  | "instruction_persistence"
+  | "native_active_stop"
+  | "cursor_native";
 
 export interface SecretReference {
   type: "secret_ref";

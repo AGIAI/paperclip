@@ -2,6 +2,8 @@ import { nativeCompletionTasks, nativeCompletionDefinitionDigest } from "./nativ
 import { nativeCompletionProfile, NATIVE_COMPLETION_BUDGET_CENTS } from "./native-completion-defaults.js";
 import { chatConfirmationTasks } from "./chat-cases.js";
 import { hiringTemplateTasks, hiringTemplateProfile, hiringTemplateDefinitionDigest } from "./hiring-template-cases.js";
+import { nativeActiveStopTasks } from "./native-active-stop-tasks.js";
+import { cursorNativeTasks } from "./cursor-native-cases.js";
 import { instructionPersistenceTask } from "./instruction-persistence.js";
 import { apiResponseReadingTask } from "./api-response-reading.js";
 import { taskTitleTasks, taskTitleDefinitionDigest, TASK_TITLE_BUDGET_CENTS } from "./task-titles.js";
@@ -987,7 +989,7 @@ export const daytonaWarmContinuityTask: RunnerTaskFixture = {
       { kind: "issue_status", expected: "done" },
       { kind: "run_status", expected: "succeeded" },
       { kind: "runtime_mode", expected: execution.profile.expectedRuntimeMode },
-      { kind: "environment", expected: "daytona" },
+      { kind: "environment", expected: execution.environment.id },
     ];
   },
 };
@@ -1087,6 +1089,33 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     groups: ["legacy"], profiles: runnerProfiles.filter(p => ["legacy-codex", "legacy-claude"].includes(p.id)).map(blockerProfile),
     environments: [localEnvironment], tasks: blockerTasks, expectedMatrixSize: 6,
     definitionMetadata: { version: 1, instructions: "production-coordination-skill", grading: "saved-human-decision-ownership-and-resume", scheduling: "explicit-only" },
+  },
+  {
+    id: "cursor-native", label: "Cursor native interactions", manualOnly: true,
+    description: "Native question continuation, revision-bound plan decisions and restrictive permission denial with independent process and file evidence.",
+    groups: ["native"], profiles: extendedHarnessProfiles.filter(profile => profile.qualificationCandidate === "cursor"),
+    environments: runnerEnvironments, tasks: cursorNativeTasks, expectedMatrixSize: 8,
+    definitionMetadata: { version: 2, qualification: "pending", scheduling: "explicit-only", profileVersion: QUALIFIED_ACPX_PROFILES.cursor.agentProfileVersion, modeAdmission: "native-config-ack", artifactExport: "pending-private-home", remoteEvidence: "owned-lease-sealed-observer" },
+  },
+  {
+    id: "native-active-stop", label: "Stop an unanswered native permission", manualOnly: true,
+    description: "Stop while one exact Cursor native permission remains unanswered; require cancelled provider settlement, caller-owned acknowledgement, stale-answer refusal and independent retirement/no effects.",
+    groups: ["native"], profiles: extendedHarnessProfiles.filter(profile => profile.qualificationCandidate === "cursor"),
+    environments: runnerEnvironments, tasks: nativeActiveStopTasks, expectedMatrixSize: 2,
+    definitionMetadata: { version: 4, qualification: "pending", scheduling: "explicit-only", evidence: "paperclip.e2e.native-active-stop-settlement.v2", pendingObservation: "retained-api-before-caller-uuid-stop", normalCompletionAccepted: false, permissionPolicy: "approve-reads", lifecycle: "per_turn", remoteEvidence: "paperclip.e2e.native-active-stop-remote-retirement.v1", remoteObservationCoverage: "continuous-through-owned-process-retirement", filesystemAfterRemoteRetirementObserved: false, localObservationCoverage: "four-phases-through-cleanup", providerDeath: "not-covered" },
+  },
+  {
+    id: "rich-acp-warm-continuity", label: "Rich ACP warm continuity", manualOnly: true,
+    description: "Three browser-driven turns with stable native session, runner process and workspace identity for Cursor.",
+    groups: ["native", "warm"],
+    profiles: extendedHarnessProfiles.filter(profile => profile.qualificationCandidate === "cursor").map(profile => ({ ...profile, buildAgent(input: AgentFixtureBuildInput) {
+      const agent = profile.buildAgent(input);
+      return { ...agent, adapterConfig: { ...agent.adapterConfig as Record<string, unknown>, lifecycleMode: "warm", idleTimeoutMs: 300_000 } };
+    } })),
+    environments: [localEnvironment, daytonaWarmEnvironment],
+    tasks: [{ ...daytonaWarmContinuityTask, turnTimeoutMs: 120_000, attemptTimeoutMs: { local: 420_000, daytona: 420_000 } }],
+    expectedMatrixSize: 2,
+    definitionMetadata: { version: 1, qualification: "pending", scheduling: "explicit-only", identity: "native-session-runner-provider-session-process-start" },
   },
   {
     id: "extended-harnesses", label: "Extended ACP harnesses", manualOnly: true,
