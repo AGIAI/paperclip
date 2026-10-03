@@ -221,9 +221,13 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 - A provider-free regression proves that receipt-limit deadline settlement
   attempted to restart the provider when polling terminal evidence. The run
   now closes permanently at that deadline. Existing startup admission fences
-  remain intact. All 333 native core tests and the original Mac interruption
-  test pass after the correction. The regression checks both the existing
-  controller and a fresh controller with unacknowledged terminal evidence.
+  remain intact. All 333 native core tests and all 90 enabled native provider
+  integration tests pass after the correction; two pre-existing tests remain
+  ignored. The accepted-deadline fixture now expects the closed lifecycle and
+  checks that polling from both controllers adds no provider resume. The core
+  regression also retains unacknowledged terminal evidence across reconnect.
+  The earlier broader failure and its stale lifecycle assertion remain in
+  private evidence; they are not regraded.
 - Runner progress evidence contains four successful reads and continued model
   output before the 120-second cutoff, including unrelated fixture notes.
   Bounded direct-eval instructions now ask for the minimum context needed,
@@ -236,8 +240,7 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 
 ## Remaining work in order
 
-1. Diagnose Linux closed admission from its real startup and cleanup evidence.
-   Recheck the corrected executable-scratch probe at the final source and
+1. Recheck the corrected executable-scratch probe at the final source and
    classify the observed Mac ownership contention. Produce the normal Linux
    public-install and companion receipts,
    then import an immutable exact-source Daytona image without an override.
@@ -246,9 +249,9 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
    Bounded harness instructions are corrected; the retained attempt has no progress mutation.
    Do not run an unchanged paid retry. Then execute the remaining explicit
    Runner cases and the full 26-cell Product matrix on the frozen candidate.
-3. Close the prerequisite review stack and final CI gates. Retain the local
-   Codex interrupt-recovery failure until it is resolved or its host-specific
-   cause is established. Publish only the qualified artifacts, then use the
+3. Close the prerequisite review stack and final CI gates. Keep the original
+   Codex interruption failures and the passing corrected integration evidence.
+   Publish only the qualified artifacts, then use the
    bounded operator rollout below. No merge or release is authorized here.
 
 ## Rollout and rollback
