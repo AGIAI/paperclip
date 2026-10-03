@@ -1073,6 +1073,7 @@ export const extendedHarnessFileTask: RunnerTaskFixture = {
   buildPrompt: nonce => [
     `Create extended-${nonce}.txt in the current execution workspace with exactly ready-${nonce} followed by a newline.`,
     `Edit that file to contain exactly verified-${nonce} followed by a newline, then run a command that reads it and fails unless those exact bytes match.`,
+    `Register the verified file as a deliverable with title extended-${nonce}.txt. Use EXTENDED-FILE-${nonce} only as completion summary and final response, never as a file title or progress message.`,
     `After successful validation, call paperclip_finish with reportedWorkDisposition done, summary EXTENDED-FILE-${nonce}, the current completion contract revision and satisfied objective criterion, no remaining work, and the actual validation command and result.`,
     `Wait for paperclip_finish to succeed, then emit exactly EXTENDED-FILE-${nonce} as your final response. Do not create unrelated files or work.`,
   ].join("\n"),
