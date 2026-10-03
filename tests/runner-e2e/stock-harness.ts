@@ -138,7 +138,8 @@ export async function captureStockHarness(input: {
     ),
   })));
   if (events.some(({ runId, run }) => run.id !== runId || run.companyId !== input.companyId || run.agentId !== input.agentId ||
-      !run.contextSnapshot || (run.contextSnapshot.conversationMode !== undefined && typeof run.contextSnapshot.conversationMode !== "boolean"))) {
+      !run.contextSnapshot || typeof run.contextSnapshot !== "object" || Array.isArray(run.contextSnapshot) ||
+      (run.contextSnapshot.conversationMode !== undefined && typeof run.contextSnapshot.conversationMode !== "boolean"))) {
     throw new Error("Stock invocation mode receipt is missing or bound to a different run/company/agent.");
   }
   return {
