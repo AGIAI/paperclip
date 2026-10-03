@@ -4014,7 +4014,16 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         paperclipNextAuthority: { identity: desired, connection },
       };
       core.queueCommand("run.attach", payload, commandId, true);
-      await this.#waitCommand("run.attach", commandId);
+      // ACPX run attachment checkpoints the old sidecar and starts a fresh
+      // provider process. Pi must use the same absolute cold-admission budget
+      // as startup/recovery even though its Runner authority remains warm.
+      // Other providers retain the ordinary command bound.
+      await this.#waitCommand(
+        "run.attach",
+        commandId,
+        this.#coldAdmissionDeadline(),
+        true,
+      );
       const attached = core.getCommand(commandId);
       if (attached?.status !== "completed") {
         throw new Error("native_runner_prp_run_rotation_failed");

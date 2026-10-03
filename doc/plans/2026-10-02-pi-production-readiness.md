@@ -332,8 +332,13 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 - Normal ARM, Intel and Linux public installations pass in 8.043, 37.681 and
   5.698 s respectively. Each uses the normal installed daemon, verifies profile
   14, submits no prompt and observes clean Runner exit. Workspace build and
-  typecheck pass. The full local Vitest run remains live; embedded Postgres
-  integration suites report host skips, so it is not complete integration proof.
+  typecheck pass. The broad local Vitest attempt completes with 47 failed files,
+  533 passed files and 163 skipped files. Private Postgres library symlinks are
+  missing, and the restricted test PATH omits macOS lsof. Both setup causes are
+  corrected only in the task-owned dependency environment. The focused DB and
+  process-owner checks pass 95 tests with three existing skips. The full suite
+  then reruns with the corrected environment. The failed log remains intact; it is not
+  a passing full local test or complete integration claim.
 - The local Product controller-restart cell passes with canonical evidence.
   The next cell, warm-three-turn, completes turn 1 but fails before turn 2
   provider work: native `run.attach` reaches its 30-second command timeout.
@@ -345,13 +350,18 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   of the completed-turn failure and does not qualify warm continuity. Its strict
   cleanup receipt fails even though native state reports suspended and Runner
   exits cleanly; both observations are retained. No model prompt is submitted.
-- Investigate authority rotation and native provider reopen before choosing the
-  correction. Native ACPX attachment checkpoints the old sidecar and opens a
-  new one. Pi's native session-open admission bound is 60 s, but warm attachment
-  currently uses the ordinary 30 s controller command wait. This discrepancy
-  is a candidate cause, not a measured resolution. Do not widen the 60 s bound,
-  weaken the three-turn identity checks or retry the paid failure unchanged.
-- All 55 CI checks and Greptile 5/5 are terminal at `3d75626bf`, with zero
+- A free completed-turn regression proves the warm-admission mismatch. It
+  finishes turn 1 through the native semantic bridge, checkpoints the sidecar,
+  and delays the replacement's exact-identity admission by 32 s. The unchanged
+  controller times out at `run.attach` and strict suspension fails. The corrected
+  controller uses Pi's existing absolute 60 s cold-process admission budget for
+  warm attachment and aborts admission on close. The same fixture then completes
+  turn 2, retains one Runner, starts exactly two sidecars without a retry, and
+  passes strict cleanup. TypeScript passes; the full transport/eval-session
+  suite is running. The native 60 s bound and profile-14 bytes are unchanged.
+  The paid three-turn failure remains failed. Fresh exact-source packaging and
+  one explicit paid retry are still required; no live resolution is claimed.
+- All 55 CI checks and Greptile 5/5 are terminal at `96a0e329b`, with zero
   unresolved draft-PR threads. The immutable image job 37099122706 remains
   queued. Track it without a duplicate dispatch. Qualification, prerequisites
   and image/companion gates still hold production.

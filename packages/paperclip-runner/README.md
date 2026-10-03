@@ -60,6 +60,12 @@ and Daytona qualification passes. Their verified distributions are build-owned;
 no candidate accepts an arbitrary executable. See
 [the rich ACP capability report](../../doc/architecture/runner-rich-acp-capabilities.md).
 
+Pi cold provider admission has an absolute 60-second budget. Warm run attachment
+checkpoints the old ACPX sidecar and starts a new one, so it uses that same budget
+while retaining the existing Runner authority. Live adoption and ordinary
+commands retain their 30-second bounds. Closing the transport cancels admission;
+an acknowledgement received after the admission deadline cannot revive it.
+
 Cursor candidate configuration accepts `acpxSessionMode: "agent" | "plan" | "ask"`
 (default `agent`). This selects the native Cursor mode independently of
 `acpxPermissionMode` and Paperclip task planning or company approvals. The mode

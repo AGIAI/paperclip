@@ -6294,6 +6294,75 @@ it("rotates PRP authority in place for a warm cross-run attachment", async () =>
   }
 }, 30_000);
 
+it("reopens Pi after a completed turn within its cold admission budget during warm attachment", async () => {
+  const root = await mkdtemp(join(tmpdir(), "runnerd-pi-warm-admission-"));
+  const cliRoot = join(root, "dist/cli");
+  await mkdir(cliRoot, { recursive: true });
+  const sidecarPath = join(cliRoot, "acpx-runtime-sidecar.cjs");
+  const journal = join(root, "commands.ndjson");
+  const fixture = await readFile(fileURLToPath(new URL("./fixtures/fake-pi-warm-sidecar.cjs", import.meta.url)), "utf8");
+  await writeFile(sidecarPath, fixture.replace("/* fixture-config */ null", JSON.stringify({ journal, resumeDelayMs: 32_000 })));
+  const digest = (path: string) => `sha256:${createHash("sha256").update(readFileSync(path)).digest("hex")}`;
+  const bundle = createCapabilityRunnerdCodexTransport({
+    provider: "acpx", acpxAgent: "pi", piThinkingLevel: "low", acpxPermissionMode: "deny-all",
+    runnerBinary: defaultCapabilityRunnerdBinary(), stateDirectory: root, runnerFilesystemRoot: root,
+    providerNodeCommand: process.execPath, providerNodeCommandSha256: digest(process.execPath),
+    acpxSidecarPath: sidecarPath, acpxSidecarSha256: digest(sidecarPath),
+    providerPackAuthorityDigest: `sha256:${"d".repeat(64)}`,
+    lifecyclePolicy: { mode: "warm", idleTimeoutMs: 60_000 },
+    environment: { PATH: "/usr/bin:/bin" },
+  });
+  bundle.transport.setServerRequestHandler(async () => ({
+    success: true,
+    contentItems: [{ type: "inputText", text: "Completion report accepted." }],
+  }));
+  let failure: unknown;
+  try {
+    await bundle.transport.request("initialize", {});
+    await bundle.transport.request("thread/start", {
+      cwd: root, model: "openrouter/deepseek/deepseek-v4-flash-0731",
+      dynamicTools: codexSemanticToolSpecs(),
+      completionContract: { revision: "warm-pi-contract", criterionIds: [] },
+    });
+    const runnerPid = bundle.evidence().runnerPid;
+    const notifications = bundle.transport.notifications()[Symbol.asyncIterator]();
+    const completeTurn = async () => {
+      await bundle.transport.request("turn/start", { input: [{ type: "text", text: "Complete the fixture turn." }] });
+      for (let index = 0; index < 64; index += 1) {
+        const next = await Promise.race([
+          notifications.next(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Fixture completion timed out")), 5_000)),
+        ]);
+        if (next.value?.method === "turn/completed") return;
+      }
+      throw new Error("Fixture turn did not complete");
+    };
+    await completeTurn();
+    const started = Date.now();
+    await bundle.transport.attachRun!({ runId: "run-pi-warm-second", turnId: "turn-pi-warm-second", itemId: "item-pi-warm-second" });
+    expect(Date.now() - started).toBeGreaterThan(30_000);
+    await completeTurn();
+    expect(bundle.evidence()).toMatchObject({ runnerPid, runnerExited: false });
+    const commands = (await readFile(journal, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+    expect(commands.filter((entry) => entry.event === "spawn")).toHaveLength(2);
+    expect(commands.filter((entry) => entry.command === "session.open")).toHaveLength(2);
+    expect(commands.filter((entry) => entry.resumed)).toHaveLength(1);
+    expect(commands.filter((entry) => entry.command === "turn.start")).toHaveLength(2);
+    expect(commands.filter((entry) => entry.command === "session.close")).toHaveLength(1);
+  } catch (error) {
+    failure = error;
+    throw error;
+  } finally {
+    try {
+      await bundle.transport.close();
+    } catch (cleanupError) {
+      if (failure) throw new AggregateError([failure, cleanupError], "Warm attachment and strict cleanup failed");
+      throw cleanupError;
+    }
+    await rm(root, { recursive: true, force: true });
+  }
+}, 75_000);
+
 it("waits for a warm runner to re-authenticate before probing attachment readiness", async () => {
   const stateDirectory = await mkdtemp(
     join(tmpdir(), "runnerd-warm-reattach-before-probe-"),
