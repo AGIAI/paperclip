@@ -496,6 +496,8 @@ export function oauthClientIdMetadataDocument(input: {
 type OAuthProviderEndpoints = {
   provider: string;
   scopes: string[];
+  /** Refresh permission belongs to authorization-server metadata, not MCP tool scopes. */
+  offlineAccessSupported?: boolean;
   authorizationUrl: string;
   tokenUrl: string;
   registrationUrl?: string | null;
@@ -8753,6 +8755,9 @@ export function toolAccessService(
       firstPartyOrigin,
     );
     let scopes = normalizeOauthScopes(metadata.scopes_supported);
+    let offlineAccessSupported = Boolean(
+      authorizationUrl && scopes.includes("offline_access"),
+    );
     let codeChallengeMethodsSupported = normalizeOauthScopes(
       metadata.code_challenge_methods_supported,
     );
@@ -8805,6 +8810,15 @@ export function toolAccessService(
         !sameOAuthIssuer(advertisedIssuer, candidate.issuer)
       )
         continue;
+      // A document can carry its own endpoints and also list other servers.
+      // Adopt capabilities only from metadata bound to the selected endpoints
+      // and issuer; otherwise offline access could break an unrelated sign-in.
+      if (
+        (authorizationUrl && candidateAuthorizationUrl !== authorizationUrl) ||
+        (tokenUrl && candidateTokenUrl !== tokenUrl) ||
+        (issuer && !sameOAuthIssuer(issuer, advertisedIssuer ?? candidate.issuer))
+      )
+        continue;
       authorizationUrl = authorizationUrl ?? candidateAuthorizationUrl;
       tokenUrl = tokenUrl ?? candidateTokenUrl;
       registrationUrl =
@@ -8816,6 +8830,8 @@ export function toolAccessService(
           firstPartyOrigin,
         );
       issuer = issuer ?? advertisedIssuer ?? candidate.issuer;
+      offlineAccessSupported = offlineAccessSupported ||
+        normalizeOauthScopes(authMetadata.scopes_supported).includes("offline_access");
       if (scopes.length === 0)
         scopes = normalizeOauthScopes(authMetadata.scopes_supported);
       if (codeChallengeMethodsSupported.length === 0) {
@@ -8843,6 +8859,7 @@ export function toolAccessService(
     return {
       provider: oauthProviderForConnection(connection, metadataUrl),
       scopes,
+      offlineAccessSupported,
       authorizationUrl,
       tokenUrl,
       registrationUrl,
@@ -8909,9 +8926,31 @@ export function toolAccessService(
         ? oauth.resource.trim()
         : canonicalResourceIndicator(remoteEndpoint(connection.config));
     if (configuredAuthorizationUrl && configuredTokenUrl) {
+      // Pre-existing generic connections cached endpoints before refresh-scope
+      // support was recorded. Recover that capability from their bound metadata
+      // without adopting a different issuer or changing their requested tool scopes.
+      let refreshMetadata: OAuthProviderEndpoints | null = null;
+      if (
+        !connection.config.sourceTemplateKey &&
+        typeof oauth.offlineAccessSupported !== "boolean" &&
+        typeof oauth.metadataUrl === "string"
+      ) {
+        const discovered = await endpointsFromMetadataUrl(
+          connection, oauth.metadataUrl, rejections, firstPartyOrigin,
+        );
+        if (
+          discovered?.authorizationUrl === configuredAuthorizationUrl &&
+          discovered.tokenUrl === configuredTokenUrl &&
+          (typeof oauth.issuer !== "string" ||
+            (discovered.issuer && sameOAuthIssuer(discovered.issuer, oauth.issuer)))
+        ) refreshMetadata = discovered;
+      }
       return {
         provider,
         scopes,
+        offlineAccessSupported: typeof oauth.offlineAccessSupported === "boolean"
+          ? oauth.offlineAccessSupported
+          : refreshMetadata?.offlineAccessSupported,
         authorizationUrl: configuredAuthorizationUrl,
         tokenUrl: configuredTokenUrl,
         registrationUrl: safeOAuthEndpointUrl(
@@ -8926,6 +8965,9 @@ export function toolAccessService(
         tokenEndpointAuthMethodsSupported: normalizeOauthScopes(
           oauth.tokenEndpointAuthMethodsSupported,
         ),
+        grantTypesSupported: Array.isArray(oauth.grantTypesSupported)
+          ? normalizeOauthScopes(oauth.grantTypesSupported)
+          : refreshMetadata?.grantTypesSupported,
         grantType,
         metadataUrl:
           typeof oauth.metadataUrl === "string"
@@ -9542,6 +9584,8 @@ export function toolAccessService(
         registrationUrl: input.endpoints.registrationUrl,
         metadataUrl: input.endpoints.metadataUrl ?? null,
         scopes: input.endpoints.scopes,
+        offlineAccessSupported: input.endpoints.offlineAccessSupported,
+        grantTypesSupported: input.endpoints.grantTypesSupported ?? [],
         codeChallengeMethodsSupported:
           input.endpoints.codeChallengeMethodsSupported ?? [],
         tokenEndpointAuthMethodsSupported:
@@ -9608,6 +9652,8 @@ export function toolAccessService(
         registrationUrl: input.endpoints.registrationUrl ?? null,
         metadataUrl: input.endpoints.metadataUrl ?? null,
         scopes: input.endpoints.scopes,
+        offlineAccessSupported: input.endpoints.offlineAccessSupported,
+        grantTypesSupported: input.endpoints.grantTypesSupported ?? [],
         codeChallengeMethodsSupported:
           input.endpoints.codeChallengeMethodsSupported ?? [],
         tokenEndpointAuthMethodsSupported:
@@ -14245,6 +14291,17 @@ export function toolAccessService(
         `OAuth client id is not configured for ${endpoints.provider}`,
       );
 
+    const authorizationScopes = normalizeOauthScopes(
+      galleryMethod ? (requestedScopes ?? []) : (input.scopes ?? endpoints.scopes),
+    );
+    if (
+      !galleryMethod &&
+      endpoints.offlineAccessSupported &&
+      (!endpoints.grantTypesSupported?.length ||
+        endpoints.grantTypesSupported.includes("refresh_token")) &&
+      !authorizationScopes.includes("offline_access")
+    ) authorizationScopes.push("offline_access");
+
     await db
       .delete(toolOauthStates)
       .where(lt(toolOauthStates.expiresAt, new Date()));
@@ -14265,7 +14322,7 @@ export function toolAccessService(
       createdByActorId: binding.actorId,
       createdBySessionId: binding.sessionId,
       subjectUserId: authorizationSubjectUserId,
-      requestedScopes: requestedScopes ?? undefined,
+      requestedScopes: authorizationScopes,
       returnTo: input.returnTo,
       issueId: intentLink?.issueId ?? input.issueId,
       interactionId: intentLink?.id,
@@ -14301,9 +14358,6 @@ export function toolAccessService(
     // method either sends its reviewed hint or omits scope entirely. Generic
     // MCP URLs retain discovery-first behavior because Paperclip has no manifest
     // against which it could safely judge the caller's requested scope.
-    const authorizationScopes = galleryMethod
-      ? (requestedScopes ?? [])
-      : (input.scopes ?? endpoints.scopes);
     if (authorizationScopes.length > 0)
       authorizationUrl.searchParams.set("scope", authorizationScopes.join(" "));
     const reviewedAuthorizationParams =
@@ -14318,6 +14372,10 @@ export function toolAccessService(
         "prompt",
         reviewedAuthorizationParams.prompt,
       );
+    else if (!galleryMethod && authorizationScopes.includes("offline_access"))
+      // OIDC offline access requires consent unless the provider has another
+      // established basis for granting it. A generic server has no reviewed override.
+      authorizationUrl.searchParams.set("prompt", "consent");
 
     if (
       authorizationSubjectUserId &&
@@ -14445,7 +14503,9 @@ export function toolAccessService(
         // Curated apps persist only the reviewed scopes attached to this OAuth
         // state. Discovery metadata can advertise a provider's entire scope
         // universe and must never silently become Paperclip's requested set.
-        scopes: galleryMethod ? (requestedScopes ?? []) : endpoints.scopes,
+        scopes: authorizationScopes,
+        offlineAccessSupported: endpoints.offlineAccessSupported,
+        grantTypesSupported: endpoints.grantTypesSupported ?? [],
         codeChallengeMethodsSupported:
           endpoints.codeChallengeMethodsSupported ?? [],
         tokenEndpointAuthMethodsSupported:
@@ -15512,6 +15572,11 @@ export function toolAccessService(
       input.redirectUri,
     );
     assertOAuthCallbackIssuer(connection, endpoints, input.iss);
+    // Generic states created before requested scopes were persisted may still
+    // complete after an upgrade. Keep their original cached/discovered scope set.
+    const authorizedScopes = normalizeOauthScopes(
+      stateRow.requestedScopes ?? (galleryEntry ? [] : endpoints.scopes),
+    );
     const client = await oauthClientForConnection(
       connection,
       endpoints.provider,
@@ -15634,7 +15699,7 @@ export function toolAccessService(
               strategy: "direct_oauth",
               accessTokenExpiresAt: expiresAt ?? undefined,
               scopes: normalizeOauthScopes(
-                token.scope ?? stateRow.requestedScopes,
+                token.scope ?? authorizedScopes,
               ),
               tokenType: token.tokenType,
               refreshedAt: connectedAt.toISOString(),
@@ -15672,9 +15737,7 @@ export function toolAccessService(
             authorizationUrl: endpoints.authorizationUrl,
             tokenUrl: endpoints.tokenUrl,
             metadataUrl: endpoints.metadataUrl ?? null,
-            scopes: galleryEntry
-              ? normalizeOauthScopes(stateRow.requestedScopes)
-              : endpoints.scopes,
+            scopes: authorizedScopes,
             clientIdEnv: client.clientIdEnv,
             clientSecretEnv: client.clientSecret
               ? client.clientSecretEnv
@@ -15936,9 +15999,7 @@ export function toolAccessService(
           authorizationUrl: endpoints.authorizationUrl,
           tokenUrl: endpoints.tokenUrl,
           metadataUrl: endpoints.metadataUrl ?? null,
-          scopes: galleryEntry
-            ? normalizeOauthScopes(stateRow.requestedScopes)
-            : endpoints.scopes,
+          scopes: authorizedScopes,
           clientIdEnv: client.clientIdEnv,
           clientSecretEnv: client.clientSecret ? client.clientSecretEnv : null,
           credentialScope: credentialScope(connection, input.actor),
