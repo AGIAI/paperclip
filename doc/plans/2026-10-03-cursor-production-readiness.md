@@ -181,6 +181,23 @@ identity and does not qualify the failed attempt retroactively.
 CI found an imported editable-default question test without its corresponding
 contract. Editable defaults are outside this Cursor release and their partial
 import was removed instead of extending all question surfaces. Cursor question
-handling and plans remain intact. Configuration now preserves mainline behavior
-for unavailable Pi/Copilot profiles while retaining Cursor's explicit model and
-mode selection.
+handling and plans remain intact. Configuration rejects unavailable Pi/Copilot selections explicitly, preserving
+the selected provider and model rather than substituting Claude. Cursor retains
+its explicit model and mode selection.
+
+At source `ae24f0981221dc0b5694120f9bb46ff6c8859e07`, all CI build,
+typecheck, Rust, unit, and browser jobs passed. Automated review found a remaining
+provider fallback and a build-timeout test reading an excluded Pi file. Both are
+repaired with focused coverage; no Pi implementation was added.
+
+The `cursor-v11-ae24f0-local-native-write-deny-reconnect-01` attempt delivered
+the exact Reject once, observed no target mutation, and retired the owned process
+tree. Its original result remains failed: the fixture incorrectly required a
+failed native tool and a subsequent Stop. Cursor reported transport completion
+and ended the turn; Paperclip correctly failed missing semantic finalization and
+kept the task unfinished. The repaired oracle preserves exact request/tool/turn/
+command identity, delivered rejection, all six independent samples, a complete
+continuous watcher, and actual process retirement. It additionally requires the
+correlated terminal and the failed semantic finalization. It does not certify
+operator cancellation; pending-permission Stop remains a separate required gate.
+The affected live denial repeat is pending on the next recorded fixture identity.

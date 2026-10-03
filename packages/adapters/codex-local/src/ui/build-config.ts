@@ -97,7 +97,11 @@ export function buildPaperclipRunnerConfig(v: CreateConfigValues): Record<string
   const provider = isPaperclipRunnerProvider(providerCandidate)
     ? providerCandidate
     : "codex";
-  const acpxAgent = PAPERCLIP_RUNNER_ACPX_PROFILES.find(profile => profile.value === schemaValues.acpxAgent && (profile.qualified || profile.value === "cursor"))?.value ?? "claude";
+  const selectedAcpxProfile = PAPERCLIP_RUNNER_ACPX_PROFILES.find(profile => profile.value === schemaValues.acpxAgent);
+  if (provider === "acpx" && selectedAcpxProfile && !selectedAcpxProfile.qualified && selectedAcpxProfile.value !== "cursor") {
+    throw new Error(`${selectedAcpxProfile.label} is not enabled for production`);
+  }
+  const acpxAgent = selectedAcpxProfile?.value ?? "claude";
   const cursorMode = resolvePaperclipRunnerCursorMode(provider, acpxAgent, schemaValues.acpxSessionMode);
 
   const schemaModel = typeof schemaValues.model === "string"

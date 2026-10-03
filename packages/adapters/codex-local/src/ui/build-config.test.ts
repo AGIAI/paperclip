@@ -226,19 +226,15 @@ describe("buildPaperclipRunnerConfig", () => {
     expect(config).not.toHaveProperty("acpxAgent");
   });
 
-  it("does not materialize the unavailable ACPX Pi profile", () => {
-    expect(buildPaperclipRunnerConfig(makeValues({
+  it.each(["pi", "copilot"])("rejects unavailable ACPX %s without selecting another provider", (acpxAgent) => {
+    expect(() => buildPaperclipRunnerConfig(makeValues({
       adapterType: "paperclip_runner",
-      model: "",
+      model: "explicit-provider-model",
       adapterSchemaValues: {
         provider: "acpx",
-        acpxAgent: "pi",
+        acpxAgent,
       },
-    }))).toMatchObject({
-      provider: "acpx",
-      acpxAgent: "claude",
-      model: "claude-sonnet-5",
-    });
+    }))).toThrow(/is not enabled for production/);
   });
 
   it.each(["agent", "plan", "ask"])("preserves Cursor's explicit model and %s mode", (mode) => {
