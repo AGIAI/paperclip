@@ -23,11 +23,11 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | --- | --- | --- |
 | Runtime identity and admission | Exact runtime/profile/model; verified effective thinking; startup below the 60-second admission limit; unsupported configuration fails before a prompt | Frozen shipping source `0bd040093` passes normal public CLI/server installation, Pi setup and credential-free profile-14 admission on ARM Mac (7.921 s), Intel Mac (31.692 s), and native Linux in Daytona (8.699 s). No prompt, credentials or binary override is used. The local Rosetta handshake failures remain failed evidence. |
 | Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Frozen shipping source `0bd040093` passes local Stop, steering, controller restart, native questions and three-turn continuity. Daytona lifecycle qualification remains open; its Stop cell retains both the missing-companion setup failure and the later unanswered-bootstrap-read failure. |
-| Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | At frozen shipping source `0bd040093`, all 13 local cells are attempted: 11 pass; agent-files and file-edit remain failed. Eight Daytona cells are attempted: hello-complete, question-resume, plan-approve and structured-question restart/resume pass; Stop, native-questions, native controller-restart and warm continuity remain failed. Five Daytona cells remain unattempted, including two held for the identified restrictive bootstrap gap. Original grades and exact-source evidence are preserved. |
+| Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | At frozen shipping source `0bd040093`, all 13 local cells are attempted: 11 pass; agent-files and file-edit remain failed. Eleven Daytona cells are attempted: hello-complete, question-resume, plan-approve, structured-question restart/resume and corrected warm continuity pass; Stop, native-questions, native controller-restart, agent-files, provider-death and file-edit remain failed. The corrected warm attempt passes nine matchers, all stable native identities and cleanup in 298 seconds; its original Mac setup failure stays failed. Steering and human-denial remain unattempted, held for the restrictive bootstrap/oracle gap. Original grades and exact-source evidence are preserved. |
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases are attempted at `0bd040093`: five pass; context-before-action retains its 120-second terminal timeout, and finish-task retains use of the advisory report without the required task mutation. One context/document workflow retry passes only after verified protection against the recorded host sleep; its original failure stays unchanged. The seven `b148b73ea` passes remain historical. |
 | Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Exact-source public CLI/server installation and normal Pi setup pass on all three platforms. Public immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47` imports into native Linux Daytona and passes closed admission. Temporary sandbox cleanup passes. Image jobs 37102904889, 37106313185 and 37110683910 are terminal/cancelled. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | PR head `6cc13a7f3` has 53 successful CI checks, two skips and Greptile 5/5. Its remaining documentation finding identifies inconsistent qualification counts; this handoff reconciles those counts. New-head CI/review remain required after push. Shipping inputs remain equivalent to `0bd040093`. Full native-Linux typecheck passes after correcting the owned Cargo target path; the same job is still executing tests, with build unexecuted. Original failed commands remain failed, including the prior Mac database-startup hook. The full-command gate stays open. Four prerequisite findings have downstream corrections; production stays held until all 33 cases pass. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Verified head `82ee4ec91` has 53 successful CI checks, two skips, Greptile 5/5 and no unresolved root review thread. One permitted rerun passes the originally failed browser shard and aggregate gate; the original failure stays retained and its nondeterministic cause is unproven. A subsequent documentation-only head still requires its own CI and review. Shipping inputs remain equivalent to `0bd040093`. The complete native Linux command remains open: a repeat with normal npm restored fails six suites after disk drops below the unchanged 256 MiB workspace reserve. Reclaiming only the unused owned pnpm store restores 2.75 GiB free; all six failed suites (75 tests) then pass unchanged. The next full repeat passes typecheck and is running tests; build remains unexecuted. Every original failed command stays failed. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held until all 33 cases pass. No merge or release. |
 
 ## Bounded execution
 
@@ -45,8 +45,9 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 
 ## Qualification snapshot — 2026-10-03
 
-The current ledger has 20 passes, eight failed cells, and five unattempted cells
-across the required 26 Product and seven Runner gates. No production admission
+The current ledger has 21 passes, ten failed cells, two unattempted cells and
+zero running cases across the required 26 Product and seven Runner gates.
+The original failed warm attempt remains preserved. No production admission
 is claimed. No automatic paid retry, fallback key, model change, workflow edit,
 or lockfile commit occurs.
 
@@ -68,7 +69,9 @@ Remaining corrections and evidence:
   correction is identified yet; both paid failures stay held.
 - Runner finish-task reports the run through `paperclip_finish` without invoking
   the advertised `finish_task` mutation. Preserve the mock authority distinction
-  and the failed behavior grade.
+  and the failed behavior grade. The actual failed attempt advertises and
+  authorizes `finish_task`; runtime instructions already explain the distinction.
+  A missing-tool or permission-denial correction is not established.
 - Local file-edit edits, validates and publishes the correct downloadable bytes,
   but an extra shell command obtains artifact metadata. The frozen exactly-one
   native validation-execution gate fails. Do not relax that gate or retry without
@@ -112,6 +115,67 @@ Remaining corrections and evidence:
   Linux installed controller and prove credential-free health/UI/admission
   before a paid correction attempt. Do not infer a Pi continuity failure from
   this controller-startup failure.
+- A separately installed native Linux controller passes normal public Pi
+  admission in 6.702 seconds. Its image-derived companion retains every file
+  byte and link target across 24,352 entries. Linux symlink modes differ from
+  the recorded Mac copy, so its normal native companion uses its own manifest
+  digest `0907c5be08ed804e4a02b0016703d261a4142c21db6e66f3a01dcca6e775b0cc`;
+  the original Mac digest remains unchanged. Normal import passes. Preserve
+  both explicit `ERR_PNPM_ENOSPC` dependency failures at the 10 GiB limit.
+  Removing only unused owned staging and failed tool dependencies permits
+  the smaller unchanged-harness dependency installation and normal Chromium
+  setup. A later credential-free startup identifies a skipped standard
+  PostgreSQL lifecycle: required native library links are absent and initdb
+  exits 127. Standard `npm rebuild @embedded-postgres/linux-x64` repairs those
+  links without changing archived bytes. The real installed launcher then
+  passes health/UI with zero companies, zero provider calls and full scratch
+  cleanup in 12.101 seconds. Strict complete installed audits pass 101,213
+  controller files and 16,356 plugin files; the importer authority receipt is
+  validated exactly. Normal CLI/plugin admission and all 13 Daytona catalog
+  configurations pass with frozen profile 14/model/low. This prepares a
+  healthy controller; it is not a paid qualification pass. Fresh BYOK/billing
+  guards and an explicit one-case Linux execution phase remain required.
+- Daytona agent-files retains two failed setup attempts: collection initially
+  cannot resolve the declared shared helper, then the one corrected attempt
+  cannot resolve the declared Daytona SDK. Source-only dependency links to the
+  reviewed installed shared package and SDK 0.203.0 repair both resolutions.
+  All 13 unchanged Daytona cases collect, and the SDK constructor passes without
+  credentials or provider calls. Automatic approval review rejects a further
+  agent-files attempt because the proposed retry guard exceeds the bounded
+  correction authorization. That attempt is held pending human approval; no
+  key is read or remote work dispatched by the rejected action.
+- Daytona provider-death reaches a real unanswered native question, then fails
+  its exact-child fault observer receipt. Canonical independent retirement and
+  cleanup pass; provider-loss and stale-answer assertions are not reached.
+  The unchanged Linux fault calibration passes all nine tests, including a real
+  pidfd signal. A separate free image inspection finds built-in Pi closure
+  `a82188d45ef98396c50880c1352a0dc77e81283ccaefe587156b3468d34e8c0b`,
+  while admitted profile 14 requires
+  `2957c0ec20ca1ace64d1a2b10c4a99f47f59e0c5c33a89161c1d5b48341c2b25`.
+  The fixture hardcodes the built-in pack, so its closure check cannot admit
+  the separately installed runtime. The original observer error masks its
+  specific internal cause; this diagnosis does not regrade that failure.
+  A fixture correction remains held for workflow-scope clarification.
+- The unrestricted Daytona file-edit first attempt edits and publishes the
+  correct file and passes cleanup, but performs extra native shell executions.
+  It fails the unchanged exactly-one validation-execution gate. Both platform
+  failures remain held without a supported correction; supplied artifact hashes
+  and the exact validation command were already included in the request.
+- One explicit warm-continuity correction attempt now uses the proven native
+  Linux controller after normal PostgreSQL lifecycle repair. The frozen
+  runtime, profile/model/low, image and matchers stay unchanged. The phase permits
+  only one correction after the one original failed attempt, with zero automatic
+  retries and fresh BYOK/billing guards. The attempt passes all nine canonical
+  matchers and cleanup in 298 seconds. Three turns preserve the native session,
+  Runner instance, provider session, Runner PID and process-start identity;
+  lease acquisition is created/resumed/resumed with one provider lease and
+  execution workspace. All three retained event streams independently confirm
+  the native session and Runner instance. The retained API snapshot has fewer
+  full native run records, so retrospective reinspection of the other identity
+  fields is limited to the live canonical checks. Removing only its unused
+  owned pnpm store restores 1.65 GiB
+  free after checking all 1,181 symlinks and finding no installed reference into
+  the store. Installed graph identities and all original evidence are preserved.
 - A free counterexample with the unchanged controls oracle proves that an
   approved bootstrap read followed by the pending write creates two permissions
   and is rejected. An external approval alone cannot repair the gate. Scoped
@@ -138,10 +202,11 @@ Remaining corrections and evidence:
   stderr prevents proving the original cause. Do not regrade the full command,
   change host limits, or stop unrelated servers as part of that inference.
 
-The next work is to diagnose the remote observer setup, prepare the strictly
-scoped bootstrap correction within the workflow constraint, complete the three
-unattempted unrestricted Daytona cells in a healthy controller environment, and
-obtain a complete full-command pass. The two restrictive Daytona first attempts
+The next work is to collect the exact live full Linux verification command;
+correct the diagnosed remote fault fixture and restrictive
+bootstrap only within clarified workflow scope; and find concrete corrections
+for the remaining failed behavior and observer cases. Current-head CI passes.
+The two restrictive Daytona first attempts
 remain held for the identified bootstrap/oracle constraint. All failed paid cases
 require a concrete correction before retry. Keep
 rollout held until every original release gate is proven.
@@ -577,15 +642,22 @@ rollout held until every original release gate is proven.
    staging because the check wrapper sets Cargo's target outside the staging
    script's expected path. Correcting that owned check environment permits one
    credential-free repeat; it does not change source or regrade the failure.
-   The corrected command passes full typecheck and is still running tests;
-   build is unexecuted. This is live verification, not a completed gate.
+   That command passes typecheck, server (15,054 tests), UI (7,177), CLI (507)
+   and shared (836), then fails the skills-catalog pack test because npm is
+   absent from the closed PATH. Restore the immutable image npm path and
+   preserve that failed command. The next repeat fails six suites after free
+   disk drops below the unchanged workspace reserve. Reclaiming only the unused
+   owned pnpm store restores 2.75 GiB; all 75 tests in those six suites pass
+   unchanged. The current full repeat passes typecheck and is running tests;
+   build is unexecuted. This is not a completed gate.
    Normal ARM/Intel/native-Linux installation and immutable Daytona import now
    pass; retain their exact-source receipts and original failures.
 2. Complete all seven Runner cases and all 26 Product cells on the frozen
-   shipping artifacts. Product has 15 passing and six failed cells, with five
-   Daytona cells unattempted. Runner has five passing and two failed cases;
-   none are unattempted. Thus 20 of 33 required gates pass, eight remain failed,
-   and five need a first attempt. Run each explicitly with zero automatic retries.
+   shipping artifacts. Product has 16 passing and eight failed cells, with two
+   restrictive Daytona cells unattempted. Runner has five passing and two failed
+   cases; none are unattempted. Thus 21 of 33 required gates pass, ten remain
+   failed, two need a first attempt and none are running.
+   Run each explicitly with zero automatic retries.
    Every failed paid case remains held until a concrete correction addresses
    its observed failure. Neither a documentation change nor the unrelated
    fixture correction permits retry.
