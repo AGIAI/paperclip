@@ -40,9 +40,11 @@ describe("native completion credential-free admission", () => {
     expect(spawn).toHaveBeenCalledTimes(1);
   });
   it("retains credential-free prerequisites inside the exact campaign root and verifies them", () => {
+    const sourceSha = "c".repeat(40);
+    vi.stubEnv("PAPERCLIP_RUNNER_E2E_SOURCE_SHA", sourceSha);
     vi.stubEnv("OPENAI_API_KEY", "secret"); vi.stubEnv("UNLISTED_PROVIDER_CREDENTIAL", "secret");
     spawn.mockReturnValueOnce({ status: 0 } as ReturnType<typeof spawnSync>);
-    spawn.mockReturnValueOnce({ status: 0, stdout: '{"passed":true}' } as ReturnType<typeof spawnSync>);
+    spawn.mockReturnValueOnce({ status: 0, stdout: JSON.stringify({ passed: true, sourceSha }) } as ReturnType<typeof spawnSync>);
     const receipt = prepareNativeCompletionPreflight(campaignDirectory);
     expect(receipt).toMatch(/^\/fixture\/results\/gha-1-1-native-completion\.fixture\/native-completion-prerequisites\/[^/]+\/preflight.json$/);
     expect(spawn.mock.calls[1]?.[1]).toContain(`--verify=${receipt}`);
