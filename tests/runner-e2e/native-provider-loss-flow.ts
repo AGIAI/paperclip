@@ -20,7 +20,7 @@ export function assertProviderLossSettlement(run: Row, issue: Row, events: reado
   const fail = (ok: boolean, reason: string) => { if (!ok) throw new Error(`Native provider loss: ${reason}`); };
   fail(run.id === pending.scope.runId && run.companyId === pending.scope.companyId && run.nativeIssueId === pending.scope.issueId
     && run.status === "failed" && run.runtimeMode === "native" && typeof run.error === "string" && run.error.length > 0
-    && issue.id === pending.scope.issueId && issue.companyId === pending.scope.companyId && issue.status === "in_progress"
+    && issue.id === pending.scope.issueId && issue.companyId === pending.scope.companyId && issue.status === "blocked"
     && run.resultJson?.nativeCancellation == null, "failure must leave the task open without claiming Stop or success");
   const frames = events.flatMap(row => row.payload?.prpEvent ? [row.payload.prpEvent] : []);
   const closures = frames.filter(frame => ["runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired"].includes(frame.eventType)
@@ -145,7 +145,7 @@ export async function runNativeProviderLossFlow(input: {
     await expect(page.getByTestId("task-chat-history-loading")).toHaveCount(0);
     await expect(card.getByRole("button", { name: "Deny", exact: true })).toHaveCount(0);
     await load(); assertProviderLossSettlement(runs[0]!, issue, events, pending!);
-    check("one-unfinished-failed-run", runs.length === 1 && issue.status === "in_progress", "No automatic mutation replay or false task completion");
+    check("one-unfinished-failed-run", runs.length === 1 && issue.status === "blocked", "A visible blocked task owns the failure; no automatic mutation replay or false completion");
     await input.capture("final-state", "Lost runtime fails clearly and leaves the task open", "final-state.png");
     await input.evidence("api-state.json", { issue, runs, checks, settlement, runEvents: events, runEventsByRun: [{ runId: runs[0]!.id, events }] });
     return { issue, runs, checks };

@@ -56,7 +56,8 @@ const sentinelSource = join(root,'lifecycle-sentinel'); mkdirSync(sentinelSource
 writeFileSync(join(sentinelSource,'package.json'), JSON.stringify({name:'paperclip-verification-lifecycle-sentinel',version:'1.0.0',private:true,scripts:{postinstall:'node -e "require(\'node:fs\').writeFileSync(\'lifecycle-ran\', \'ok\')"'}}));
 run('npm',['pack','--ignore-scripts','--pack-destination',assets],sentinelSource);
 for (const file of readdirSync(assets)) chmodSync(join(assets,file),0o644);
-const isolated = (command, options={}) => run('docker',grokConsumerDockerArgs({assets,consumer,cache,uid:process.getuid(),gid:process.getgid(),command,...options}));
+// Cursor's verified execution snapshot exceeds the smaller Grok fixture tmpfs.
+const isolated = (command, options={}) => run('docker',grokConsumerDockerArgs({assets,consumer,cache,uid:process.getuid(),gid:process.getgid(),temporarySizeMb:1024,command,...options}));
 isolated(['npm','install','--ignore-scripts','--omit=dev',...readdirSync(assets).filter(f=>f.endsWith('.tgz')).map(f=>`/packages/${f}`)],{download:true});
 const sentinel = join(consumer,'node_modules/paperclip-verification-lifecycle-sentinel/lifecycle-ran');
 assert.equal(existsSync(sentinel),false);
@@ -71,11 +72,13 @@ const setupOutput = isolated(['node','node_modules/paperclipai/dist/index.js','r
 console.log(setupOutput.trim());
 assert.match(setupOutput,/Verified Cursor 2026\.09\.26-dd393fe \(linux-x64\), paperclip-cursor-usage-v4/);
 const probe = `import assert from 'node:assert/strict';
-import { verifyQualifiedAcpxInstallation } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/drivers/acpx/installation-integrity.js';
+import { verifyAcpxProfileInstallation } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/drivers/acpx/profile-installation.js';
 import { resolveQualifiedAcpxProfile } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/drivers/acpx/qualified-profiles.js';
 const profile = resolveQualifiedAcpxProfile('cursor', 'gpt-5.6-luna[context=272k,reasoning=medium,fast=false]');
-const installation = await verifyQualifiedAcpxInstallation(profile, () => { throw new Error('Cursor must not resolve an npm package'); });
-assert.equal(installation.agentServerPackageJsonPath,null); assert.equal(installation.agentRuntimePackageJsonPath,null);
+const installation = await verifyAcpxProfileInstallation(profile);
+assert.equal(installation.agentServerPackageJsonPath,'/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/provider-assets/cursor/linux-x64/.paperclip-cursor-closure.json');
+assert.equal(installation.agentRuntimePackageJsonPath,null);
+assert.equal(installation.commandDigest,profile.commandDigest);
 await (await installation.openCommand()).close();
 console.log('Installed Cursor closure and command lease verified without credentials or candidate overrides');`;
 writeFileSync(join(assets,'probe.mjs'),probe,{mode:0o644});
