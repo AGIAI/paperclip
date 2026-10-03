@@ -178,7 +178,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
         .where(and(...conditions));
 
       const pendingConditions = [eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.costAccountingPending, true),
-        inArray(heartbeatRuns.status, ["succeeded", "failed", "timed_out", "cancelled"])];
+        inArray(heartbeatRuns.status, ["succeeded", "failed", "timed_out", "cancelled", "interrupted"])];
       if (range?.from) pendingConditions.push(sql`coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) >= ${range.from.toISOString()}::timestamptz`);
       if (range?.to) pendingConditions.push(sql`coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) <= ${range.to.toISOString()}::timestamptz`);
       const [pending] = await db.select({ count: sql<number>`count(*)::int` }).from(heartbeatRuns).where(and(...pendingConditions));

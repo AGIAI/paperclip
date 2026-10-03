@@ -6,7 +6,7 @@ import { createCostEventInTransaction } from "./costs.js";
 import { budgetService, deliverBudgetEnforcement, type BudgetServiceHooks } from "./budgets.js";
 import { logger } from "../middleware/logger.js";
 
-const terminalStatuses = ["succeeded", "failed", "timed_out", "cancelled"];
+const terminalStatuses = ["succeeded", "failed", "timed_out", "cancelled", "interrupted"];
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const text = (value: unknown) => typeof value === "string" && value.length > 0 ? value : null;
 const amount = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;

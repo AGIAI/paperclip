@@ -170,7 +170,7 @@ export async function computeObservedSpend(
     .where(and(...conditions));
 
   const pendingConditions = [eq(heartbeatRuns.companyId, policy.companyId), eq(heartbeatRuns.costAccountingPending, true),
-    inArray(heartbeatRuns.status, ["succeeded", "failed", "timed_out", "cancelled"])];
+    inArray(heartbeatRuns.status, ["succeeded", "failed", "timed_out", "cancelled", "interrupted"])];
   if (policy.scopeType === "agent") pendingConditions.push(eq(heartbeatRuns.agentId, policy.scopeId));
   if (policy.scopeType === "project") pendingConditions.push(sql`${heartbeatRuns.usageJson}->'ledgerScope'->>'projectId' = ${policy.scopeId}`);
   if (policy.windowKind === "calendar_month_utc") {

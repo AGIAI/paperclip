@@ -39,7 +39,7 @@ async function inspect(tx: Db, companyId: string): Promise<AccountingInspection>
   const incomplete = await tx.execute<{ id: string; acknowledged: boolean; events: number }>(sql`
     select r.id, r.cost_accounted_at is not null as acknowledged, count(e.id)::int as events from heartbeat_runs r
       left join cost_events e on e.heartbeat_run_id = r.id and e.company_id = r.company_id and e.idempotency_key like ('heartbeat:' || r.id::text || ':%')
-      where r.company_id = ${companyId} and r.status in ('succeeded','failed','timed_out','cancelled')
+      where r.company_id = ${companyId} and r.status in ('succeeded','failed','timed_out','cancelled','interrupted')
       and (r.cost_accounting_pending or r.accounting_projection_version = 'v2')
       and r.result_json->'executionRecovery'->>'providerWorkStarted' is distinct from 'false'
       and r.usage_json->>'accountingProviderWorkStarted' is distinct from 'false'
@@ -100,9 +100,9 @@ export function accountingIntegrityService(db: Db, hooks: BudgetServiceHooks = {
     },
     health: (companyId: string): Promise<AccountingHealth> => withAccountingTransaction(db, companyId, async tx => {
       const [counts] = await tx.execute<{ pending: number; unpriced: number; oldest: string | null; cancellations: number; reserved: string }>(sql`
-        select (select count(*)::int from heartbeat_runs where company_id = ${companyId} and cost_accounting_pending and status in ('succeeded','failed','timed_out','cancelled')) as pending,
+        select (select count(*)::int from heartbeat_runs where company_id = ${companyId} and cost_accounting_pending and status in ('succeeded','failed','timed_out','cancelled','interrupted')) as pending,
         (select count(*)::int from cost_events where company_id = ${companyId} and cost_status = 'unpriced' and billing_type <> 'subscription_included') as unpriced,
-        (select min(coalesce(finished_at,created_at))::text from heartbeat_runs where company_id = ${companyId} and cost_accounting_pending and status in ('succeeded','failed','timed_out','cancelled')) as oldest,
+        (select min(coalesce(finished_at,created_at))::text from heartbeat_runs where company_id = ${companyId} and cost_accounting_pending and status in ('succeeded','failed','timed_out','cancelled','interrupted')) as oldest,
         (select count(*)::int from budget_policies where company_id = ${companyId} and enforcement_version > enforcement_delivered_version) as cancellations,
         (select coalesce(sum(amount_cents),0)::text from budget_reservations where company_id = ${companyId} and state = 'held') as reserved`);
       const pending = await tx.execute<{ runId: string; agentId: string; state: "waiting_for_receipt" | "retryable"; lastError: string | null; attempts: number; since: string; lastAttemptAt: string | null }>(sql`
@@ -110,7 +110,7 @@ export function accountingIntegrityService(db: Db, hooks: BudgetServiceHooks = {
           and usage_json->>'accountingProviderWorkStarted' is distinct from 'false'
           and result_json->'executionRecovery'->>'providerWorkStarted' is distinct from 'false' then 'waiting_for_receipt' else 'retryable' end as state,
         accounting_last_error as "lastError", accounting_attempt_count as attempts, coalesce(finished_at,created_at)::text as since, accounting_last_attempt_at::text as "lastAttemptAt"
-        from heartbeat_runs where company_id = ${companyId} and cost_accounting_pending and status in ('succeeded','failed','timed_out','cancelled') order by coalesce(finished_at,created_at),id limit 100`);
+        from heartbeat_runs where company_id = ${companyId} and cost_accounting_pending and status in ('succeeded','failed','timed_out','cancelled','interrupted') order by coalesce(finished_at,created_at),id limit 100`);
       const unpriced = await tx.execute<{ runId: string | null; costEventId: string; agentId: string; since: string }>(sql`
         select heartbeat_run_id as "runId", id as "costEventId", agent_id as "agentId", occurred_at::text as since from cost_events
         where company_id = ${companyId} and cost_status = 'unpriced' and billing_type <> 'subscription_included' order by occurred_at,id limit 100`);
