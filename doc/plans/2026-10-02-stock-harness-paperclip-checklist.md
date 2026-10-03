@@ -499,3 +499,8 @@ results, remaining exceptions, and follow-ups here before checking it off.
 ### Native completion isolation: current-master qualification
 
 PR #14961 is now independent of #14948 and based on master. Candidate `e18c2cf9e96a4d31acb6d03ce918dfe223107d3f` and historical baseline `459455acb11a012a97ad1b4afb77a1dc024a88bc` pass exact-source native-only admission with identical fixture/context receipts. The original assigned-skill/document journey is preserved; corrected blocker grading and enforced single attempts cover six paired native cells. Live results remain pending. [Manifest and current report](2026-10-02-native-completion-master-qualification.md) retain setup failures and the earlier native report separately. #14948's behavioral hold and #15007's attribution limits remain unchanged. No merge is authorized for #14961 yet.
+
+
+### Selected native qualification recovery — 2026-10-02
+
+PR #14961 remains draft and unmerged. Corrected standalone candidate 0a9c5a751 / historical 00a761b96 preserve master 59 defaults/manual/shared/skills, differing only in the original eleven native description/refresh implementation and unit-test paths. Actual launcher prepare+verify admission passes on both. Six paired live outcomes are pending; the original twelve pre-provider failures and all local setup/calibration failures remain inspectable in the native report/recovery manifest. Closed terminal names and strict same-call grading are common to both variants; anonymous historical OpenCode evidence is not regraded. Hosted Rust calibration is explicitly not executed, with trusted same-run selected-binary proof; exact local Rust calibration and normal CI are separate evidence. No behavior rerolls or additional paid breadth are authorized.

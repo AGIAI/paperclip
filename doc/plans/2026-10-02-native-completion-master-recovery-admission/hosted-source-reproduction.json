@@ -1,0 +1,75 @@
+{
+  "schema": "paperclip.native-completion-metadata-reproduction.v1",
+  "providerCalls": 0,
+  "setupChildren": 0,
+  "qualification": "metadata_only_fixture_not_full_gate_admission",
+  "root": "/private/tmp/paperclip-native-real-shallow-RCnC9H",
+  "receipts": [
+    {
+      "variant": "candidate",
+      "checkout": "/private/tmp/paperclip-native-real-shallow-RCnC9H/candidate",
+      "sha": "0931c6d0b58499639687b188e6080a658bac3efc",
+      "actualAdmittedParent": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
+      "productionAndFixedContextDigests": 22,
+      "wrongVariantRejected": true,
+      "layering": true,
+      "immutable": true,
+      "sourceMetadata": {
+        "schema": "paperclip.native-completion-source-metadata.v1",
+        "lineage": {
+          "strategy": "shallow_immediate_parent_anchor",
+          "shallow": true,
+          "sha": "0931c6d0b58499639687b188e6080a658bac3efc",
+          "baseSha": "59c07ede72dc08b8aba149a01cc11e0b7a204621",
+          "anchor": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f"
+        },
+        "hydration": {
+          "present": true,
+          "verified": true,
+          "archiveSha256": "3e91968477b4ab0b79ed0a2e6c83d22a7a18c5963fbfb20291e362678b3e3f03",
+          "checksumSha256": "4b18feed8f40b2d70bf40538357b42471f72f1f30a70e23edf87413577e943a7"
+        },
+        "worktreeEntries": [
+          "?? runner-e2e-build/runner-e2e-build-bundle.tar.gz",
+          "?? runner-e2e-build/runner-e2e-build-bundle.tar.gz.sha256"
+        ],
+        "errors": []
+      },
+      "sourceMetadataErrors": [],
+      "sourceMetadataFingerprint": "75e15912fa5ec70d48a5c947db8acc5321544bce31339875c9e212a59be182cb"
+    },
+    {
+      "variant": "historical",
+      "checkout": "/private/tmp/paperclip-native-real-shallow-RCnC9H/historical",
+      "sha": "b9b1d8a66a05d0a25401d040a48e67aad32a7e25",
+      "actualAdmittedParent": "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+      "productionAndFixedContextDigests": 22,
+      "wrongVariantRejected": true,
+      "layering": true,
+      "immutable": true,
+      "sourceMetadata": {
+        "schema": "paperclip.native-completion-source-metadata.v1",
+        "lineage": {
+          "strategy": "shallow_immediate_parent_anchor",
+          "shallow": true,
+          "sha": "b9b1d8a66a05d0a25401d040a48e67aad32a7e25",
+          "baseSha": "59c07ede72dc08b8aba149a01cc11e0b7a204621",
+          "anchor": "459455acb11a012a97ad1b4afb77a1dc024a88bc"
+        },
+        "hydration": {
+          "present": true,
+          "verified": true,
+          "archiveSha256": "2b322686b0299c748194d7e4deb54c12f5b8074fb13dd38ad6135406f2311c05",
+          "checksumSha256": "302a7c4e1dfa45b13cc43f8b1e6ee1a961f94298e32cef08f0fa8adef576e21f"
+        },
+        "worktreeEntries": [
+          "?? runner-e2e-build/runner-e2e-build-bundle.tar.gz",
+          "?? runner-e2e-build/runner-e2e-build-bundle.tar.gz.sha256"
+        ],
+        "errors": []
+      },
+      "sourceMetadataErrors": [],
+      "sourceMetadataFingerprint": "5a1f3a301092ee7c4be8c3c9491c5f4963e5c0a84cd101110070f65ec4056604"
+    }
+  ]
+}

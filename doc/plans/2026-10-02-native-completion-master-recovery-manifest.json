@@ -1,0 +1,218 @@
+{
+  "schema": "paperclip.native-completion-master-comparison.v2",
+  "baseSha": "59c07ede72dc08b8aba149a01cc11e0b7a204621",
+  "archiveSha": "9138f570c341c251a5727c32d6615ce238bc8e03",
+  "admission": {
+    "candidate": {
+      "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+      "variant": "candidate",
+      "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+      "passed": true,
+      "providerCalls": 0,
+      "receiptSha256": "03c7d12d0511ef0a658f0f768887f5524b85a86b56f759f1275c6098299136ff",
+      "publicEntrypoint": "prepareNativeCompletionPreflight -> verifyNativeCompletionPreflight",
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "fresh_local_build",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "de11e42c462a3617ab8b8276f3f0e86e7f4a479e2d437eff2b3893e06dc39d0e",
+        "binaryBytes": 84259808,
+        "archiveMemberBytes": null,
+        "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+        "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+        "archiveSha256": null,
+        "workflowRunId": null,
+        "workflowRunAttempt": null,
+        "artifactName": null,
+        "errors": []
+      },
+      "selectedTypeScriptAssertions": 132,
+      "explicitlySkippedTypeScriptAssertions": 257,
+      "nodeCalibrationTests": 127,
+      "rustCalibrationTests": 1
+    },
+    "baseline": {
+      "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+      "variant": "historical",
+      "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+      "passed": true,
+      "providerCalls": 0,
+      "receiptSha256": "1903c8ef958db2f0f1e704363fe53d00696412e245742817f41ea6ecb31ce6b6",
+      "publicEntrypoint": "prepareNativeCompletionPreflight -> verifyNativeCompletionPreflight",
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "fresh_local_build",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "8e4d54800e3b4b829621b12a9d8ce434c89445492abe7584d4465922e3ff5cea",
+        "binaryBytes": 84271504,
+        "archiveMemberBytes": null,
+        "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+        "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+        "archiveSha256": null,
+        "workflowRunId": null,
+        "workflowRunAttempt": null,
+        "artifactName": null,
+        "errors": []
+      },
+      "selectedTypeScriptAssertions": 127,
+      "explicitlySkippedTypeScriptAssertions": 257,
+      "nodeCalibrationTests": 127,
+      "rustCalibrationTests": 1
+    }
+  },
+  "targetBranches": {
+    "candidate": "codex/native-completion-master-qualified-candidate",
+    "baseline": "codex/native-completion-master-qualified-baseline"
+  },
+  "workflow": ".github/workflows/runner-full-stack-e2e.yml",
+  "workflowDispatchRef": "master",
+  "maximumCells": 12,
+  "expectedProviderTurns": 12,
+  "maximumAttemptsPerCell": 1,
+  "automaticRetryPolicy": "single_attempt",
+  "budgetMonthlyCentsPerCompanyAndAgent": 1000,
+  "cellsPerVariant": [
+    {
+      "executionId": "native-completion.runner-codex.local.assigned-skill-explicit-invocation",
+      "suiteDefinitionHash": "0e034f033ab85468bb0b72ef7f3da2de297e660ea916112ab8459ca4668a03cc",
+      "profileId": "runner-codex",
+      "provider": "codex",
+      "model": "gpt-5.6-sol",
+      "credential": "OPENAI_API_KEY",
+      "environment": "local",
+      "caseId": "assigned-skill-explicit-invocation",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 720000,
+      "modelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "codex:qualified-model"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-codex.local.native-blocked-report",
+      "suiteDefinitionHash": "0e034f033ab85468bb0b72ef7f3da2de297e660ea916112ab8459ca4668a03cc",
+      "profileId": "runner-codex",
+      "provider": "codex",
+      "model": "gpt-5.6-sol",
+      "credential": "OPENAI_API_KEY",
+      "environment": "local",
+      "caseId": "native-blocked-report",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 300000,
+      "modelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "codex:qualified-model"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-opencode.local.assigned-skill-explicit-invocation",
+      "suiteDefinitionHash": "0e034f033ab85468bb0b72ef7f3da2de297e660ea916112ab8459ca4668a03cc",
+      "profileId": "runner-opencode",
+      "provider": "opencode",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "credential": "OPENROUTER_API_KEY",
+      "environment": "local",
+      "caseId": "assigned-skill-explicit-invocation",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 720000,
+      "modelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "opencode:qualified-model"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-opencode.local.native-blocked-report",
+      "suiteDefinitionHash": "0e034f033ab85468bb0b72ef7f3da2de297e660ea916112ab8459ca4668a03cc",
+      "profileId": "runner-opencode",
+      "provider": "opencode",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "credential": "OPENROUTER_API_KEY",
+      "environment": "local",
+      "caseId": "native-blocked-report",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 300000,
+      "modelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "opencode:qualified-model"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+      "suiteDefinitionHash": "0e034f033ab85468bb0b72ef7f3da2de297e660ea916112ab8459ca4668a03cc",
+      "profileId": "runner-acpx-claude",
+      "provider": "acpx",
+      "model": "claude-sonnet-5",
+      "credential": "ANTHROPIC_API_KEY",
+      "environment": "local",
+      "caseId": "assigned-skill-explicit-invocation",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 720000,
+      "modelQualification": {
+        "source": "qualified_runner_profile",
+        "qualificationId": "acpx:claude"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-acpx-claude.local.native-blocked-report",
+      "suiteDefinitionHash": "0e034f033ab85468bb0b72ef7f3da2de297e660ea916112ab8459ca4668a03cc",
+      "profileId": "runner-acpx-claude",
+      "provider": "acpx",
+      "model": "claude-sonnet-5",
+      "credential": "ANTHROPIC_API_KEY",
+      "environment": "local",
+      "caseId": "native-blocked-report",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 300000,
+      "modelQualification": {
+        "source": "qualified_runner_profile",
+        "qualificationId": "acpx:claude"
+      }
+    }
+  ],
+  "fixtureIdentityVerified": true,
+  "fixedMasterContextVerified": true,
+  "onlyDeclaredElevenNativeSourcesDiffer": true,
+  "providerCallsSoFar": 0,
+  "liveStatus": "admitted_pending_dispatch",
+  "preservedInitialSetupCohort": {
+    "manifestSource": "7dbc3c4594e13aebd55f7c9bf605fd332ce37544",
+    "reportSource": "27653eb1a8f8ce839776d760f4563f672e5a706c",
+    "candidate": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
+    "baseline": "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+    "workflowRuns": {
+      "candidate": {
+        "id": 37091690197,
+        "url": "https://github.com/paperclipai/paperclip/actions/runs/37091690197"
+      },
+      "baseline": {
+        "id": 37091691408,
+        "url": "https://github.com/paperclipai/paperclip/actions/runs/37091691408"
+      }
+    },
+    "cells": 12,
+    "providerCalls": 0,
+    "classification": "pre_provider_source_admission"
+  },
+  "commonRepairs": {
+    "strictScorerSchema": "paperclip.native-completion-observation.v2",
+    "closedTerminalNameCarrierSha256": "132ef0ad3555d7cdb705946d879e5c8f5264da6656267cf0ed2bd6f348dfffca",
+    "publicIdentityNames": [
+      "PAPERCLIP_RUNNER_E2E_SOURCE_SHA",
+      "GITHUB_RUN_ID",
+      "GITHUB_RUN_ATTEMPT"
+    ],
+    "hostedRustCalibration": "not_executed; trusted same-run source/archive/selected binary proof; exact local calibration and normal CI retained separately"
+  }
+}

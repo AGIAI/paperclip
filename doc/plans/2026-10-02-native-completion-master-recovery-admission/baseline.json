@@ -1,0 +1,312 @@
+{
+  "schema": "paperclip.native-completion-preflight.v1",
+  "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+  "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+  "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+  "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+  "variant": "historical",
+  "baseSha": "59c07ede72dc08b8aba149a01cc11e0b7a204621",
+  "archiveSha": "9138f570c341c251a5727c32d6615ce238bc8e03",
+  "sourceErrors": [],
+  "immutable": true,
+  "layering": true,
+  "sourceMetadata": {
+    "schema": "paperclip.native-completion-source-metadata.v1",
+    "lineage": {
+      "strategy": "full_ancestry",
+      "shallow": true,
+      "sha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+      "baseSha": "59c07ede72dc08b8aba149a01cc11e0b7a204621",
+      "anchor": null
+    },
+    "hydration": {
+      "present": false,
+      "verified": false,
+      "archiveSha256": null,
+      "checksumSha256": null
+    },
+    "worktreeEntries": [],
+    "errors": []
+  },
+  "sourceMetadataErrors": [],
+  "sourceMetadataFingerprint": "ea106c05e935318121fbf1d0d1b9f310ab2ec67b1f99ea49ae65aa76f2957151",
+  "measuredAt": "2026-10-03T04:33:40.047Z",
+  "providerCalls": 0,
+  "live": "not_run",
+  "expectedCells": 6,
+  "expectedTurns": 6,
+  "maximumAttemptsPerCell": 1,
+  "setup": {
+    "passed": true,
+    "sdkExitCode": 0,
+    "runnerTypeScriptExitCode": 0,
+    "runnerdExitCode": 0,
+    "evidence": [
+      {
+        "file": "setup-sdk.txt",
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+      },
+      {
+        "file": "setup-runner-typescript.txt",
+        "sha256": "0b439b2bd5b65d06783d0a61482269e16d6af4e6e5e3f98ec20138bb1982c5ed"
+      },
+      {
+        "file": "setup-runnerd.txt",
+        "sha256": "a96c2934e450fa2ba5e8ba158398b3e1474389c4ecb630c0f44c53caebf592cd"
+      }
+    ],
+    "runnerdProvenance": {
+      "schema": "paperclip.native-completion-runnerd-provenance.v1",
+      "mode": "fresh_local_build",
+      "passed": true,
+      "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+      "binarySha256": "8e4d54800e3b4b829621b12a9d8ce434c89445492abe7584d4465922e3ff5cea",
+      "binaryBytes": 84271504,
+      "archiveMemberBytes": null,
+      "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+      "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+      "archiveSha256": null,
+      "workflowRunId": null,
+      "workflowRunAttempt": null,
+      "artifactName": null,
+      "errors": []
+    },
+    "buildOutputFingerprint": "b131fe332da31bb4c1b3b8fbaf70f98e96f70de12c426dd087b47037f649b7d4",
+    "runnerdSha256": "8e4d54800e3b4b829621b12a9d8ce434c89445492abe7584d4465922e3ff5cea",
+    "runnerdSelectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+    "runnerdSourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+    "runnerdSourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b"
+  },
+  "gates": [
+    {
+      "id": "NC-schemas",
+      "name": "Variant-native completion schemas",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "src/contracts/completion-result.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "distinguishes user-facing answer content",
+          "passed": true
+        },
+        {
+          "name": "propagates answer and wait descriptions",
+          "passed": true
+        },
+        {
+          "name": "requires a reason code for verification that was not run",
+          "passed": true
+        }
+      ],
+      "total": 13,
+      "passedTests": 13,
+      "failedTests": 0,
+      "pendingTests": 0,
+      "evidence": {
+        "file": "NC-schemas.json",
+        "sha256": "8c81de6a87c7573e97f5ba45aa01a5bec23406bf962fd9c908f8d055f4330f67"
+      }
+    },
+    {
+      "id": "NC-tools",
+      "name": "Native tool delivery and retained provider catalogs",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "src/drivers/codex/codex-app-server-driver.lifecycle.test.ts",
+          "passed": true
+        },
+        {
+          "file": "src/drivers/runner-tool-bridge.test.ts",
+          "passed": true
+        },
+        {
+          "file": "src/drivers/opencode/mcp-bridge.test.ts",
+          "passed": true
+        },
+        {
+          "file": "src/live/runnerd-codex-transport.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "runner semantic MCP bridge binds to loopback",
+          "passed": true
+        },
+        {
+          "name": "OpenCode MCP bridge binds to loopback",
+          "passed": true
+        },
+        {
+          "name": "preserves stock Codex instructions on task recovery",
+          "passed": true
+        },
+        {
+          "name": "preserves stock Codex instructions on prepared recovery",
+          "passed": true
+        },
+        {
+          "name": "preserves stock Codex instructions on direct recovery",
+          "passed": true
+        },
+        {
+          "name": "includes ACPX terminal tools in the authenticated bridge catalog",
+          "passed": true
+        }
+      ],
+      "total": 222,
+      "passedTests": 7,
+      "failedTests": 0,
+      "pendingTests": 215,
+      "evidence": {
+        "file": "NC-tools.json",
+        "sha256": "513a932e15034385d7748f3f48a2e2466cf34643f3dcc2c473eeef1b70db6a39"
+      }
+    },
+    {
+      "id": "NC-resume",
+      "name": "Variant-native fingerprint and checkpoint refresh",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "server/src/services/native-runtime/native-session-resume.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "refreshes retained 'completion descriptions'",
+          "passed": true
+        },
+        {
+          "name": "refreshes retained 'task-bound human-input description'",
+          "passed": true
+        }
+      ],
+      "total": 44,
+      "passedTests": 2,
+      "failedTests": 0,
+      "pendingTests": 42,
+      "evidence": {
+        "file": "NC-resume.json",
+        "sha256": "9d9ee9309475fd77057dca6031165e7d8eae176693305934da8dfe542665bad2"
+      }
+    },
+    {
+      "id": "NC-eval",
+      "name": "Independent native oracle, defaults, admission and attempt policy",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "tests/runner-e2e/native-completion-scoring.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/native-completion-defaults.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/native-completion-admission.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/automatic-retry.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/context-integrity.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/context-integrity-evidence.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/context-integrity-flow-logs.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "allows toolchain paths and excludes every present or future credential",
+          "passed": true
+        },
+        {
+          "name": "retains credential-free prerequisites inside the exact campaign root",
+          "passed": true
+        },
+        {
+          "name": "retains the first transient_infrastructure failure without a second attempt",
+          "passed": true
+        },
+        {
+          "name": "retains the first provider_variance failure without a second attempt",
+          "passed": true
+        }
+      ],
+      "total": 105,
+      "passedTests": 105,
+      "failedTests": 0,
+      "pendingTests": 0,
+      "evidence": {
+        "file": "NC-eval.json",
+        "sha256": "42a0d667f54a7997696ac219632d74802d98ac262c51248f41df1e2d04245ecd"
+      }
+    },
+    {
+      "id": "NC-node",
+      "passed": true,
+      "exitCode": 0,
+      "evidence": {
+        "file": "NC-node.txt",
+        "sha256": "5bf50ce428a8a8492daa1336af60abca71e3d85a4fc772915a4f27719a26e4a9"
+      }
+    },
+    {
+      "id": "NC-typecheck",
+      "passed": true,
+      "exitCode": 0,
+      "evidence": {
+        "file": "NC-typecheck.txt",
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+      }
+    },
+    {
+      "id": "NC-rust-carrier",
+      "passed": true,
+      "exitCode": 0,
+      "evidence": {
+        "file": "NC-rust-carrier.txt",
+        "sha256": "3effafc1fffad102ec1e2031539c389aa9e3bc912bc64c0e21439b6115ea414e"
+      }
+    },
+    {
+      "id": "NC-discovery",
+      "passed": true,
+      "exitCode": 0,
+      "evidence": {
+        "file": "NC-discovery.txt",
+        "sha256": "3097ab7907c3b49d43920fab50d0b180b70cb6895c0bd1a58f72fd740fec6567"
+      }
+    },
+    {
+      "id": "NC-manifest",
+      "passed": true,
+      "exitCode": 0,
+      "evidence": {
+        "file": "NC-manifest.txt",
+        "sha256": "7f5d044db6a7813857e842095c5e3aa749a98570a96ff9939483de9452322502"
+      }
+    }
+  ],
+  "passed": true
+}

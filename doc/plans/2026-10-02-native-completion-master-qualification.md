@@ -1,3 +1,15 @@
+# Native completion qualification on current master context
+
+**TL;DR: no model outcomes have been measured in this context yet.** The original twelve hosted cells all failed before providers. Corrected candidate `0a9c5a75164cd0b02115ff12273aadb6a86c9464` and historical `00a761b967f9f73b0f45069c0ba828fae277a76e` now pass actual launcher prepare-and-verify admission. Six paired outcomes remain pending; no non-regression claim is established.
+
+The [recovery manifest](2026-10-02-native-completion-master-recovery-manifest.json) freezes exactly six cells per variant, twelve expected provider turns, one attempt per cell, unchanged profiles/models/auth/permissions/defaults and existing deadlines/budgets. Exactly the original eleven native implementation/unit-test paths differ. Both variants carry the same strict named finishing-call oracle and closed terminal-name projection. The original anonymous OpenCode evidence is preserved and cannot retrospectively prove this identity.
+
+Both exact-source admissions pass with zero providers: candidate 132 / historical 127 selected TypeScript assertions, 127 Node calibrations, one Rust normalization calibration, E2E typecheck, manifest checks, six-cell discovery and actual public receipt verification. Each has 257 explicitly skipped assertions, not coverage. Fresh Rust builds record the actually selected binary digest. Hosted cells instead verify the trusted same-run archive/source and selected restored executable; they explicitly record Rust calibration not executed in that cell.
+
+The sandbox-denied loopback attempts and stale anchor-expectation attempts are retained under the [admission folder](2026-10-02-native-completion-master-recovery-admission). Sources or assertions were not relaxed to pass either failure. The final public launcher identity calibration covers both prepare and verify subprocesses while excluding all credential/ambient override names.
+
+## Preserved original setup cohort
+
 # Native completion guidance: master-context comparison
 
 **TL;DR:** Task performance is unmeasured: all twelve hosted cells stopped before provider execution. Zero model turns ran; zero task pairs were graded. Six pairs remain pending recovery. Local exact-source admission passed, but hosted checkout metadata did not satisfy the gate. This comparison measures native finish/block descriptions on unchanged master defaults; it does not measure removal of native fixed prompts or the reduced manuals in #14948.
