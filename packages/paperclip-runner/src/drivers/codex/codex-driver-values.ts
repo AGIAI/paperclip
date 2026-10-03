@@ -1,10 +1,6 @@
 import type { PersistedHarnessProviderIdentity } from "../../contracts/harness-driver.js";
 import type { NativeUserMessage } from "../../contracts/types.js";
 import {
-  PRP_BLOCK_TOOL_DESCRIPTION,
-  PRP_COMPLETION_TOOL_DESCRIPTION,
-} from "../../contracts/completion-result.js";
-import {
   CODEX_BLOCK_RESULT_PROVIDER_INPUT_SCHEMA,
   CODEX_BLOCK_TOOL_NAME,
   CODEX_COMPLETION_TOOL_NAME,
@@ -236,7 +232,8 @@ export function differingJsonPaths(
 function finishToolSpec(): Record<string, unknown> {
   return {
     name: CODEX_COMPLETION_TOOL_NAME,
-    description: PRP_COMPLETION_TOOL_DESCRIPTION,
+    description:
+      "Return the one semantic completion result for this task, including an explicit response_wake yield when waiting for the next response.",
     inputSchema: CODEX_RESULT_PROVIDER_INPUT_SCHEMA,
   };
 }
@@ -244,7 +241,8 @@ function finishToolSpec(): Record<string, unknown> {
 function blockToolSpec(): Record<string, unknown> {
   return {
     name: CODEX_BLOCK_TOOL_NAME,
-    description: PRP_BLOCK_TOOL_DESCRIPTION,
+    description:
+      "Return the one semantic result when the task cannot continue.",
     inputSchema: CODEX_BLOCK_RESULT_PROVIDER_INPUT_SCHEMA,
   };
 }
