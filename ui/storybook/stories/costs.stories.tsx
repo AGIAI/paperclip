@@ -4,6 +4,8 @@ import type { CostByAgent, CostByAgentModel, CostByProject } from "@paperclipai/
 import { Costs } from "@/pages/Costs";
 import { useCompany } from "@/context/CompanyContext";
 
+import { createCostsFinanceFixtures } from "../fixtures/costsFinance";
+
 const companyId = "company-storybook";
 const base = {
   agentStatus: "idle", inputTokens: 240_000, cachedInputTokens: 2_400_000,
@@ -43,19 +45,20 @@ function CostsPreview() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const previous = window.fetch;
+    const finance = createCostsFinanceFixtures(companyId);
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, location.origin);
       const prefix = `/api/companies/${companyId}/`;
       if (!url.pathname.startsWith(prefix)) return previous(input, init);
       const resource = url.pathname.slice(prefix.length);
+      const fixture = await finance(resource, new Request(input instanceof Request ? input : url, init));
+      if (fixture) return fixture;
       if (resource === "costs/summary") return Response.json({ companyId, spendCents: 42345, budgetCents: 100000, utilizationPercent: 42.35, eventCount: 96, estimatedEventCount: 10, unpricedEventCount: 0, pendingRunCount: 0, pricingComplete: true });
       if (resource === "costs/by-agent") return Response.json(agents);
       if (resource === "costs/by-agent-model") return Response.json(models);
       if (resource === "costs/by-project") return Response.json(projects);
-      if (resource === "costs/finance-summary") return Response.json({ debitCents: 0, creditCents: 0, netCents: 0, estimatedDebitCents: 0, eventCount: 0, currencies: [] });
       if (resource.startsWith("costs/")) return Response.json([]);
       if (resource === "budgets/overview") return Response.json({ companyId, policies: [], activeIncidents: [], pausedAgentCount: 0, pausedProjectCount: 0, pendingApprovalCount: 0 });
-      if (resource === "accounting/health") return Response.json({ pendingRunCount: 0, unpricedEventCount: 0, pendingCancellationCount: 0, heldReservationCents: "0", oldestPendingAt: null, items: [] });
       return previous(input, init);
     };
     setSelectedCompanyId(companyId);
@@ -71,7 +74,7 @@ const meta = {
   component: CostsPreview,
   parameters: {
     layout: "fullscreen",
-    docs: { description: { component: "The shared Costs page as embedded in the default streamlined UI, with illustrative amounts. Codie has only estimates, Fry is partially estimated, Bender has only reported charges, and Leela uses a subscription. Expand an agent to inspect model labels. Run costs are attributed to Agent orchestration (Bender), Cost reporting (Codie and Fry), and Research (Leela); project costs and tokens reconcile with the agent totals." } },
+    docs: { description: { component: "The shared Costs page as embedded in the default streamlined UI, with illustrative amounts. Codie has only estimates, Fry is partially estimated, Bender has only reported charges, and Leela uses a subscription. Expand an agent to inspect model labels. Run costs are attributed to Agent orchestration (Bender), Cost reporting (Codie and Fry), and Research (Leela); project costs and tokens reconcile with the agent totals. Finance entry, invoice review, and provider report imports use per-mount in-memory fixtures; they never contact a provider. Imported invoice lines remain unmatched because the preview does not contain a real ledger." } },
   },
 } satisfies Meta<typeof CostsPreview>;
 export default meta;
