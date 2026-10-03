@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { RunnerProfileFixture } from "./types.js";
+import { readStockInstructionVariant } from "./stock-harness-instruction-variant.mjs";
 
 // These are an independent product contract, not imports of the implementation
 // constants. Otherwise a larger shipped manual could silently update the oracle.
@@ -48,20 +49,23 @@ export interface StockHarnessEvidence {
   runIds: string[];
 }
 
-export function gradeStockHire(evidence: Pick<StockHarnessEvidence, "bundle" | "budgets">) {
+export function gradeStockHire(evidence: Pick<StockHarnessEvidence, "bundle" | "budgets">,
+  instructionVariant = readStockInstructionVariant()) {
   const checks: Array<{ id: string; passed: boolean; detail: string }> = [];
   const check = (id: string, passed: boolean, detail: string) => checks.push({ id, passed, detail });
   check("budget-hard-stops", evidence.budgets.companyMonthlyCents === 1_000 && evidence.budgets.agentMonthlyCents === 1_000,
     "Public company and agent records must both retain the 1,000-cent monthly hard stops.");
   check("default-hire-bundle", evidence.bundle.entryFile === "AGENTS.md" &&
     evidence.bundle.files.length === 1 && evidence.bundle.files[0]?.path === "AGENTS.md" &&
-    evidence.bundle.files[0]?.content === STOCK_HIRE_IDENTITY,
-  "The public managed bundle must contain only the eight-word shipped identity, without an injected QA manual.");
+    evidence.bundle.files[0]?.content === instructionVariant.content,
+  instructionVariant.variant === "reduced"
+    ? "The public managed bundle must contain only the eight-word shipped identity, without an injected QA manual."
+    : "The comparison bundle must exactly match the independently pinned historical manual; this is structural evidence, not a task outcome.");
   return checks;
 }
 
-export function gradeStockHarness(evidence: StockHarnessEvidence) {
-  const checks = gradeStockHire(evidence);
+export function gradeStockHarness(evidence: StockHarnessEvidence, instructionVariant = readStockInstructionVariant()) {
+  const checks = gradeStockHire(evidence, instructionVariant);
   const check = (id: string, passed: boolean, detail: string) => checks.push({ id, passed, detail });
   check("provider-runs-present", evidence.runIds.length > 0 && evidence.runIds.every(Boolean),
     "The lifecycle oracle must reach actual provider runs; missing runs cannot pass instruction delivery.");
@@ -70,9 +74,15 @@ export function gradeStockHarness(evidence: StockHarnessEvidence) {
     check("invocation-evidence-complete", evidence.runIds.length > 0 && evidence.runIds.every(runId =>
       prompts.some(row => row.runId === runId)),
     "Every legacy run must have a public adapter.invoke event with its actual nonempty prompt.");
-    check("generic-procedures-absent", prompts.length > 0 && prompts.every(row =>
-      REMOVED_PROCEDURES.every(procedure => !String(row.prompt).includes(procedure))),
-    "Neither startup nor continuation may reintroduce the removed generic manual.");
+    if (instructionVariant.variant === "reduced") {
+      check("generic-procedures-absent", prompts.length > 0 && prompts.every(row =>
+        REMOVED_PROCEDURES.every(procedure => !String(row.prompt).includes(procedure))),
+      "Neither startup nor continuation may reintroduce the removed generic manual.");
+    } else {
+      check("historical-generic-procedures-observed", prompts.length > 0 && prompts.some(row =>
+        REMOVED_PROCEDURES.some(procedure => String(row.prompt).includes(procedure))),
+      "Observe the historical instruction carrier separately from the identical task outcome oracle.");
+    }
     const fresh = prompts.filter(row => Number(row.promptMetrics?.heartbeatPromptChars) > 0);
     check("fresh-default-delivered", fresh.length > 0 && fresh.every(row =>
       String(row.prompt).includes(STOCK_TEMPLATE_IDENTITY) && String(row.prompt).includes("Connection tools:") &&
@@ -124,6 +134,11 @@ export function stockHarnessSourceDigest() {
     "stock-harness.ts", "context-integrity-cases.ts", "context-integrity-scoring.ts",
     "context-integrity-flow.ts", "chat-cases.ts", "chat-flow.ts", "live-fixtures.ts", "runner.spec.ts",
     "stock-harness-checks.mjs", "stock-harness-admission.ts", "stock-harness-manifest.ts",
+    "stock-harness-instruction-variant.mjs", "stock-harness-instruction-variant.d.mts", "stock-harness-instruction-variant.test.mjs",
+    "fixtures/stock-harness/historical-default-agents.md", "automatic-retry.ts", "automatic-retry.test.ts", "types.ts", "catalog.ts", "launch.ts",
+    "../../packages/adapter-utils/src/acpx-engine/execute.ts",
+    "../../packages/adapter-utils/src/acpx-engine/ephemeral-session-environment.ts",
+    "../../packages/adapter-utils/src/acpx-engine/ephemeral-session-environment.test.ts",
     "../../packages/paperclip-runner/scripts/generate-capability-contract.mjs",
     "../../packages/paperclip-runner/scripts/check-capability-inventory.mjs",
     "../../packages/paperclip-runner/scripts/lib/capability-inventory.mjs",

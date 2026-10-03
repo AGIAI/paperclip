@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { assertPreflightReceipt, gradeGate, stockHarnessGates } from "./stock-harness-checks.mjs";
+import { assertPreflightReceipt, gradeGate, stockHarnessGates, stockHarnessGatesForVariant } from "./stock-harness-checks.mjs";
+import { readStockInstructionVariant } from "./stock-harness-instruction-variant.mjs";
 
 const gate = { id: "SH-test", name: "Boundary", files: ["boundary.test.ts"], required: ["must preserve instructions"] };
 const report = () => ({ testResults: [{ name: "/repo/boundary.test.ts", status: "passed",
@@ -11,6 +12,15 @@ describe("stock harness prerequisite coverage", () => {
     expect(stockHarnessGates.every(gate => gate.files.length > 0 && gate.required.length > 0)).toBe(true);
   });
   it("accepts an executed passing boundary", () => expect(gradeGate(gate, report(), 0).passed).toBe(true));
+  it("preserves candidate assertions and admits only declared historical structural alternatives", () => {
+    expect(stockHarnessGatesForVariant("reduced")).toEqual(stockHarnessGates);
+    const historical = stockHarnessGatesForVariant("historical");
+    expect(historical.map(value => value.files)).toEqual(stockHarnessGates.map(value => value.files));
+    expect(historical.find(value => value.id === "SH-2").required).toContain("materializes the bundled default instruction set for non-CEO agents with no prompt template");
+    expect(historical.find(value => value.id === "SH-3").required).toContain("adds the execution contract to resume delta prompts and opted-in fresh prompts");
+    expect(historical.find(value => value.id === "SH-3").required).toContain("integrates the env-free store");
+    expect(() => stockHarnessGatesForVariant("other")).toThrow("Unknown");
+  });
   it.each([null, undefined, { testResults: [] }])("rejects unavailable evidence %s", (report) => {
     expect(gradeGate(gate, report, 0).passed).toBe(false);
   });
@@ -42,6 +52,7 @@ describe("stock harness prerequisite coverage", () => {
 describe("stock harness prerequisite admission", () => {
   const current = { sha: "a".repeat(40), fingerprint: "b".repeat(64), runnerdSha256: "c".repeat(64), fakeCodexSha256: "e".repeat(64) };
   const receipt = () => ({ schema: "paperclip.stock-harness-preflight.v3", passed: true,
+    instructionVariant: (({ variant, sha256 }) => ({ variant, sha256 }))(readStockInstructionVariant()),
     setup: { passed: true, exitCode: 0, sdkExitCode: 0, runnerdExitCode: 0, runnerdSha256: current.runnerdSha256,
       fakeCodexSha256: current.fakeCodexSha256 },
     providerCalls: 0, sourceSha: current.sha, sourceFingerprint: current.fingerprint,
@@ -50,6 +61,8 @@ describe("stock harness prerequisite admission", () => {
   it.each([
     ["old SHA", r => { r.sourceSha = "c".repeat(40); }],
     ["changed source", r => { r.sourceFingerprint = "d".repeat(64); }],
+    ["wrong instruction variant", r => { r.instructionVariant.variant = "other"; }],
+    ["wrong manual hash", r => { r.instructionVariant.sha256 = "f".repeat(64); }],
     ["failed boundary", r => { r.gates[0].passed = false; }],
     ["nonzero exit", r => { r.gates[0].exitCode = 1; }],
     ["missing Rust", r => { r.gates.pop(); }],

@@ -7,6 +7,19 @@ bundle. Their passing results therefore did not qualify a hire with the tiny
 production default. The new suite omits that fixture bundle and lets the public
 agent-creation route materialize the shipped default.
 
+The 2026-10-03 legacy ACP Claude repair compares only the original
+`assigned-skill-explicit-invocation` cell on matched current-master sources.
+Both variants carry identical bounded skill-description/staged-path delivery
+and env-free session persistence. Only the historical versus reduced default
+manual/shared prompts and their declared structural unit expectations differ.
+The public bundle/procedure observations derive from exact admitted source
+bytes (eight-word identity or the independently pinned 4,249-byte historical
+manual), never a branch/environment label. Candidate absence assertions stay
+intact. Independent document/task and exact-credential guards are unchanged.
+All stock tasks enforce `single_attempt` in the hosted launcher; automatic
+product disposition recovery still counts as actual usage. This is not a new
+24-cell campaign or qualification of the frozen native-completion context.
+
 ## Coverage contract
 
 | Change | Required deterministic evidence | Product E2E evidence |

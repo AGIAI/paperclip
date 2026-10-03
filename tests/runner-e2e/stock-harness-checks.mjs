@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { readStockInstructionVariant } from "./stock-harness-instruction-variant.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
 export const stockHarnessGates = [
@@ -27,12 +28,15 @@ export const stockHarnessGates = [
     "packages/adapter-utils/src/server-utils.test.ts",
     "packages/adapter-utils/src/prompt-sections.test.ts",
     "packages/adapter-utils/src/acpx-engine/execute.test.ts",
+    "packages/adapter-utils/src/acpx-engine/ephemeral-session-environment.test.ts",
     "packages/adapters/pi-local/src/server/execute.remote.test.ts",
     "packages/adapters/opencode-local/src/server/execute.test.ts",
     "packages/adapters/cursor-cloud/src/server/execute.test.ts",
     "server/src/__tests__/codex-local-execute.test.ts",
   ], required: ["keeps task and chat defaults to identity and connection guidance",
-    "does not restore generic procedures on resume or with the legacy opt-in"] },
+    "does not restore generic procedures on resume or with the legacy opt-in",
+    "integrates the env-free store", "advertises folded routing metadata", "bounds routing descriptions",
+    "loads an old env-bearing file with rotated credentials", "drops a skill that fails to materialize"] },
   // Hermes is not in the root Vitest project list. Run its package config so
   // the requested file cannot silently disappear from discovery.
   { id: "SH-3-hermes", name: "Hermes shared-prompt delivery", cwd: "packages/adapters/hermes",
@@ -42,13 +46,26 @@ export const stockHarnessGates = [
     config: "tests/runner-e2e/vitest.config.ts",
     files: ["tests/runner-e2e/stock-harness-manifest.test.ts", "tests/runner-e2e/paperclip-document.test.ts", "tests/runner-e2e/stock-harness.test.ts", "tests/runner-e2e/stock-harness-checks.test.mjs",
       "tests/runner-e2e/stock-harness-admission.test.ts", "tests/runner-e2e/stock-harness-digest.test.ts",
-      "tests/runner-e2e/select-rerun-artifacts.test.ts"],
+      "tests/runner-e2e/select-rerun-artifacts.test.ts", "tests/runner-e2e/stock-harness-instruction-variant.test.mjs", "tests/runner-e2e/automatic-retry.test.ts"],
     required: ["requires generated capability manifests for the current skill sources", "the shipped recipe delivers the current", "the shipped recipe supports an unnumbered issue", "rejects old SHA before providers", "allows toolchain paths and excludes every present or future credential",
       "changes when the evaluated server/src/onboarding-assets/default/AGENTS.md changes",
       "changes when the evaluated packages/adapter-utils/src/server-utils.ts changes",
       "changes when the evaluated packages/shared/src/connection-intent-guidance.ts changes",
       "retains credential-free prerequisites inside the exact campaign root"] },
 ];
+
+export function stockHarnessGatesForVariant(variant) {
+  if (variant !== "reduced" && variant !== "historical") throw new Error("Unknown stock instruction variant.");
+  return stockHarnessGates.map(gate => variant !== "historical" ? gate : {
+    ...gate,
+    required: gate.required.map(name => name === "materializes minimal default instructions for non-CEO agents with no prompt template"
+      ? "materializes the bundled default instruction set for non-CEO agents with no prompt template"
+      : name === "keeps task and chat defaults to identity and connection guidance"
+        ? "keeps the default local-agent prompt action-oriented"
+        : name === "does not restore generic procedures on resume or with the legacy opt-in"
+          ? "adds the execution contract to resume delta prompts and opted-in fresh prompts" : name),
+  });
+}
 
 export function gradeGate(gate, report, exitCode) {
   const assertions = (report?.testResults ?? []).flatMap(file => file.assertionResults ?? []);
@@ -70,6 +87,9 @@ export function sourceFingerprint() {
     ...stockHarnessGates.flatMap(gate => gate.files.map(file => join(gate.cwd, file))),
     "tests/runner-e2e/stock-harness.ts", "tests/runner-e2e/stock-harness-checks.mjs", "tests/runner-e2e/catalog.ts",
     "tests/runner-e2e/stock-harness-admission.ts", "tests/runner-e2e/launch.ts", "tests/runner-e2e/runner.spec.ts",
+    "tests/runner-e2e/stock-harness-instruction-variant.mjs", "tests/runner-e2e/stock-harness-instruction-variant.d.mts", "tests/runner-e2e/fixtures/stock-harness/historical-default-agents.md",
+    "tests/runner-e2e/automatic-retry.ts", "tests/runner-e2e/types.ts",
+    "packages/adapter-utils/src/acpx-engine/execute.ts", "packages/adapter-utils/src/acpx-engine/ephemeral-session-environment.ts",
     "tests/runner-e2e/context-integrity-cases.ts", "tests/runner-e2e/context-integrity-flow.ts", "tests/runner-e2e/context-integrity-scoring.ts",
     "tests/runner-e2e/stock-harness-manifest.ts", "packages/paperclip-runner/scripts/generate-capability-contract.mjs",
     "packages/paperclip-runner/spec/capability/source-contract.json",
@@ -105,6 +125,7 @@ export function sourceFingerprint() {
 }
 
 export function assertPreflightReceipt(report, current) {
+  const instructionVariant = readStockInstructionVariant();
   const expected = [...stockHarnessGates.map(gate => gate.id), "SH-1-rust"];
   if (report?.schema !== "paperclip.stock-harness-preflight.v3" || report.passed !== true ||
       report.setup?.passed !== true || report.setup?.exitCode !== 0 ||
@@ -113,6 +134,7 @@ export function assertPreflightReceipt(report, current) {
       report.setup?.fakeCodexSha256 !== current.fakeCodexSha256 ||
       report.providerCalls !== 0 || report.sourceSha !== current.sha ||
       report.sourceFingerprint !== current.fingerprint || report.sourceErrors?.length !== 0 ||
+      report.instructionVariant?.variant !== instructionVariant.variant || report.instructionVariant?.sha256 !== instructionVariant.sha256 ||
       !Array.isArray(report.gates) || report.gates.length !== expected.length ||
       expected.some(id => report.gates.filter(gate => gate.id === id && gate.passed === true && gate.exitCode === 0).length !== 1)) {
     throw new Error("Stock harness requires passing prerequisites for this exact source SHA and fingerprint.");
@@ -121,8 +143,11 @@ export function assertPreflightReceipt(report, current) {
 }
 
 export function main(args = process.argv.slice(2)) {
+  const { variant, sha256 } = readStockInstructionVariant();
+  const instructionVariant = { variant, sha256 };
+  const gates = stockHarnessGatesForVariant(variant);
   if (args.includes("--list")) {
-    console.log(JSON.stringify({ gates: stockHarnessGates, rust: "runtime_instructions_are_additive_for_codex_on_start_and_resume", live: "not invoked" }, null, 2));
+    console.log(JSON.stringify({ gates, instructionVariant, rust: "runtime_instructions_are_additive_for_codex_on_start_and_resume", live: "not invoked" }, null, 2));
     return;
   }
   if (args.some(arg => !arg.startsWith("--output-dir=") && !arg.startsWith("--verify=") && arg !== "--allow-rust-network"))
@@ -140,7 +165,7 @@ export function main(args = process.argv.slice(2)) {
         "packages/paperclip-runner/runner/target/debug/fake-codex-app-server"))).digest("hex"),
     });
     const output = resolve(verify, "..");
-    for (const gate of stockHarnessGates) {
+    for (const gate of gates) {
       const grade = gradeGate(gate, JSON.parse(readFileSync(join(output, `${gate.id}.json`), "utf8")), 0);
       if (!grade.passed) throw new Error(`Missing or failed retained prerequisite assertions: ${gate.id}`);
     }
@@ -176,7 +201,7 @@ export function main(args = process.argv.slice(2)) {
   if (!setup.passed) {
     const source = sourceFingerprint();
     writeFileSync(join(output, "preflight.json"), JSON.stringify({
-      schema: "paperclip.stock-harness-preflight.v3", sourceSha: git.stdout?.trim() || null,
+      schema: "paperclip.stock-harness-preflight.v3", instructionVariant, sourceSha: git.stdout?.trim() || null,
       sourceFingerprint: source.fingerprint, measuredAt: new Date().toISOString(), providerCalls: 0,
       live: "not_run", passed: false, sourceErrors: source.sourceErrors, setup, gates: [],
     }, null, 2) + "\n");
@@ -189,7 +214,7 @@ export function main(args = process.argv.slice(2)) {
   setup.fakeCodexSha256 = createHash("sha256").update(readFileSync(join(root,
     "packages/paperclip-runner/runner/target/debug/fake-codex-app-server"))).digest("hex");
   const results = [];
-  for (const gate of stockHarnessGates) {
+  for (const gate of gates) {
     console.log(`Checking ${gate.id}: ${gate.name}`);
     const file = join(output, `${gate.id}.json`);
     const run = spawnSync(process.execPath, [join(root, "node_modules/vitest/vitest.mjs"), "run", ...gate.files,
@@ -210,7 +235,7 @@ export function main(args = process.argv.slice(2)) {
   writeFileSync(join(output, "rust.txt"), rustOutput);
   results.push({ id: "SH-1-rust", passed: rust.status === 0 && /test runtime_instructions_are_additive_for_codex_on_start_and_resume \.\.\. ok/.test(rustOutput), exitCode: rust.status });
   const { fingerprint, sourceErrors } = sourceFingerprint();
-  const report = { schema: "paperclip.stock-harness-preflight.v3", sourceSha: git.stdout?.trim() || null,
+  const report = { schema: "paperclip.stock-harness-preflight.v3", instructionVariant, sourceSha: git.stdout?.trim() || null,
     sourceFingerprint: fingerprint, measuredAt: new Date().toISOString(), providerCalls: 0,
     live: "not_run", passed: git.status === 0 && sourceErrors.length === 0 && results.every(row => row.passed), sourceErrors, setup, gates: results };
   writeFileSync(join(output, "preflight.json"), JSON.stringify(report, null, 2) + "\n");

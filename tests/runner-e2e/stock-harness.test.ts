@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { runnerMatrix, runnerProfiles, suiteDefinitionHash } from "./catalog.js";
-import { captureStockHarness, gradeStockHarness, gradeStockHire, STOCK_HIRE_IDENTITY, type StockHarnessEvidence } from "./stock-harness.js";
+import { captureStockHarness, gradeStockHarness as gradeSourceHarness, gradeStockHire as gradeSourceHire, STOCK_HIRE_IDENTITY, type StockHarnessEvidence } from "./stock-harness.js";
+import { readFileSync } from "node:fs";
+import { classifyStockInstructionManual, readStockInstructionVariant } from "./stock-harness-instruction-variant.mjs";
+
+const reduced = classifyStockInstructionManual(STOCK_HIRE_IDENTITY);
+const gradeStockHire = (evidence: Parameters<typeof gradeSourceHire>[0]) => gradeSourceHire(evidence, reduced);
+const gradeStockHarness = (evidence: StockHarnessEvidence) => gradeSourceHarness(evidence, reduced);
 
 function recording(generation: "legacy" | "native" = "legacy"): StockHarnessEvidence {
   return {
@@ -28,6 +34,8 @@ describe("stock harness Product E2E", () => {
       "assigned-skill-paperclip-document",
     ]));
     expect(cells.every(row => row.suite.manualOnly && row.environment.id === "local")).toBe(true);
+    expect(cells.every(row => row.task.automaticRetryPolicy === "single_attempt")).toBe(true);
+    expect(cells[0]!.suite.definitionMetadata).toMatchObject({ automaticRetryPolicy: "single_attempt", maximumAttemptsPerCell: 1 });
     expect(cells.reduce((turns, row) => turns + row.task.expectedRunCount, 0)).toBe(50);
     expect(cells.filter(row => row.task.id === "assigned-skill-paperclip-document").map(row => row.profile.id).sort()).toEqual(["legacy-claude", "legacy-opencode"]);
     expect(cells[0]!.suite.definitionMetadata?.sourceDigest).toMatch(/^[a-f0-9]{64}$/);
@@ -59,6 +67,21 @@ describe("stock harness Product E2E", () => {
     expect(gradeStockHarness(hire)).toContainEqual(expect.objectContaining({ id: "provider-runs-present", passed: false }));
     hire.bundle.files[0]!.content += "Old operating manual.";
     expect(gradeStockHire(hire)).toContainEqual(expect.objectContaining({ id: "default-hire-bundle", passed: false }));
+  });
+
+  it("keeps historical instruction observations separate from the unchanged behavioral oracle", () => {
+    const historical = classifyStockInstructionManual(readFileSync(new URL("fixtures/stock-harness/historical-default-agents.md", import.meta.url), "utf8"));
+    const evidence = recording();
+    evidence.bundle.files[0]!.content = historical.content;
+    evidence.invocations[0]!.prompt += "\nExecution contract:";
+    expect(gradeSourceHarness(evidence, historical).every(check => check.passed)).toBe(true);
+    expect(gradeSourceHarness(evidence, historical)).toContainEqual(expect.objectContaining({ id: "historical-generic-procedures-observed", passed: true }));
+    expect(gradeSourceHarness(evidence, reduced)).toContainEqual(expect.objectContaining({ id: "default-hire-bundle", passed: false }));
+    evidence.invocations[0]!.prompt = "You are agent agent. Connection tools: connections_search";
+    expect(gradeSourceHarness(evidence, historical)).toContainEqual(expect.objectContaining({ id: "historical-generic-procedures-observed", passed: false }));
+    const current = readStockInstructionVariant();
+    evidence.bundle.files[0]!.content = current.content;
+    expect(gradeSourceHire(evidence).every(check => check.passed)).toBe(true);
   });
 
   it.each([

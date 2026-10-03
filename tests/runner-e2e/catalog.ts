@@ -1235,12 +1235,14 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     profiles: [...contextIntegrityProfiles.filter(profile => !pendingContextIntegrityProfiles.includes(profile)),
       runnerProfiles.find(profile => profile.id === "legacy-opencode")!].map(productionDefaultHireProfile),
     environments: [localEnvironment],
-    tasks: [...contextIntegrityTasks, chatTasks.find(task => task.id === "continuity-restart")!, paperclipDocumentTask],
+    tasks: [...contextIntegrityTasks, chatTasks.find(task => task.id === "continuity-restart")!, paperclipDocumentTask]
+      .map(task => ({ ...task, automaticRetryPolicy: "single_attempt" as const })),
     expectedMatrixSize: 26,
     excludedExecutionIds: ["legacy-codex", "legacy-acp-codex", "legacy-acp-claude", "runner-codex", "runner-acpx-claude", "runner-opencode"]
       .map(profile => `stock-harness.${profile}.local.${paperclipDocumentTask.id}`),
     definitionMetadata: {
       version: 2, instructions: "production-default-hire", scheduling: "explicit-only",
+      automaticRetryPolicy: "single_attempt", maximumAttemptsPerCell: 1,
       sourceDigest: stockHarnessSourceDigest(),
       operationalSkillSources: stockHarnessSkillSources(),
       grading: "public-default-bundle-and-delivered-prompts-plus-independent-lifecycle-oracles",
