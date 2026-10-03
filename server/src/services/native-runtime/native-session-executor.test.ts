@@ -49,6 +49,7 @@ import {
   NativeSessionProtocolIntegrityError,
 } from "../../vendor/paperclip-runner/index.js";
 import * as issueServiceModule from "../issues.js";
+import { NativeCursorPermissionDeclinedError } from "./native-cursor-permission-decline.js";
 import {
   createNativeHarnessBackupStamp,
   verifyNativeHarnessBackupStamp,
@@ -7374,6 +7375,20 @@ describe("native warm session supervision", () => {
 });
 
 describe("native session bounded recovery", () => {
+  it("leaves a denied Cursor task open and gives recovery to the operator without another provider attempt", async () => {
+    const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
+    const failure = new NativeCursorPermissionDeclinedError();
+    state.execute.mockReset().mockRejectedValueOnce(failure);
+    state.upsertRecoveryAction.mockReset().mockResolvedValue({});
+    await expect(executePaperclipNativeSession({ db: leaseDb(execution, {}, {}, updates), execution, runnerInstanceId: "runner" })).rejects.toBe(failure);
+    expect(updates.find(update => update.table === nativeRunFinalizations && update.values.phase === "terminal_failure")?.values).toMatchObject({
+      failureCode: "native_permission_declined", nextAttemptAt: null,
+      failureDetail: { recoverable: false, nextAction: expect.stringContaining("Automatic recovery is stopped") },
+    });
+    expect(updates.some(update => update.table === issues && update.values.status === "blocked")).toBe(false);
+    expect(state.upsertRecoveryAction).toHaveBeenCalledWith(expect.objectContaining({ cause: "native_permission_declined", ownerType: "board", wakePolicy: null }));
+    expect(state.execute).toHaveBeenCalledTimes(1);
+  });
   it.each(["operator", "reassignment"])("does not turn an acknowledged %s Stop before completion into a failure or a retry", async (source) => {
     const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
     const stop: Record<string, unknown> = {};

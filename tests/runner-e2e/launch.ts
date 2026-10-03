@@ -838,7 +838,7 @@ async function runAttempt(input: {
         Object.assign(publishedResult, {
           status: "failed",
           failureClass: "cleanup_failure",
-          error: message,
+          error: publishedResult.error ? `${publishedResult.error}; ${message}` : message,
           cleanup: "failed",
         } satisfies Partial<RunnerE2EResult>);
         const safeResult = `${JSON.stringify(

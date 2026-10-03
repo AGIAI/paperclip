@@ -1,5 +1,6 @@
 import { nativeRetryCancellationEligible, rethrowNativeCancellationLockConflict, assertCancellationRequest, cancellationIntentId as callerCancellationIntentId, cancellationRequestId } from "./native-cancellation-request.js";
 import { readNativeCursorPlanWait } from "./native-cursor-plan-wait.js";
+import { NativeCursorPermissionDeclinedError, readCompletedCursorPermissionDecline } from "./native-cursor-permission-decline.js";
 import { resolveAcpxQualification } from "./acpx-qualification.js";
 import { readLocalAiCredentialFile } from "../local-ai-credential-file.js";
 import { prepareGrokRunnerCredentials } from "./grok-runner-credentials.js";
@@ -6048,12 +6049,13 @@ export function nativeSessionFailureDisposition(
     sourceFailureCode === "native_session_cleanup_quarantined" ||
     sourceFailureCode === "native_adopted_runner_authentication_timeout" ||
     sourceFailureCode === "native_provider_usage_limit";
-  const exhausted = permanentFailure || attempt >= 3;
+  const permissionDeclined = sourceFailureCode === "native_permission_declined";
+  const exhausted = permanentFailure || permissionDeclined || attempt >= 3;
   return {
     phase: exhausted
       ? ("terminal_failure" as const)
       : ("retryable_failure" as const),
-    failureCode: permanentFailure
+    failureCode: permanentFailure || permissionDeclined
       ? sourceFailureCode!
       : exhausted
         ? ("native_session_retry_exhausted" as const)
@@ -6072,6 +6074,7 @@ export function nativeSessionRecoveryProjection(input: {
     exhausted,
     issueStatus:
       exhausted &&
+      input.failureCode !== "native_permission_declined" &&
       input.failureCode !== NATIVE_ADOPTED_RUNNER_AUTHENTICATION_TIMEOUT
         ? ("blocked" as const)
         : null,
@@ -6090,6 +6093,7 @@ export function nativeSessionRecoveryProjection(input: {
 export function nativeSessionFailureSourceCode(
   error: unknown,
 ):
+  | "native_permission_declined"
   | "native_provider_terminal_failed"
   | "native_provider_approval_required"
   | "native_provider_usage_limit"
@@ -6113,6 +6117,7 @@ export function nativeSessionFailureSourceCode(
   | "native_current_wake_comments_unread"
   | "native_current_wake_comments_changed_after_read"
   | "native_session_interrupted" {
+  if (error instanceof NativeCursorPermissionDeclinedError) return "native_permission_declined";
   if (error instanceof NativeProviderTerminalFailure) {
     if (error.providerCode === "approval_required") return "native_provider_approval_required";
     // Failed terminals retain their security meaning across the provider facade.
@@ -8427,6 +8432,10 @@ async function executePaperclipNativeSessionWithinScope(
                 const planWait = await readNativeCursorPlanWait(input.db, input.execution.binding);
                 if (planWait?.source.terminalEventId === terminalEvent.sourceEventId) return planWait.result;
               }
+              if (input.execution.provider.kind === "acpx" && input.execution.provider.agent === "cursor"
+                && await readCompletedCursorPermissionDecline(input.db, input.execution.binding, terminalEvent)) {
+                throw new NativeCursorPermissionDeclinedError();
+              }
               const [conversation] = await input.db
                 .select({ agentId: issues.conversationAgentId })
                 .from(issues)
@@ -8877,7 +8886,9 @@ async function executePaperclipNativeSessionWithinScope(
               checkpointExists: recoveryEvidence.checkpointExists,
               recoveryOwner: recoveryProjection.recoveryOwner,
               nextAction:
-                sourceFailureCode === "native_provider_approval_required"
+                sourceFailureCode === "native_permission_declined"
+                  ? "Cursor permission was declined. Inspect the task and give explicit direction before starting further provider work. Automatic recovery is stopped."
+                  : sourceFailureCode === "native_provider_approval_required"
                   ? "Approval required. Review the operation and update the agent's permission setting before retrying. This runner has no interactive approval handler."
                   : sourceFailureCode === "native_session_cleanup_quarantined"
                   ? NATIVE_CLEANUP_OPERATOR_RECOVERY_MESSAGE
@@ -9052,7 +9063,9 @@ async function executePaperclipNativeSessionWithinScope(
               recoveryEvidence.providerSessionEstablished,
           },
           nextAction:
-            sourceFailureCode === "native_provider_approval_required"
+            sourceFailureCode === "native_permission_declined"
+              ? "Cursor permission was declined. Inspect the task and give explicit direction before starting further provider work. Automatic recovery is stopped."
+              : sourceFailureCode === "native_provider_approval_required"
               ? "Approval required. Review the operation and update the agent's permission setting before retrying. This runner has no interactive approval handler."
               : sourceFailureCode === "native_session_cleanup_quarantined"
               ? NATIVE_CLEANUP_OPERATOR_RECOVERY_MESSAGE

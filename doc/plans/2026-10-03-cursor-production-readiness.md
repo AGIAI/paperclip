@@ -235,3 +235,28 @@ or remote cleanup is unconfirmed. This repairs the demonstrated loss of the
 failed-create journal after the controller exited. It changes the harness only;
 the provider packs, daemon, and Linux image remain frozen at `5623ff`. Remote
 qualification and promotion are still pending.
+
+### Demonstrated remote blockers after allocation recovered
+
+The third remote denial attempt reached the native request and delivered the
+exact rejection. The target stayed absent and the remote process observer proved
+retirement. Its overall result remains failed: Cursor announced an empty read
+card before streaming the bootstrap file path, and the strict single-file proof
+could not attest that origin. The controller then applied generic missing-result
+recovery after the denied turn ended, making two failed session-resume attempts.
+
+The blocker repair completes only an entirely empty pending read origin from a
+full single-path shape update before execution progress. Every attested notice
+retains that same digest; late, changed, multi-path, and unsafe input stays
+unproven. This changes passive evidence, not provider permissions or file access.
+Committed Cursor permission declines followed by a completed turn without a
+semantic result now fail the run once, keep the task open, and assign recovery to
+the operator with no automatic wake. Other missing-result recovery remains intact.
+The decision proof binds company, agent, run, turn, normalized session, source,
+request, and strict event order. It does not assert response delivery or absence
+of effects; those remain separate live requirements.
+
+Focused verification passed: 534 controller tests, 43 Cursor runtime tests, and
+43 fixture evidence tests, plus affected typechecks. The provider CLI pin,
+native patch, and command/profile digest remain unchanged; the candidate source
+and Node pack identities must be rebuilt before repeating affected qualification.

@@ -73,9 +73,11 @@ export function hasCursorDeniedTurnTerminal(input: {
   run: unknown; issue: unknown; events: readonly unknown[]; runId: string; turnId: string; requestId: string;
 }): boolean {
   const run = rec(input.run), issue = rec(input.issue);
+  const missingResult = run.errorCode === "native_session_interrupted" && run.error === "native_finalization_missing: session returned no semantic result";
+  const declined = run.errorCode === "native_permission_declined" && run.error === "native_finalization_missing: session returned no semantic result; Cursor permission was declined; explicit direction is required";
   if (!id(input.runId) || !id(input.turnId) || !id(input.requestId) || run.id !== input.runId || run.nativeIssueId !== issue.id
     || run.status !== "failed" || run.runtimeMode !== "native" || issue.status !== "in_progress"
-    || run.errorCode !== "native_session_interrupted" || run.error !== "native_finalization_missing: session returned no semantic result") return false;
+    || (!missingResult && !declined)) return false;
   const terminals = input.events.map(rec).map(row => ({ row, event: rec(rec(row.payload).prpEvent) }))
     .filter(({ event }) => ["turn.completed", "turn.failed", "turn.cancelled", "turn.interrupted"].includes(event.eventType));
   const delivered = readCursorToolEvidence(input.events, input.runId).filter(notice => notice.stage === "permission_delivered"
