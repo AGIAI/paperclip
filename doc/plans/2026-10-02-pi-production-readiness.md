@@ -27,7 +27,7 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases are attempted at `0bd040093`: five pass; context-before-action retains its 120-second terminal timeout, and finish-task retains use of the advisory report without the required task mutation. One context/document workflow retry passes only after verified protection against the recorded host sleep; its original failure stays unchanged. The seven `b148b73ea` passes remain historical. |
 | Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Exact-source public CLI/server installation and normal Pi setup pass on all three platforms. Public immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47` imports into native Linux Daytona and passes closed admission. Temporary sandbox cleanup passes. Image jobs 37102904889, 37106313185 and 37110683910 are terminal/cancelled. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Verified head `82ee4ec91` has 53 successful CI checks, two skips, Greptile 5/5 and no unresolved root review thread. One permitted rerun passes the originally failed browser shard and aggregate gate; the original failure stays retained and its nondeterministic cause is unproven. A subsequent documentation-only head still requires its own CI and review. Shipping inputs remain equivalent to `0bd040093`. The complete native Linux command remains open: a repeat with normal npm restored fails six suites after disk drops below the unchanged 256 MiB workspace reserve. Reclaiming only the unused owned pnpm store restores 2.75 GiB free; all six failed suites (75 tests) then pass unchanged. The next full repeat passes typecheck and is running tests; build remains unexecuted. Every original failed command stays failed. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held until all 33 cases pass. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Verified head `8872f9d4a` has 53 successful CI checks and two skips. Its completed Greptile review scores 5/5 and retains the CI-wording finding corrected by this documentation update. Each subsequent head requires its own completed CI and review. Predecessor `82ee4ec91` has the same CI count and no unresolved root review thread after one permitted rerun; its original browser failure stays retained and its nondeterministic cause is unproven. Shipping inputs remain equivalent to `0bd040093`. The complete native Linux command remains open: a repeat with normal npm restored fails six suites after disk drops below the unchanged 256 MiB workspace reserve. Reclaiming only the unused owned pnpm store restores 2.75 GiB free; all six failed suites (75 tests) then pass unchanged. The next full repeat passes typecheck and is running tests; build remains unexecuted. Every original failed command stays failed. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held until all 33 cases pass. No merge or release. |
 
 ## Bounded execution
 
@@ -158,7 +158,10 @@ Remaining corrections and evidence:
   The image's closure is valid; the fixture's hash representation needs repair.
   The original observer error masks its
   specific internal cause; this diagnosis does not regrade that failure.
-  A fixture correction remains held for workflow-scope clarification.
+  An unapplied private correction passes 14 free Linux tests: nine exact-child
+  ownership/pidfd calibrations and five actual-metadata, formatting and negative
+  pin regressions. A fixture correction remains held for workflow-scope
+  clarification; those free tests do not qualify the failed paid case.
 - The unrestricted Daytona file-edit first attempt edits and publishes the
   correct file and passes cleanup, but performs extra native shell executions.
   It fails the unchanged exactly-one validation-execution gate. Both platform
@@ -208,7 +211,10 @@ Remaining corrections and evidence:
 The next work is to collect the exact live full Linux verification command;
 correct the diagnosed remote fault fixture and restrictive
 bootstrap only within clarified workflow scope; and find concrete corrections
-for the remaining failed behavior and observer cases. Current-head CI passes.
+for the remaining failed behavior and observer cases. CI at `8872f9d4a` passes
+53 checks with two skips. Its completed Greptile review scores 5/5 but retains
+the CI-wording finding addressed by this documentation update. Each subsequent
+head requires its own completed CI and review before handoff.
 The two restrictive Daytona first attempts
 remain held for the identified bootstrap/oracle constraint. All failed paid cases
 require a concrete correction before retry. Keep
@@ -673,16 +679,66 @@ rollout held until every original release gate is proven.
 
 ## Rollout and rollback
 
-Release only the exact qualified package set. Begin with a small operator-owned
-Pi company on the frozen model and explicit low thinking. Verify startup,
-question resolution, Stop, terminal state and usage visibility before expanding.
-Keep the prior published CLI/server set and current company configuration.
+These are operator instructions for a later authorized release. Production
+remains held until all 33 qualification cases, integration checks and prerequisite
+reviews pass. This goal does not publish, merge or deploy the candidate.
 
-On a failed gate, hold admission. On a rollout regression, stop new Pi dispatch,
-retire active work through the existing control-plane Stop path, and restore the
-prior published packages. Reopen incompatible sessions; do not replay uncertain
-provider actions or present expired callbacks as live questions. Preserve run
-history and all failed release evidence.
+1. Record `paperclipai --version`, the prior CLI/server package versions, the
+   current company configuration and the exact retained package set. Run
+   `paperclipai db:backup --json` against the intended instance. Retain the
+   reported backup path and size. Record the backup file SHA256 before updating.
+2. Use the exact qualified published version. For a managed npm installation,
+   preview and apply the pinned update below. The operator must supply
+   `PI_RELEASE_VERSION` after publication. Keep the default pre-update backup.
+   A managed Git installation follows its recorded Git reference; use its
+   separately reviewed install procedure rather than this npm version command.
+
+   ```sh
+   paperclipai update --version "$PI_RELEASE_VERSION" --dry-run --json
+   paperclipai update --version "$PI_RELEASE_VERSION"
+   paperclipai runtime setup pi
+   ```
+
+3. For Daytona, select the qualified immutable image digest above. Obtain the
+   matching Linux companion and its trusted `companion.json` SHA256 from the
+   same release. The operator must supply both values below. Use the normal
+   import path; retain its receipt. The importer validates the server build,
+   profile and complete inventory. The qualification copies and their
+   platform-specific manifest digests are evidence, not published release assets.
+
+   ```sh
+   paperclipai runtime import-remote "$PI_RELEASE_COMPANION" --sha256 "$PI_RELEASE_COMPANION_SHA256"
+   ```
+
+4. Begin with one operator-owned Pi company using profile 14,
+   `openrouter/deepseek/deepseek-v4-flash-0731` and explicit low thinking.
+   Check normal startup, one question and answer, Stop, three warm turns,
+   terminal task state and usage visibility before expanding. Preserve the
+   existing company permissions and budget hard stop. Record the installed
+   package, runtime, companion and image identities with each canary run.
+
+On any failed qualification gate, keep admission held. On a rollout regression,
+stop new Pi dispatch and retire active work through the control-plane Stop path.
+For a managed installation, verify that the preview names the recorded prior
+payload before applying rollback:
+
+```sh
+paperclipai update --rollback --dry-run --json
+paperclipai update --rollback
+```
+
+The CLI restores the retained prior managed payload and restarts an active
+managed service. It does not reverse database migrations. If the prior version
+cannot use the current database, stop the service and restore the verified
+pre-update backup through the instance's database recovery procedure before
+resuming. Preserve post-backup run evidence separately. Non-managed installations
+must restore the recorded prior published CLI/server set through their install
+method; `--rollback` is supported only for managed installations.
+
+Restore the recorded company configuration and verify service health before
+enabling dispatch. Reopen incompatible sessions. Do not replay uncertain provider
+actions or present expired callbacks as live questions. Preserve run history and
+all failed release evidence.
 
 ## Native image and frozen-artifact qualification — 2026-10-03 07:16 CDT
 
