@@ -1,0 +1,128 @@
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import type { MatrixExecution } from "./types.js";
+import { nativeCompletionDefinitionDigest } from "./native-completion-cases.js";
+
+export const NATIVE_INSTRUCTION_SUITE = "native-instruction-consolidation";
+export const NATIVE_INSTRUCTION_BASE_SHA = "2a8a99e4a5f69aa803b3f10b982f583e75a87042";
+export const NATIVE_INSTRUCTION_DEFAULT_SHA256 = "c6318bf7e425cc0dd7acd4ff2905dab5c46ffddedef979afdf06720c82f6e95a";
+export const NATIVE_INSTRUCTION_PREFLIGHT_ENV = "PAPERCLIP_NATIVE_INSTRUCTION_PREFLIGHT";
+const root = resolve(import.meta.dirname, "../..");
+const hash = (bytes: Buffer | string) => createHash("sha256").update(bytes).digest("hex");
+export const NATIVE_INSTRUCTION_VARIANTS = {
+  baseline: {
+    "packages/paperclip-runner/src/backends/runtime-context.ts": "e7c46e81cc9c93f9a4f805b5091ef08c59ea70c62f208cfda70d6edeed363898",
+    "packages/paperclip-runner/src/backends/codex-native-backend.ts": "f276d436391c9e2f0a7e58ce1302b5c9f1a39ac01c148be257f9d455515a31b9",
+    "packages/paperclip-runner/src/backends/opencode-native-backend.ts": "d54ddde3a3fdffcda3490d813d27b3b4891448e11cd05f61f9bb4b292d9fd6c2",
+  },
+  candidate: {
+    "packages/paperclip-runner/src/backends/runtime-context.ts": "cae9075fac25f168972c2be4ddb58052ef2940554458e2757d88a5d0e39805c2",
+    "packages/paperclip-runner/src/backends/codex-native-backend.ts": "affecc515a623e0dfeb338f553ea53ebb7d18baa3d13e4395d17b21000dbee93",
+    "packages/paperclip-runner/src/backends/opencode-native-backend.ts": "d5dc4cc2c06b37d22be47c9f15f828c06b439d8241a8d34498ca4339273eed96",
+  },
+} as const;
+
+// These are common comparison setup, not additional production changes.
+const comparisonFiles = new Set([
+  ...Object.keys(NATIVE_INSTRUCTION_VARIANTS.baseline),
+  "packages/paperclip-runner/src/backends/runtime-context.test.ts",
+  "packages/paperclip-runner/src/backends/native-instruction-measurement.test.ts",
+  "tests/runner-e2e/native-instruction-consolidation.ts",
+  "tests/runner-e2e/native-instruction-consolidation.test.ts",
+  "tests/runner-e2e/native-completion-defaults.ts",
+  "tests/runner-e2e/native-completion-defaults.test.ts",
+  "tests/runner-e2e/catalog.ts", "tests/runner-e2e/catalog.test.ts", "tests/runner-e2e/launch.ts",
+  "tests/runner-e2e/runner.spec.ts", "tests/runner-e2e/live-fixtures.ts",
+  "tests/runner-e2e/README.md", "doc/evals.md",
+  "doc/plans/2026-10-03-native-completion-consolidation.md",
+]);
+const git = (...args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+
+export function nativeInstructionVariant(read = (file: string) => readFileSync(join(root, file))) {
+  const matches = Object.entries(NATIVE_INSTRUCTION_VARIANTS).filter(([, files]) =>
+    Object.entries(files).every(([file, digest]) => hash(read(file)) === digest));
+  if (matches.length !== 1) throw new Error("Mixed or unknown native instruction source");
+  return matches[0]![0];
+}
+
+export function nativeInstructionDefinitionDigest() {
+  return hash(nativeCompletionDefinitionDigest() + hash(readFileSync(new URL(import.meta.url)))
+    + hash(readFileSync(join(root, "packages/paperclip-runner/src/backends/native-instruction-measurement.test.ts"))));
+}
+
+export function assertNativeInstructionSelection(executions: readonly MatrixExecution[]) {
+  for (const execution of executions.filter(value => value.suite.id === NATIVE_INSTRUCTION_SUITE)) {
+    if (!['runner-codex', 'runner-acpx-claude', 'runner-opencode'].includes(execution.profile.id)
+      || execution.profile.generation !== "native" || execution.environment.id !== "local"
+      || execution.profile.qualificationCandidate !== undefined || execution.task.expectedRunCount !== 1
+      || (execution.task.minimumExpectedRunCount !== undefined && execution.task.minimumExpectedRunCount !== 1)
+      || !['assigned-skill-explicit-invocation', 'native-blocked-report'].includes(execution.task.id)
+      || execution.task.automaticRetryPolicy !== "single_attempt"
+      || execution.id !== `${NATIVE_INSTRUCTION_SUITE}.${execution.profile.id}.local.${execution.task.id}`
+      || execution.suite.manualOnly !== true || execution.suite.expectedMatrixSize !== 6
+      || execution.suite.tasks.length !== 2
+      || !['assigned-skill-explicit-invocation', 'native-blocked-report'].every(id =>
+        execution.suite.tasks.filter(task => task.id === id && task.expectedRunCount === 1
+          && task.automaticRetryPolicy === "single_attempt").length === 1)) {
+      throw new Error("Native instruction comparison requires the declared local single-attempt cells");
+    }
+  }
+}
+
+function sourceReceipt() {
+  const sourceSha = git("rev-parse", "HEAD");
+  const requestedSource = process.env.PAPERCLIP_RUNNER_E2E_SOURCE_SHA?.trim();
+  if (requestedSource && requestedSource !== sourceSha) throw new Error("Native instruction source differs from requested immutable revision");
+  if (git("status", "--porcelain", "--untracked-files=normal")) throw new Error("Native instruction comparison requires clean committed source");
+  // Do not silently relax shallow history or admit unrelated production edits.
+  git("merge-base", "--is-ancestor", NATIVE_INSTRUCTION_BASE_SHA, sourceSha);
+  const changed = git("diff", "--name-only", NATIVE_INSTRUCTION_BASE_SHA, sourceSha).split("\n").filter(Boolean);
+  if (changed.some(file => !comparisonFiles.has(file))) throw new Error("Native instruction comparison contains unrelated source changes");
+  return { sourceSha, variant: nativeInstructionVariant(), fixtureDigest: nativeInstructionDefinitionDigest() };
+}
+
+export function validateNativeInstructionMeasurement(measurement: {
+  schema: string; sourceSha: string; sourceDirty: boolean; providerCalls: number; fixtureSha256: string;
+  sourceHashes: Record<string, string>; receipts: Array<{ provider: string; schema: string; phase: string }>;
+}, source: { sourceSha: string; variant: string }) {
+  const expected = ['codex', 'acpx', 'opencode'].flatMap(provider => ['v4', 'v5'].flatMap(schema =>
+    ['start', 'resume'].map(phase => `${provider}/${schema}/${phase}`))).sort();
+  const actual = measurement.receipts.map(value => `${value.provider}/${value.schema}/${value.phase}`).sort();
+  const files = NATIVE_INSTRUCTION_VARIANTS[source.variant as keyof typeof NATIVE_INSTRUCTION_VARIANTS];
+  if (measurement.schema !== "paperclip.native-instruction-measurement.v1"
+    || measurement.sourceSha !== source.sourceSha || measurement.sourceDirty !== false || measurement.providerCalls !== 0
+    || measurement.fixtureSha256 !== hash(readFileSync(join(root, "packages/paperclip-runner/src/backends/native-instruction-measurement.test.ts")))
+    || JSON.stringify(actual) !== JSON.stringify(expected) || !files
+    || Object.entries(files).some(([file, digest]) => measurement.sourceHashes[file.split('/').at(-1)!] !== digest))
+    throw new Error("Invalid or incomplete native instruction measurement");
+}
+
+export function prepareNativeInstructionPreflight(directory: string) {
+  const source = sourceReceipt();
+  const measurementPath = join(directory, "native-instruction-measurement.json");
+  execFileSync(process.execPath, [join(root, "node_modules/vitest/vitest.mjs"), "run", "src/backends/native-instruction-measurement.test.ts"], {
+    cwd: join(root, "packages/paperclip-runner"), timeout: 60_000,
+    env: { PATH: process.env.PATH, PAPERCLIP_NATIVE_INSTRUCTION_REPORT: measurementPath }, stdio: "inherit",
+  });
+  const measurement = JSON.parse(readFileSync(measurementPath, "utf8"));
+  validateNativeInstructionMeasurement(measurement, source);
+  const output = join(directory, "native-instruction-preflight.json");
+  writeFileSync(output, `${JSON.stringify({ schema: "paperclip.native-instruction-preflight.v1", ...source,
+    measurementPath, measurementSha256: hash(readFileSync(measurementPath)) }, null, 2)}\n`);
+  return output;
+}
+
+export function verifyNativeInstructionPreflight(path: string | undefined) {
+  if (!path) throw new Error("Missing native instruction source admission");
+  const receipt = JSON.parse(readFileSync(path, "utf8"));
+  const source = sourceReceipt();
+  if (receipt.schema !== "paperclip.native-instruction-preflight.v1"
+    || receipt.sourceSha !== source.sourceSha || receipt.variant !== source.variant
+    || receipt.fixtureDigest !== source.fixtureDigest
+    || receipt.measurementSha256 !== hash(readFileSync(receipt.measurementPath)))
+    throw new Error("Stale or mismatched native instruction source admission");
+  validateNativeInstructionMeasurement(JSON.parse(readFileSync(receipt.measurementPath, "utf8")), source);
+  return receipt;
+}

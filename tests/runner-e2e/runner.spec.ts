@@ -1,4 +1,5 @@
 import { assertNativeCompletionSelection, NATIVE_COMPLETION_PREFLIGHT_ENV, verifyNativeCompletionPreflight } from "./native-completion-admission.js";
+import { assertNativeInstructionSelection, verifyNativeInstructionPreflight, NATIVE_INSTRUCTION_PREFLIGHT_ENV, NATIVE_INSTRUCTION_SUITE, NATIVE_INSTRUCTION_DEFAULT_SHA256 } from "./native-instruction-consolidation.js";
 import { captureNativeDefault, gradeNativeDefault, nativeCompletionWorkspaceDigest } from "./native-completion-defaults.js";
 import { gradeNativeCompletion } from "./native-completion-scoring.js";
 import { assertNativeBlockerReply } from "./native-blocker-visible.js";
@@ -562,6 +563,10 @@ for (const execution of executions) {
       assertNativeCompletionSelection([execution]);
       verifyNativeCompletionPreflight(process.env[NATIVE_COMPLETION_PREFLIGHT_ENV]);
     }
+    if (execution.suite.id === NATIVE_INSTRUCTION_SUITE) {
+      assertNativeInstructionSelection([execution]);
+      verifyNativeInstructionPreflight(process.env[NATIVE_INSTRUCTION_PREFLIGHT_ENV]);
+    }
     const credentials = credentialValues();
     const secrets = normalizedSecrets(Object.values(credentials));
     const api = new RunnerApi(request);
@@ -859,9 +864,9 @@ for (const execution of executions) {
         daytonaImage: process.env.PAPERCLIP_E2E_DAYTONA_IMAGE,
       });
 
-      if (execution.suite.id === "native-completion") {
+      if (["native-completion", NATIVE_INSTRUCTION_SUITE].includes(execution.suite.id)) {
         const receipt = await captureNativeDefault({ api, agentId: fixtures.agent.id, companyId: fixtures.company.id });
-        const grade = gradeNativeDefault(receipt);
+        const grade = gradeNativeDefault(receipt, execution.suite.id === NATIVE_INSTRUCTION_SUITE ? NATIVE_INSTRUCTION_DEFAULT_SHA256 : undefined);
         await writeSanitizedJson(snapshotsDir, "native-default-before-execution.json", { receipt, grade }, secrets);
         if (!grade.passed) throw new Error("Native production-default hire admission failed before execution");
         const [issues, agents, workspaceDigest] = await Promise.all([
@@ -2615,7 +2620,7 @@ for (const execution of executions) {
         await expect(proofLink).toHaveAttribute("href", `/api/attachments/${downloadedResponseProof!.attachmentId}/content`);
       } else if (execution.suite.id === "task-titles") {
         await expect(visibleAgentReplies.filter({ hasText: marker }).last()).toBeVisible({ timeout: 30_000 });
-      } else if (execution.suite.id === "native-completion" && execution.task.id === "native-blocked-report") {
+      } else if (["native-completion", NATIVE_INSTRUCTION_SUITE].includes(execution.suite.id) && execution.task.id === "native-blocked-report") {
         await assertNativeBlockerReply(visibleAgentReplies, marker);
       } else if (execution.task.flow === "warm_three_turn") {
         // Prove the persisted user-facing response is visible, independently
@@ -2676,7 +2681,7 @@ for (const execution of executions) {
         );
       }
       }
-      if (execution.suite.id === "native-completion") {
+      if (["native-completion", NATIVE_INSTRUCTION_SUITE].includes(execution.suite.id)) {
         if (!issue || !nativeInitial) throw new Error("Missing native qualification issue or pre-execution receipt");
         const [currentIssue, companyRuns, issues, agents, comments, documents, interactions, workspaceDigest] = await Promise.all([
           api.get<IssueRecord>(`/api/issues/${issue.id}`),

@@ -11,6 +11,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createCodexTaskEnvelope } from "../contracts/codex.js";
 import {
+  PRP_BLOCK_TOOL_DESCRIPTION,
+  PRP_COMPLETION_TOOL_DESCRIPTION,
+} from "../contracts/completion-result.js";
+import {
   buildNativeModelEnvelope,
   type NativeExecutionInput,
 } from "../contracts/native-execution.js";
@@ -63,7 +67,16 @@ describe("native runtime context files", () => {
     expect(constraints).toContain(
       "Obtain one accepted result from paperclip_finish or paperclip_block before writing",
     );
-    expect(constraints).toContain("do not call another tool");
+    expect(constraints).toContain("before writing the complete user-facing final response.");
+    for (const description of [PRP_COMPLETION_TOOL_DESCRIPTION, PRP_BLOCK_TOOL_DESCRIPTION]) {
+      expect(description).toContain("If rejected, correct the report and retry.");
+      expect(description).toContain("After acceptance, read the returned outcome");
+      expect(description).toContain("end the turn without further tool calls");
+    }
+    expect(PRP_COMPLETION_TOOL_DESCRIPTION).toContain("do not claim completion while gated");
+    expect(PRP_COMPLETION_TOOL_DESCRIPTION).toContain("supplied link and action");
+    expect(PRP_COMPLETION_TOOL_DESCRIPTION).toContain("explicit wait for the next response");
+    expect(PRP_BLOCK_TOOL_DESCRIPTION).toContain("its owner, and the action needed to unblock it");
     expect(constraints).not.toContain(
       "final response exactly once before invoking",
     );
