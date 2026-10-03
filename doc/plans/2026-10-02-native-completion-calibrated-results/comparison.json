@@ -126,7 +126,11 @@
     "nativeRunCount": 1,
     "attempt": 1,
     "isCampaignRetry": false,
-    "allUsageRetained": true
+    "allUsageRetained": true,
+    "failureReasonObserved": false,
+    "firstFailedResultOutputBytes": 0,
+    "firstFailedResultOutputTruncated": false,
+    "nativeObservationSha256": "8604e2bf01bf9aaece2b3ca0b83f220b1f00911673d8eded1b1e9216910fb238"
   },
   "nativeRunsObserved": 12,
   "actualVendorHttpCallCount": null,
