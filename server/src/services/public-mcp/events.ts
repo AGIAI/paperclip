@@ -131,21 +131,27 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
       return await db.transaction(async tx => {
         await tx.execute(sql`select pg_advisory_xact_lock(736721043)`);
         await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${id}, 0))`);
+        let retainedExpiry = 0;
         if (lease) {
           const [held] = await tx.update(admissions).set({ finishedAt: new Date(now()) }).where(and(eq(admissions.id, lease.id), isNull(admissions.finishedAt), gt(admissions.expiresAt, new Date(now())))).returning();
           if (!held) throw new McpEventError(-32602, "Subscription verification expired or was stopped. Reconnect the monitor.");
           if (existing) {
             const [active] = await tx.select().from(subscriptions).where(and(eq(subscriptions.id, id), isNull(subscriptions.stoppedAt), gt(subscriptions.expiresAt, new Date(now()))));
             if (!active) throw new McpEventError(-32602, "The monitor expired or was stopped. Subscribe again.");
+            retainedExpiry = active.expiresAt.getTime();
           }
         } else {
           // A cached refresh cannot recreate a subscription removed while it was awaiting authority.
           const [held] = await tx.select().from(subscriptions).where(eq(subscriptions.id, id));
           const [pending] = await tx.select().from(admissions).where(and(eq(admissions.subscriptionId, id), isNull(admissions.finishedAt), gt(admissions.expiresAt, new Date(now()))));
           if (!held || held.stoppedAt || held.expiresAt.getTime() <= now() || pending || canonical(held.deliveryMaterial) !== canonical(existing!.deliveryMaterial)) throw new McpEventError(-32602, "The monitor changed or was stopped. Retry the subscription.");
+          retainedExpiry = held.expiresAt.getTime();
         }
         if (cloudOrigin && cloud!.expiresAt <= now()) throw new McpEventError(-32602, "Refresh the hosted connection before subscribing.");
-        const expiresAt = new Date(Math.min(now() + Math.min(Math.max(input.ttlMs ?? lifetime, 30_000), lifetime), cloudOrigin ? Math.min(now() + rotationMs, cloud!.expiresAt) : Infinity));
+        // Refreshes extend the same monitor; a shorter overlapping request must
+        // not revoke a lifetime already promised to another caller. Hosted
+        // authority still caps the lifetime to its current proof.
+        const expiresAt = new Date(Math.min(Math.max(retainedExpiry, now() + Math.min(Math.max(input.ttlMs ?? lifetime, 30_000), lifetime)), cloudOrigin ? Math.min(now() + rotationMs, cloud!.expiresAt) : Infinity));
         const value = { companyId: principal.grant.companyId, grantId: principal.grant.id, name: input.name, taskId: input.arguments.taskId,
           arguments: input.arguments, deliveryMaterial: material, expiresAt, stoppedAt: null,
           verifiedAt: verify ? new Date(now()) : existing!.verifiedAt, startsAt: existing?.startsAt ?? requestedAt, scannedAt: new Date(now()) };
