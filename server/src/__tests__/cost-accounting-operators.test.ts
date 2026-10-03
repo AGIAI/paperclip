@@ -86,6 +86,40 @@ const support = await getEmbeddedPostgresTestSupport();
     expect((await service.inspect(f.company.id)).findings).toEqual([]);
   });
 
+  it.each(["before", "after", "concurrent"])("accounts separate run charges %s the provider receipt without false integrity findings", async (timing) => {
+    const f = await fixture(); const run = await runFor(f, "succeeded");
+    await db.update(heartbeatRuns).set({ costAccountingPending: true, usageJson: { costUsdExact: "0.01", inputTokens: 7, cachedInputTokens: 3, outputTokens: 11 } }).where(eq(heartbeatRuns.id, run.id));
+    const extra = { agentId: f.agent.id, heartbeatRunId: run.id, provider: "test", model: "tool", costCents: "0.1234567", inputTokens: 2, cachedInputTokens: 4, outputTokens: 6, occurredAt: new Date(), idempotencyKey: "extra-charge" };
+    const costs = costService(db);
+    if (timing === "before") await costs.createEvent(f.company.id, extra);
+    if (timing === "concurrent") await Promise.all([costs.createEvent(f.company.id, extra), accountRunCost(db, run.id)]);
+    else await accountRunCost(db, run.id);
+    const event = await costs.createEvent(f.company.id, extra);
+    // Replaying either source cannot count it twice.
+    await costs.createEvent(f.company.id, extra);
+    expect(await accountRunCost(db, run.id)).toBe(false);
+    const [runtime] = await db.select().from(agentRuntimeState).where(eq(agentRuntimeState.agentId, f.agent.id));
+    expect(runtime).toMatchObject({ totalCostCents: 1.1234567, totalInputTokens: 9, totalCachedInputTokens: 7, totalOutputTokens: 17 });
+    const integrity = accountingIntegrityService(db);
+    expect((await integrity.inspect(f.company.id)).findings).toEqual([]);
+    await billingReconciliationService(db).adjust(f.company.id, event.id, { idempotencyKey: "extra-correction", expectedCents: "0.1234567", correctedCents: "0.2234567", reason: "Provider correction", pricing: { source: "provider_invoice", evidence: "external charge" } }, "board");
+    expect((await costs.summary(f.company.id)).spendCentsExact).toBe("1.2234567");
+    expect((await integrity.inspect(f.company.id)).findings).toEqual([]);
+    await db.update(agentRuntimeState).set({ totalCostCents: 999 }).where(eq(agentRuntimeState.agentId, f.agent.id));
+    const review = await integrity.inspect(f.company.id);
+    expect(review.findings.map(f => f.kind)).toEqual(["runtime_projection"]);
+    expect((await integrity.repair(f.company.id, review.fingerprint, "Fix drift", "board")).findings).toEqual([]);
+    // An extra charge cannot conceal a missing original provider receipt.
+    await db.delete(costEvents).where(and(eq(costEvents.heartbeatRunId, run.id), eq(costEvents.idempotencyKey, `heartbeat:${run.id}:final`)));
+    expect((await integrity.inspect(f.company.id)).findings.some(f => f.kind === "missing_receipt")).toBe(true);
+  });
+
+  it("rejects public charges that impersonate the provider receipt namespace", async () => {
+    const f = await fixture();
+    await expect(costService(db).createEvent(f.company.id, { agentId: f.agent.id, provider: "test", model: "test", costCents: 1, occurredAt: new Date(), idempotencyKey: "heartbeat:fake:final" })).rejects.toThrow("reserved");
+    expect(await db.select().from(costEvents).where(eq(costEvents.companyId, f.company.id))).toEqual([]);
+  });
+
   it("imports invoices idempotently and appends reviewed corrections without losing the provider receipt", async () => {
     const f = await fixture();
     const originalPricing = { source: "rate_card" as const, version: "2026-09-01", inputCentsPerMillion: "12.3456789" };

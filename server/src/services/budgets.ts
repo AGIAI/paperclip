@@ -24,7 +24,7 @@ import type {
   BudgetThresholdType,
   BudgetWindowKind,
 } from "@paperclipai/shared";
-import { notFound, unprocessable } from "../errors.js";
+import { HttpError, notFound, unprocessable } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { withAccountingTransaction } from "./accounting-transaction.js";
 import { logActivity, type LogActivityInput, type ActivityPublication } from "./activity-log.js";
@@ -586,16 +586,7 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
   }
 
   return {
-    reconcileCompanyScopes: async (companyId: string) => {
-      const policies = await listPolicyRows(companyId);
-      const seen = new Set<string>();
-      for (const policy of policies) {
-        const key = `${policy.scopeType}:${policy.scopeId}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        await reconcileScope(companyId, policy.scopeType as BudgetScopeType, policy.scopeId);
-      }
-    },
+    reconcileScope,
     listPolicies: async (companyId: string): Promise<BudgetPolicy[]> => {
       const rows = await listPolicyRows(companyId);
       return rows.map((row) => ({
@@ -982,8 +973,18 @@ export function budgetService(db: Db, hooks: BudgetServiceHooks = {}) {
     ...reads,
     deliverPendingEnforcement: (companyId?: string) => deliverBudgetEnforcement(db, hooks, companyId),
     reconcilePolicies: async () => {
-      const rows = await db.selectDistinct({ companyId: budgetPolicies.companyId }).from(budgetPolicies);
-      for (const row of rows) await mutate(row.companyId, (service) => service.reconcileCompanyScopes(row.companyId));
+      const scopes = await db.selectDistinct({ companyId: budgetPolicies.companyId, scopeType: budgetPolicies.scopeType, scopeId: budgetPolicies.scopeId })
+        .from(budgetPolicies).orderBy(budgetPolicies.companyId, budgetPolicies.scopeType, budgetPolicies.scopeId);
+      // Each scope commits independently: deleted targets and a failed scope
+      // must not roll back recovery or cancellation delivery for other work.
+      for (const scope of scopes) {
+        try {
+          await mutate(scope.companyId, (service) => service.reconcileScope(scope.companyId, scope.scopeType as BudgetScopeType, scope.scopeId));
+        } catch (error) {
+          if (error instanceof HttpError && error.status === 404) continue;
+          logger.warn({ err: error, ...scope }, "Budget scope recovery pending; continuing remaining scopes");
+        }
+      }
     },
     upsertPolicy: (companyId: string, input: BudgetPolicyUpsertInput, actorUserId: string | null) =>
       mutate(companyId, (service) => service.upsertPolicy(companyId, input, actorUserId)),

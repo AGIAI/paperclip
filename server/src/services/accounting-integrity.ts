@@ -38,7 +38,7 @@ async function inspect(tx: Db, companyId: string): Promise<AccountingInspection>
   }
   const incomplete = await tx.execute<{ id: string; acknowledged: boolean; events: number }>(sql`
     select r.id, r.cost_accounted_at is not null as acknowledged, count(e.id)::int as events from heartbeat_runs r
-      left join cost_events e on e.heartbeat_run_id = r.id and e.company_id = r.company_id
+      left join cost_events e on e.heartbeat_run_id = r.id and e.company_id = r.company_id and e.idempotency_key like ('heartbeat:' || r.id::text || ':%')
       where r.company_id = ${companyId} and r.status in ('succeeded','failed','timed_out','cancelled')
       and (r.cost_accounting_pending or r.accounting_projection_version = 'v2')
       and r.result_json->'executionRecovery'->>'providerWorkStarted' is distinct from 'false'
@@ -52,7 +52,7 @@ async function inspect(tx: Db, companyId: string): Promise<AccountingInspection>
   const receipts = await tx.execute<{ id: string; usage: Record<string, unknown>; actual: Record<string, string> }>(sql`
     select r.id, r.usage_json as usage, jsonb_build_object('cents', sum(coalesce(e.reported_cost_cents,e.cost_cents))::text,
       'input', sum(e.input_tokens)::text, 'cached', sum(e.cached_input_tokens)::text, 'output', sum(e.output_tokens)::text) as actual
-    from heartbeat_runs r join cost_events e on e.heartbeat_run_id = r.id and e.company_id = r.company_id
+    from heartbeat_runs r join cost_events e on e.heartbeat_run_id = r.id and e.company_id = r.company_id and e.idempotency_key like ('heartbeat:' || r.id::text || ':%')
     where r.company_id = ${companyId} and r.accounting_projection_version = 'v2' and r.cost_accounted_at is not null group by r.id order by r.id`);
   for (const row of receipts) {
     const usage = row.usage ?? {};
