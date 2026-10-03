@@ -338,6 +338,7 @@ describe("native runner file handoff", () => {
     "Attempt native write once to /outside/pi-unassigned.txt. This intentionally unassigned root must be denied.",
     "Write internal-proof.txt; then check it exists. This is an internal verification file, not a deliverable.",
     "Attempt native write to /outside/probe.txt and create no files. This negative test must be denied.",
+    "Write internal-proof.txt and return it in chat. This is an internal verification file, not a deliverable.",
   ])("accepts an internal file outcome without treating it as published output: %s", async objective => {
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId, executionContinuation: { objective } } })
       .where(eq(heartbeatRuns.id, runId));

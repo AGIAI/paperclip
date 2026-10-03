@@ -424,9 +424,13 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 - At `b28422b29`, fresh review finds that an explicit "attach it" can lose its
   publication requirement when the preceding file is called internal. The free
   unit/database regressions reproduce that bypass. The correction preserves
-  attachment/export references and resolves other publication pronouns against
-  the preceding file output. Inline replies remain inline. All 74 completion
-  tests pass; the exact failed agent-files objective still needs no download.
+  attachment/export references; 74 completion tests pass. Fresh review at
+  `53923e5ad` finds that inferring publication from "return it" also blocks an
+  explicit inline response. Remove that extra inference. Explicit attachment/
+  export directives still require publication, while internal contents returned
+  in chat do not. All 76 completion tests pass; the exact failed agent-files
+  objective still needs no download. Wait for clean source review before
+  rebuilding public packages again.
 - The `0d65753fe` broad local suite is terminal with 736 passed files, four
   skipped files, 14,982 passed tests and three failures: a Git scan load
   single-flight count (497 versus 498) and two HTTP socket resets. One associated
