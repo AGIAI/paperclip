@@ -343,7 +343,8 @@ export async function runCursorNativeFlow(input: {
       check("browser-exact-denial", posted.turnId === event.turnId && posted.requestKind === "permission_approval" && posted.resolution?.action === "decline", "Browser denied the exact native run/request/turn");
       const identity = { runId: native.runId, turnId: event.turnId, requestId: request.requestId, method: "session/request_permission" as const, action: "decline" as const };
       const rejectDenial = (state: Awaited<ReturnType<typeof load>>) => state.runs.length !== 1
-        || ["succeeded", "cancelled", "timed_out"].includes(state.runs[0]?.status) || state.issue.status !== "in_progress"
+        || ["succeeded", "cancelled", "timed_out"].includes(state.runs[0]?.status)
+        || (state.issue.status !== "in_progress" && !(state.issue.status === "blocked" && state.runs[0]?.status === "failed" && state.runs[0]?.errorCode === "native_permission_declined"))
         ? "Denied Cursor operation claimed success, changed task disposition, or created another run" : undefined;
       await pollUntil({ label: "exact native denial delivery and settled call", deadlineAt: input.deadlineAt, load, reject: rejectDenial,
         accept: state => hasDeliveredCursorNativeRequest({ ...identity, events: state.runEvents })
@@ -356,7 +357,7 @@ export async function runCursorNativeFlow(input: {
       await sampleDenied("after-terminal", remoteFinal ?? undefined);
       check("negative-task-unfinished", hasCursorDeniedTurnTerminal({ run: terminal.runs[0], issue: terminal.issue, events: terminal.runEvents, ...identity }), "Denied native turn supplied no semantic completion; its failed run does not falsely complete the task");
       await page.reload();
-      await expect(page.getByTestId("issue-detail-header").getByRole("button", { name: "Change status (current: In Progress)", exact: true })).toBeVisible();
+      await expect(page.getByTestId("issue-detail-header").getByRole("button", { name: `Change status (current: ${terminal.issue.status === "blocked" ? "Blocked" : "In Progress"})`, exact: true })).toBeVisible();
       const comments = await api.get<Row[]>(`/api/issues/${issue.id}/comments`);
       await input.evidence("api-state.json", { ...terminal, run: runs[0], comments, checks, notices: denialNotices, commandSha256: deniedCommand!.commandSha256, denialTerminalProven, runEventsByRun: [{ runId: native.runId, events: terminal.runEvents }] });
       await input.capture("final-state", "Cursor denied command ended without completing the task", "final-state.png");

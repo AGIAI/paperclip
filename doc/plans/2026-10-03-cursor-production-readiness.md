@@ -250,7 +250,7 @@ full single-path shape update before execution progress. Every attested notice
 retains that same digest; late, changed, multi-path, and unsafe input stays
 unproven. This changes passive evidence, not provider permissions or file access.
 Committed Cursor permission declines followed by a completed turn without a
-semantic result now fail the run once, keep the task open, and assign recovery to
+semantic result now fail the run once, block the unfinished task, and assign recovery to
 the operator with no automatic wake. Other missing-result recovery remains intact.
 The decision proof binds company, agent, run, turn, normalized session, source,
 request, and strict event order. It does not assert response delivery or absence
@@ -260,3 +260,15 @@ Focused verification passed: 534 controller tests, 43 Cursor runtime tests, and
 43 fixture evidence tests, plus affected typechecks. The provider CLI pin,
 native patch, and command/profile digest remain unchanged; the candidate source
 and Node pack identities must be rebuilt before repeating affected qualification.
+
+The first local repeat at `c45cf9` confirmed the named permission-declined failure
+without another provider attempt. It remains failed because the fixture expected
+In Progress while canonical failure recovery projected Blocked. The release
+contract now requires Blocked for the new explicit permission-declined failure;
+historical generic missing-result evidence retains its prior status contract.
+Exact delivery, a single terminal, absent effects and process retirement remain
+mandatory. A reproduced Stop-precedence race is also repaired: acknowledged
+operator and reassignment cancellation wins over the new typed decline error.
+The frozen v11 runtime packs and image remain at `c45cf9`; these follow-up changes
+touch the controller and harness only, and their distinct source identity is
+recorded with subsequent results.

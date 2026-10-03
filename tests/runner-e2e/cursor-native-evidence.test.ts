@@ -126,7 +126,7 @@ it("requires a correlated failed semantic finalization after the delivered denia
   const input = { runId: "run", turnId: "turn", requestId: "request", issue: { id: "issue", status: "in_progress" },
     run: { id: "run", nativeIssueId: "issue", runtimeMode: "native", status: "failed", errorCode: "native_session_interrupted", error: "native_finalization_missing: session returned no semantic result" }, events: [evidence, terminal] };
   expect(hasCursorDeniedTurnTerminal(input)).toBe(true);
-  const declined = { ...input, run: { ...input.run, errorCode: "native_permission_declined", error: "native_finalization_missing: session returned no semantic result; Cursor permission was declined; explicit direction is required" } };
+  const declined = { ...input, issue: { ...input.issue, status: "blocked" }, run: { ...input.run, errorCode: "native_permission_declined", error: "native_finalization_missing: session returned no semantic result; Cursor permission was declined; explicit direction is required" } };
   expect(hasCursorDeniedTurnTerminal(declined)).toBe(true);
   expect(hasCursorDeniedTurnTerminal({ ...declined, events: [terminal] })).toBe(false);
   for (const status of ["succeeded", "cancelled", "timed_out", "running"]) expect(hasCursorDeniedTurnTerminal({ ...input, run: { ...input.run, status } })).toBe(false);
