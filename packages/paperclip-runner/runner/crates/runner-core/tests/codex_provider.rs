@@ -5505,7 +5505,9 @@ fn receipt_limit_synthesizes_interrupted_after_an_accepted_terminal_deadline() {
     let mut reconnected = CodexCommandExecutor::with_runner_config(&directory, &runner_config);
     poll_and_ack(&mut reconnected).expect("closed fallback stays pollable after reconnect");
     assert_eq!(call_count(&directory, "thread/resume"), resume_calls);
-    reconnected.shutdown().expect("closed reconnect has no provider to stop");
+    reconnected
+        .shutdown()
+        .expect("closed reconnect has no provider to stop");
 
     recovered
         .shutdown()
