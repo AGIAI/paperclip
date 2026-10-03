@@ -143,6 +143,15 @@
   "fixedMasterContextVerified": true,
   "onlyDeclaredElevenNativeSourcesDiffer": true,
   "providerCallsSoFar": 0,
-  "liveStatus": "pending",
-  "workflowRuns": {}
+  "liveStatus": "dispatched_no_graded_cells",
+  "workflowRuns": {
+    "candidate": {
+      "id": 37091690197,
+      "url": "https://github.com/paperclipai/paperclip/actions/runs/37091690197"
+    },
+    "baseline": {
+      "id": 37091691408,
+      "url": "https://github.com/paperclipai/paperclip/actions/runs/37091691408"
+    }
+  }
 }
