@@ -16,6 +16,10 @@ const env = { ...process.env, NODE_PATH: '', PAPERCLIP_RELEASE_REUSE_UI_DIST: '1
 for (const key of Object.keys(env)) if (/^(OPENAI|ANTHROPIC|OPENROUTER|DAYTONA|XAI|GROK|CURSOR|COPILOT|GITHUB|GH)(_|$)/.test(key) || /CANDIDATE/.test(key)) delete env[key];
 const run = (command, args, cwd = root) => execFileSync(command, args, { cwd, env, stdio: 'pipe', maxBuffer: 64 * 1024 * 1024 });
 const sourceRevision = run('git', ['rev-parse', 'HEAD'], repo).toString().trim();
+const releaseBinaries = JSON.parse(readFileSync(join(repo, 'server/dist/vendor/paperclip-runner/bin/release-manifest.json'), 'utf8'));
+assert.equal(releaseBinaries.schema, 'paperclip.runner.release-binaries.v1');
+assert.equal(releaseBinaries.sourceRevision, sourceRevision, 'Stage all three release daemons and rebuild the server at this source before verification');
+assert.deepEqual(Object.keys(releaseBinaries.platforms).sort(), ['darwin-arm64', 'darwin-x64', 'linux-x64']);
 const releaseVersion = `0.0.0-cursor-verify.${sourceRevision.slice(0, 12)}`;
 const listing = run(process.execPath, [join(repo, 'scripts/release-package-map.mjs'), 'list'], repo).toString().trim().split('\n').map(line => line.split('\t'));
 const packages = new Map(listing.map(([dir, name]) => [name, {dir, manifest: JSON.parse(readFileSync(join(repo, dir, 'package.json')))}]));
@@ -72,6 +76,11 @@ const setupOutput = isolated(['node','node_modules/paperclipai/dist/index.js','r
 console.log(setupOutput.trim());
 assert.match(setupOutput,/Verified Cursor 2026\.09\.26-dd393fe \(linux-x64\), paperclip-cursor-usage-v4/);
 const probe = `import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { defaultCapabilityRunnerdBinary } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/live/runnerd-codex-transport.js';
+import { runnerBinaryTarget } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/live/runner-binary.js';
 import { verifyAcpxProfileInstallation } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/drivers/acpx/profile-installation.js';
 import { resolveQualifiedAcpxProfile } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/drivers/acpx/qualified-profiles.js';
 const profile = resolveQualifiedAcpxProfile('cursor', 'gpt-5.6-luna[context=272k,reasoning=medium,fast=false]');
@@ -80,9 +89,25 @@ assert.equal(installation.agentServerPackageJsonPath,'/consumer/node_modules/@pa
 assert.equal(installation.agentRuntimePackageJsonPath,null);
 assert.equal(installation.commandDigest,profile.commandDigest);
 await (await installation.openCommand()).close();
+const binaryRoot = '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/bin';
+const manifest = JSON.parse(readFileSync(binaryRoot + '/release-manifest.json', 'utf8'));
+assert.equal(manifest.schema, 'paperclip.runner.release-binaries.v1');
+assert.deepEqual(Object.keys(manifest.platforms).sort(), ['darwin-arm64', 'darwin-x64', 'linux-x64']);
+for (const [target, artifact] of Object.entries(manifest.platforms)) {
+  assert.equal(artifact.path, target + '/paperclip-runnerd');
+  const bytes = readFileSync(binaryRoot + '/' + artifact.path);
+  assert.equal(runnerBinaryTarget(bytes), target);
+  assert.equal('sha256:' + createHash('sha256').update(bytes).digest('hex'), artifact.sha256);
+}
+const binary = defaultCapabilityRunnerdBinary();
+assert.equal(binary, binaryRoot + '/linux-x64/paperclip-runnerd');
+const metadata = JSON.parse(execFileSync(binary, ['--build-metadata'], { encoding: 'utf8' }));
+assert.equal(metadata.schema, 'paperclip-runner/runnerd-build-metadata/v1');
+assert.equal(metadata.binaryContractVersion, 2);
+console.log('All three packaged daemon identities verified; the ordinary installed resolver launched Linux x64');
 console.log('Installed Cursor closure and command lease verified without credentials or candidate overrides');`;
 writeFileSync(join(assets,'probe.mjs'),probe,{mode:0o644});
 console.log(isolated(['node','/packages/probe.mjs']).toString().trim());
 for (const name of needed) assert.equal(JSON.parse(readFileSync(join(consumer,'node_modules',name,'package.json'))).version,releaseVersion);
-const report = {schema:'paperclip.cursor.public-npm-install.v1',sourceRevision,releaseVersion,consumerImage:GROK_PUBLIC_INSTALL_IMAGE,packageCount:needed.size,sourceCliManifestPreserved:readFileSync(cliManifestPath).equals(original),lifecycleScriptsEnabled:true,lifecycleSentinelVerified:true,lifecycleNetwork:'bridge',consumerLockPreserved:true,npmProvisionedCursor:false,publicSetupCommand:true,pinnedClosureVerified:true,providerCalls:0};
+const report = {schema:'paperclip.cursor.public-npm-install.v1',sourceRevision,releaseVersion,consumerImage:GROK_PUBLIC_INSTALL_IMAGE,packageCount:needed.size,sourceCliManifestPreserved:readFileSync(cliManifestPath).equals(original),lifecycleScriptsEnabled:true,lifecycleSentinelVerified:true,lifecycleNetwork:'bridge',consumerLockPreserved:true,npmProvisionedCursor:false,publicSetupCommand:true,pinnedClosureVerified:true,packagedDaemonTargetsVerified:['darwin-arm64','darwin-x64','linux-x64'],releaseBinaries,ordinaryInstalledDaemonLaunched:true,providerCalls:0};
 writeFileSync(join(root,'report.json'),JSON.stringify(report,null,2)+'\n'); console.log(JSON.stringify(report));

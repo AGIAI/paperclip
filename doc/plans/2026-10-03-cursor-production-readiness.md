@@ -286,3 +286,40 @@ Remote Stop reached the exact pending-callback cancellation and stale-answer ref
 The affected remote Stop repeat passed. Remote warm three-turn continuation and normal completion also passed with cleanup. The first remote file case verified exact bytes, successful validation, an accessible registered deliverable and final task/run success. Its overall result remains failed because the automatically generated artifact-preparation comment used the provider-selected file title, which duplicated the completion marker. The fixture now requests the actual filename as its deliverable title and reserves the marker for completion. Exact byte, validation, accessible-output and single-completion checks remain intact; only the file case is repeated before continuing.
 
 A provider-free normal-install probe also exposed a packaging blocker: the earlier npm consumer had a macOS ARM64 daemon in the universal server package and could not launch it on Linux (exec-format exit 126). Explicit Cursor provisioning itself passed, but that does not certify the installed product. Release packaging must include verified platform-specific daemons for all three promised targets and select the correct bundled daemon without an override. This release fix and the final installed product smoke remain required.
+
+The remote file repeat and semantic question/restart case passed with cleanup. The
+next semantic-plan approval case remains failed. The controller admitted its
+completion report, but returning feedback to the provider's pending semantic
+tool call was rejected. Shutdown did not prove a settled provider checkpoint;
+the identity fence correctly prevented recovery. The failure is retained and is
+not counted as a successful planning continuation.
+
+Evaluation also found that the shared app-server checkpoint parser discarded
+Cursor's observed mode. It now preserves Agent/Plan/Ask, with round-trip and
+mismatched-mode recovery tests. Missing historical mode bindings remain fenced.
+Retired provider tool callbacks have a closed diagnostic category; private
+provider text is never copied into error identity. Remote checkpoint failures
+now distinguish unconfirmed exit, unsettled turns and mode binding through
+closed categories without weakening admission.
+
+Public release packaging now selects the daemon beside its own compiled module,
+including the server's vendored layout, and verifies its actual executable
+architecture. Release assembly requires one source revision and all three
+independently built daemons. Run
+`pnpm --filter @paperclipai/paperclip-runner stage:release-binaries /path/to/manifest.json`
+with a JSON manifest containing `sourceRevision` and `platforms`, whose exact
+keys are `darwin-arm64`, `darwin-x64`, and `linux-x64`; each entry contains an
+absolute artifact `path` and `sha256:<64 hex digits>` digest. Assembly verifies
+all inputs before staging and records source and packaged hashes in
+`dist/bin/release-manifest.json`. Rebuild the server after assembly so its
+vendored distribution contains the entire verified platform set. The ordinary
+public-install verifier requires this manifest at the current source and checks
+all three packaged identities before launching the normally resolved Linux
+daemon. The actual installed task smoke remains a separate required gate.
+
+Focused repair verification: 42 checkpoint/binary-selection tests, nine durable
+provider-state tests, 43 sidecar tests, and three closed Rust diagnostic tests
+passed. The first sidecar invocation timed out in the sandbox; the unrestricted
+local IPC repeat passed. Runtime source changed, so the next affected live
+attempt requires refreshed platform packs and Linux image identities. Existing
+results retain their original runtime/controller identities.

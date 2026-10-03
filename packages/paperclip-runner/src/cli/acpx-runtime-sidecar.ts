@@ -477,7 +477,9 @@ async function dispatch(
       pending.turnId !== expectedTurnId ||
       turnId !== expectedTurnId
     ) {
-      throw new Error("tool call is stale or unknown");
+      throw Object.assign(new Error("tool call is stale or unknown"), {
+        code: "ACPX_TOOL_CALL_STALE",
+      });
     }
     if (!tools.delete(callId))
       throw new Error("tool call lost its settlement race");

@@ -311,6 +311,7 @@ import {
   verifyRemoteRunnerReattachment,
   readRemoteProviderPackManifest,
   providerSessionIdentityFromDurableProviderState,
+  durableProviderCheckpointFailureReason,
   providerSessionIdentityTransitionIsAllowed,
   providerPlanMarkdown,
   remoteCheckpointIncompleteFailure,
@@ -1730,6 +1731,37 @@ describe("split durable provider checkpoint identity", () => {
         lifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null },
       },
     }) as unknown as NativeExecutionInputV1;
+
+  it.each(["agent", "plan", "ask"] as const)("requires both persisted Cursor mode bindings for %s recovery", mode => {
+    const profileDigest = `sha256:${"a".repeat(64)}`;
+    const input = execution({ kind: "acpx", agent: "cursor", model: "explicit-model", permissionMode: "approve-all", cursorMode: mode }, "acpx_runtime");
+    const identity = {
+      kind: "acpx", normalizedSessionId: "native-session", acpxRecordId: "record",
+      backendSessionId: "backend", agentSessionId: "agent-session", profileDigest,
+      workspaceDigest: `sha256:${"b".repeat(64)}`, requestedModel: "explicit-model",
+      effectiveModel: "explicit-model", permissionMode: "approve-all", cursorMode: mode,
+      providerLifetimeFenceCandidates: [53001, 53002, 53003],
+    };
+    const state = {
+      schema: "paperclip.runner.acpx-provider-state.v3", lifecycle: "suspended",
+      activeTurnId: null, providerExitUnconfirmed: false,
+      descriptor: { kind: "acpx", provider: "acpx", driver: "acpx_runtime", agent: "cursor",
+        model: "explicit-model", commandDigest: profileDigest, normalizedSessionId: "native-session", cursorMode: mode },
+      identity,
+    };
+    expect(providerSessionIdentityFromDurableProviderState({ execution: input, providerState: state })).toMatchObject({ providerSessionIdentity: identity });
+    for (const field of ["descriptor", "identity"] as const) {
+      for (const wrong of [undefined, mode === "agent" ? "plan" : "agent"]) {
+        const changed = structuredClone(state);
+        (changed[field] as Record<string, unknown>).cursorMode = wrong;
+        expect(providerSessionIdentityFromDurableProviderState({ execution: input, providerState: changed })).toEqual({ providerSessionId: null, providerBackendSessionId: null, providerSessionIdentity: null });
+        expect(durableProviderCheckpointFailureReason(input, changed)).toBe("cursor_mode_binding");
+      }
+    }
+    const unsettled = { ...state, providerExitUnconfirmed: true, privateProviderData: "secret-canary" };
+    expect(providerSessionIdentityFromDurableProviderState({ execution: input, providerState: unsettled }).providerSessionIdentity).toBeNull();
+    expect(durableProviderCheckpointFailureReason(input, unsettled)).toBe("provider_exit_unconfirmed");
+  });
 
   it("reads ACPX identity from its provider-owned state after suspension", () => {
     const profileDigest = `sha256:${"a".repeat(64)}`;

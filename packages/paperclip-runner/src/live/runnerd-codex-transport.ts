@@ -77,6 +77,7 @@ import {
   prepareIsolatedCodexHome,
   releaseMaterializedNativeRuntimeSkills,
 } from "../drivers/runtime-context-materializer.js";
+import { resolvePackagedRunnerBinary } from "./runner-binary.js";
 import { RUNNERD_CANONICAL_ITEM } from "../drivers/codex/codex-driver-values.js";
 
 // URL directory conversion preserves a trailing separator while path-derived
@@ -6808,11 +6809,12 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
 }
 
 export function defaultCapabilityRunnerdBinary(): string {
-  const staged = resolve(
-    packageRoot,
-    `dist/bin/paperclip-runnerd${executableSuffix}`,
-  );
-  if (existsSync(staged)) return staged;
+  // Standalone builds use dist/live; the server vendors that compiled tree
+  // directly under vendor/paperclip-runner. Resolve beside our own live module.
+  const outputRoot = resolve(fileURLToPath(new URL("../", import.meta.url)));
+  const staged = resolvePackagedRunnerBinary(outputRoot)
+    ?? resolvePackagedRunnerBinary(resolve(packageRoot, "dist"));
+  if (staged) return staged;
   return resolve(
     packageRoot,
     `runner/target/debug/paperclip-runnerd${executableSuffix}`,

@@ -5580,6 +5580,18 @@ function providerSessionIdentityIsPresent(value: unknown): boolean {
   );
 }
 
+/** Closed diagnostic categories; durable state may contain private provider data. */
+export function durableProviderCheckpointFailureReason(execution: NativeExecutionInput, providerState: unknown): string {
+  if (execution.provider.kind !== "acpx") return "identity_binding";
+  const state = record(providerState);
+  if (state.schema !== ACPX_PROVIDER_STATE_SCHEMA) return "state_schema";
+  if (state.lifecycle !== "suspended") return "provider_not_suspended";
+  if (state.providerExitUnconfirmed !== false) return "provider_exit_unconfirmed";
+  if (state.activeTurnId !== null) return "provider_turn_unsettled";
+  if (!acpxRecoveryCursorModeMatches(execution.provider, record(state.descriptor).cursorMode, record(state.identity).cursorMode)) return "cursor_mode_binding";
+  return "identity_binding";
+}
+
 // Recovery consumes observed identities; it must never apply the fresh-config
 // default to a missing persisted mode or allow another provider to carry it.
 function acpxRecoveryCursorModeMatches(
@@ -11646,7 +11658,7 @@ async function createRunnerdBackendWithinSessionClaim(
         providerState,
       });
     if (!providerSessionIdentityIsPresent(providerSessionIdentity)) {
-      throw new Error("runner_harness_state_mismatch: provider_identity_incomplete");
+      throw new Error(`runner_harness_state_mismatch: provider_identity_incomplete (${durableProviderCheckpointFailureReason(input.execution, providerState)})`);
     }
     const previousManifest = compatibleNativeHarnessBackupManifests({
       root,
