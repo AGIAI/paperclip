@@ -68,9 +68,12 @@ export async function runNativeActiveStopFlow(input: {
   let fixture: NativeRemoteFixture | undefined, baseline: NativeRemoteSnapshot | undefined, sealed: NativeRemoteSnapshot | undefined;
   let completed: Awaited<ReturnType<typeof stopAtPendingPermission>> | undefined;
   const observeProcesses = () => {
+    // Remote ownership comes from the sandbox boot/start-tick journal. The
+    // API PID transitions from the controller command to the remote runner.
+    if (!observer) return;
     const run = runs[0], authority = run?.processPid ? { pid: run.processPid, groupId: run.processGroupId, startedAt: run.processStartedAt, runId: run.id } : undefined;
     if (authority) { const key = JSON.stringify(authority); if (processIdentity && processIdentity !== key) processError = true; processIdentity ??= key; }
-    if (observer) processes = observer.sample(authority);
+    processes = observer.sample(authority);
   };
   const load = async (): Promise<ActiveStopState> => {
     if (issue.id) issue = await api.get<Row>(`/api/issues/${issue.id}`);
