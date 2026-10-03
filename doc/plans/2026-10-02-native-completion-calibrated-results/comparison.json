@@ -18,7 +18,6 @@
     "native-completion.runner-opencode.local.assigned-skill-explicit-invocation",
     "native-completion.runner-opencode.local.native-blocked-report"
   ],
-  "providerRuns": 12,
   "maximumAttemptsObserved": 1,
   "pairs": [
     {
@@ -88,7 +87,54 @@
       "candidateResultSha256": "8c943b38d480fcb3513fe6a458e75d0606e4669ba047ecd3a779b35a65ec2a30"
     }
   ],
-  "detailedBaselineFailureAudit": "in_progress",
+  "detailedBaselineFailureAudit": {
+    "status": "complete",
+    "executionId": "native-completion.runner-codex.local.native-blocked-report",
+    "evidenceSource": "retained-failure-api-state",
+    "originalResultSha256": "b80d822f6a4c6c66ee41d7d50e135cfa039a727aab8d304a54111ee839a7490f",
+    "apiStateSha256": "161ae90f28b181cc041ec41dc3892a65b906f1174cf9ad2d0222f759164bbad0",
+    "originalMachineStatus": "failed",
+    "originalFailureClass": "candidate_failure",
+    "originalNativeGradeAvailable": false,
+    "originalNativeObservationAvailable": false,
+    "actualProviderFinal": "Task blocked. Owner: Release Owner. Unblock action: Grant deployment access.",
+    "presentationSource": "final_agent_message",
+    "finalIsSemanticSummaryFallback": false,
+    "requiredMarkerCountInProviderFinal": 0,
+    "nativeSemanticSummaryIncludesRequiredMarker": true,
+    "persistedReplyMatchesProviderFinal": true,
+    "independentDurableBlockerPass": true,
+    "independentNamedSequencePass": true,
+    "finishingStartSeq": 59,
+    "proposalSeq": 61,
+    "finishingResultSeq": 62,
+    "providerFinalSeq": 81,
+    "acceptedSeq": 86,
+    "terminalSeq": 87,
+    "workspaceBeforeAfterEvidenceAvailable": false,
+    "unexecutedOriginalNativeAssertionsNotRegraded": true,
+    "causationEstablished": false
+  },
   "actualBillingVerified": false,
-  "generalCodingQualityMeasured": false
+  "generalCodingQualityMeasured": false,
+  "withinRunFeedbackCorrection": {
+    "executionId": "native-completion.runner-codex.local.assigned-skill-explicit-invocation",
+    "variant": "baseline",
+    "namedFinishingStarts": 2,
+    "failedFinishingResultSeq": 161,
+    "successfulFinishingResultSeq": 176,
+    "nativeRunCount": 1,
+    "attempt": 1,
+    "isCampaignRetry": false,
+    "allUsageRetained": true
+  },
+  "nativeRunsObserved": 12,
+  "actualVendorHttpCallCount": null,
+  "finalAuditComplete": true,
+  "originalResultsChanged": false,
+  "readinessWithinMeasuredScope": true,
+  "auditSha256": {
+    "candidate-audit.json": "4032c133114bed52c63ec083d966afa70f260013277f416f7bdae7aaa4650d97",
+    "baseline-audit.json": "bd6bed38b6289b6473762ad6a761a8efb31fbd403bf813974fe3d5a1762b2ad0"
+  }
 }

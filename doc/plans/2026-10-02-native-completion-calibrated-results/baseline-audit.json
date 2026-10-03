@@ -1,6 +1,6 @@
 {
   "schema": "paperclip.native-completion.baseline-audit.v1",
-  "asOf": "2026-10-03T05:23:16.220052+00:00",
+  "asOf": "2026-10-03T05:27:34.593717+00:00",
   "workflowRunId": 37098815696,
   "workflowSourceSha": "215586d127e97c9301d86e769a39a15c13298ca2",
   "targetSourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
@@ -185,6 +185,7 @@
         "terminalSeq": [
           104
         ],
+        "failedNamedToolResultSeqs": [],
         "independentNamedSequencePass": true,
         "persistedProviderFinalMatches": true,
         "finalMarkerCount": 1,
@@ -195,7 +196,8 @@
         "workspaceChanged": false,
         "documentCount": 1,
         "interactionCount": 0,
-        "eventCount": 112
+        "eventCount": 112,
+        "independentSingleRunPass": true
       },
       "perRunLedger": [
         {
@@ -271,6 +273,15 @@
         "externalActualBillingKnown": false,
         "runtimeMetered": false
       },
+      "screenshotsAudit": [
+        {
+          "file": "final-state.png",
+          "publication": "public-runner-fixture",
+          "sha256": "3b227e1d8f403ac3c6ac66601e1bf5693c0afe82a785e43c836f23b71a4dbbea",
+          "declaredHashMatches": true,
+          "visuallyInspectedByAgent": true
+        }
+      ],
       "evidenceHashes": {
         "blob-report/report.zip": "c5b837c26c65c79bcbd5c1f67d8ee9fa67f2ec5862c59c99eaa75f233ab9486f",
         "evidence-manifest.json": "47446c71c349c1f8982e2fe47d178d5df01328247550c1059d8a180e61c71e27",
@@ -481,6 +492,7 @@
         "terminalSeq": [
           84
         ],
+        "failedNamedToolResultSeqs": [],
         "independentNamedSequencePass": true,
         "persistedProviderFinalMatches": true,
         "finalMarkerCount": 1,
@@ -498,7 +510,10 @@
         "workspaceChanged": false,
         "documentCount": 0,
         "interactionCount": 0,
-        "eventCount": 92
+        "eventCount": 92,
+        "independentSingleRunPass": true,
+        "independentDurableBlockerPass": true,
+        "independentBlockedContentPass": true
       },
       "perRunLedger": [
         {
@@ -525,6 +540,15 @@
         "externalActualBillingKnown": false,
         "runtimeMetered": false
       },
+      "screenshotsAudit": [
+        {
+          "file": "final-state.png",
+          "publication": "public-runner-fixture",
+          "sha256": "3c9811d15b3c8c092f47600c1174a7788edeb3133c8ed60f6787f1ecab20c969",
+          "declaredHashMatches": true,
+          "visuallyInspectedByAgent": true
+        }
+      ],
       "evidenceHashes": {
         "blob-report/report.zip": "11eeaa524f504ffd7e6b61e57b87fc30b5b9ded9132314379727bf98d21c2e10",
         "evidence-manifest.json": "22908c3a9fd1d8fedd27b73ac920adebf0aaa900c403bc60681f416f0b7ba6b7",
@@ -716,6 +740,9 @@
         "terminalSeq": [
           209
         ],
+        "failedNamedToolResultSeqs": [
+          161
+        ],
         "independentNamedSequencePass": true,
         "persistedProviderFinalMatches": true,
         "finalMarkerCount": 1,
@@ -726,7 +753,8 @@
         "workspaceChanged": false,
         "documentCount": 1,
         "interactionCount": 0,
-        "eventCount": 217
+        "eventCount": 217,
+        "independentSingleRunPass": true
       },
       "perRunLedger": [
         {
@@ -802,6 +830,15 @@
         "externalActualBillingKnown": false,
         "runtimeMetered": false
       },
+      "screenshotsAudit": [
+        {
+          "file": "final-state.png",
+          "publication": "public-runner-fixture",
+          "sha256": "f1b72104509399d3d9a04e7c11451a1712f9ba7444a23992e65c34a8df97fcfd",
+          "declaredHashMatches": true,
+          "visuallyInspectedByAgent": true
+        }
+      ],
       "evidenceHashes": {
         "blob-report/report.zip": "b1825fc7e5edcf1d65bc0b510237561110dc9c91f0e3749844aa66115d602183",
         "evidence-manifest.json": "0bdca2fba590b30162921b0b2c11fe5ab964c2aff32687b7566738b58d8880da",
@@ -966,6 +1003,7 @@
         "terminalSeq": [
           87
         ],
+        "failedNamedToolResultSeqs": [],
         "independentNamedSequencePass": true,
         "persistedProviderFinalMatches": true,
         "finalMarkerCount": 0,
@@ -983,7 +1021,10 @@
         "workspaceChanged": null,
         "documentCount": 0,
         "interactionCount": 0,
-        "eventCount": 95
+        "eventCount": 95,
+        "independentSingleRunPass": true,
+        "independentDurableBlockerPass": true,
+        "independentBlockedContentPass": false
       },
       "perRunLedger": [
         {
@@ -1010,6 +1051,15 @@
         "externalActualBillingKnown": false,
         "runtimeMetered": false
       },
+      "screenshotsAudit": [
+        {
+          "file": "failure.png",
+          "publication": "public-runner-fixture",
+          "sha256": "a45aa92e0826f9efaa84f5f4603eab9cbfba8bfa3d98cadab9c6db64fd3824a0",
+          "declaredHashMatches": true,
+          "visuallyInspectedByAgent": true
+        }
+      ],
       "evidenceHashes": {
         "blob-report/report.zip": "e577c9c897fc92074b265ac8b68d719a0b110d46afd28ec230f16e8a88ebadc8",
         "evidence-manifest.json": "789ee2fa73629c6dbe7603996a8d2ec5fb9b9a4f2071aa996125b9476d68d65a",
@@ -1204,6 +1254,7 @@
         "terminalSeq": [
           62
         ],
+        "failedNamedToolResultSeqs": [],
         "independentNamedSequencePass": true,
         "persistedProviderFinalMatches": true,
         "finalMarkerCount": 1,
@@ -1214,7 +1265,8 @@
         "workspaceChanged": false,
         "documentCount": 1,
         "interactionCount": 0,
-        "eventCount": 70
+        "eventCount": 70,
+        "independentSingleRunPass": true
       },
       "perRunLedger": [
         {
@@ -1290,6 +1342,15 @@
         "externalActualBillingKnown": false,
         "runtimeMetered": false
       },
+      "screenshotsAudit": [
+        {
+          "file": "final-state.png",
+          "publication": "public-runner-fixture",
+          "sha256": "fef8214feca49249941e158c7816488e8722e951156c46c83a371997936811b7",
+          "declaredHashMatches": true,
+          "visuallyInspectedByAgent": true
+        }
+      ],
       "evidenceHashes": {
         "blob-report/report.zip": "786633c5e6017f51c910c98cbfc74f62af3e033bf193dae867f4d70e74f98570",
         "evidence-manifest.json": "6c23192583065f6392f48bb17e8ce917c3550e8742009d11c9330999065fa7a9",
@@ -1499,6 +1560,7 @@
         "terminalSeq": [
           49
         ],
+        "failedNamedToolResultSeqs": [],
         "independentNamedSequencePass": true,
         "persistedProviderFinalMatches": true,
         "finalMarkerCount": 1,
@@ -1516,7 +1578,10 @@
         "workspaceChanged": false,
         "documentCount": 0,
         "interactionCount": 0,
-        "eventCount": 57
+        "eventCount": 57,
+        "independentSingleRunPass": true,
+        "independentDurableBlockerPass": true,
+        "independentBlockedContentPass": true
       },
       "perRunLedger": [
         {
@@ -1543,6 +1608,15 @@
         "externalActualBillingKnown": false,
         "runtimeMetered": false
       },
+      "screenshotsAudit": [
+        {
+          "file": "final-state.png",
+          "publication": "public-runner-fixture",
+          "sha256": "490baa12e6d4a0b7eed7febc659a8922167f54fee9695cdc96c5b773823b3f5e",
+          "declaredHashMatches": true,
+          "visuallyInspectedByAgent": true
+        }
+      ],
       "evidenceHashes": {
         "blob-report/report.zip": "fcc0d066b282de5c18b6ee1628c2b420d57d0a94f54e091cd8d105072f96a68e",
         "evidence-manifest.json": "7e05f6f15f8a0bb9bcc9667b9b71d1a8556bf8cc1d64867eff216acbda74db5d",
