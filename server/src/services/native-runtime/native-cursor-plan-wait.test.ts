@@ -42,7 +42,64 @@ function editEvent(f: CursorPlanWaitFacts, index: number, edit: (e: any) => void
   edit(e); row.sourcePayloadSha256 = nativeSha256(e);
 }
 
+function resequence(f: CursorPlanWaitFacts) {
+  f.events.forEach((row, index) => {
+    const sourceSeq = index + 1;
+    Object.assign(row, { seq: sourceSeq, sourceSeq, sourceEventId: `instance:${sourceSeq}` });
+    Object.assign((row.payload as any).prpEvent, { sourceSeq, sourceEventId: row.sourceEventId });
+    row.sourcePayloadSha256 = nativeSha256((row.payload as any).prpEvent);
+  });
+}
+
+function withProgress(count: number) {
+  const f = fixture();
+  const start = f.events.find(row => row.eventType === "tool.execution.started")!;
+  const rows = Array.from({ length: count }, () => {
+    const row = structuredClone(start);
+    row.eventType = "tool.execution.progressed";
+    (row.payload as any).prpEvent.eventType = row.eventType;
+    return row;
+  });
+  f.events.splice(3, 0, ...rows);
+  resequence(f);
+  return f;
+}
+
 describe("accepted Cursor plan passive-wait authority", () => {
+  it("settles a long plan while binding every progress event into its proof", () => {
+    const f = withProgress(2_000);
+    const proof = nativeCursorPlanWaitFromFacts(f);
+    expect(proof).not.toBeNull();
+    const progress = f.events[1_200]!;
+    (progress.payload as any).prpEvent.payload.name = "updated diagnostic text";
+    progress.sourcePayloadSha256 = nativeSha256((progress.payload as any).prpEvent);
+    const changed = nativeCursorPlanWaitFromFacts(f);
+    expect(changed).not.toBeNull();
+    expect(changed!.source.toolLifecycleSha256).not.toBe(proof!.source.toolLifecycleSha256);
+    expect(changed!.source.authoritySha256).not.toBe(proof!.source.authoritySha256);
+  });
+  it.each(["foreign tool", "foreign session", "tampered digest", "late progress"])("rejects %s beyond the first thousand events", kind => {
+    const f = withProgress(2_000), row = f.events[1_200]!;
+    const event = (row.payload as any).prpEvent;
+    if (kind === "foreign tool") event.payload.executionId = "unrelated";
+    if (kind === "foreign session") event.normalizedSessionId = "other";
+    if (kind === "late progress") { f.events.splice(1_200, 1); f.events.push(row); resequence(f); }
+    row.sourcePayloadSha256 = kind === "tampered digest" ? "tampered" : nativeSha256(event);
+    expect(nativeCursorPlanWaitFromFacts(f)).toBeNull();
+  });
+  it("fails closed only at the separate progress and control-event budgets", () => {
+    expect(nativeCursorPlanWaitFromFacts(withProgress(20_000))).not.toBeNull();
+    expect(nativeCursorPlanWaitFromFacts(withProgress(20_001))).toBeNull();
+    const f = withProgress(1_200);
+    const turnStart = structuredClone(f.events[0]!);
+    turnStart.eventType = "turn.started";
+    Object.assign((turnStart.payload as any).prpEvent, { eventType: "turn.started", payload: {} });
+    f.events.unshift(...Array.from({ length: 995 }, () => structuredClone(turnStart)));
+    resequence(f);
+    expect(nativeCursorPlanWaitFromFacts(f)).not.toBeNull();
+    f.events.unshift(structuredClone(turnStart)); resequence(f);
+    expect(nativeCursorPlanWaitFromFacts(f)).toBeNull();
+  });
   it("records the accepted revision and explicitly unfinished Plan-mode continuation", () => {
     const value = nativeCursorPlanWaitFromFacts(fixture());
     expect(value?.source).toMatchObject({ requestId: "request", planRevision: `plan-${"a".repeat(64)}`, terminalEventId: "instance:304", toolExecutionId: "native-plan-tool" });

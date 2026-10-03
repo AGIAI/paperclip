@@ -1,6 +1,14 @@
 import { materializePinnedCursorDistribution } from "./materialize-cursor-distribution.mjs";
 const CANDIDATES = new Set(["cursor", "copilot", "pi"]);
 
+/** Only materialized providers enter the serialized manifest and its digest. */
+export function providerPackManifestFields(providers, candidates) {
+  return {
+    ...(providers.cursor ? { providers: { cursor: providers.cursor } } : {}),
+    ...(candidates.length ? { candidateProviders: Object.fromEntries(candidates.map(provider => [provider, providers[provider]])) } : {}),
+  };
+}
+
 export function providerPackProviders(platform, architecture, candidates) {
   const cursorSupported = ["darwin-arm64", "darwin-x64", "linux-x64"].includes(`${platform}-${architecture}`);
   return [...new Set([...(cursorSupported ? ["cursor"] : []), ...candidates])];

@@ -150,3 +150,23 @@ and timing failures under host contention. It was interrupted before completion;
 the partial log is retained. Earlier recursive typecheck, build, contracts/replay,
 token gates, and focused runtime checks passed. Full CI and the complete acceptance
 matrix are required before promotion. Cursor production admission remains disabled.
+
+## Review blockers and mainline integration
+
+The branch now preserves mainline `2a8a99e4a`, including stock-harness cleanup
+checks and the updated skill semantic contract. Earlier candidate results retain
+their original source identities; this rebase requires fresh artifact identities
+and affected qualification.
+
+Two production blockers found by review were repaired. Unsupported Cursor targets
+omit the provider field rather than hashing an undefined field that disappears
+when the manifest is written. Disk JSON round-trip digest checks cover all three
+supported targets, Linux ARM64, and Windows x64.
+
+Accepted-plan proof reads now budget 1,000 control events and 20,000 tool-progress
+events separately, retaining every event hash and the terminal event. A single
+bounded read includes an overflow row and fails closed beyond either budget.
+Historical unbound committed proofs retain their original event selection and
+1,000-row limit. Long-plan tests also reject foreign tools, changed sessions,
+tampered digests, and progress after completion; no later work is hidden by
+removing progress from the proof.

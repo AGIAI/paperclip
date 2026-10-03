@@ -21,6 +21,10 @@ const PREFIX = "cursor-plan-wait:";
 // 1,000-row budget. Completed tools were included and must stay included.
 const LEGACY_EVENT_TYPES = ["runtime_request.created", "runtime_request.resolved", "runtime_request.cancelled", "runtime_request.expired", "turn.started", "turn.completed", "turn.failed", "turn.cancelled", "tool.execution.started", "tool.execution.completed"];
 const EVENT_TYPES = [...LEGACY_EVENT_TYPES, "tool.execution.progressed"];
+// Progress does not consume the control-event budget. Keep the complete proof
+// bounded, including one overflow row, without truncating its terminal event.
+const MAX_CONTROL_EVENTS = 1000;
+const MAX_PROGRESS_EVENTS = 20_000;
 const SUMMARY = "Plan accepted. This task is waiting for your next message. This run used Plan mode; no implementation or task completion is claimed.";
 
 export interface NativeCursorPlanWaitSource extends Binding {
@@ -74,7 +78,9 @@ function cursorPlanWaitFromFacts(facts: CursorPlanWaitFacts, committedSource?: N
       !Object.entries(b).every(([key, value]) => record(admission.binding)[key] === value) || provider.kind !== "acpx" || provider.agent !== "cursor" || provider.cursorMode !== "plan" || typeof provider.model !== "string" || !provider.model.trim() ||
       record(admission.completionContract).id !== contract.id || record(admission.completionContract).sha256 !== contract.canonicalSha256 || nativeCompletionContractSha256(contract) !== contract.canonicalSha256 || run.completionContractId !== contract.id || run.completionContractSha256 !== contract.canonicalSha256 || !same(contract.contractJson, record(admission.completionContract).contract)) return null;
     const sessionId = record(admission.session).normalizedSessionId;
-    if (typeof sessionId !== "string" || !sessionId || facts.events.length === 0 || facts.events.length > 1000) return null;
+    if (typeof sessionId !== "string" || !sessionId || facts.events.length === 0 || facts.events.length > MAX_CONTROL_EVENTS + MAX_PROGRESS_EVENTS) return null;
+    const progressCount = facts.events.filter(row => row.eventType === "tool.execution.progressed").length;
+    if (progressCount > MAX_PROGRESS_EVENTS || facts.events.length - progressCount > MAX_CONTROL_EVENTS) return null;
     const events: Array<Record<string, any>> = [];
     const ids = new Set<string>(), seqs = new Set<string>();
     let lastRowSeq = -1;
@@ -183,7 +189,8 @@ async function readCursorPlanWaitProof(db: Db, binding: Binding, locked: boolean
   const [row] = await (locked ? q.for("share", { noWait: true }) : q);
   if (!row || record(record(row.run.runnerProfileJson).nativeExecutionInput).provider?.agent !== "cursor" || record(record(row.run.runnerProfileJson).nativeExecutionInput).provider?.cursorMode !== "plan") return null;
   const eventTypes = isHistoricalUnboundWait(committedSource) ? LEGACY_EVENT_TYPES : EVENT_TYPES;
-  const eqs = db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.companyId, binding.companyId), eq(heartbeatRunEvents.runId, binding.runId), inArray(heartbeatRunEvents.eventType, eventTypes))).orderBy(asc(heartbeatRunEvents.seq)).limit(1001);
+  const eventLimit = MAX_CONTROL_EVENTS + (isHistoricalUnboundWait(committedSource) ? 0 : MAX_PROGRESS_EVENTS) + 1;
+  const eqs = db.select().from(heartbeatRunEvents).where(and(eq(heartbeatRunEvents.companyId, binding.companyId), eq(heartbeatRunEvents.runId, binding.runId), inArray(heartbeatRunEvents.eventType, eventTypes))).orderBy(asc(heartbeatRunEvents.seq)).limit(eventLimit);
   const events = await (locked ? eqs.for("share", { noWait: true }) : eqs);
   const iq = db.select({ interaction: issueThreadInteractions, delivery: issueQuestionResponseDeliveries }).from(issueThreadInteractions)
     .innerJoin(issueQuestionResponseDeliveries, eq(issueQuestionResponseDeliveries.interactionId, issueThreadInteractions.id))

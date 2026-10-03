@@ -18,7 +18,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { parseProviderPackArguments, materializeCandidateProviderPack, providerPackProviders } from "./candidate-provider-pack.mjs";
+import { parseProviderPackArguments, materializeCandidateProviderPack, providerPackProviders, providerPackManifestFields } from "./candidate-provider-pack.mjs";
 import { buildNodeStartupTimeout } from "./build-node-startup-timeout.mjs";
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -334,8 +334,7 @@ try {
       codex:
         "sha256:c4538599d1ab767db5dff50934f13bb5ba313a59d9c4a83e993fac4617ea63d3",
     },
-    providers: { cursor: candidateProviders.cursor },
-    ...(candidates.length ? { candidateProviders: Object.fromEntries(candidates.map(provider => [provider, candidateProviders[provider]])) } : {}),
+    ...providerPackManifestFields(candidateProviders, candidates),
     artifacts: {
       grokLauncher: {
         path: "dist/providers/grok/launcher.cjs",
