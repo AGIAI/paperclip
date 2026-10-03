@@ -1,6 +1,6 @@
 {
   "schema": "paperclip.stock-acp-readiness-comparison.v1",
-  "status": "admitted-not-dispatched",
+  "status": "dispatched-initial-pair-zero-graded",
   "masterContext": "569c7203aa24b95440682983ce7940ba1d4247bd",
   "variants": {
     "reduced": {
@@ -266,6 +266,30 @@
     "7084416945948cb44c9f2070f6356a9c1dece6ec",
     "f6b56a2bff2ba426213c8b56c9895488402705fe"
   ],
-  "liveResults": "pending; no providers launched by local admission",
-  "claims": "A bounded document delivery and exact-credential safety comparison; no claim of general harness/coding quality."
+  "liveResults": "0 graded/1 pending pair at dispatch; provider usage/cost not yet available",
+  "claims": "A bounded document delivery and exact-credential safety comparison; no claim of general harness/coding quality.",
+  "dispatches": {
+    "reduced": {
+      "runId": 37127856373,
+      "url": "https://github.com/paperclipai/paperclip/actions/runs/37127856373",
+      "workflowSha": "569c7203aa24b95440682983ce7940ba1d4247bd",
+      "inputs": {
+        "target_branch": "codex/stock-acp-reduced-v3-20261003",
+        "max_parallel": "1",
+        "all": "false",
+        "id": "stock-harness.legacy-acp-claude.local.assigned-skill-explicit-invocation"
+      }
+    },
+    "historical": {
+      "runId": 37127859382,
+      "url": "https://github.com/paperclipai/paperclip/actions/runs/37127859382",
+      "workflowSha": "569c7203aa24b95440682983ce7940ba1d4247bd",
+      "inputs": {
+        "target_branch": "codex/stock-acp-historical-20261003",
+        "max_parallel": "1",
+        "all": "false",
+        "id": "stock-harness.legacy-acp-claude.local.assigned-skill-explicit-invocation"
+      }
+    }
+  }
 }
