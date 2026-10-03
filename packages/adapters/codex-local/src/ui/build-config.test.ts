@@ -241,6 +241,22 @@ describe("buildPaperclipRunnerConfig", () => {
     });
   });
 
+  it.each(["agent", "plan", "ask"])("preserves Cursor's explicit model and %s mode", (mode) => {
+    expect(buildPaperclipRunnerConfig(makeValues({
+      model: "explicit-cursor-model",
+      adapterSchemaValues: { provider: "acpx", acpxAgent: "cursor", acpxSessionMode: mode },
+    }))).toMatchObject({ provider: "acpx", acpxAgent: "cursor", model: "explicit-cursor-model", acpxSessionMode: mode });
+  });
+
+  it("defaults Cursor to Agent and requires an explicit model", () => {
+    expect(buildPaperclipRunnerConfig(makeValues({
+      model: "explicit-cursor-model", adapterSchemaValues: { provider: "acpx", acpxAgent: "cursor" },
+    }))).toMatchObject({ acpxAgent: "cursor", acpxSessionMode: "agent", model: "explicit-cursor-model" });
+    expect(() => buildPaperclipRunnerConfig(makeValues({
+      model: "", adapterSchemaValues: { provider: "acpx", acpxAgent: "cursor" },
+    }))).toThrow("cursor requires an explicit provider model");
+  });
+
   it("builds a Claude Managed profile reference with explicit retention and spend controls", () => {
     const config = buildPaperclipRunnerConfig(makeValues({
       adapterType: "paperclip_runner",

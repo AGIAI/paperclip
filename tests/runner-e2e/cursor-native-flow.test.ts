@@ -43,7 +43,7 @@ it("awaits owned remote baseline before returning the exact remote denial comman
   const prepared = await prepareCursorRemoteAction({ fixture, ...binding, deniedRelative: "denied.txt", prompt: "Perform the actual test" });
   order.push("publish-action");
   expect(order).toEqual(["before-action-publication", "baseline-ready", "publish-action"]);
-  expect(prepared.prompt).toContain("printf 'MUST_NOT_EXIST' > '/home/daytona/paperclip-workspace/denied.txt'");
+  expect(prepared.prompt).toContain("printf 'MUST-NOT-EXIST' > '/home/daytona/paperclip-workspace/denied.txt'");
   expect(prepared.initial).toMatchObject({ phase: "before-request", absent: true });
   expect(prepared.command?.commandSha256).toMatch(/^sha256:[a-f0-9]{64}$/);
   await expect(prepareCursorRemoteAction({ fixture, ...binding, runId: "wrong-run", deniedRelative: "denied.txt", prompt: "test" })).rejects.toThrow(/another run/);

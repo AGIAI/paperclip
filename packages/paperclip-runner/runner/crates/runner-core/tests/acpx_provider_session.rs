@@ -273,7 +273,15 @@ fn check_tool_receiver_admission(oversized: bool) {
         assert!(session.state().pending_tool("call-admission").is_some());
         session.deliver_tool_result(&result).unwrap();
         assert!(!session.state().has_pending_tools());
-        assert!(session.deliver_tool_result(&result).is_err());
+        // An exact durable delivery replay is acknowledged without a second
+        // sidecar resolution. The command journal below proves that boundary.
+        session.deliver_tool_result(&result).unwrap();
+        let mut changed = result.clone();
+        changed.result = json!({"id":"different-issue"});
+        assert!(session.deliver_tool_result(&changed).is_err());
+        changed = result.clone();
+        changed.operation_id = "issues.update".to_owned();
+        assert!(session.deliver_tool_result(&changed).is_err());
     }
     session.shutdown("admission test complete").unwrap();
     let rows: Vec<serde_json::Value> = std::fs::read_to_string(&journal)

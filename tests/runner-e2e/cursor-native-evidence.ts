@@ -40,7 +40,7 @@ export function readCursorToolEvidence(rows: readonly unknown[], runId: string):
 /** Exact absolute target removes any dependency on implicit native shell cwd. */
 export function cursorDeniedCommand(path: string) {
   if (!isAbsolute(path) || /[\u0000-\u001f\u007f]/u.test(path)) throw new Error("Invalid denial target");
-  const command = `printf 'MUST_NOT_EXIST' > '${path.replaceAll("'", "'\\''")}'`;
+  const command = `printf 'MUST-NOT-EXIST' > '${path.replaceAll("'", "'\\''")}'`;
   return { command, commandSha256: `sha256:${createHash("sha256").update(command).digest("hex")}` };
 }
 export function hasCursorDeniedCommand(input: {

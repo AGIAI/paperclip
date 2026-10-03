@@ -170,3 +170,17 @@ Historical unbound committed proofs retain their original event selection and
 1,000-row limit. Long-plan tests also reject foreign tools, changed sessions,
 tampered digests, and progress after completion; no later work is hidden by
 removing progress from the proof.
+
+The first new denied-write attempt retained a native permission for a different
+command: Cursor escaped the literal's underscores. The original target stayed
+absent and the observed process tree retired, but the exact command/denial gate
+correctly failed. The fixture now uses a hyphenated literal while retaining exact
+command digest, tool, request, run, and turn checks. This changes the fixture
+identity and does not qualify the failed attempt retroactively.
+
+CI found an imported editable-default question test without its corresponding
+contract. Editable defaults are outside this Cursor release and their partial
+import was removed instead of extending all question surfaces. Cursor question
+handling and plans remain intact. Configuration now preserves mainline behavior
+for unavailable Pi/Copilot profiles while retaining Cursor's explicit model and
+mode selection.

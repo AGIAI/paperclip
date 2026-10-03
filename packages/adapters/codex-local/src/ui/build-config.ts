@@ -97,7 +97,7 @@ export function buildPaperclipRunnerConfig(v: CreateConfigValues): Record<string
   const provider = isPaperclipRunnerProvider(providerCandidate)
     ? providerCandidate
     : "codex";
-  const acpxAgent = PAPERCLIP_RUNNER_ACPX_PROFILES.find(profile => profile.value === schemaValues.acpxAgent)?.value ?? "claude";
+  const acpxAgent = PAPERCLIP_RUNNER_ACPX_PROFILES.find(profile => profile.value === schemaValues.acpxAgent && (profile.qualified || profile.value === "cursor"))?.value ?? "claude";
   const cursorMode = resolvePaperclipRunnerCursorMode(provider, acpxAgent, schemaValues.acpxSessionMode);
 
   const schemaModel = typeof schemaValues.model === "string"
@@ -106,7 +106,7 @@ export function buildPaperclipRunnerConfig(v: CreateConfigValues): Record<string
   const configuredModel = typeof config.model === "string"
     ? config.model.trim()
     : "";
-  if (provider === "acpx" && ["cursor", "copilot", "pi"].includes(acpxAgent) && !configuredModel && !schemaModel) {
+  if (provider === "acpx" && acpxAgent === "cursor" && !configuredModel && !schemaModel) {
     throw new Error(`${acpxAgent} requires an explicit provider model`);
   }
   const managedProfileId = typeof schemaValues.managedProfileId === "string"
