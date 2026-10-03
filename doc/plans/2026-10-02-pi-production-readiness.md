@@ -21,13 +21,13 @@ qualification. The existing draft stack must be reviewed in dependency order.
 
 | Gate | Acceptance evidence | Current result |
 | --- | --- | --- |
-| Runtime identity and admission | Exact runtime/profile/model; verified effective thinking; startup below the 60-second admission limit; unsupported configuration fails before a prompt | Normal public installation and credential-free profile-14 admission pass at shipping source `0d65753fe` on ARM Mac (7.788 s), Intel Mac (31.185 s), and Linux (8.071 s). No prompt or binary override is used. Subsequent notice/completion corrections require fresh qualification. |
-| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed profile-14 same-turn steering passes at `dc2b053f3`. Restart and three-turn warm continuity pass at historical `f5f57e380`; pending-permission Stop and stale response rejection pass at `03dd6ef93`. Controller restart passes at frozen runtime `b148b73ea`. Warm continuity fails on turn 2 with `run.attach` timeout; the campaign stops. Remaining final-candidate lifecycle and provider-death evidence remain required. |
-| Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | At `0d65753fe`, five local cells pass: warm continuity, controller restart, pending-permission Stop, steering, and native questions. Agent-files times out after completion is rejected. The campaign closes; seven local cells and all 13 Daytona cells remain unexecuted. A subsequent shipping correction needs fresh qualification. |
-| Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases pass through installed `b148b73ea` with pinned definitions `a9e0e7e0`, profile 14 and native-confirmed low thinking. The governed-wait retry follows the tested idle-close correction. Each case has one attempt and zero automatic retries. Its original failure remains unchanged. |
-| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | ARM, Intel and Linux public installation pass at `0d65753fe`. Exact-source Linux companion and immutable Daytona proof remain required. Image run 37102904889 is terminal/cancelled after source supersession. Run 37106313185 is queued, pinned to `f62b8510a`; that candidate fails the frozen-profile gate and cannot qualify. Finish the current corrections before replacing its source-bound build. |
+| Runtime identity and admission | Exact runtime/profile/model; verified effective thinking; startup below the 60-second admission limit; unsupported configuration fails before a prompt | Frozen shipping source `0bd040093` passes normal public CLI/server installation, Pi setup and credential-free profile-14 admission on ARM Mac (7.921 s), Intel Mac (31.692 s), and native Linux in Daytona (8.699 s). No prompt, credentials or binary override is used. The local Rosetta handshake failures remain failed evidence. |
+| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | The historical corrected restart, warm continuity, Stop, steering and question journeys pass at `0d65753fe`. The complete lifecycle set remains required on the frozen shipping artifacts. No final-source Product lifecycle pass is claimed yet. |
+| Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | All 26 cells remain required. One explicit corrected-source local agent-files attempt at `0bd040093` fails at the unchanged 120-second bound; cleanup passes. Native bash and memory write complete, but native read and finalization do not occur. The earlier publication rejection is absent. The failed case remains held; the other 25 Product cells are unexecuted at this source. |
+| Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | At `0bd040093`, get-task-context passes. Context-before-action reaches successful get_task_context and report_progress outcomes, but no terminal arrives before 120 seconds; its canonical infrastructure-failure grade remains unchanged, with retired Runner and zero automatic retries. The failed case is held. Five cases are unexecuted at this source. The seven `b148b73ea` passes remain historical. |
+| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Exact-source public CLI/server installation and normal Pi setup pass on all three platforms. Public immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47` imports into native Linux Daytona and passes closed admission. Temporary sandbox cleanup passes. Image jobs 37102904889, 37106313185 and 37110683910 are terminal/cancelled. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Historical `0d65753fe` CI is green. At `f62b8510a`, build/typecheck and most CI pass; the frozen notice-projection hash and two publication-bypass review findings fail. Tested corrections are preparing a new candidate. Two #14924 UI findings have downstream corrections. Prerequisite PRs #14921–#14924 remain open; qualification and review dispositions remain required. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | At `0bd040093`, full build/typecheck, 53 CI checks and two skips, Greptile 5/5 and zero unresolved root review threads pass. Both full local test commands fail in the first server group; later groups are unexecuted. The reproduced close-fixture setup-cleanup race now has a correction with all 28 close-progress cases passing. A complete local test pass remains required. Four prerequisite findings have downstream corrections; premature production admission remains held until all 33 cases pass. No merge or release. |
 
 ## Bounded execution
 
@@ -468,23 +468,22 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 
 ## Remaining work in order
 
-1. Retain the governed-wait failure and its corrected-source pass. The free
-   completed-turn warm-attachment correction is proved. The explicit corrected-source warm retry passes. Complete the tested
-   duplicate-notice and internal-file completion corrections, then rebuild and
-   verify exact-source public packages before one explicit agent-files retry.
-   Recheck final-source lifecycle and
-   classify the observed Mac ownership contention. Produce the normal Linux
-   companion receipt,
-   then import an immutable exact-source Daytona image without an override.
-   Do not accept a timeout as an installation pass or widen the admission limit.
-2. Complete all seven Runner cases and the full 26-cell Product matrix on the
-   frozen candidate. Context-before-action now passes after the bounded-context
-   correction; its original timeout remains unchanged. Reuse only evidence whose
-   executable inputs and source identity match the final candidate.
-3. Close the prerequisite review stack and final CI gates. Keep the original
-   Codex interruption failures and the passing corrected integration evidence.
-   Publish only the qualified artifacts, then use the
-   bounded operator rollout below. No merge or release is authorized here.
+1. Complete the local full command with the proved setup-receipt fixture
+   correction. Keep both failed commands and the unclassified OAuth socket
+   failure. Normal ARM/Intel/native-Linux installation and immutable Daytona
+   import now pass; retain their exact-source receipts and original failures.
+2. Complete all seven Runner cases and all 26 Product cells on the frozen
+   shipping artifacts. There are 25 unattempted Product cells and five
+   unattempted Runner cases. Run each explicitly with zero automatic retries.
+   The failed local agent-files and Runner context-before-action cases remain
+   held until a concrete correction addresses their observed failure. Neither
+   a documentation change nor the unrelated fixture correction permits retry.
+   Reuse only evidence whose executable inputs and recorded source match.
+3. Finish prerequisite dispositions and latest-head CI/review. Four findings
+   have downstream corrections; premature production admission remains held
+   until all 33 cases pass. Preserve the original Codex interruption failures
+   and corrected integration evidence. Apply the recorded operator rollout
+   only after qualification. No merge or release is authorized here.
 
 ## Rollout and rollback
 
@@ -498,3 +497,58 @@ retire active work through the existing control-plane Stop path, and restore the
 prior published packages. Reopen incompatible sessions; do not replay uncertain
 provider actions or present expired callbacks as live questions. Preserve run
 history and all failed release evidence.
+
+## Native image and frozen-artifact qualification — 2026-10-03 07:16 CDT
+
+- Shipping artifacts remain frozen at `0bd040093dd33b5a31cd0ecd1f170f0d94600fce`,
+  with profile 14, the same model, and native-confirmed low thinking. Documentation
+  and fixture-only follow-ups must record their exact diff and prove shipping
+  inputs unchanged. They do not relabel artifacts or permit an unchanged failed
+  paid-case retry. Any shipping-input change needs fresh package/image evidence.
+- The local direct registry export publishes the exact-source immutable image
+  listed above. Anonymous inspection verifies its source/content labels, digest
+  and Linux AMD64 platform. Actual Daytona import, normal public CLI/server
+  installation, Pi setup and closed admission pass in 8.699 seconds. The Linux
+  daemon is `sha256:af4bb4b2934c01891f7f916e0f33bcce4fac2d59ee7d74c8e832ef8720154938`.
+  All 18 archive integrities pass. The derived server archive changes only the
+  public Linux binary; normal repacking omits six bundled changelogs. All other
+  retained files match byte-for-byte. Public-source provenance and credential/
+  user-state exclusion are checked before upload. The sandbox is deleted.
+- Public graph audits pass 722 CLI packages and 79,360 files, the 150-package Pi
+  closure, and 191 Daytona plugin packages with 16,356 files. The separately
+  packed Runner matches all 1,330 vendored distribution files. Installed browser
+  startup passes health/UI with zero companies, credentials or provider calls.
+- The local AMD64 Docker admission failures persist across bind-mounted and
+  native-volume installs. The process observer sees Rosetta executable ownership.
+  Native Linux succeeds with the exact-source image. Rosetta is a supported
+  diagnostic explanation to investigate, not a regrade of any failed attempt.
+- The latest local agent-files failure completes bash and native memory write,
+  but neither native read nor finalization. Its earlier completion-publication
+  rejection is absent. No supported product correction is identified from this
+  attempt yet. Its cleanup passes, and the original failure remains unchanged.
+- Two first-attempt Runner cases use the frozen installed package and definitions
+  `a9e0e7e025152e9941cca08e54d97c54f6490908`: get-task-context passes;
+  context-before-action times out after successful context and progress tools.
+  Native config/process metadata confirms low thinking, and Runner exits cleanly.
+  There is one attempt per case and no automatic retry. The sequence stops.
+  The strict shipping ledger is one pass, two failures and 30 unexecuted cases.
+- The first full local command fails a comment-wake timeout and setup-token
+  socket hang-up. Both suites pass all 58 tests in isolation. The controlled
+  repeat fails a close-progress reaction assertion and an OAuth socket hang-up;
+  its earlier failures pass. Each command stops in the first server group with
+  737 suites passed, four skipped, 15,026 test passes and 83 skips. Neither is a
+  complete workspace test pass. Seven selected cases then pass in isolation;
+  instrumented diagnostic copies of both suites pass all 1,431 tests.
+- A controlled deferred-worker fixture reproduces the close assertion with one
+  late removal belonging to `setup-follow-up`, not the working message. The
+  correction settles that exact setup receipt before measuring working-run
+  removals. All four prompt/state cases pass under the same deferred-worker
+  condition, and all 28 close-progress cases pass with normal scheduling. The
+  original assertions and production worker code remain unchanged. A complete
+  local command with this fixture correction remains required; the OAuth socket
+  cause is unproven, and no speculative socket workaround is added.
+- The key retains its $5 lifetime cap without reset or BYOK; its last pre-Runner
+  snapshot has $4.862597588 remaining. Immediate usage deltas remain provisional.
+  All 72 account BYOK provider rows are unconfigured. The campaign retains its
+  $100 budget, frozen model/profile and failed-case holds. Recorded rollout/rollback
+  remains conditional on every release gate passing.
