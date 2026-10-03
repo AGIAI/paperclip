@@ -213,6 +213,14 @@ Rescan the plugin's MCP server to discover the event catalog. Installing or
 connecting alone does not start monitoring. Claude and other clients without
 Events support can continue retrieving results through the read tools.
 
+Callback and hosted-authority verification reserve durable capacity before any
+remote request. Across replicas, at most 2 verifications per grant, 8 per company
+and 32 per instance can run concurrently. Attempts are bounded to 30 per grant,
+200 per company and 1,000 per instance per minute, including failed verification.
+New monitors reserve subscription quota before verification; leases expire after
+one minute. Network waits hold no database transaction, and expired, cancelled
+or revoked requests cannot finalize a subscription.
+
 Delivery uses a verified HTTPS callback, Standard Webhooks HMAC signatures,
 public-address DNS pinning on every connection, and no redirects. Callback URLs,
 current/previous signing keys and hosted authorization proofs are encrypted with

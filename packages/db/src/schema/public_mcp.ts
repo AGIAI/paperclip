@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { authUsers } from "./auth.js";
 import { companies } from "./companies.js";
 
@@ -92,6 +92,23 @@ export const mcpEventSubscriptions = pgTable("mcp_event_subscriptions", {
   stoppedAt: timestamp("stopped_at", { withTimezone: true }),
   scannedAt: timestamp("scanned_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("mcp_event_subscriptions_expiry_idx").on(t.expiresAt), index("mcp_event_subscriptions_company_idx").on(t.companyId)]);
+
+// Short-lived admission leases bound remote verification across replicas. Finished
+// attempts remain until expiry so failed callbacks cannot bypass rate limits.
+export const mcpEventAdmissions = pgTable("mcp_event_admissions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  subscriptionId: text("subscription_id").notNull(),
+  companyId: uuid("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  grantId: uuid("grant_id").notNull().references(() => mcpOauthGrants.id, { onDelete: "cascade" }),
+  reservesSubscription: boolean("reserves_subscription").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("mcp_event_admissions_expiry_idx").on(t.expiresAt),
+  index("mcp_event_admissions_grant_idx").on(t.grantId),
+  index("mcp_event_admissions_company_idx").on(t.companyId),
+]);
 
 export const mcpEventDeliveries = pgTable("mcp_event_deliveries", {
   id: uuid("id").primaryKey().defaultRandom(),

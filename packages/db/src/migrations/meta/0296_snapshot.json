@@ -1,5 +1,5 @@
 {
-  "id": "c492f15f-4c73-49a4-86dd-ba3d9d5197d3",
+  "id": "531e1045-faa0-430c-bb4d-d488e42a3fd8",
   "prevId": "498672de-8089-43b4-8134-bf363223af28",
   "version": "7",
   "dialect": "postgresql",
@@ -50317,6 +50317,142 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.mcp_event_admissions": {
+      "name": "mcp_event_admissions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "subscription_id": {
+          "name": "subscription_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grant_id": {
+          "name": "grant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reserves_subscription": {
+          "name": "reserves_subscription",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "mcp_event_admissions_expiry_idx": {
+          "name": "mcp_event_admissions_expiry_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mcp_event_admissions_grant_idx": {
+          "name": "mcp_event_admissions_grant_idx",
+          "columns": [
+            {
+              "expression": "grant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mcp_event_admissions_company_idx": {
+          "name": "mcp_event_admissions_company_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mcp_event_admissions_company_id_companies_id_fk": {
+          "name": "mcp_event_admissions_company_id_companies_id_fk",
+          "tableFrom": "mcp_event_admissions",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mcp_event_admissions_grant_id_mcp_oauth_grants_id_fk": {
+          "name": "mcp_event_admissions_grant_id_mcp_oauth_grants_id_fk",
+          "tableFrom": "mcp_event_admissions",
+          "tableTo": "mcp_oauth_grants",
+          "columnsFrom": [
+            "grant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.mcp_event_deliveries": {
       "name": "mcp_event_deliveries",
       "schema": "",
@@ -50956,12 +51092,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "requested_company_id": {
-          "name": "requested_company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         },
         "grant_id": {
           "name": "grant_id",

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, asc, count, eq, gt, gte, isNotNull, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { companies, activityLog, mcpEventDeliveries as deliveries, mcpEventSubscriptions as subscriptions, type Db } from "@paperclipai/db";
+import { companies, activityLog, mcpEventAdmissions as admissions, mcpEventDeliveries as deliveries, mcpEventSubscriptions as subscriptions, type Db } from "@paperclipai/db";
 import { ISSUE_STATUSES } from "@paperclipai/shared";
 import { localEncryptedProvider } from "../../secrets/local-encrypted-provider.js";
 import { logActivity } from "../activity-log.js";
@@ -82,51 +82,89 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
     if (!input.delivery.secret) throw new McpEventError(-32602, "A webhook signing secret is required.");
     signingKey(input.delivery.secret);
     await authorize(principal, input.arguments);
-    await authorizeCloud(principal, cloud);
     const id = identity(principal, input);
-    // Serialize admission, refresh and unsubscribe; the bounded verification has
-    // no application data. This also prevents duplicate challenges on concurrent retries.
-    return db.transaction(async tx => {
+    const url = callbackUrl(input.delivery.url);
+    const secret = input.delivery.secret;
+    // Reserve capacity in a short transaction before either remote authority or
+    // callback verification. Leases and attempt counts are shared across replicas.
+    const reservation = await db.transaction(async tx => {
+      await tx.execute(sql`select pg_advisory_xact_lock(736721043)`);
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${id}, 0))`);
+      await tx.delete(admissions).where(lte(admissions.expiresAt, new Date(now())));
+      await tx.delete(subscriptions).where(or(lte(subscriptions.expiresAt, new Date(now())), isNotNull(subscriptions.stoppedAt)));
       const [existing] = await tx.select().from(subscriptions).where(eq(subscriptions.id, id));
       const previous = existing ? await decrypt(existing) : null;
-      const url = callbackUrl(input.delivery.url);
-      const secret = input.delivery.secret!;
-      const verify = !existing || existing.stoppedAt || existing.expiresAt.getTime() <= now() || existing.verifiedAt.getTime() + rotationMs <= now() || previous?.secret !== secret;
-      if (verify) await verifyCallback(fetcher, id, url, secret, now());
-      // Network verification holds only this subscription's lock. The global
-      // quota lock covers short admission writes, never a remote callback.
-      await tx.execute(sql`select pg_advisory_xact_lock(736721043)`);
-      const active = existing && !existing.stoppedAt && existing.expiresAt.getTime() > now();
-      // No replay is promised for expired/stopped subscriptions. Reclaim these
-      // rows (and their receipts) before admission so historical monitors cannot
-      // exhaust active capacity or grow storage without bound.
-      await tx.delete(subscriptions).where(or(lte(subscriptions.expiresAt, new Date(now())), isNotNull(subscriptions.stoppedAt)));
-      if (!active) {
+      const [pending] = await tx.select().from(admissions).where(and(eq(admissions.subscriptionId, id), isNull(admissions.finishedAt)));
+      if (pending) throw new McpEventError(-32602, "Subscription verification is in progress. Retry shortly.");
+      const verify = !existing || existing.verifiedAt.getTime() + rotationMs <= now() || previous?.secret !== secret;
+      if (!existing) {
         const [total] = await tx.select({ n: count() }).from(subscriptions);
         const [company] = await tx.select({ n: count() }).from(subscriptions).where(eq(subscriptions.companyId, principal.grant.companyId));
         const [grant] = await tx.select({ n: count() }).from(subscriptions).where(eq(subscriptions.grantId, principal.grant.id));
-        if (total!.n >= 1000 || company!.n >= 100 || grant!.n >= 20) throw new McpEventError(-32602, "Subscription limit reached. Stop an existing monitor first.");
+        const reserved = await tx.select().from(admissions).where(and(isNull(admissions.finishedAt), eq(admissions.reservesSubscription, true)));
+        if (total!.n + reserved.length >= 1000 || company!.n + reserved.filter(r => r.companyId === principal.grant.companyId).length >= 100 || grant!.n + reserved.filter(r => r.grantId === principal.grant.id).length >= 20) {
+          throw new McpEventError(-32602, "Subscription limit reached. Stop an existing monitor first.");
+        }
       }
-      const expiresAt = new Date(Math.min(now() + Math.min(Math.max(input.ttlMs ?? lifetime, 30_000), lifetime), cloudOrigin ? Math.min(now() + rotationMs, cloud!.expiresAt) : Infinity));
-      const destination: Destination = { url, secret, ...(cloudOrigin ? { cloud } : {}),
-        ...(previous && previous.secret !== secret ? { previousSecret: previous.secret, previousUntil: now() + rotationMs }
-          : previous?.previousUntil && previous.previousUntil > now() ? { previousSecret: previous.previousSecret, previousUntil: previous.previousUntil } : {}) };
-      if (existing && !active) await tx.delete(deliveries).where(eq(deliveries.subscriptionId, id));
-      const value = { companyId: principal.grant.companyId, grantId: principal.grant.id, name: input.name, taskId: input.arguments.taskId,
-        arguments: input.arguments, deliveryMaterial: await encrypt(destination), expiresAt, stoppedAt: null,
-        verifiedAt: verify ? new Date(now()) : existing!.verifiedAt, startsAt: active ? existing.startsAt : requestedAt, scannedAt: new Date(now()) };
-      await tx.insert(subscriptions).values({ id, ...value }).onConflictDoUpdate({ target: subscriptions.id, set: value });
-      await logActivity(tx as unknown as Db, { companyId: principal.grant.companyId, actorType: "user", actorId: principal.grant.userId,
-        action: "mcp.event_subscribed", entityType: "mcp_subscription", entityId: id, details: { name: input.name, taskId: input.arguments.taskId, expiresAt: expiresAt.toISOString() } });
-      return { id, refreshBefore: expiresAt.toISOString(), cursor: null, truncated: false };
+      if (!verify && !cloudOrigin) return { existing, previous, verify, lease: null };
+      const attempts = await tx.select().from(admissions);
+      const companyAttempts = attempts.filter(r => r.companyId === principal.grant.companyId);
+      const grantAttempts = companyAttempts.filter(r => r.grantId === principal.grant.id);
+      const pendingCount = (rows: typeof attempts) => rows.filter(r => !r.finishedAt).length;
+      if (attempts.length >= 1000 || companyAttempts.length >= 200 || grantAttempts.length >= 30
+        || pendingCount(attempts) >= 32 || pendingCount(companyAttempts) >= 8 || pendingCount(grantAttempts) >= 2) {
+        throw new McpEventError(-32602, "Subscription verification capacity reached. Retry later.");
+      }
+      const [lease] = await tx.insert(admissions).values({ subscriptionId: id, companyId: principal.grant.companyId, grantId: principal.grant.id,
+        reservesSubscription: !existing, createdAt: new Date(now()), expiresAt: new Date(now() + 60_000) }).returning();
+      return { existing, previous, verify, lease: lease! };
     });
+    const { existing, previous, verify, lease } = reservation;
+    try {
+      await authorizeCloud(principal, cloud);
+      if (verify) await verifyCallback(fetcher, id, url, secret, now());
+      // Remote waits must not retain database connections or stale authority.
+      const current = await oauth.authorizeGrant(principal.grant.id);
+      await authorize(current, input.arguments);
+      const material = !verify && !cloudOrigin ? existing!.deliveryMaterial : await encrypt({ url, secret, ...(cloudOrigin ? { cloud } : {}),
+        ...(previous && previous.secret !== secret ? { previousSecret: previous.secret, previousUntil: now() + rotationMs }
+          : previous?.previousUntil && previous.previousUntil > now() ? { previousSecret: previous.previousSecret, previousUntil: previous.previousUntil } : {}) });
+      return await db.transaction(async tx => {
+        await tx.execute(sql`select pg_advisory_xact_lock(736721043)`);
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${id}, 0))`);
+        if (lease) {
+          const [held] = await tx.update(admissions).set({ finishedAt: new Date(now()) }).where(and(eq(admissions.id, lease.id), isNull(admissions.finishedAt), gt(admissions.expiresAt, new Date(now())))).returning();
+          if (!held) throw new McpEventError(-32602, "Subscription verification expired or was stopped. Reconnect the monitor.");
+          if (existing) {
+            const [active] = await tx.select().from(subscriptions).where(and(eq(subscriptions.id, id), isNull(subscriptions.stoppedAt), gt(subscriptions.expiresAt, new Date(now()))));
+            if (!active) throw new McpEventError(-32602, "The monitor expired or was stopped. Subscribe again.");
+          }
+        } else {
+          // A cached refresh cannot recreate a subscription removed while it was awaiting authority.
+          const [held] = await tx.select().from(subscriptions).where(eq(subscriptions.id, id));
+          const [pending] = await tx.select().from(admissions).where(and(eq(admissions.subscriptionId, id), isNull(admissions.finishedAt), gt(admissions.expiresAt, new Date(now()))));
+          if (!held || held.stoppedAt || held.expiresAt.getTime() <= now() || pending || canonical(held.deliveryMaterial) !== canonical(existing!.deliveryMaterial)) throw new McpEventError(-32602, "The monitor changed or was stopped. Retry the subscription.");
+        }
+        if (cloudOrigin && cloud!.expiresAt <= now()) throw new McpEventError(-32602, "Refresh the hosted connection before subscribing.");
+        const expiresAt = new Date(Math.min(now() + Math.min(Math.max(input.ttlMs ?? lifetime, 30_000), lifetime), cloudOrigin ? Math.min(now() + rotationMs, cloud!.expiresAt) : Infinity));
+        const value = { companyId: principal.grant.companyId, grantId: principal.grant.id, name: input.name, taskId: input.arguments.taskId,
+          arguments: input.arguments, deliveryMaterial: material, expiresAt, stoppedAt: null,
+          verifiedAt: verify ? new Date(now()) : existing!.verifiedAt, startsAt: existing?.startsAt ?? requestedAt, scannedAt: new Date(now()) };
+        await tx.insert(subscriptions).values({ id, ...value }).onConflictDoUpdate({ target: subscriptions.id, set: value });
+        await logActivity(tx as unknown as Db, { companyId: principal.grant.companyId, actorType: "user", actorId: principal.grant.userId,
+          action: "mcp.event_subscribed", entityType: "mcp_subscription", entityId: id, details: { name: input.name, taskId: input.arguments.taskId, expiresAt: expiresAt.toISOString() } });
+        return { id, refreshBefore: expiresAt.toISOString(), cursor: null, truncated: false };
+      });
+    } finally {
+      if (lease) await db.update(admissions).set({ finishedAt: new Date(now()) }).where(and(eq(admissions.id, lease.id), isNull(admissions.finishedAt)));
+    }
   }
   async function unsubscribe(principal: McpPrincipal, raw: unknown) {
     const input = unsubscribeSchema.parse(raw); validate(input);
     const id = identity(principal, input);
     await db.transaction(async tx => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${id}, 0))`);
+      await tx.update(admissions).set({ finishedAt: new Date(now()) }).where(and(eq(admissions.subscriptionId, id), isNull(admissions.finishedAt)));
       await tx.delete(subscriptions).where(and(eq(subscriptions.id, id), eq(subscriptions.grantId, principal.grant.id)));
       await logActivity(tx as unknown as Db, { companyId: principal.grant.companyId, actorType: "user", actorId: principal.grant.userId,
         action: "mcp.event_unsubscribed", entityType: "mcp_subscription", entityId: id, details: { name: input.name, taskId: input.arguments.taskId } });
@@ -214,6 +252,7 @@ export function createPublicMcpEvents(db: Db, oauth: PublicMcpOAuth, api: ApiDis
   let running: Promise<void> | null = null;
   const tick = () => running ?? (running = (async () => {
     if (!await oauth.isEnabled()) return;
+    await db.delete(admissions).where(lte(admissions.expiresAt, new Date(now())));
     await db.delete(subscriptions).where(lt(subscriptions.expiresAt, new Date(now() - 7 * 24 * hour)));
     const active = await db.select().from(subscriptions).where(and(isNull(subscriptions.stoppedAt), gt(subscriptions.expiresAt, new Date(now())))).orderBy(asc(subscriptions.scannedAt)).limit(20);
     for (const s of active) await enqueue(s);

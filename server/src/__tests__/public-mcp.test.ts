@@ -1,9 +1,9 @@
 import { createHmac, createHash, randomBytes, randomUUID } from "node:crypto";
 import express, { type Request } from "express";
 import request from "supertest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, mcpEventDeliveries, mcpEventSubscriptions, createDb, authUsers, companies, companyLogos, assets, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
+import { activityLog, mcpEventAdmissions, mcpEventDeliveries, mcpEventSubscriptions, createDb, authUsers, companies, companyLogos, assets, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { createPublicMcpOAuth, publicMcpConfig, hashMcpSecret } from "../services/public-mcp/oauth.js";
 import { McpApiError, createMcpApiDispatch, createPublicMcpExecutor, publicMcpCapabilities } from "../services/public-mcp/capabilities.js";
@@ -594,7 +594,9 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     const f = await eventFixture();
     const makeInput = (index: number) => ({ ...f.input, delivery: { ...f.input.delivery, url: f.input.delivery.url + "/" + index } });
     for (let i = 0; i < 20; i++) await f.service.subscribe(f.principal, makeInput(i));
+    const verified = f.received.length;
     await expect(f.service.subscribe(f.principal, makeInput(20))).rejects.toMatchObject({ code: -32602 });
+    expect(f.received).toHaveLength(verified);
     await db.update(mcpEventSubscriptions).set({ stoppedAt: new Date(f.now()) }).where(eq(mcpEventSubscriptions.grantId, f.principal.grant.id));
     await expect(f.service.subscribe(f.principal, makeInput(20))).resolves.toHaveProperty("id");
     expect(await db.select().from(mcpEventSubscriptions).where(eq(mcpEventSubscriptions.grantId, f.principal.grant.id))).toHaveLength(1);
@@ -602,6 +604,57 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     await expect(f.service.subscribe(f.principal, makeInput(21))).resolves.toHaveProperty("id");
     expect(await db.select().from(mcpEventSubscriptions).where(eq(mcpEventSubscriptions.grantId, f.principal.grant.id))).toHaveLength(1);
     await f.service.unsubscribe(f.principal, makeInput(21));
+  });
+
+  it("bounds failed callback attempts across service replicas before doing network work", async () => {
+    const f = await eventFixture(); f.badChallenge();
+    const replica = createPublicMcpEvents(db, oauth, f.dispatch, f.options);
+    const input = (index: number) => ({ ...f.input, delivery: { ...f.input.delivery, url: f.input.delivery.url + "/" + index } });
+    for (let i = 0; i < 30; i++) await expect((i % 2 ? replica : f.service).subscribe(f.principal, input(i))).rejects.toMatchObject({ reason: "challenge_failed" });
+    expect(f.received).toHaveLength(30);
+    await expect(replica.subscribe(f.principal, input(30))).rejects.toThrow("capacity reached");
+    expect(f.received).toHaveLength(30);
+    expect(await db.select().from(mcpEventAdmissions).where(eq(mcpEventAdmissions.grantId, f.principal.grant.id))).toHaveLength(30);
+    f.advance(60_001);
+    await expect(replica.subscribe(f.principal, input(31))).rejects.toMatchObject({ reason: "challenge_failed" });
+    expect(f.received).toHaveLength(31);
+    expect(await db.select().from(mcpEventAdmissions).where(eq(mcpEventAdmissions.grantId, f.principal.grant.id))).toHaveLength(1);
+  });
+
+  it("reserves bounded verification capacity without holding transactions and respects unsubscribe", async () => {
+    const f = await eventFixture();
+    const replica = createPublicMcpEvents(db, oauth, f.dispatch, f.options);
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    f.duringVerification(() => gate);
+    const input = (index: number) => ({ ...f.input, delivery: { ...f.input.delivery, url: f.input.delivery.url + "/" + index } });
+    const pending = Promise.allSettled([f.service.subscribe(f.principal, input(0)), replica.subscribe(f.principal, input(1))]);
+    try {
+      await vi.waitFor(() => expect(f.received).toHaveLength(2));
+      const held = await db.select().from(mcpEventAdmissions).where(eq(mcpEventAdmissions.grantId, f.principal.grant.id));
+      expect(held).toHaveLength(2);
+      await db.transaction(async tx => {
+        const [locks] = await tx.execute(sql`select pg_try_advisory_xact_lock(736721043) as global_free, pg_try_advisory_xact_lock(hashtextextended(${held[0]!.subscriptionId}, 0)) as subscription_free`);
+        expect(locks).toMatchObject({ global_free: true, subscription_free: true });
+      });
+      await expect(replica.subscribe(f.principal, input(2))).rejects.toThrow("capacity reached");
+      expect(f.received).toHaveLength(2);
+      await f.service.unsubscribe(f.principal, input(0));
+    } finally { release(); }
+    const results = await pending;
+    expect(results.map(result => result.status)).toEqual(["rejected", "fulfilled"]);
+    expect(await db.select().from(mcpEventSubscriptions).where(eq(mcpEventSubscriptions.grantId, f.principal.grant.id))).toHaveLength(1);
+    await replica.unsubscribe(f.principal, input(1));
+  });
+
+  it.each(["lease", "revocation"])("rejects stale %s authority after callback verification", async reason => {
+    const f = await eventFixture();
+    f.duringVerification(async () => {
+      if (reason === "lease") f.advance(60_001);
+      else await oauth.revokeConnection(f.principal.grant.id, f.principal.grant.userId);
+    });
+    await expect(f.service.subscribe(f.principal, f.input)).rejects.toThrow();
+    expect(await db.select().from(mcpEventSubscriptions).where(eq(mcpEventSubscriptions.grantId, f.principal.grant.id))).toHaveLength(0);
   });
 
   it("filters unchanged statuses and includes native checkout and release transitions", async () => {
