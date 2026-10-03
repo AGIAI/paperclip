@@ -67,8 +67,8 @@ test("native source contract binds exactly five production and six variant asser
   assert.equal(original.baseSha, "59c07ede72dc08b8aba149a01cc11e0b7a204621");
   assert.equal(original.archiveSha, "9138f570c341c251a5727c32d6615ce238bc8e03");
   assert.deepEqual(original.shallowParentAnchors, {
-    candidate: "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
-    historical: "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+    candidate: "b603222b8496c234b64c0642ca3ca4d5d8990318",
+    historical: "e68a7edc569f73ba1eb26b5a47f6a22ce536babc",
   });
   assert.ok(!NATIVE_COMPLETION_SOURCE_FILES.some(file => file.includes("stock-harness") || file.endsWith("issue-documents.md")));
 });
