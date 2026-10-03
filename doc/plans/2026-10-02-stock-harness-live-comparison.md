@@ -1,10 +1,16 @@
 # Stock-harness live comparison — 2026-10-02
 
-**TL;DR:** Two newly failing paired cases: classic Claude/OpenCode document delivery. Two newly passing cases: classic and native OpenCode ordered continuation. Seven unchanged failures and 13 unchanged passes. The extra ACP Claude storage symptom occurs beneath an existing credential-guard failure. All 48 results are available; no general performance equivalence is established.
+**TL;DR:** Two newly failing paired cases: classic Claude/OpenCode document delivery. Two newly passing cases: classic and native OpenCode ordered continuation. Seven unchanged failures and 13 unchanged passes. Legacy ACP Claude additionally loses its document in the reduced variant beneath an existing credential-guard failure; no later matched run closes that behavioral defect. All 48 results are available; no general performance equivalence is established.
 
 The reduced instructions are **not yet qualified for merge**. Classic Claude and classic OpenCode pass the historical skill-output case but fail with the reduced instructions: they finish without saving a Paperclip task document. Native Codex and native Claude pass all three journeys in both variants. Single trials and ambiguous fixture storage wording limit causal attribution; the failed oracle remains unchanged.
 
 The reductions and evaluation setup are in draft [PR #14948](https://github.com/paperclipai/paperclip/pull/14948). This report and its [safe evidence projection](2026-10-02-stock-harness-live-comparison.json) record the measured revisions rather than claiming the final documentation head was run through the full matrix.
+
+## Current merge assessment
+
+PR #14948 is CI/review-ready but **does not meet the no-extra-failing-behavior merge criterion**. The legacy ACP Claude skill cell saves a Paperclip document in the historical cohort and none in the reduced cohort, while both already fail the credential guard. That additional delivery defect must not disappear inside the unchanged overall Fail → Fail. Later repair campaigns selected classic Claude/OpenCode, not legacy ACP Claude; its behavioral difference remains unclosed.
+
+The latest [OpenCode comparison](2026-10-02-opencode-skill-routing-link-qualification.md) is a **skill-only** experiment: frozen `fe9dc1e3c518825242ed889ab9c8352986f8c2ed` and `0d7ecfa96d72fba79b7f0a25052b42c0686c0488` both use reduced manuals/shared prompts and vary only two operational skill sources plus the baseline provenance receipt. Its two Pass → Pass cases are not a repeat of historical-manual versus reduced-manual qualification and do not close the ACP Claude defect. Original-case handoff imperfections and the later provider-free-only link correction remain separately recorded. No result or oracle is changed by this assessment, and no new provider runs are authorized by it.
 
 ## Revisions and matched inputs
 
