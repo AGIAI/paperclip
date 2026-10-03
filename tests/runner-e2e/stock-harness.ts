@@ -45,7 +45,7 @@ export interface StockHarnessEvidence {
   agentId: string;
   budgets: { companyMonthlyCents: unknown; agentMonthlyCents: unknown };
   bundle: { entryFile?: string; files: Array<{ path: string; content: string }> };
-  invocations: Array<{ runId: string; prompt: unknown; promptMetrics?: Record<string, unknown> }>;
+  invocations: Array<{ runId: string; prompt: unknown; promptMetrics?: Record<string, unknown>; conversationMode?: boolean }>;
   runIds: string[];
 }
 
@@ -79,9 +79,24 @@ export function gradeStockHarness(evidence: StockHarnessEvidence, instructionVar
         REMOVED_PROCEDURES.every(procedure => !String(row.prompt).includes(procedure))),
       "Neither startup nor continuation may reintroduce the removed generic manual.");
     } else {
-      check("historical-generic-procedures-observed", prompts.length > 0 && prompts.some(row =>
-        REMOVED_PROCEDURES.some(procedure => String(row.prompt).includes(procedure))),
-      "Observe the historical instruction carrier separately from the identical task outcome oracle.");
+      const classified = prompts.every(row => typeof row.conversationMode === "boolean" &&
+        typeof row.promptMetrics?.heartbeatPromptChars === "number" &&
+        Number.isFinite(row.promptMetrics.heartbeatPromptChars) && row.promptMetrics.heartbeatPromptChars >= 0);
+      const fresh = prompts.filter(row => Number(row.promptMetrics?.heartbeatPromptChars) > 0);
+      const resumed = prompts.filter(row => row.promptMetrics?.heartbeatPromptChars === 0);
+      check("historical-invocation-classification", prompts.length > 0 && classified,
+        "Every invocation needs public run-scoped conversation mode and explicit template-delivery metrics.");
+      check("historical-startup-contract", classified && fresh.length > 0 && fresh.every(row => row.conversationMode
+        ? String(row.prompt).includes("Continue your Paperclip conversation using the supplied chat mode directive.") &&
+          String(row.prompt).includes("After 2 consecutive failures of the same control-plane write")
+        : String(row.prompt).includes("Execution contract:") && String(row.prompt).includes("Final disposition checklist:")),
+      `Check each of ${fresh.length} fresh invocations against its historical task or conversation template.`);
+      check("historical-continuation-contract", classified && resumed.every(row =>
+        String(row.prompt).includes("## Paperclip Resume Delta") && (row.conversationMode
+          ? !String(row.prompt).includes("Execution contract:")
+          : String(row.prompt).includes("Execution contract: take concrete action") &&
+            String(row.prompt).includes("a successful process exit or final response is not sufficient"))),
+      `Check all ${resumed.length} observed continuation invocations separately; zero observations do not claim live continuation coverage.`);
     }
     const fresh = prompts.filter(row => Number(row.promptMetrics?.heartbeatPromptChars) > 0);
     check("fresh-default-delivered", fresh.length > 0 && fresh.every(row =>
@@ -115,16 +130,24 @@ export async function captureStockHarness(input: {
   }));
   const events = await Promise.all(input.runIds.map(async runId => ({
     runId,
+    run: await input.api.get<{ id: string; companyId: string; agentId: string; contextSnapshot?: { conversationMode?: boolean } }>(
+      `/api/heartbeat-runs/${runId}`,
+    ),
     rows: await input.api.get<Array<{ eventType?: string; payload?: Record<string, unknown> }>>(
       `/api/heartbeat-runs/${runId}/events?limit=1000`,
     ),
   })));
+  if (events.some(({ runId, run }) => run.id !== runId || run.companyId !== input.companyId || run.agentId !== input.agentId ||
+      !run.contextSnapshot || (run.contextSnapshot.conversationMode !== undefined && typeof run.contextSnapshot.conversationMode !== "boolean"))) {
+    throw new Error("Stock invocation mode receipt is missing or bound to a different run/company/agent.");
+  }
   return {
     schema: "paperclip.stock-harness.v1", generation: input.generation,
     budgets: { companyMonthlyCents: company.budgetMonthlyCents, agentMonthlyCents: agent.budgetMonthlyCents },
     agentId: input.agentId, bundle: { entryFile: bundle.entryFile, files }, runIds: input.runIds,
-    invocations: events.flatMap(({ runId, rows }) => rows.filter(row => row.eventType === "adapter.invoke")
-      .map(row => ({ runId, prompt: row.payload?.prompt, promptMetrics: row.payload?.promptMetrics as Record<string, unknown> | undefined }))),
+    invocations: events.flatMap(({ runId, rows, run }) => rows.filter(row => row.eventType === "adapter.invoke")
+      .map(row => ({ runId, prompt: row.payload?.prompt, promptMetrics: row.payload?.promptMetrics as Record<string, unknown> | undefined,
+        conversationMode: run.contextSnapshot?.conversationMode === true }))),
   };
 }
 
