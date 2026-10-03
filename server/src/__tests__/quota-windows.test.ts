@@ -829,6 +829,29 @@ describe("mapCodexRpcQuota", () => {
 // fetchWithTimeout — abort on timeout
 // ---------------------------------------------------------------------------
 
+describe("managed quota cancellation", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([
+    ["Claude", (signal: AbortSignal) => fetchClaudeQuota("token", signal)],
+    ["Codex", (signal: AbortSignal) => fetchCodexQuota("token", "account", signal)],
+  ] as const)("forwards cancellation to the %s provider", async (_provider, read) => {
+    const controller = new AbortController();
+    let requestSignal!: AbortSignal;
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      requestSignal = init.signal!;
+      return new Promise<Response>((_resolve, reject) => {
+        requestSignal.addEventListener("abort", () => reject(requestSignal.reason), { once: true });
+      });
+    }));
+    const pending = read(controller.signal);
+    const rejected = expect(pending).rejects.toThrow("account deadline");
+    controller.abort(new Error("account deadline"));
+    await rejected;
+    expect(requestSignal.aborted).toBe(true);
+  });
+});
+
 describe("fetchWithTimeout", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

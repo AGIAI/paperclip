@@ -50,6 +50,24 @@ describe("operator accounting tools", () => {
     expect(container.textContent).not.toContain("Repair reviewed totals");
     expect(api.health).toHaveBeenLastCalledWith("two");
   });
+  it("keeps repair and correction reasons separate and clears corrections when changing invoices", async () => {
+    api.inspect.mockResolvedValue({ companyId: "one", fingerprint: "a".repeat(64), findings: [{ kind: "company_projection", entityId: "one", repairable: true, actual: { cents: "99" }, expected: { cents: "12.5" } }] });
+    api.invoices.mockResolvedValue([{ id: "first", biller: "openai", externalId: "invoice-one" }, { id: "second", biller: "openai", externalId: "invoice-two" }]);
+    api.reconcile.mockImplementation(async (_company, id) => ({ invoice: { externalId: id, currency: "USD" }, lines: [{ id, externalId: "charge", status: "difference", matchedEventId: "event", recordedCents: "1", amountCents: "2", differenceCents: "1" }] }));
+    await render(); await click("Open accounting tools"); await click("Inspect stored totals");
+    await input("Accounting repair reason", "Repair company drift");
+    await click("openai · invoice-one");
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Invoice correction reason"]')!.value).toBe("");
+    expect(button("Apply reviewed correction").disabled).toBe(true);
+    await input("Invoice correction reason", "Invoice one adjustment");
+    expect(button("Apply reviewed correction").disabled).toBe(false);
+    await click("openai · invoice-two");
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Invoice correction reason"]')!.value).toBe("");
+    expect(button("Apply reviewed correction").disabled).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Accounting repair reason"]')!.value).toBe("Repair company drift");
+    expect(api.adjust).not.toHaveBeenCalled();
+  });
+
   it("retries only ready receipts and keeps incomplete evidence visible", async () => {
     api.health.mockResolvedValue({ companyId: "one", pendingRunCount: 2, unpricedEventCount: 0, pendingCancellationCount: 0, heldReservationCents: "0", items: [
       { runId: "ready", agentId: "a", state: "retryable", attempts: 2, since: "2026-09-28", lastError: "Database unavailable" },

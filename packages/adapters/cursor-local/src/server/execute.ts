@@ -54,7 +54,7 @@ import {
   joinPromptSections,
 } from "@paperclipai/adapter-utils/server-utils";
 import { DEFAULT_CURSOR_LOCAL_MODEL, SANDBOX_INSTALL_COMMAND } from "../index.js";
-import { firstCursorDiagnosticLine, parseCursorJsonl, isCursorUnknownSessionError } from "./parse.js";
+import { firstCursorDiagnosticLine, parseCursorJsonl, createCursorJsonlParser, isCursorUnknownSessionError } from "./parse.js";
 import { prepareCursorSandboxCommand } from "./remote-command.js";
 import { normalizeCursorStreamLine } from "../shared/stream.js";
 import { hasCursorTrustBypassArg } from "../shared/trust.js";
@@ -627,10 +627,11 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       });
     }
 
+    const consumeAccounting = createCursorJsonlParser();
     const accountingLog = createUsageCheckpointLog(onLog, ctx.onUsage, stdout => {
-      const parsed = parseCursorJsonl(stdout);
+      const parsed = consumeAccounting(stdout);
       const provider = resolveProviderFromModel(model);
-      return { usage: parsed.usage, costUsd: parsed.costUsd, usageBasis: "per_run", provider, biller: resolveCursorBiller(effectiveEnv, billingType, provider), billingType, model, complete: false };
+      return { usage: parsed.usage, costUsd: parsed.costUsd, usageBasis: "per_run", provider, biller: resolveCursorBiller(effectiveEnv, billingType, provider), billingType, model, complete: parsed.sawResult };
     });
     let stdoutLineBuffer = "";
     const emitNormalizedStdoutLine = async (rawLine: string) => {
@@ -676,6 +677,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       settleRunDisposition: paperclipBridge?.settleRunDisposition,
     });
     await flushStdoutChunk("", true);
+    await accountingLog.flush();
 
     return {
       proc,
@@ -704,6 +706,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         exitCode: attempt.proc.exitCode,
         signal: attempt.proc.signal,
         timedOut: true,
+        usageComplete: attempt.parsed.sawResult,
           usage: attempt.parsed.usage,
           usageBasis: "per_run",
           provider: providerFromModel,
@@ -743,6 +746,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       exitCode: attempt.proc.exitCode,
       signal: attempt.proc.signal,
       timedOut: false,
+      usageComplete: attempt.parsed.sawResult,
       usageBasis: "per_run",
       errorMessage:
         (attempt.proc.exitCode ?? 0) === 0

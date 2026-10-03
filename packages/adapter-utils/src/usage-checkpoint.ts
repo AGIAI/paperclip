@@ -9,7 +9,7 @@ const fields = new Set([
   "cache_read_input_tokens", "cache_creation_input_tokens", "inputTokens", "outputTokens", "cacheReadInputTokens",
   "cacheCreationInputTokens", "cachedInputTokens", "promptTokenCount", "candidatesTokenCount", "cachedContentTokenCount",
   "reasoning", "cacheRead", "cacheWrite", "prompt", "candidates", "totalTokenCount", "total_tokens", "toolUsePromptTokenCount", "messages",
-  "thoughtsTokenCount", "inputTokens", "totalTokens", "cached", "thoughts", "total_cost_usd", "cost_usd", "costUSD",
+  "thoughtsTokenCount", "inputTokens", "totalTokens", "cached", "thoughts", "total_cost_usd", "cost_usd", "costUSD", "costUsd",
 ]);
 const stringFields = new Set(["type", "subtype", "role", "id", "session_id", "sessionID", "thread_id", "model", "modelID", "providerID"]);
 function project(value: unknown, depth = 0, field = ""): unknown {
@@ -24,36 +24,65 @@ function project(value: unknown, depth = 0, field = ""): unknown {
       : project(entry, depth + 1, key)]));
 }
 
-/** A fresh instance belongs to one CLI attempt. Retries must not concatenate
- * cumulative usage from different attempts. Callback durability is awaited
- * before ordinary log publication. */
+/** The consumer incrementally parses only new records (never the full history).
+ * A fresh instance belongs to one CLI attempt. Call flush() after its process
+ * exits, before retrying or final result handling. Checkpoint failures are
+ * retained outside runChildProcess's best-effort onLog error handler. */
 export function createUsageCheckpointLog(
   onLog: (stream: "stdout" | "stderr", chunk: string) => Promise<void>,
   onUsage: ((receipt: AdapterUsageCheckpoint) => Promise<void>) | undefined,
-  parse: (stdout: string) => AdapterUsageCheckpoint | null,
+  consume: (records: string) => AdapterUsageCheckpoint | null,
 ) {
-  if (!onUsage) return onLog;
   const attemptId = randomUUID();
   let remainder = "", accounting = "", previous = "";
-  return async (stream: "stdout" | "stderr", chunk: string) => {
-    if (stream === "stdout") {
-      remainder += chunk;
-      const lines = remainder.split("\n"); remainder = lines.pop() ?? "";
-      if (remainder.length > 8 * 1024 * 1024) throw new Error("Accounting protocol line exceeds 8 MiB");
-      for (const line of lines) {
-        let raw: unknown;
-        try { raw = JSON.parse(line); } catch { continue; }
-        const compact = JSON.stringify(project(raw));
-        if (!compact || !/usage|tokens|cost|"result"|"turn.completed"|"agent_end"/.test(compact)) continue;
-        accounting += compact + "\n";
-        if (accounting.length > 8 * 1024 * 1024) throw new Error("Accounting checkpoint history exceeds 8 MiB");
-        const receipt = parse(accounting);
-        if (!receipt) continue;
-        const serialized = JSON.stringify(receipt);
-        if (serialized !== previous) { await onUsage({ ...receipt, attemptId }); previous = serialized; }
+  let snapshot: AdapterUsageCheckpoint | null = null;
+  let failure: unknown;
+  let failed = false;
+  function retain(line: string) {
+    let raw: unknown;
+    try { raw = JSON.parse(line); } catch { return; }
+    const compact = JSON.stringify(project(raw));
+    if (!compact || !/usage|tokens|cost|"result"|"turn.completed"|"agent_end"|"model"|"modelID"/.test(compact)) return;
+    accounting += compact + "\n";
+    if (accounting.length > 8 * 1024 * 1024) throw new Error("Accounting checkpoint chunk exceeds 8 MiB");
+  }
+  async function publish(complete = false) {
+    if (!onUsage) return;
+    if (accounting) {
+      snapshot = consume(accounting);
+      accounting = "";
+    }
+    const parsed = snapshot;
+    if (!parsed) return;
+    if (!parsed.complete && parsed.costUsd == null && parsed.costUsdExact == null &&
+      !Object.values(parsed.usage ?? {}).some(value => typeof value === "number" && value > 0)) return;
+    const receipt = { ...parsed, complete: parsed.complete || complete };
+    const serialized = JSON.stringify(receipt);
+    if (serialized !== previous) { await onUsage({ ...receipt, attemptId }); previous = serialized; }
+  }
+  const log = async (stream: "stdout" | "stderr", chunk: string) => {
+    if (onUsage && !failed && stream === "stdout") {
+      try {
+        remainder += chunk;
+        const lines = remainder.split("\n"); remainder = lines.pop() ?? "";
+        if (remainder.length > 8 * 1024 * 1024) throw new Error("Accounting protocol line exceeds 8 MiB");
+        for (const line of lines) retain(line);
+        await publish();
+      } catch (error) {
+        failed = true; failure = error; remainder = ""; accounting = "";
       }
     }
+    // Receipt persistence and ordinary logs have separate failure contracts.
+    // A failed receipt must not hide the provider's diagnostic output.
     await onLog(stream, chunk);
   };
+  return Object.assign(log, {
+    async flush(options: { complete?: boolean } = {}) {
+      if (failed) throw failure;
+      if (!onUsage) return;
+      if (remainder) { retain(remainder); remainder = ""; }
+      await publish(options.complete ?? false);
+    },
+  });
 }
 import { randomUUID } from "node:crypto";

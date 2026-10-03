@@ -3,7 +3,7 @@ import { agentAvatarUrl, resolveAgentAppearance, createCostEventSchema, normaliz
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@paperclipai/db";
-import { activityLog, agents, companies, costEvents, heartbeatRuns, issues, projects, goals } from "@paperclipai/db";
+import { activityLog, agents, agentRuntimeState, companies, costEvents, heartbeatRuns, issues, projects, goals } from "@paperclipai/db";
 import { notFound, unprocessable, conflict } from "../errors.js";
 import { budgetService, budgetServiceInTransaction, type BudgetServiceHooks } from "./budgets.js";
 import { logActivity, type LogActivityInput, type ActivityPublication } from "./activity-log.js";
@@ -119,6 +119,20 @@ export async function createCostEventInTransaction(db: Db, companyId: string, da
   }
   const [event] = await db.insert(costEvents).values({ ...values, costCents: sql`${values.costCents}::numeric`, reportedCostCents: values.costCents, id: data.id, companyId, receiptHash }).returning();
   await updateMonthlySpendProjections(db, companyId, event.agentId, values.costCents, event.occurredAt);
+  // Separately reported charges linked to an already-accounted run contribute
+  // to lifetime totals too. Before acknowledgement, accountRunCost includes
+  // all of the run's events atomically when it initializes the projection.
+  if (event.heartbeatRunId) {
+    const [run] = await db.select({ acknowledged: heartbeatRuns.costAccountedAt, version: heartbeatRuns.accountingProjectionVersion })
+      .from(heartbeatRuns).where(and(eq(heartbeatRuns.id, event.heartbeatRunId), eq(heartbeatRuns.companyId, companyId)));
+    if (run.acknowledged && run.version === "v2") await db.update(agentRuntimeState).set({
+      totalCostCents: sql`${agentRuntimeState.totalCostCents} + ${values.costCents}::numeric`,
+      totalInputTokens: sql`${agentRuntimeState.totalInputTokens} + ${event.inputTokens}`,
+      totalCachedInputTokens: sql`${agentRuntimeState.totalCachedInputTokens} + ${event.cachedInputTokens}`,
+      totalOutputTokens: sql`${agentRuntimeState.totalOutputTokens} + ${event.outputTokens}`,
+      updatedAt: new Date(),
+    }).where(and(eq(agentRuntimeState.agentId, event.agentId), eq(agentRuntimeState.companyId, companyId)));
+  }
   await budgetServiceInTransaction(db, publications).evaluateCostEvent(event);
   await logActivity(db, {
     companyId, actorType: actor?.actorType ?? "system", actorId: actor?.actorId ?? "cost_accounting", agentId: actor?.agentId ?? event.agentId,
@@ -132,6 +146,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
   const budgets = budgetService(db, budgetHooks);
   return {
     createEvent: async (companyId: string, data: Omit<typeof costEvents.$inferInsert, "companyId" | "receiptHash" | "costCents"> & { costCents: MoneyInput }, actor?: Pick<LogActivityInput, "actorType" | "actorId" | "agentId">) => {
+      if (data.idempotencyKey?.startsWith("heartbeat:")) throw unprocessable("The heartbeat idempotency namespace is reserved for run receipts");
       const event = await withAccountingTransaction(db, companyId, (tx, publications) => createCostEventInTransaction(tx, companyId, data, publications, actor));
       await budgets.deliverPendingEnforcement(companyId);
       return event;
@@ -163,7 +178,7 @@ export function costService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
         .where(and(...conditions));
 
       const pendingConditions = [eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.costAccountingPending, true),
-        inArray(heartbeatRuns.status, ["succeeded", "failed", "timed_out", "cancelled"])];
+        inArray(heartbeatRuns.status, ["succeeded", "failed", "timed_out", "cancelled", "interrupted"])];
       if (range?.from) pendingConditions.push(sql`coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) >= ${range.from.toISOString()}::timestamptz`);
       if (range?.to) pendingConditions.push(sql`coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) <= ${range.to.toISOString()}::timestamptz`);
       const [pending] = await db.select({ count: sql<number>`count(*)::int` }).from(heartbeatRuns).where(and(...pendingConditions));

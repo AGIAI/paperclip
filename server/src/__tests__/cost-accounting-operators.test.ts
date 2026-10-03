@@ -10,7 +10,7 @@ import { billingReconciliationService } from "../services/billing-reconciliation
 import { budgetService } from "../services/budgets.js";
 import { reserveRunBudget } from "../services/budget-reservations.js";
 import { costService } from "../services/costs.js";
-import { accountRunCost } from "../services/run-cost-accounting.js";
+import { accountRunCost, reconcileRunCosts } from "../services/run-cost-accounting.js";
 import { createRunUsageRecorder, persistUsageReceipt, replayUsageReceipts, spoolUsageReceipt, type UsageReceiptEnvelope } from "../services/usage-receipts.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
 
@@ -65,6 +65,28 @@ const support = await getEmbeddedPostgresTestSupport();
     expect((await accountingIntegrityService(db).inspect(f.company.id)).findings).toEqual([]);
   });
 
+  it("keeps an interrupted partial receipt pending and settles its reservation when evidence becomes complete", async () => {
+    const f = await fixture(); const run = await runFor(f);
+    await budgetService(db).upsertPolicy(f.company.id, { scopeType: "agent", scopeId: f.agent.id, amount: 100, reservationCents: "10" }, "board");
+    await reserveRunBudget(db, f.company.id, run.id, null);
+    const usage = { accountingReceiptReady: false, costUsdExact: "0.01", inputTokens: 5, provider: "test", billingType: "metered_api" };
+    await db.update(heartbeatRuns).set({ status: "interrupted", usageJson: usage }).where(eq(heartbeatRuns.id, run.id));
+    const integrity = accountingIntegrityService(db);
+    expect((await integrity.health(f.company.id)).pendingRunCount).toBe(1);
+    expect((await integrity.health(f.company.id)).items[0]).toMatchObject({ runId: run.id, state: "waiting_for_receipt" });
+    expect((await costService(db).summary(f.company.id)).pendingRunCount).toBe(1);
+    expect((await integrity.inspect(f.company.id)).findings.some(f => f.kind === "missing_acknowledgement")).toBe(true);
+    expect(await budgetService(db).getInvocationBlock(f.company.id, f.agent.id)).not.toBeNull();
+    expect(await accountRunCost(db, run.id)).toBe(false);
+    expect((await integrity.health(f.company.id)).heldReservationCents).toBe("10.0000000");
+    await db.update(heartbeatRuns).set({ usageJson: { ...usage, accountingReceiptReady: true } }).where(eq(heartbeatRuns.id, run.id));
+    await reconcileRunCosts(db);
+    expect((await costService(db).summary(f.company.id))).toMatchObject({ pendingRunCount: 0, spendCents: 1 });
+    expect((await integrity.health(f.company.id)).heldReservationCents).toBe("0.0000000");
+    expect((await integrity.inspect(f.company.id)).findings).toEqual([]);
+    expect(await accountRunCost(db, run.id)).toBe(false);
+  });
+
   it("independently detects and repairs corrupted projections with a stale-review guard and audit", async () => {
     const f = await fixture(); const run = await runFor(f, "succeeded");
     await db.update(heartbeatRuns).set({ costAccountingPending: true, usageJson: { accountingReceiptReady: true, costUsdExact: "0.012345678", inputTokens: 7, cachedInputTokens: 3, outputTokens: 11 } }).where(eq(heartbeatRuns.id, run.id));
@@ -84,6 +106,40 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(audit).toHaveLength(1);
     expect(await accountRunCost(db, run.id)).toBe(false);
     expect((await service.inspect(f.company.id)).findings).toEqual([]);
+  });
+
+  it.each(["before", "after", "concurrent"])("accounts separate run charges %s the provider receipt without false integrity findings", async (timing) => {
+    const f = await fixture(); const run = await runFor(f, "succeeded");
+    await db.update(heartbeatRuns).set({ costAccountingPending: true, usageJson: { costUsdExact: "0.01", inputTokens: 7, cachedInputTokens: 3, outputTokens: 11 } }).where(eq(heartbeatRuns.id, run.id));
+    const extra = { agentId: f.agent.id, heartbeatRunId: run.id, provider: "test", model: "tool", costCents: "0.1234567", inputTokens: 2, cachedInputTokens: 4, outputTokens: 6, occurredAt: new Date(), idempotencyKey: "extra-charge" };
+    const costs = costService(db);
+    if (timing === "before") await costs.createEvent(f.company.id, extra);
+    if (timing === "concurrent") await Promise.all([costs.createEvent(f.company.id, extra), accountRunCost(db, run.id)]);
+    else await accountRunCost(db, run.id);
+    const event = await costs.createEvent(f.company.id, extra);
+    // Replaying either source cannot count it twice.
+    await costs.createEvent(f.company.id, extra);
+    expect(await accountRunCost(db, run.id)).toBe(false);
+    const [runtime] = await db.select().from(agentRuntimeState).where(eq(agentRuntimeState.agentId, f.agent.id));
+    expect(runtime).toMatchObject({ totalCostCents: 1.1234567, totalInputTokens: 9, totalCachedInputTokens: 7, totalOutputTokens: 17 });
+    const integrity = accountingIntegrityService(db);
+    expect((await integrity.inspect(f.company.id)).findings).toEqual([]);
+    await billingReconciliationService(db).adjust(f.company.id, event.id, { idempotencyKey: "extra-correction", expectedCents: "0.1234567", correctedCents: "0.2234567", reason: "Provider correction", pricing: { source: "provider_invoice", evidence: "external charge" } }, "board");
+    expect((await costs.summary(f.company.id)).spendCentsExact).toBe("1.2234567");
+    expect((await integrity.inspect(f.company.id)).findings).toEqual([]);
+    await db.update(agentRuntimeState).set({ totalCostCents: 999 }).where(eq(agentRuntimeState.agentId, f.agent.id));
+    const review = await integrity.inspect(f.company.id);
+    expect(review.findings.map(f => f.kind)).toEqual(["runtime_projection"]);
+    expect((await integrity.repair(f.company.id, review.fingerprint, "Fix drift", "board")).findings).toEqual([]);
+    // An extra charge cannot conceal a missing original provider receipt.
+    await db.delete(costEvents).where(and(eq(costEvents.heartbeatRunId, run.id), eq(costEvents.idempotencyKey, `heartbeat:${run.id}:final`)));
+    expect((await integrity.inspect(f.company.id)).findings.some(f => f.kind === "missing_receipt")).toBe(true);
+  });
+
+  it("rejects public charges that impersonate the provider receipt namespace", async () => {
+    const f = await fixture();
+    await expect(costService(db).createEvent(f.company.id, { agentId: f.agent.id, provider: "test", model: "test", costCents: 1, occurredAt: new Date(), idempotencyKey: "heartbeat:fake:final" })).rejects.toThrow("reserved");
+    expect(await db.select().from(costEvents).where(eq(costEvents.companyId, f.company.id))).toEqual([]);
   });
 
   it("imports invoices idempotently and appends reviewed corrections without losing the provider receipt", async () => {
@@ -129,7 +185,7 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(await db.select().from(costAdjustments).where(eq(costAdjustments.companyId, f.company.id))).toEqual([]);
   });
 
-  it("prices unknown usage from an invoice and updates runtime, admission and independent verification", async () => {
+  it.each(["provider_invoice", "rate_card"] as const)("prices unknown usage from %s and preserves its estimate status", async (source) => {
     const f = await fixture(); const run = await runFor(f, "failed");
     await budgetService(db).upsertPolicy(f.company.id, { scopeType: "agent", scopeId: f.agent.id, amount: 10 }, "board");
     await db.update(heartbeatRuns).set({ costAccountingPending: true, usageJson: { accountingReceiptReady: true, inputTokens: 9, provider: "test" } }).where(eq(heartbeatRuns.id, run.id));
@@ -137,9 +193,10 @@ const support = await getEmbeddedPostgresTestSupport();
     expect((await accountingIntegrityService(db).health(f.company.id)).unpricedEventCount).toBe(1);
     expect(await budgetService(db).getInvocationBlock(f.company.id, f.agent.id)).not.toBeNull();
     const [event] = await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, run.id));
-    await billingReconciliationService(db).adjust(f.company.id, event.id, { idempotencyKey: "pricing", expectedCents: 0, correctedCents: "1.0000001", reason: "Verified provider invoice", pricing: { source: "provider_invoice", evidence: "billing-export" } }, "board");
+    await billingReconciliationService(db).adjust(f.company.id, event.id, { idempotencyKey: "pricing", expectedCents: 0, correctedCents: "1.0000001", reason: "Verified provider invoice", pricing: { source, evidence: "billing-export" } }, "board");
     expect(await budgetService(db).getInvocationBlock(f.company.id, f.agent.id)).toBeNull();
     expect((await accountingIntegrityService(db).health(f.company.id)).unpricedEventCount).toBe(0);
+    expect((await costService(db).summary(f.company.id)).estimatedEventCount).toBe(source === "rate_card" ? 1 : 0);
     expect((await accountingIntegrityService(db).inspect(f.company.id)).findings).toEqual([]);
   });
 

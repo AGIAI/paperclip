@@ -36,6 +36,7 @@ function Entry({ companyId }: { companyId: string }) {
   const [credit, setCredit] = useState(false);
   const [invoice, setInvoice] = useState("");
   const [key, setKey] = useState(randomUuid);
+  const [submittedCharge, setSubmittedCharge] = useState<Parameters<typeof costsApi.createFinanceEvent>[1] | null>(null);
   const [provider, setProvider] = useState<"openai" | "anthropic">("openai");
   const [secretId, setSecretId] = useState("");
   const [accountId, setAccountId] = useState("");
@@ -83,7 +84,7 @@ function Entry({ companyId }: { companyId: string }) {
       } else {
         let parsed;
         try {
-          parsed = createFinanceEventSchema.parse({
+          parsed = submittedCharge ?? createFinanceEventSchema.parse({
             idempotencyKey: key,
             biller,
             amountCents: usdToCents(amount),
@@ -99,6 +100,7 @@ function Entry({ companyId }: { companyId: string }) {
           );
           return false;
         }
+        setSubmittedCharge(parsed);
         await costsApi.createFinanceEvent(companyId, parsed);
       }
       return true;
@@ -107,6 +109,7 @@ function Entry({ companyId }: { companyId: string }) {
       if (!saved) return;
       setOpen(false);
       setKey(randomUuid());
+      setSubmittedCharge(null);
       setAmount("");
       setInvoice("");
       setNotice(
@@ -161,7 +164,7 @@ function Entry({ companyId }: { companyId: string }) {
               <Button
                 type="button"
                 variant={mode === "record" ? "default" : "outline"}
-                disabled={action.isPending}
+                disabled={action.isPending || submittedCharge !== null}
                 onClick={() => setMode("record")}
               >
                 Record charge
@@ -169,7 +172,7 @@ function Entry({ companyId }: { companyId: string }) {
               <Button
                 type="button"
                 variant={mode === "invoice" ? "default" : "outline"}
-                disabled={action.isPending}
+                disabled={action.isPending || submittedCharge !== null}
                 onClick={() => setMode("invoice")}
               >
                 Import invoice
@@ -177,7 +180,7 @@ function Entry({ companyId }: { companyId: string }) {
               <Button
                 type="button"
                 variant={mode === "provider" ? "default" : "outline"}
-                disabled={action.isPending}
+                disabled={action.isPending || submittedCharge !== null}
                 onClick={() => setMode("provider")}
               >
                 Provider report
@@ -191,7 +194,7 @@ function Entry({ companyId }: { companyId: string }) {
                     value={biller}
                     onChange={(e) => setBiller(e.target.value)}
                     required
-                    disabled={action.isPending}
+                    disabled={action.isPending || submittedCharge !== null}
                   />
                 </label>
                 <label className="block space-y-2">
@@ -201,7 +204,7 @@ function Entry({ companyId }: { companyId: string }) {
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     required
-                    disabled={action.isPending}
+                    disabled={action.isPending || submittedCharge !== null}
                   />
                 </label>
                 <label className="block space-y-2">
@@ -211,7 +214,7 @@ function Entry({ companyId }: { companyId: string }) {
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
                     required
-                    disabled={action.isPending}
+                    disabled={action.isPending || submittedCharge !== null}
                   />
                 </label>
                 <label className="block space-y-2">
@@ -220,7 +223,7 @@ function Entry({ companyId }: { companyId: string }) {
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     maxLength={500}
-                    disabled={action.isPending}
+                    disabled={action.isPending || submittedCharge !== null}
                   />
                 </label>
                 <label className="flex items-center gap-2">
@@ -228,7 +231,7 @@ function Entry({ companyId }: { companyId: string }) {
                     type="checkbox"
                     checked={credit}
                     onChange={(e) => setCredit(e.target.checked)}
-                    disabled={action.isPending}
+                    disabled={action.isPending || submittedCharge !== null}
                   />
                   Credit or refund
                 </label>
@@ -339,6 +342,11 @@ function Entry({ companyId }: { companyId: string }) {
                 />
               </>
             )}
+            {submittedCharge && !action.isPending && (
+              <p role="status" className="text-sm text-muted-foreground">
+                This charge may already be saved. Confirm the original charge before starting another entry. Confirmation will not duplicate it.
+              </p>
+            )}
             {(validation || action.isError) && (
               <p role="alert" className="text-sm text-destructive">
                 {validation ||
@@ -358,7 +366,7 @@ function Entry({ companyId }: { companyId: string }) {
                 {action.isPending
                   ? "Saving…"
                   : mode === "record"
-                    ? "Record charge"
+                    ? submittedCharge ? "Confirm original charge" : "Record charge"
                     : mode === "provider"
                       ? "Import provider report"
                       : "Import invoice"}

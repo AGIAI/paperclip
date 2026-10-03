@@ -65,7 +65,7 @@ import {
 import {
   claudeModelUsageTotals,
   claudeModelReceipts,
-  parseClaudeStreamJson,
+  parseClaudeStreamJson, createClaudeStreamParser,
   describeClaudeFailure,
   detectClaudeLoginRequired,
   extractClaudeRetryNotBefore,
@@ -964,6 +964,14 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       });
     }
 
+    const consumeAccounting = createClaudeStreamParser();
+    const accountingLog = createUsageCheckpointLog(onLog, ctx.onUsage, stdout => {
+      const parsed = consumeAccounting(stdout);
+      return { usage: parsed.usage ?? undefined, usageBasis: "per_run", costUsd: parsed.costUsd,
+        provider: "anthropic", biller: isBedrockAuth(effectiveEnv) ? "aws_bedrock" : "anthropic",
+        billingType, model: Object.keys(parseObject(parsed.resultJson?.modelUsage)).length > 1 ? "mixed" : parsed.model || model,
+          usageByModel: claudeModelReceipts(parsed.resultJson?.modelUsage), complete: parsed.resultJson !== null };
+    });
     const proc = await runAdapterExecutionTargetProcess(runId, runtimeExecutionTarget, command, args, {
       onProcessStopped: providerStop.beginInvocation(),
       cwd,
@@ -973,12 +981,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       graceSec,
       onSpawn,
       onRuntimeProgress: ctx.onRuntimeProgress,
-      onLog: createUsageCheckpointLog(onLog, ctx.onUsage, stdout => {
-        const parsed = parseClaudeStreamJson(stdout);
-        return { usage: parsed.usage ?? undefined, usageBasis: "per_run", costUsd: parsed.costUsd,
-          provider: "anthropic", biller: isBedrockAuth(effectiveEnv) ? "aws_bedrock" : "anthropic",
-          billingType, model: parsed.model || model, complete: parsed.resultJson !== null };
-      }),
+      onLog: accountingLog,
       runLogTail: paperclipBridge?.runLogTail,
       settleRunDisposition: paperclipBridge?.settleRunDisposition,
       terminalResultCleanup: {
@@ -987,6 +990,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       },
       localProcessSandbox,
     });
+    await accountingLog.flush();
 
     const parsedStream = parseClaudeStreamJson(proc.stdout);
     const parsed = parsedStream.resultJson ?? parseJson(proc.stdout);
@@ -1019,11 +1023,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         exitCode: proc.exitCode,
         signal: proc.signal,
         timedOut: true,
+        usageComplete: parsedStream.resultJson !== null,
         usage: parsedStream.usage ?? undefined,
         usageBasis: "per_run",
         provider: "anthropic",
         biller: isBedrockAuth(effectiveEnv) ? "aws_bedrock" : "anthropic",
-        model: parsedStream.model || model,
+        model: Object.keys(parseObject(parsedStream.resultJson?.modelUsage)).length > 1 ? "mixed" : parsedStream.model || model,
+        usageByModel: claudeModelReceipts(parsedStream.resultJson?.modelUsage),
         billingType,
         costUsd: parsedStream.costUsd,
         errorMessage: `Timed out after ${timeoutSec}s`,
@@ -1087,11 +1093,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         exitCode: proc.exitCode,
         signal: proc.signal,
         timedOut: false,
+        usageComplete: parsedStream.resultJson !== null,
         usage: parsedStream.usage ?? undefined,
         usageBasis: "per_run",
         provider: "anthropic",
         biller: isBedrockAuth(effectiveEnv) ? "aws_bedrock" : "anthropic",
-        model: parsedStream.model || model,
+        model: Object.keys(parseObject(parsedStream.resultJson?.modelUsage)).length > 1 ? "mixed" : parsedStream.model || model,
+        usageByModel: claudeModelReceipts(parsedStream.resultJson?.modelUsage),
         billingType,
         costUsd: parsedStream.costUsd,
         errorMessage: fallbackErrorMessage,
@@ -1256,6 +1264,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       exitCode: proc.exitCode,
       signal: proc.signal,
       timedOut: false,
+      usageComplete: parsedStream.resultJson !== null || parsed.type === "result",
       errorMessage,
       errorCode: resolvedErrorCode,
       errorFamily,
