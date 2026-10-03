@@ -1,0 +1,26 @@
+# Legacy ACP Claude readiness repair
+
+TL;DR: the original reduced cohort has one additional document-delivery defect beneath an unchanged credential failure. Historical ACP Claude saved the requested issue document; reduced ACP Claude did not. Neither ordinary invocation read the staged operational Paperclip skill. A bounded matched repair pair is being prepared; no new live verdict exists yet.
+
+## Preserved observation
+
+The case is `stock-harness.legacy-acp-claude.local.assigned-skill-explicit-invocation`, model `claude-sonnet-4-6`. Historical source `12c5433c67dc2e62916b879349c7ba2b6e0431f0` ran in [37042864888](https://github.com/paperclipai/paperclip/actions/runs/37042864888); reduced source `f02d8d0df327abb43b20c7e7beb86798239abbf5` ran in [37042856368](https://github.com/paperclipai/paperclip/actions/runs/37042856368). Fixture configuration SHA256 is identical: `53f308d6fbdc30adc60370279ab38679b5d87075899be4db6c0730593e1632c4`.
+
+Both stage Paperclip but advertise only names/root. Neither ordinary assignment reads its SKILL.md. Native `Load skill` fails for the assigned output skill in both; each recovers by reading that skill's staged file. Historical instructions contain document API guidance, and the trace PUTs the marker-bearing issue document, obtains revision 1, and completes. The reduced assignment posts a marker comment without a document. Its automatic disposition-repair run fails `Load skill: paperclip`, guesses POST on the documents route, and eventually registers a body-less document work-product record. That record has no URL/content and is not the requested issue document. Neither trace has an observed file write.
+
+Both original results fail the strict exact-credential guard for a private ACP session JSON file. Sanitized report publication has no detected leak. Source inspection finds the provider environment supplied in `session_options.env` and saved through the raw runtime store. The precise matched JSON field was not retained publicly; attributing the credential to that field is a source-backed inference, not an inspection of secret-bearing bytes.
+
+| Original | Result SHA256 | Context SHA256 | Public API SHA256 |
+|---|---|---|---|
+| Historical | `78f6add6f11a45f58bfc6fee81600871f888750986c27497563a79eba39a101c` | `93bba435c845af31707d4e4b84b2330cd8ff14045a76c2d1267b958c8133950b` | `f1c65a2350acda670260e06748bad60e39ed32367e4da3c3d5cbbe2c379738a4` |
+| Reduced | `2a5fed84ee0f95a67e2c2b0d4247ffae33e16a7c2aa11dc57b11228e0db90965` | `3c36c18d5e257e788514c02b50d63c7c69885201df0a07750129d55c0f583676` | `a98cdfffd8ddf7b89cd6a2ef2d6795e93818bcf93c868c3a14a385d220e68dd8` |
+
+## Authorized repair: live qualification pending
+
+ACP Claude now advertises bounded descriptions and exact successfully staged SKILL.md paths. Full bodies stay on demand; no unsupported native activation or native completion tools are promised. A copied session-store projection removes only persisted environment; loads receive the current run's environment. Live records, other options/state, rotation and existing cache behavior remain intact.
+
+Initial calibration passes 22 tests, with 200 unrelated assertions explicitly skipped; adapter-utils typecheck passes. This includes three real-disk cases and actual executor credential/rotation integration, folded/bounded metadata, exact remote paths and failed materialization. First remote tests hit sandbox loopback EPERM; the retained scoped loopback-enabled attempt passes. A missing required fixture field was corrected before typecheck passed. No providers were called.
+
+Original #14948 head `36aa4d81c49a1a8f6f04b1a068fae19aa901955f` is archived. Current-master integration is local and unpublished. New qualification will hold operational/auth fixes, fixture/model/permissions/native context constant, varying historical versus reduced manual/shared prompts. Structural admission may expect each variant's own exact source; durable-document and credential guards remain identical. One campaign attempt per variant, with all actual automatic recovery runs counted. Frozen refs/admissions/results are pending.
+
+PR #14961 is merged. Parent verified #15007's unchanged `fed1729018cc100f5f4bbfb692777e49009c423b` implementation with 144 focused cases, green CI and fresh 5/5; it was subsequently externally merged. Historical ACPX attribution remains uncomparable; original grades remain intact. #14948 still requires the new matched evidence and current-head checks before readiness.
