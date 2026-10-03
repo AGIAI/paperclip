@@ -74,6 +74,11 @@ function accumulateUsage(
 }
 
 export function parseGeminiJsonl(stdout: string) {
+  return createGeminiJsonlParser()(stdout);
+}
+
+/** Consume complete JSONL records once, retaining protocol accounting state. */
+export function createGeminiJsonlParser() {
   let sessionId: string | null = null;
   const messages: string[] = [];
   let errorMessage: string | null = null;
@@ -86,116 +91,118 @@ export function parseGeminiJsonl(stdout: string) {
     outputTokens: 0,
   };
 
-  for (const rawLine of stdout.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line) continue;
+  return (stdout: string) => {
+    for (const rawLine of stdout.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line) continue;
 
-    const event = parseJson(line);
-    if (!event) continue;
+      const event = parseJson(line);
+      if (!event) continue;
 
-    const foundSessionId = readSessionId(event);
-    if (foundSessionId) sessionId = foundSessionId;
+      const foundSessionId = readSessionId(event);
+      if (foundSessionId) sessionId = foundSessionId;
 
-    const type = asString(event.type, "").trim();
+      const type = asString(event.type, "").trim();
 
-    if (type === "assistant") {
-      messages.push(...collectMessageText(event.message));
-      const messageObj = parseObject(event.message);
-      const content = Array.isArray(messageObj.content) ? messageObj.content : [];
-      for (const partRaw of content) {
-        const part = parseObject(partRaw);
-        if (asString(part.type, "").trim() === "question") {
-          question = {
-            prompt: asString(part.prompt, "").trim(),
-            choices: (Array.isArray(part.choices) ? part.choices : []).map((choiceRaw) => {
-              const choice = parseObject(choiceRaw);
-              return {
-                key: asString(choice.key, "").trim(),
-                label: asString(choice.label, "").trim(),
-                description: asString(choice.description, "").trim() || undefined,
-              };
-            }),
-          };
-          break; // only one question per message
+      if (type === "assistant") {
+        messages.push(...collectMessageText(event.message));
+        const messageObj = parseObject(event.message);
+        const content = Array.isArray(messageObj.content) ? messageObj.content : [];
+        for (const partRaw of content) {
+          const part = parseObject(partRaw);
+          if (asString(part.type, "").trim() === "question") {
+            question = {
+              prompt: asString(part.prompt, "").trim(),
+              choices: (Array.isArray(part.choices) ? part.choices : []).map((choiceRaw) => {
+                const choice = parseObject(choiceRaw);
+                return {
+                  key: asString(choice.key, "").trim(),
+                  label: asString(choice.label, "").trim(),
+                  description: asString(choice.description, "").trim() || undefined,
+                };
+              }),
+            };
+            break; // only one question per message
+          }
         }
+        continue;
       }
-      continue;
-    }
 
-    // Gemini CLI v0.38+ stream-json schema emits assistant turns as:
-    // {"type":"message","role":"assistant","content":"...","delta":true}
-    // These are discrete final messages (one per assistant turn), not
-    // cumulative streaming tokens, so collecting all of them produces the
-    // expected concatenated turn-by-turn summary rather than duplicated text.
-    if (type === "message") {
-      const role = asString(event.role, "").trim().toLowerCase();
-      if (role === "assistant") {
-        messages.push(...collectMessageText(event.content));
+      // Gemini CLI v0.38+ stream-json schema emits assistant turns as:
+      // {"type":"message","role":"assistant","content":"...","delta":true}
+      // These are discrete final messages (one per assistant turn), not
+      // cumulative streaming tokens, so collecting all of them produces the
+      // expected concatenated turn-by-turn summary rather than duplicated text.
+      if (type === "message") {
+        const role = asString(event.role, "").trim().toLowerCase();
+        if (role === "assistant") {
+          messages.push(...collectMessageText(event.content));
+        }
+        continue;
       }
-      continue;
-    }
 
-    if (type === "result") {
-      resultEvent = event;
-      accumulateUsage(usage, event.usage ?? event.usageMetadata ?? event.stats);
-      const resultText =
-        asString(event.result, "").trim() ||
-        asString(event.text, "").trim() ||
-        asString(event.response, "").trim();
-      if (resultText && messages.length === 0) messages.push(resultText);
-      const reportedCost = [event.total_cost_usd, event.cost_usd, event.cost].find((value) => typeof value === "number" && Number.isFinite(value) && value >= 0);
-      if (typeof reportedCost === "number") costUsd = reportedCost;
-      const status = asString(event.status, "").toLowerCase();
-      const isError =
-        event.is_error === true ||
-        asString(event.subtype, "").toLowerCase() === "error" ||
-        status === "error" ||
-        status === "failed";
-      if (isError) {
-        const text = asErrorText(event.error ?? event.message ?? event.result).trim();
-        if (text) errorMessage = text;
+      if (type === "result") {
+        resultEvent = event;
+        accumulateUsage(usage, event.usage ?? event.usageMetadata ?? event.stats);
+        const resultText =
+          asString(event.result, "").trim() ||
+          asString(event.text, "").trim() ||
+          asString(event.response, "").trim();
+        if (resultText && messages.length === 0) messages.push(resultText);
+        const reportedCost = [event.total_cost_usd, event.cost_usd, event.cost].find((value) => typeof value === "number" && Number.isFinite(value) && value >= 0);
+        if (typeof reportedCost === "number") costUsd = reportedCost;
+        const status = asString(event.status, "").toLowerCase();
+        const isError =
+          event.is_error === true ||
+          asString(event.subtype, "").toLowerCase() === "error" ||
+          status === "error" ||
+          status === "failed";
+        if (isError) {
+          const text = asErrorText(event.error ?? event.message ?? event.result).trim();
+          if (text) errorMessage = text;
+        }
+        continue;
       }
-      continue;
-    }
 
-    if (type === "error") {
-      const text = asErrorText(event.error ?? event.message ?? event.detail).trim();
-      if (text) errorMessage = text;
-      continue;
-    }
-
-    if (type === "system") {
-      const subtype = asString(event.subtype, "").trim().toLowerCase();
-      if (subtype === "error") {
+      if (type === "error") {
         const text = asErrorText(event.error ?? event.message ?? event.detail).trim();
         if (text) errorMessage = text;
+        continue;
       }
-      continue;
+
+      if (type === "system") {
+        const subtype = asString(event.subtype, "").trim().toLowerCase();
+        if (subtype === "error") {
+          const text = asErrorText(event.error ?? event.message ?? event.detail).trim();
+          if (text) errorMessage = text;
+        }
+        continue;
+      }
+
+      if (type === "text") {
+        const part = parseObject(event.part);
+        const text = asString(part.text, "").trim();
+        if (text) messages.push(text);
+        continue;
+      }
+
+      if (type === "step_finish" || event.usage || event.usageMetadata) {
+        accumulateUsage(usage, event.usage ?? event.usageMetadata);
+        const reportedCost = [event.total_cost_usd, event.cost_usd, event.cost].find((value) => typeof value === "number" && Number.isFinite(value) && value >= 0);
+        if (typeof reportedCost === "number") costUsd = reportedCost;
+        continue;
+      }
     }
 
-    if (type === "text") {
-      const part = parseObject(event.part);
-      const text = asString(part.text, "").trim();
-      if (text) messages.push(text);
-      continue;
-    }
-
-    if (type === "step_finish" || event.usage || event.usageMetadata) {
-      accumulateUsage(usage, event.usage ?? event.usageMetadata);
-      const reportedCost = [event.total_cost_usd, event.cost_usd, event.cost].find((value) => typeof value === "number" && Number.isFinite(value) && value >= 0);
-      if (typeof reportedCost === "number") costUsd = reportedCost;
-      continue;
-    }
-  }
-
-  return {
-    sessionId,
-    summary: messages.join("\n\n").trim(),
-    usage,
-    costUsd,
-    errorMessage,
-    resultEvent,
-    question,
+    return {
+      sessionId,
+      summary: messages.join("\n\n").trim(),
+      usage: { ...usage },
+      costUsd,
+      errorMessage,
+      resultEvent,
+      question,
+    };
   };
 }
 

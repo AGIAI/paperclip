@@ -62,7 +62,7 @@ import {
   type LocalProcessSandboxOptions,
 } from "@paperclipai/adapter-utils/local-process-sandbox";
 import {
-  parseCodexJsonl,
+  parseCodexJsonl, createCodexJsonlParser,
   classifyCodexAuthRefreshFailure,
   extractCodexRetryNotBefore,
   isCodexHarnessCrash,
@@ -1319,8 +1319,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         }
       };
 
+      const consumeAccounting = createCodexJsonlParser();
       const accountingLog = createUsageCheckpointLog(onLog, ctx.onUsage, stdout => {
-        const parsed = parseCodexJsonl(stdout);
+        const parsed = consumeAccounting(stdout);
         return { usage: parsed.usage, usageBasis: "per_run", provider: "openai", biller: resolveCodexBiller(effectiveEnv, billingType), billingType, model, costUsd: null, complete: parsed.sawProtocolTerminalEvent };
       });
       try {
@@ -1347,7 +1348,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           settleRunDisposition: paperclipBridge?.settleRunDisposition,
           localProcessSandbox,
         });
-        await accountingLog.flush({ complete: !proc.timedOut && !proc.signal });
+        await accountingLog.flush();
         const cleanedStderr = stripCodexRolloutNoise(proc.stderr);
         return {
           proc: {
@@ -1397,6 +1398,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           exitCode: null,
           signal: attempt.monitor.terminationSignal ?? attempt.proc.signal,
           timedOut: false,
+          usageComplete: attempt.parsed.sawProtocolTerminalEvent,
           errorMessage,
           errorCode: "codex_output_inactivity_monitor",
           errorFamily: null,
@@ -1429,7 +1431,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           exitCode: attempt.proc.exitCode,
           signal: attempt.proc.signal,
           timedOut: true,
-        usageComplete: attempt.parsed.sawProtocolTerminalEvent,
+          usageComplete: attempt.parsed.sawProtocolTerminalEvent,
           usage: attempt.parsed.usage,
           usageBasis: "per_run",
           provider: "openai",
@@ -1516,6 +1518,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         exitCode: attempt.proc.exitCode,
         signal: attempt.proc.signal,
         timedOut: false,
+        usageComplete: attempt.parsed.sawProtocolTerminalEvent,
         errorMessage:
           (attempt.proc.exitCode ?? 0) === 0
             ? null

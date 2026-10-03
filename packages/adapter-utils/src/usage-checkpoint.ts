@@ -24,17 +24,18 @@ function project(value: unknown, depth = 0, field = ""): unknown {
       : project(entry, depth + 1, key)]));
 }
 
-/** A fresh instance belongs to one CLI attempt. Call flush() after its process
+/** The consumer incrementally parses only new records (never the full history).
+ * A fresh instance belongs to one CLI attempt. Call flush() after its process
  * exits, before retrying or final result handling. Checkpoint failures are
  * retained outside runChildProcess's best-effort onLog error handler. */
 export function createUsageCheckpointLog(
   onLog: (stream: "stdout" | "stderr", chunk: string) => Promise<void>,
   onUsage: ((receipt: AdapterUsageCheckpoint) => Promise<void>) | undefined,
-  parse: (stdout: string) => AdapterUsageCheckpoint | null,
+  consume: (records: string) => AdapterUsageCheckpoint | null,
 ) {
   const attemptId = randomUUID();
   let remainder = "", accounting = "", previous = "";
-  let nextReplaySize = 0;
+  let snapshot: AdapterUsageCheckpoint | null = null;
   let failure: unknown;
   let failed = false;
   function retain(line: string) {
@@ -43,14 +44,15 @@ export function createUsageCheckpointLog(
     const compact = JSON.stringify(project(raw));
     if (!compact || !/usage|tokens|cost|"result"|"turn.completed"|"agent_end"|"model"|"modelID"/.test(compact)) return;
     accounting += compact + "\n";
-    if (accounting.length > 8 * 1024 * 1024) throw new Error("Accounting checkpoint history exceeds 8 MiB");
+    if (accounting.length > 8 * 1024 * 1024) throw new Error("Accounting checkpoint chunk exceeds 8 MiB");
   }
-  async function publish(final = false, complete = false) {
-    if (!onUsage || !accounting || (!final && accounting.length < nextReplaySize)) return;
-    const parsed = parse(accounting);
-    // Geometric replay bounds total parsing work by stream size. The first
-    // observation is saved immediately; flush always saves the final snapshot.
-    nextReplaySize = accounting.length * 2;
+  async function publish(complete = false) {
+    if (!onUsage) return;
+    if (accounting) {
+      snapshot = consume(accounting);
+      accounting = "";
+    }
+    const parsed = snapshot;
     if (!parsed) return;
     if (!parsed.complete && parsed.costUsd == null && parsed.costUsdExact == null &&
       !Object.values(parsed.usage ?? {}).some(value => typeof value === "number" && value > 0)) return;
@@ -79,7 +81,7 @@ export function createUsageCheckpointLog(
       if (failed) throw failure;
       if (!onUsage) return;
       if (remainder) { retain(remainder); remainder = ""; }
-      await publish(true, options.complete ?? false);
+      await publish(options.complete ?? false);
     },
   });
 }

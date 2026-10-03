@@ -50,8 +50,18 @@ describe("CLI adapter accounting on timeout", () => {
       context: {}, onLog: async () => {}, onUsage,
     };
     const execute = await fixture.execute();
-    await execute(context);
-    expect(onUsage.mock.calls.at(-1)![0]).toMatchObject({ usage: fixture.tokens, costUsd: fixture.price, complete: true });
+    const initial = await execute(context);
+    const complete = !["claude", "pi"].includes(fixture.name);
+    expect(initial.usageComplete).toBe(complete);
+    expect(onUsage.mock.calls.at(-1)![0]).toMatchObject({ usage: fixture.tokens, costUsd: fixture.price, complete });
+    if (["claude", "pi", "opencode"].includes(fixture.name)) {
+      processResult.mockImplementationOnce(async (_run, _target, _command, _args, options) => {
+        await options.onLog("stdout", stdout).catch(() => {});
+        return { exitCode: 1, signal: null, timedOut: false, stdout, stderr: "process failed", pid: 123, startedAt: new Date().toISOString() };
+      });
+      expect((await execute(context)).usageComplete).toBe(false);
+      expect(onUsage.mock.calls.at(-1)![0].complete).toBe(false);
+    }
     if (fixture.name === "claude") {
       const mixed = [
         { type: "system", subtype: "init", model: "actual-model" },
@@ -95,5 +105,38 @@ describe("CLI adapter accounting on timeout", () => {
     expect(result.billingType).toBeTruthy();
     if (fixture.tokens) expect(result.usage).toMatchObject(fixture.tokens);
     expect(result.costUsd).toBe(fixture.price);
+  });
+});
+
+
+describe("incremental protocol accounting", () => {
+  it("keeps Claude message updates idempotent and preserves immutable snapshots", async () => {
+    const { createClaudeStreamParser } = await import("../../../packages/adapters/claude-local/src/server/parse.js");
+    const consume = createClaudeStreamParser();
+    consume(JSON.stringify({ type: "system", subtype: "init", model: "actual-model" }));
+    const message = (id: string, output: number) => JSON.stringify({ type: "assistant", message: { id, usage: { input_tokens: 2, output_tokens: output } } });
+    const first = consume(message("one", 1));
+    expect(first.usage).toMatchObject({ inputTokens: 2, outputTokens: 1 });
+    expect(consume(message("one", 3)).usage).toMatchObject({ inputTokens: 2, outputTokens: 3 });
+    expect(consume(message("two", 2)).usage).toMatchObject({ inputTokens: 4, outputTokens: 5 });
+    expect(first.usage).toMatchObject({ inputTokens: 2, outputTokens: 1 });
+    const final = consume(JSON.stringify({ type: "result", total_cost_usd: 1, usage: { input_tokens: 9, output_tokens: 8 } }));
+    expect(final).toMatchObject({ model: "actual-model", costUsd: 1, usage: { inputTokens: 9, outputTokens: 8 } });
+  });
+  it.each(cases.filter(item => !["claude", "kimi"].includes(item.name)))("updates $name totals once per newly received record", async fixture => {
+    const factories = {
+      codex: async () => (await import("../../../packages/adapters/codex-local/src/server/parse.js")).createCodexJsonlParser(),
+      cursor: async () => (await import("../../../packages/adapters/cursor-local/src/server/parse.js")).createCursorJsonlParser(),
+      gemini: async () => (await import("../../../packages/adapters/gemini-local/src/server/parse.js")).createGeminiJsonlParser(),
+      pi: async () => (await import("../../../packages/adapters/pi-local/src/server/parse.js")).createPiJsonlParser(),
+      opencode: async () => (await import("../../../packages/adapters/opencode-local/src/server/parse.js")).createOpenCodeJsonlParser(),
+    };
+    const consume = await factories[fixture.name as keyof typeof factories]();
+    const line = JSON.stringify(fixture.event);
+    const first = consume(line);
+    const second = consume(line);
+    expect(first.usage).toMatchObject(fixture.tokens!);
+    const multiplier = fixture.name === "codex" ? 1 : 2;
+    expect(second.usage).toMatchObject(Object.fromEntries(Object.entries(fixture.tokens!).map(([key, count]) => [key, count * multiplier])));
   });
 });
