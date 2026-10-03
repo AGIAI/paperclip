@@ -1596,7 +1596,7 @@ The v3 hiring grader uses turn-accounting v2 in both executable guards. It requi
 
 The live fixture retries entire bracketed observations, waits for both known task callbacks and attributed replies (including batching), checks untruncated pending-wake diagnostics, and requires two equal settled observations. Silence before outbox enqueue is not delivery. Five-turn generic accounting remains calibrated for no owed notifications; this delegated fixture owes two completions. All actual runs remain counted for usage and cost. Retained original, limited sidecar-v1, initial executable, and stricter v3 assessments remain separately versioned; no models are rerun by the repair.
 
-Recovery-state retention uses raw cleanup results before evidence publication. An owner-only resource-admission marker also preserves state if the test worker dies before producing a result. Confirmed bootstrap failures before allocation remove their temporary state and retain their original failure classification.
+Recovery-state retention uses raw cleanup results before evidence publication. An owner-only resource-admission marker for Daytona cells also preserves state if the test worker dies before producing a result. Local worker crashes do not imply remote allocation; their process cleanup proof still applies independently. Confirmed bootstrap failures before allocation remove their temporary state and retain their original failure classification.
 
 ## Public installed release smoke
 
@@ -1614,3 +1614,5 @@ retains the attempt's owner-only private directory after a failed case even
 when owned cleanup passed. This does not alter the case or cleanup outcome.
 Private traces and database files must not be published. Unconfirmed cleanup
 always preserves recovery state regardless of this optional diagnostic flag.
+
+The `file-edit-validate` fixture independently downloads the exact active artifact work product from the tested run. It requires the matching run-attributed attachment, filename, MIME type, recorded byte count and SHA-256, then compares the downloaded content to the expected bytes. A workspace file alone cannot satisfy this gate. Explicit failed-case diagnostic retention follows the final result after integrity, isolation and evidence checks, including incomplete publication.

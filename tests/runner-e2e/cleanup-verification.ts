@@ -1,6 +1,20 @@
 export interface CleanupCheck { id: string; passed: boolean; detail: string }
 export type CleanupAssertion = () => Promise<CleanupCheck[]>;
 
+export function mayAllocateRemoteResources(environment: string) {
+  return environment === "daytona";
+}
+
+/** Diagnostic retention follows the final verdict, including publication errors. */
+export function shouldKeepFailedDiagnostics(input: {
+  enabled: boolean;
+  expectedResults: number;
+  results: readonly { status: string }[];
+}) {
+  return input.enabled && (input.results.length !== input.expectedResults ||
+    input.results.some(result => result.status === "failed"));
+}
+
 /** A stopped controller does not prove remote resources were retired. Retain
  * its private recovery database whenever a cell lacks confirmed cleanup. */
 export function mustPreserveRecoveryState(input: {

@@ -129,6 +129,7 @@ export type Matcher =
   | { kind: "file_exact"; path: string; expected: string }
   | { kind: "file_contains"; path: string; expected: string }
   | { kind: "artifact_exists"; name: string; mimeType?: string }
+  | { kind: "artifact_exact"; name: string; expected: string; mimeType?: string }
   | { kind: "json_path"; path: string; expected: unknown }
   | { kind: "json_schema"; schema: Record<string, unknown> };
 

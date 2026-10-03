@@ -9,7 +9,7 @@ import { runNativeActiveStopFlow } from "./native-active-stop-flow.js";
 import { runNativeProviderLossFlow } from "./native-provider-loss-flow.js";
 import { runCursorNativeFlow } from "./cursor-native-flow.js";
 import { createRemoteNativeBootstrap, createRemoteFixtureClient } from "./remote-native-bootstrap.js";
-import { runCleanupWithObservers, verifyCleanupAssertions, type CleanupAssertion } from "./cleanup-verification.js";
+import { mayAllocateRemoteResources, runCleanupWithObservers, verifyCleanupAssertions, type CleanupAssertion } from "./cleanup-verification.js";
 import { completionDelivery, type CompletionObservation } from "./completion-updates.js";
 import { runInstructionPersistenceFlow } from "./instruction-persistence.js";
 import { gradeApiResponsePaging, readResponseProof, responseEvidenceDescription } from "./api-response-reading.js";
@@ -43,6 +43,7 @@ import { runnerE2EServerControlPaths } from "./harness-env.js";
 import { setupConnectionReview } from "./connection-reviews.js";
 import { setupLiveFixtures, type LiveFixtureValues } from "./live-fixtures.js";
 import { evaluateMatcher, persistedFinalRunMessage, type MatcherResult } from "./matchers.js";
+import { readRegisteredArtifacts } from "./registered-artifact.js";
 import {
   acceptedPlanSessionResetFailures,
   collectRunEvents,
@@ -554,8 +555,10 @@ for (const execution of executions) {
         ? deadlineMs
         : deadlineMs + 90_000,
     );
-    // Durable admission evidence survives a worker crash before result publication.
-    await writeFile(path.join(privateRoot, "resource-admission-started"), "started\n", { mode: 0o600 });
+    // Remote allocation uncertainty survives a worker crash before publication.
+    if (mayAllocateRemoteResources(execution.environment.id)) {
+      await writeFile(path.join(privateRoot, "resource-admission-started"), "started\n", { mode: 0o600 });
+    }
     const startedAtMs = Date.now();
     const startedAt = new Date(startedAtMs).toISOString();
     const nonce = `${randomBytes(6).toString("hex")}-${attempt}`;
@@ -2225,11 +2228,17 @@ for (const execution of executions) {
         fileObservations["api-response-proof.txt"] = downloadedResponseProof.content;
         await writeSanitizedJson(snapshotsDir, "downloaded-response-proof.json", downloadedResponseProof, secrets);
       }
+      const registeredArtifacts = await readRegisteredArtifacts(api, issue.id, run.id,
+        taskMatchers.filter(matcher => matcher.kind === "artifact_exact").map(matcher => matcher.name));
+      if (registeredArtifacts.length > 0) {
+        await writeSanitizedJson(snapshotsDir, "downloaded-registered-artifacts.json", registeredArtifacts, secrets);
+      }
       matcherResults = await Promise.all(
         taskMatchers.map((matcher) =>
           evaluateMatcher(matcher, {
             ...matcherObservation,
             files: fileObservations,
+            artifacts: registeredArtifacts,
             // Multi-run tasks intentionally retain earlier waiting/revision
             // replies. Exact completion text belongs to the chronological
             // final run, while occurrence checks still span every agent

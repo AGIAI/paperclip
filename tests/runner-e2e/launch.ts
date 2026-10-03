@@ -23,7 +23,7 @@ import { isImmutableDaytonaImage, runnerMatrix } from "./catalog.js";
 import { renderRunnerE2EDashboard } from "./dashboard.js";
 import { packageEvidence } from "./evidence.js";
 import { classifyFailure } from "./failure-classifier.js";
-import { mustPreserveRecoveryState } from "./cleanup-verification.js";
+import { mustPreserveRecoveryState, shouldKeepFailedDiagnostics } from "./cleanup-verification.js";
 import { effectiveAutomaticRetryLimit, executeWithAutomaticRetry } from "./automatic-retry.js";
 import { buildRunnerCampaign } from "./history.js";
 import {
@@ -810,7 +810,11 @@ async function runAttempt(input: {
       // Deleting it after the controller exits would strand uncertain creates.
       await chmod(temporaryRoot, 0o700);
       cleanupError = new Error(`Preserving private recovery state after unconfirmed cleanup: ${temporaryRoot}`);
-    } else if (process.env.PAPERCLIP_RUNNER_E2E_KEEP_FAILED_PRIVATE === "1" && rawCleanupResults.some(result => result.status === "failed")) {
+    } else if (shouldKeepFailedDiagnostics({
+      enabled: process.env.PAPERCLIP_RUNNER_E2E_KEEP_FAILED_PRIVATE === "1",
+      expectedResults: executions.length,
+      results: publishedResults,
+    })) {
       // Explicit diagnosis only. Confirmed resource cleanup stays confirmed;
       // keep private traces for investigation without publishing provider data.
       await chmod(temporaryRoot, 0o700);

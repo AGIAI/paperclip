@@ -1,5 +1,18 @@
 import { expect, it } from "vitest";
-import { mustPreserveRecoveryState, runCleanupWithObservers, verifyCleanupAssertions } from "./cleanup-verification.js";
+import { mayAllocateRemoteResources, mustPreserveRecoveryState, runCleanupWithObservers, shouldKeepFailedDiagnostics, verifyCleanupAssertions } from "./cleanup-verification.js";
+
+it("keeps late failures and incomplete publication for explicit diagnosis", () => {
+  expect(shouldKeepFailedDiagnostics({ enabled: true, expectedResults: 1, results: [{ status: "failed" }] })).toBe(true);
+  expect(shouldKeepFailedDiagnostics({ enabled: true, expectedResults: 2, results: [{ status: "passed" }] })).toBe(true);
+  expect(shouldKeepFailedDiagnostics({ enabled: true, expectedResults: 1, results: [] })).toBe(true);
+  expect(shouldKeepFailedDiagnostics({ enabled: true, expectedResults: 1, results: [{ status: "passed" }] })).toBe(false);
+  expect(shouldKeepFailedDiagnostics({ enabled: false, expectedResults: 1, results: [] })).toBe(false);
+});
+
+it("marks only environments that can allocate remote resources", () => {
+  expect(mayAllocateRemoteResources("daytona")).toBe(true);
+  expect(mayAllocateRemoteResources("local")).toBe(false);
+});
 
 it("retains uncertain remote allocation state even after every local process exits", () => {
   expect(mustPreserveRecoveryState({ processCleanupFailed: false, results: [{ cleanup: "failed" }] })).toBe(true);

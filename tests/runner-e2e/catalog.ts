@@ -1080,6 +1080,7 @@ export const extendedHarnessFileTask: RunnerTaskFixture = {
   buildMatchers: (nonce, execution) => [
     ...terminalMatchers(`EXTENDED-FILE-${nonce}`, execution),
     { kind: "file_exact", path: `extended-${nonce}.txt`, expected: `verified-${nonce}\n` },
+    { kind: "artifact_exact", name: `extended-${nonce}.txt`, expected: `verified-${nonce}\n`, mimeType: "text/plain" },
   ],
 };
 

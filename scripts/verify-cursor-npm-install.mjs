@@ -18,7 +18,11 @@ const run = (command, args, cwd = root) => execFileSync(command, args, { cwd, en
 const sourceRevision = run('git', ['rev-parse', 'HEAD'], repo).toString().trim();
 const releaseBinaries = JSON.parse(readFileSync(join(repo, 'server/dist/vendor/paperclip-runner/bin/release-manifest.json'), 'utf8'));
 assert.equal(releaseBinaries.schema, 'paperclip.runner.release-binaries.v1');
-assert.equal(releaseBinaries.sourceRevision, sourceRevision, 'Stage all three release daemons and rebuild the server at this source before verification');
+assert.match(releaseBinaries.sourceRevision, /^[a-f0-9]{40}$/);
+run('git', ['merge-base', '--is-ancestor', releaseBinaries.sourceRevision, sourceRevision], repo);
+// Controller/fixture repairs may follow a frozen runtime. Its exact binary
+// provenance stays unchanged; require the Runner source to remain identical.
+run('git', ['diff', '--quiet', releaseBinaries.sourceRevision, sourceRevision, '--', 'packages/paperclip-runner'], repo);
 assert.deepEqual(Object.keys(releaseBinaries.platforms).sort(), ['darwin-arm64', 'darwin-x64', 'linux-x64']);
 const releaseVersion = `0.0.0-cursor-verify.${sourceRevision.slice(0, 12)}`;
 const listing = run(process.execPath, [join(repo, 'scripts/release-package-map.mjs'), 'list'], repo).toString().trim().split('\n').map(line => line.split('\t'));
@@ -80,6 +84,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { defaultCapabilityRunnerdBinary } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/live/runnerd-codex-transport.js';
+import { resolvePaperclipRunnerBinary } from '/consumer/node_modules/@paperclipai/server/dist/services/native-runtime/native-codex-runner.js';
 import { runnerBinaryTarget } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/live/runner-binary.js';
 import { verifyAcpxProfileInstallation } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/drivers/acpx/profile-installation.js';
 import { resolveQualifiedAcpxProfile } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/drivers/acpx/qualified-profiles.js';
@@ -101,6 +106,7 @@ for (const [target, artifact] of Object.entries(manifest.platforms)) {
 }
 const binary = defaultCapabilityRunnerdBinary();
 assert.equal(binary, binaryRoot + '/linux-x64/paperclip-runnerd');
+assert.equal(resolvePaperclipRunnerBinary(), binary, 'The installed server must use the same verified platform daemon');
 const metadata = JSON.parse(execFileSync(binary, ['--build-metadata'], { encoding: 'utf8' }));
 assert.equal(metadata.schema, 'paperclip-runner/runnerd-build-metadata/v1');
 assert.equal(metadata.binaryContractVersion, 2);

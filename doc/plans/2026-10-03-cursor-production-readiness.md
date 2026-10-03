@@ -313,8 +313,8 @@ absolute artifact `path` and `sha256:<64 hex digits>` digest. Assembly verifies
 all inputs before staging and records source and packaged hashes in
 `dist/bin/release-manifest.json`. Rebuild the server after assembly so its
 vendored distribution contains the entire verified platform set. The ordinary
-public-install verifier requires this manifest at the current source and checks
-all three packaged identities before launching the normally resolved Linux
+public-install verifier requires this manifest at an ancestor of the current source, requires unchanged Runner source since
+that frozen runtime, and checks all three packaged identities before launching the normally resolved Linux
 daemon. The actual installed task smoke remains a separate required gate.
 
 Focused repair verification: 42 checkpoint/binary-selection tests, nine durable
@@ -323,3 +323,10 @@ passed. The first sidecar invocation timed out in the sandbox; the unrestricted
 local IPC repeat passed. Runtime source changed, so the next affected live
 attempt requires refreshed platform packs and Linux image identities. Existing
 results retain their original runtime/controller identities.
+
+
+The rebuilt d0b907 runtime passed all ten local Product E2E workflows with confirmed cleanup. Controller/harness source for those results is 5e6c16. Its seven Runner cases also passed every semantic check with owned processes retired; all seven strict accounting results remain failures (`provider_budget_coverage_unknown`, per-run USD unknown). The exact attempt identities are `cursor-v11-d0b907-local-<case>-01` and `cursor-v11-d0b907-<runner-case>-01`. No automatic retries were used.
+
+Review then repaired the installed server's independent daemon lookup to use the Runner's verified platform selector. The public npm probe now verifies both selectors agree. Harness diagnostic retention follows the final verdict and preserves incomplete publication; remote-admission uncertainty is marked only for Daytona. The file gate now additionally downloads the registered run-attributed artifact and verifies its exact bytes and stored hash. The earlier local file result retains its original oracle and identity; an affected repeat is required for the new download proof. These repairs do not change the frozen Runner source.
+
+The d0b907 Linux qualification image built successfully and its extracted provider pack passed manifest and command verification. Publishing `ghcr.io/paperclipai/paperclip-daytona-runner:cursor-qualification-d0b90756e3ab` was rejected by automatic approval review because explicit authorization for that payload and registry destination is required. The image remains local at `sha256:16c7be3610f45e409f67873dd4bd829f9a1e0e5f017c8826d01db4bb05720f97`; an approval request is pending. The fresh Daytona matrix has not started. Production admission remains disabled.
