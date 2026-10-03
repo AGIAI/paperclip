@@ -1,0 +1,20 @@
+// Provider-free synthetic hosted metadata/hydration calibration; never dispatches a workflow.
+import {spawnSync} from "node:child_process";
+import {mkdirSync,writeFileSync,readFileSync,existsSync} from "node:fs";
+import {createHash} from "node:crypto";
+import {resolve,join} from "node:path";
+import {pathToFileURL} from "node:url";
+const root=resolve(process.argv[2]),output=resolve(process.argv[3]);
+const sha=spawnSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).stdout.trim();
+const hydration=join(root,"runner-e2e-build");if(existsSync(hydration))throw Error("Refuse to replace existing hydration evidence");
+mkdirSync(hydration);mkdirSync(output,{recursive:true});
+const archive=join(hydration,"runner-e2e-build-bundle.tar.gz");
+const member="packages/paperclip-runner/runner/target/debug/paperclip-runnerd";
+const packed=spawnSync("tar",["-czf",archive,member],{cwd:root});if(packed.status!==0)throw Error("Synthetic archive failed");
+const archiveSha=createHash("sha256").update(readFileSync(archive)).digest("hex");
+writeFileSync(archive+".sha256",`${archiveSha}  runner-e2e-build-bundle.tar.gz\n`);
+process.env.GITHUB_ACTIONS="true";process.env.GITHUB_RUN_ID="8675309";process.env.GITHUB_RUN_ATTEMPT="1";process.env.PAPERCLIP_RUNNER_E2E_SOURCE_SHA=sha;
+const {prepareNativeCompletionPreflight}=await import(pathToFileURL(join(root,"tests/runner-e2e/native-completion-admission.ts")));
+const receiptPath=prepareNativeCompletionPreflight(output);
+writeFileSync(join(output,"synthetic-calibration.json"),JSON.stringify({schema:"paperclip.native-completion-synthetic-hosted-calibration.v1",synthetic:true,actualGitHubWorkflow:false,providerCalls:0,sourceSha:sha,receiptPath,archiveSha256:archiveSha,publicMetadata:{GITHUB_ACTIONS:true,GITHUB_RUN_ID:"8675309",GITHUB_RUN_ATTEMPT:"1"},prepareAndVerifyPassed:true},null,2)+"\n");
+console.log(`Synthetic hosted prepare+verify PASS: ${receiptPath}`);

@@ -1,0 +1,15 @@
+{
+  "schema": "paperclip.native-completion-synthetic-hosted-calibration.v1",
+  "synthetic": true,
+  "actualGitHubWorkflow": false,
+  "providerCalls": 0,
+  "sourceSha": "d6e59e4712a3158ab4cd7d58deff1389b4578c21",
+  "receiptPath": "/private/tmp/paperclip-native-calibrated-candidate-synthetic-hosted/native-completion-prerequisites/cbcbf605-d5af-4097-9e5d-8ba37ebb0b67/preflight.json",
+  "archiveSha256": "bcc35dcd5dff3103c0ab44c418374c36bc7221b37d70ee0c9a2fba55093c81b2",
+  "publicMetadata": {
+    "GITHUB_ACTIONS": true,
+    "GITHUB_RUN_ID": "8675309",
+    "GITHUB_RUN_ATTEMPT": "1"
+  },
+  "prepareAndVerifyPassed": true
+}

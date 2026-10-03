@@ -1,0 +1,321 @@
+{
+  "schema": "paperclip.native-completion-preflight.v1",
+  "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+  "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+  "fixtureFingerprint": "a50581c04f3d87843d69f92050712977f8e114e4c2f23f96f243fd5386119f27",
+  "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+  "variant": "historical",
+  "baseSha": "59c07ede72dc08b8aba149a01cc11e0b7a204621",
+  "archiveSha": "9138f570c341c251a5727c32d6615ce238bc8e03",
+  "sourceErrors": [],
+  "immutable": true,
+  "layering": true,
+  "sourceMetadata": {
+    "schema": "paperclip.native-completion-source-metadata.v1",
+    "lineage": {
+      "strategy": "full_ancestry",
+      "shallow": true,
+      "sha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+      "baseSha": "59c07ede72dc08b8aba149a01cc11e0b7a204621",
+      "anchor": null
+    },
+    "hydration": {
+      "present": true,
+      "verified": true,
+      "archiveSha256": "86e4342be7c5b7cbc6ab49748c3b92a577bb8bfced890623e2317c8e39d4aa24",
+      "checksumSha256": "fc9675af8e16510a54009ff3963d334d6f7dc22316c02c0fd3409da4a44413a8"
+    },
+    "worktreeEntries": [
+      "?? runner-e2e-build/runner-e2e-build-bundle.tar.gz",
+      "?? runner-e2e-build/runner-e2e-build-bundle.tar.gz.sha256"
+    ],
+    "errors": []
+  },
+  "sourceMetadataErrors": [],
+  "sourceMetadataFingerprint": "bd3d496010375d7fecd12d41d352bbde45fdf047191590d7d900100904109cce",
+  "measuredAt": "2026-10-03T05:02:42.790Z",
+  "providerCalls": 0,
+  "live": "not_run",
+  "expectedCells": 6,
+  "expectedTurns": 6,
+  "maximumAttemptsPerCell": 1,
+  "setup": {
+    "passed": true,
+    "sdkExitCode": 0,
+    "runnerTypeScriptExitCode": 0,
+    "runnerdExitCode": null,
+    "evidence": [
+      {
+        "file": "setup-sdk.txt",
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+      },
+      {
+        "file": "setup-runner-typescript.txt",
+        "sha256": "239fcb77a2f4cecbaf744b3d82a8fb3ddc919d9c2d7e96e23ed0d3d6464a8167"
+      },
+      {
+        "file": "setup-runnerd.txt",
+        "sha256": "6224e6b1541ab3f1c9fec6eb08ef1ed95d5fd1700ab86131b824fd86f44fab3c"
+      }
+    ],
+    "runnerdProvenance": {
+      "schema": "paperclip.native-completion-runnerd-provenance.v1",
+      "mode": "trusted_hosted_archive",
+      "passed": true,
+      "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+      "binarySha256": "8e4d54800e3b4b829621b12a9d8ce434c89445492abe7584d4465922e3ff5cea",
+      "binaryBytes": 84271504,
+      "archiveMemberBytes": 84271504,
+      "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+      "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+      "archiveSha256": "86e4342be7c5b7cbc6ab49748c3b92a577bb8bfced890623e2317c8e39d4aa24",
+      "workflowRunId": "8675309",
+      "workflowRunAttempt": "1",
+      "artifactName": "runner-e2e-build-e74ed61a69fbdd8b3a8f15dd6456bc3140246e33-8675309-1",
+      "errors": []
+    },
+    "buildOutputFingerprint": "b131fe332da31bb4c1b3b8fbaf70f98e96f70de12c426dd087b47037f649b7d4",
+    "runnerdSha256": "8e4d54800e3b4b829621b12a9d8ce434c89445492abe7584d4465922e3ff5cea",
+    "runnerdSelectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+    "runnerdSourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+    "runnerdSourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f"
+  },
+  "gates": [
+    {
+      "id": "NC-schemas",
+      "name": "Variant-native completion schemas",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "src/contracts/completion-result.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "distinguishes user-facing answer content",
+          "passed": true
+        },
+        {
+          "name": "propagates answer and wait descriptions",
+          "passed": true
+        },
+        {
+          "name": "requires a reason code for verification that was not run",
+          "passed": true
+        }
+      ],
+      "total": 13,
+      "passedTests": 13,
+      "failedTests": 0,
+      "pendingTests": 0,
+      "evidence": {
+        "file": "NC-schemas.json",
+        "sha256": "c53cb8fdd50ab7cd7a3e2a53f0f9dc9f9f690cbcf136af2709a0cb216a75dab5"
+      }
+    },
+    {
+      "id": "NC-tools",
+      "name": "Native tool delivery and retained provider catalogs",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "src/drivers/codex/codex-app-server-driver.lifecycle.test.ts",
+          "passed": true
+        },
+        {
+          "file": "src/drivers/runner-tool-bridge.test.ts",
+          "passed": true
+        },
+        {
+          "file": "src/drivers/opencode/mcp-bridge.test.ts",
+          "passed": true
+        },
+        {
+          "file": "src/live/runnerd-codex-transport.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "runner semantic MCP bridge binds to loopback",
+          "passed": true
+        },
+        {
+          "name": "OpenCode MCP bridge binds to loopback",
+          "passed": true
+        },
+        {
+          "name": "preserves stock Codex instructions on task recovery",
+          "passed": true
+        },
+        {
+          "name": "preserves stock Codex instructions on prepared recovery",
+          "passed": true
+        },
+        {
+          "name": "preserves stock Codex instructions on direct recovery",
+          "passed": true
+        },
+        {
+          "name": "includes ACPX terminal tools in the authenticated bridge catalog",
+          "passed": true
+        }
+      ],
+      "total": 222,
+      "passedTests": 7,
+      "failedTests": 0,
+      "pendingTests": 215,
+      "evidence": {
+        "file": "NC-tools.json",
+        "sha256": "a9616ba4d7493a6f720bfea4f43e642c40d348f0ffabed45faa6bda77940f72e"
+      }
+    },
+    {
+      "id": "NC-resume",
+      "name": "Variant-native fingerprint and checkpoint refresh",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "server/src/services/native-runtime/native-session-resume.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "refreshes retained 'completion descriptions'",
+          "passed": true
+        },
+        {
+          "name": "refreshes retained 'task-bound human-input description'",
+          "passed": true
+        }
+      ],
+      "total": 44,
+      "passedTests": 2,
+      "failedTests": 0,
+      "pendingTests": 42,
+      "evidence": {
+        "file": "NC-resume.json",
+        "sha256": "2f7ca7153ea5e1b50bc631af83c72c3f60bc3f10d8f390e6609be451153fd5f7"
+      }
+    },
+    {
+      "id": "NC-eval",
+      "name": "Independent native oracle, defaults, admission and attempt policy",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "tests/runner-e2e/native-completion-scoring.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/native-completion-defaults.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/native-completion-admission.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/automatic-retry.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/context-integrity.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/context-integrity-evidence.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/context-integrity-flow-logs.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "allows toolchain paths and excludes every present or future credential",
+          "passed": true
+        },
+        {
+          "name": "retains credential-free prerequisites inside the exact campaign root",
+          "passed": true
+        },
+        {
+          "name": "retains the first transient_infrastructure failure without a second attempt",
+          "passed": true
+        },
+        {
+          "name": "retains the first provider_variance failure without a second attempt",
+          "passed": true
+        }
+      ],
+      "total": 105,
+      "passedTests": 105,
+      "failedTests": 0,
+      "pendingTests": 0,
+      "evidence": {
+        "file": "NC-eval.json",
+        "sha256": "aa5d7befe0bd7ac69e67537b75f57270522cd2f22c980f810874a75010ecc571"
+      }
+    },
+    {
+      "id": "NC-node",
+      "passed": true,
+      "exitCode": 0,
+      "evidence": {
+        "file": "NC-node.txt",
+        "sha256": "eddd84055b81f76da78ecd0c92a9d8e22f67fce054a612be8033ac7284397406"
+      }
+    },
+    {
+      "id": "NC-typecheck",
+      "passed": true,
+      "exitCode": 0,
+      "evidence": {
+        "file": "NC-typecheck.txt",
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+      }
+    },
+    {
+      "id": "NC-discovery",
+      "passed": true,
+      "exitCode": 0,
+      "evidence": {
+        "file": "NC-discovery.txt",
+        "sha256": "3097ab7907c3b49d43920fab50d0b180b70cb6895c0bd1a58f72fd740fec6567"
+      }
+    },
+    {
+      "id": "NC-hosted-runnerd",
+      "name": "Trusted hosted runnerd provenance; Rust calibration not executed",
+      "passed": true,
+      "exitCode": 0,
+      "executed": false,
+      "calibration": "not_executed",
+      "reuse": "trusted_same_run_build",
+      "total": 0,
+      "passedTests": 0,
+      "evidence": {
+        "file": "NC-hosted-runnerd.txt",
+        "sha256": "0eb5ee0464c807e7af174833634f0e3fae6f099343207796ba88fbe27f8cadb2"
+      }
+    },
+    {
+      "id": "NC-manifest",
+      "passed": true,
+      "exitCode": 0,
+      "evidence": {
+        "file": "NC-manifest.txt",
+        "sha256": "7f5d044db6a7813857e842095c5e3aa749a98570a96ff9939483de9452322502"
+      }
+    }
+  ],
+  "passed": true
+}

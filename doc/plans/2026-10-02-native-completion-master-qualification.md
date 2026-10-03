@@ -1,3 +1,15 @@
+# Native completion qualification: calibrated hosted boundary
+
+**TL;DR: model performance remains unmeasured; six task pairs are pending.** The candidate `d6e59e4712a3158ab4cd7d58deff1389b4578c21` and historical-description baseline `e74ed61a69fbdd8b3a8f15dd6456bc3140246e33` now pass complete actual launcher prepare→verify in both fresh local and explicitly synthetic hosted modes. The latter reproduces verified archive hydration, public source/run metadata and captured provenance framing without credentials or providers. It is a provider-free calibration, **not an actual trusted GitHub run**.
+
+The [immutable calibrated manifest](2026-10-02-native-completion-calibrated-manifest.json) lists the same six cells in each variant, twelve expected provider turns total, no automatic retry and unchanged deadlines/budgets/models/auth/default instructions. Candidate 132 / historical 127 selected TypeScript assertions, 128 Node calibrations and one fresh local Rust normalization assertion pass. Each has 257 unrelated TypeScript assertions explicitly skipped. Synthetic hosted receipts report zero Rust execution rather than reusing those counts. [Local and synthetic receipts](2026-10-02-native-completion-calibrated-admission) preserve exact source/build hashes and separate simulation labels.
+
+Only the previously reviewed eleven native implementation/unit-test files differ between variants. All five setup repair files are identical: a controlled mock receipt SHA, first-line framed provenance parsing plus positive/negative calibration, and matching immutable parent declarations. Production default/manual/shared-prompt/operational-skill bytes still match master `59c07ede`. The verifier's exact-source rejection and all behavioral oracles remain strict.
+
+Both previous twelve-cell hosted cohorts stopped before providers and remain preserved below. [The twelve-retained-log replay](2026-10-02-native-completion-calibrated-admission/retained-frame-replay.json) validates exact hashes/framed proofs with no change to original failing verdicts. No model behavior reroll has occurred. Actual matched dispatch is the next step; this qualification does not measure fixed native prompt removal or general coding quality.
+
+## Preserved prior qualification stages
+
 # Native completion qualification on current master context
 
 **TL;DR: task performance is still unmeasured.** All twelve cells in the corrected `0a9c5a7` / `00a761b` cohort stopped before providers: source bytes, shallow lineage, verified hydration and selected runner binary passed, but one admission unit test supplied a mocked valid receipt without its source SHA. The real immutable-source verifier correctly rejected that mock under hosted metadata. Zero provider calls and zero graded task pairs are confirmed by [all twelve retained receipts](2026-10-02-native-completion-qualified-hosted-setup.json). Six behavioral pairs remain pending; there are no measured newly failing or newly passing task outcomes.
