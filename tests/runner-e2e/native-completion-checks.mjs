@@ -29,7 +29,7 @@ export function nativeCompletionGates(variant) {
           `preserves answer and internal wait descriptions in the serialized native ${provider} tool catalog`) : [])] },
     { id: "NC-resume", name: "Variant-native fingerprint and checkpoint refresh", cwd: ".",
       files: ["server/src/services/native-runtime/native-session-resume.test.ts"], testPattern: "refreshes retained",
-      required: ["refreshes retained completion descriptions", "refreshes retained task-bound human-input description",
+      required: ["refreshes retained 'completion descriptions'", "refreshes retained 'task-bound human-input description'",
         ...(variant === "candidate" ? ["native completion tool guidance"] : [])] },
     { id: "NC-eval", name: "Independent native oracle, defaults, admission and attempt policy", cwd: ".",
       config: "tests/runner-e2e/vitest.config.ts", files: [
