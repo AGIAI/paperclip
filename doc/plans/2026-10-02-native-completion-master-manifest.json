@@ -1,0 +1,148 @@
+{
+  "schema": "paperclip.native-completion-master-comparison.v1",
+  "baseSha": "59c07ede72dc08b8aba149a01cc11e0b7a204621",
+  "archiveSha": "9138f570c341c251a5727c32d6615ce238bc8e03",
+  "admission": {
+    "candidate": {
+      "sourceSha": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
+      "variant": "candidate",
+      "sourceFingerprint": "29791687f245dde6442064b855b2a76f0be8c1ec33635ac174688ae06732d33e",
+      "fixtureFingerprint": "38ae4fe73494db231ed50d0c2336762a290cc17ebc54f258bd94f5a0b873ec09",
+      "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+      "receiptSha256": "74b5d3b99b059ceda2f572154595038e4c10dbc2af269e018eefc8cb59d60d38",
+      "passed": true,
+      "providerCalls": 0
+    },
+    "baseline": {
+      "sourceSha": "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+      "variant": "historical",
+      "sourceFingerprint": "4b49ad1bd8acaabc4a69700729295fe31395d91aa19fa650e8066988910cc681",
+      "fixtureFingerprint": "38ae4fe73494db231ed50d0c2336762a290cc17ebc54f258bd94f5a0b873ec09",
+      "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+      "receiptSha256": "affc25f42cca90c66cbe1365fbfd47d33657e59228730de99fc6194871aed1f8",
+      "passed": true,
+      "providerCalls": 0
+    }
+  },
+  "targetBranches": {
+    "candidate": "codex/native-completion-current-master-candidate",
+    "baseline": "codex/native-completion-current-master-baseline"
+  },
+  "workflow": ".github/workflows/runner-full-stack-e2e.yml",
+  "workflowDispatchRef": "master",
+  "maximumCells": 12,
+  "expectedProviderTurns": 12,
+  "maximumAttemptsPerCell": 1,
+  "automaticRetryPolicy": "single_attempt",
+  "budgetMonthlyCentsPerCompanyAndAgent": 1000,
+  "cellsPerVariant": [
+    {
+      "executionId": "native-completion.runner-codex.local.assigned-skill-explicit-invocation",
+      "suiteDefinitionHash": "715cd439b1a395980f7adaa3893f69aee4da7e53b2b7f87a9efd6d2c33ec605e",
+      "profileId": "runner-codex",
+      "provider": "codex",
+      "model": "gpt-5.6-sol",
+      "credential": "OPENAI_API_KEY",
+      "environment": "local",
+      "caseId": "assigned-skill-explicit-invocation",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 720000,
+      "modelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "codex:qualified-model"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-codex.local.native-blocked-report",
+      "suiteDefinitionHash": "715cd439b1a395980f7adaa3893f69aee4da7e53b2b7f87a9efd6d2c33ec605e",
+      "profileId": "runner-codex",
+      "provider": "codex",
+      "model": "gpt-5.6-sol",
+      "credential": "OPENAI_API_KEY",
+      "environment": "local",
+      "caseId": "native-blocked-report",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 300000,
+      "modelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "codex:qualified-model"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-opencode.local.assigned-skill-explicit-invocation",
+      "suiteDefinitionHash": "715cd439b1a395980f7adaa3893f69aee4da7e53b2b7f87a9efd6d2c33ec605e",
+      "profileId": "runner-opencode",
+      "provider": "opencode",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "credential": "OPENROUTER_API_KEY",
+      "environment": "local",
+      "caseId": "assigned-skill-explicit-invocation",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 720000,
+      "modelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "opencode:qualified-model"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-opencode.local.native-blocked-report",
+      "suiteDefinitionHash": "715cd439b1a395980f7adaa3893f69aee4da7e53b2b7f87a9efd6d2c33ec605e",
+      "profileId": "runner-opencode",
+      "provider": "opencode",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "credential": "OPENROUTER_API_KEY",
+      "environment": "local",
+      "caseId": "native-blocked-report",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 300000,
+      "modelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "opencode:qualified-model"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+      "suiteDefinitionHash": "715cd439b1a395980f7adaa3893f69aee4da7e53b2b7f87a9efd6d2c33ec605e",
+      "profileId": "runner-acpx-claude",
+      "provider": "acpx",
+      "model": "claude-sonnet-5",
+      "credential": "ANTHROPIC_API_KEY",
+      "environment": "local",
+      "caseId": "assigned-skill-explicit-invocation",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 720000,
+      "modelQualification": {
+        "source": "qualified_runner_profile",
+        "qualificationId": "acpx:claude"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-acpx-claude.local.native-blocked-report",
+      "suiteDefinitionHash": "715cd439b1a395980f7adaa3893f69aee4da7e53b2b7f87a9efd6d2c33ec605e",
+      "profileId": "runner-acpx-claude",
+      "provider": "acpx",
+      "model": "claude-sonnet-5",
+      "credential": "ANTHROPIC_API_KEY",
+      "environment": "local",
+      "caseId": "native-blocked-report",
+      "expectedRunCount": 1,
+      "automaticRetryPolicy": "single_attempt",
+      "deadlineMs": 300000,
+      "modelQualification": {
+        "source": "qualified_runner_profile",
+        "qualificationId": "acpx:claude"
+      }
+    }
+  ],
+  "fixtureIdentityVerified": true,
+  "fixedMasterContextVerified": true,
+  "onlyDeclaredElevenNativeSourcesDiffer": true,
+  "providerCallsSoFar": 0,
+  "liveStatus": "pending",
+  "workflowRuns": {}
+}
