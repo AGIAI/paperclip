@@ -28,6 +28,7 @@ let revision = 1;
 const db = {
   select: () => ({
     from: () => ({
+      leftJoin: () => ({
       where: async () => [
         {
           id: "secret",
@@ -36,6 +37,7 @@ const db = {
           status: "active",
         },
       ],
+      }),
     }),
   }),
 } as unknown as Db;
@@ -66,7 +68,7 @@ describe("connected account quotas", () => {
     mocks.accounts.mockResolvedValue([account("remote-codex")]);
     const result = await fetchCompanyQuotaWindows(db, "company-1", "user-1");
     expect(mocks.accounts).toHaveBeenCalledWith("company-1", "user-1");
-    expect(mocks.codex).toHaveBeenCalledWith("private-token", "actual-account");
+    expect(mocks.codex).toHaveBeenCalledWith("private-token", "actual-account", expect.any(AbortSignal));
     expect(mocks.adapters).not.toHaveBeenCalled();
     expect(result[0]).toMatchObject({
       ok: true,
@@ -125,7 +127,7 @@ describe("connected account quotas", () => {
     ]);
     const [result] = await fetchCompanyQuotaWindows(db, "company-6", "user-6");
     expect(result.ok).toBe(true);
-    expect(mocks.claude).toHaveBeenCalledWith("claude-private-oauth");
+    expect(mocks.claude).toHaveBeenCalledWith("claude-private-oauth", expect.any(AbortSignal));
     mocks.accounts.mockResolvedValue([account("secret-failure")]);
     mocks.credential.mockRejectedValue(
       new Error("private credential store failure"),
@@ -158,6 +160,33 @@ describe("connected account quotas", () => {
     expect(result.accountKey).toBeTruthy();
     expect(result.error).not.toContain("timed out");
   });
+  it("does not start a provider request when a credential resolves after its deadline", async () => {
+    vi.useFakeTimers();
+    mocks.accounts.mockResolvedValue([account("late-credential")]);
+    let resolveCredential!: (value: string) => void;
+    mocks.credential.mockReturnValue(new Promise<string>((resolve) => { resolveCredential = resolve; }));
+    const pending = fetchCompanyQuotaWindows(db, "late-company", "late-user");
+    await vi.advanceTimersByTimeAsync(20_001);
+    expect((await pending)[0].ok).toBe(false);
+    resolveCredential(JSON.stringify({ accessToken: "private", accountId: "actual" }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mocks.codex).not.toHaveBeenCalled();
+  });
+
+  it("cancels an active provider read when the account deadline expires", async () => {
+    vi.useFakeTimers();
+    mocks.accounts.mockResolvedValue([account("slow-provider")]);
+    let signal!: AbortSignal;
+    mocks.codex.mockImplementation((_token, _id, abortSignal) => {
+      signal = abortSignal;
+      return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
+    });
+    const pending = fetchCompanyQuotaWindows(db, "slow-company", "slow-user");
+    await vi.advanceTimersByTimeAsync(20_001);
+    expect((await pending)[0].ok).toBe(false);
+    expect(signal.aborted).toBe(true);
+  });
+
   it("limits account probes to four concurrent requests and preserves account order", async () => {
     mocks.accounts.mockResolvedValue(
       Array.from({ length: 9 }, (_, i) => account(`parallel-${i}`)),
