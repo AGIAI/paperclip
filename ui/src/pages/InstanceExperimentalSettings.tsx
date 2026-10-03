@@ -307,7 +307,7 @@ export function InstanceExperimentalSettings() {
 
         <ExperimentalToggleCard
           title="Assistant connections (MCP)"
-          description="Connect Codex, Claude, and other assistants to your Paperclip team. People sign in, choose a team, and approve access to review work, delegate tasks, and add feedback."
+          description="Connect Codex, Claude, and other assistants to your Paperclip organization. People sign in, select an organization once, and approve access to review work, delegate tasks, and add feedback."
           footnote="Requires an authenticated instance with a configured public URL. Takes effect immediately. Turning this off blocks assistant calls and event delivery; work already delegated continues."
           checked={experimentalQuery.data?.enablePublicMcp === true}
           onCheckedChange={(checked) => toggleMutation.mutate({ enablePublicMcp: checked })}

@@ -68,6 +68,7 @@ const authorizeSchema = z.object({
   state: z.string().max(2048).optional(),
   code_challenge: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   code_challenge_method: z.literal("S256"),
+  company_id: z.string().uuid().optional(),
 }).strip();
 
 export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
@@ -161,6 +162,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
         }
         await tx.insert(mcpOauthRequests).values({
           id, clientId: client.id, redirectUri: p.redirect_uri, resource: p.resource, scopes,
+          requestedCompanyId: p.company_id ?? null,
           state: p.state ?? null, challenge: p.code_challenge, expiresAt: new Date(now.getTime() + 10 * minute),
         });
       });
@@ -179,7 +181,9 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
       return {
         id, clientName: row.client.name, redirectOrigin: new URL(row.request.redirectUri).origin,
         requestedWrite: row.request.scopes.includes("paperclip:write"), offlineAccess: row.request.scopes.includes("offline_access"), requiresSignIn: !access?.user,
+        requestedCompanyId: row.request.requestedCompanyId,
         companies: available.flatMap((company) => {
+          if (row.request.requestedCompanyId && company.id !== row.request.requestedCompanyId) return [];
           const membership = access?.memberships.find((m) => m.companyId === company.id);
           return membership?.status === "active" && company.status !== "archived"
             ? [{ id: company.id, name: company.name, canWrite: membership.membershipRole !== "viewer" }] : [];
@@ -205,6 +209,9 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
           await tx.update(mcpOauthRequests).set({ decidedAt: new Date() }).where(eq(mcpOauthRequests.id, id));
           redirect.searchParams.set("error", "access_denied");
           return { redirectUrl: redirect.toString(), grant: null };
+        }
+        if (row.requestedCompanyId && input.companyId !== row.requestedCompanyId) {
+          throw new McpOAuthError("access_denied", "This request is for a different organization. Start a new connection to change organizations.", 403);
         }
         const [company] = await tx.select({ status: companies.status }).from(companies).where(eq(companies.id, input.companyId!));
         if (!company || company.status === "archived") throw new McpOAuthError("access_denied", "This company is no longer available.", 403);

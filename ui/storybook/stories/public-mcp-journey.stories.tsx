@@ -16,7 +16,7 @@ interface JourneyStep {
 
 const steps: JourneyStep[] = [
   {
-    "title": "Meet Alex and the team",
+    "title": "Meet Alex and Acme Research",
     "place": "Start of the story",
     "why": "Alex leads Acme Research and works in Codex or Claude. Alex wants a researcher to compare three competitors, keep working after the chat closes, and leave a report the team can find later.",
     "action": "Use Next step to tell the story in order. Use the numbered steps to jump to a screen during discussion.",
@@ -29,7 +29,7 @@ const steps: JourneyStep[] = [
       ],
       [
         "The journey",
-        "Enable access → connect the right team → delegate → return for the result → manage access."
+        "Enable access → connect the right organization → delegate → return for the result → manage access."
       ],
       [
         "What you can try here",
@@ -42,17 +42,17 @@ const steps: JourneyStep[] = [
     "place": "Paperclip · Settings → Experimental",
     "why": "Before Alex can connect, an instance administrator enables Assistant connections (MCP). The experiment starts off.",
     "action": "Find Assistant connections (MCP) and turn it on. Other settings on this page are existing Paperclip experiments.",
-    "outcome": "The instance can accept assistant connections. This does not connect an account, create a team, or start an agent. Paid execution still needs its own configuration.",
+    "outcome": "The instance can accept assistant connections. This does not connect an account, create an organization, or start an agent. Paid execution still needs its own configuration.",
     "question": "Is it clear that enabling access and granting a particular assistant access are separate decisions?",
     "story": "assistant-connections-experimental-setting--disabled-by-default"
   },
   {
     "title": "Arrive from Codex or Claude",
     "place": "Assistant → browser → Paperclip",
-    "why": "Alex configures the Paperclip MCP connection in the assistant and starts browser sign-in. Hosted customers choose their organization in Cloud before reaching the team consent page.",
+    "why": "Alex configures the Paperclip MCP connection in the assistant and starts browser sign-in. Hosted customers choose their organization in Cloud before reviewing access to that same organization.",
     "action": "For the hosted sign-in and organization-creation screens, open the Cloud walkthrough. For this walkthrough, continue as Alex returning from Cloud.",
-    "outcome": "Alex arrives at Paperclip consent with a pending connection request. A self-hosted connection reaches the instance directly.",
-    "question": "Does the handoff make sense: Cloud locates the organization; Paperclip grants access to its team?",
+    "outcome": "Alex arrives with Acme Research fixed on the connection request. A self-hosted connection reaches the instance directly and can choose an organization there.",
+    "question": "Does the handoff make sense: Cloud selects the organization; Paperclip reviews its permissions?",
     "peer": true,
     "scene": [
       [
@@ -61,7 +61,7 @@ const steps: JourneyStep[] = [
       ],
       [
         "Self-hosted route",
-        "Assistant → reachable Paperclip instance → sign-in and team consent → assistant."
+        "Assistant → reachable Paperclip instance → sign-in, organization choice, and consent → assistant."
       ],
       [
         "Availability",
@@ -70,25 +70,25 @@ const steps: JourneyStep[] = [
     ]
   },
   {
-    "title": "Choose the team and permissions",
-    "place": "Paperclip · Connect your team",
-    "why": "Alex is connecting as a person, not becoming the researcher. The selected company and Alex’s granted permissions bound every subsequent tool call.",
-    "action": "Select Acme Research. Check the write-permission box to allow delegation and feedback, then click Connect team. Try Design Partners to see a read-only role. Preview redirects stay in this frame; then use Next step.",
-    "outcome": "Read access permits summaries and results. Write access also permits task creation and comments, which may wake or queue an agent. Selecting a different team resets the write choice.",
+    "title": "Review organization permissions",
+    "place": "Paperclip · Acme Research consent",
+    "why": "Alex is connecting as a person, not becoming the researcher. The selected organization and Alex’s granted permissions bound every subsequent tool call.",
+    "action": "Acme Research is already selected from Cloud. Review the organization name, check the write-permission box to allow delegation and feedback, then click Connect organization. Preview redirects stay in this frame; then use Next step.",
+    "outcome": "Read access permits summaries and results. Write access also permits task creation and comments, which may wake or queue an agent. The organization stays fixed for this request. To connect a different organization, start a new connection from the assistant.",
     "question": "Would Alex understand that “delegate to researcher” does not let the assistant impersonate that agent?",
-    "story": "assistant-connections-consent--choose-team"
+    "story": "assistant-connections-consent--hosted-organization"
   },
   {
-    "title": "Review the connected team",
+    "title": "Review the connected organization",
     "place": "Back in Codex or Claude · example conversation",
-    "why": "Alex checks which team is connected and which agents are available before assigning work.",
-    "action": "Read the sample conversation aloud. The assistant should identify the company and check agent availability instead of guessing from the chat.",
-    "outcome": "Alex knows which team will receive the task. A paused or unavailable researcher needs attention in Paperclip before execution can proceed.",
-    "question": "Is the connected team and human identity visible enough to prevent a task going to the wrong company?",
+    "why": "Alex checks which organization is connected and which agents are available before assigning work.",
+    "action": "Read the sample conversation aloud. The assistant should identify the organization and check agent availability instead of guessing from the chat.",
+    "outcome": "Alex knows which organization will receive the task. A paused or unavailable researcher needs attention in Paperclip before execution can proceed.",
+    "question": "Are the connected organization and human identity visible enough to prevent a task going to the wrong organization?",
     "scene": [
       [
         "Alex",
-        "“Which Paperclip team am I connected to, and who can do competitor research?”"
+        "“Which Paperclip organization am I connected to, and who can do competitor research?”"
       ],
       [
         "Assistant · illustrative response",
@@ -155,7 +155,7 @@ const steps: JourneyStep[] = [
   {
     "title": "Manage or revoke the connection",
     "place": "Paperclip · Assistant connections",
-    "why": "Alex can see which clients have access, which team each connection reaches, and whether it can write.",
+    "why": "Alex can see which clients have access, which organization each connection reaches, and whether it can write.",
     "action": "Compare Codex’s Acme Research access with Claude’s read-only Design Partners connection. Click Revoke connection on Codex.",
     "outcome": "The Codex connection becomes revoked. Subsequent requests with it are denied. Work already delegated remains in Paperclip; revocation does not cancel the task.",
     "question": "Is the scope and consequence of revoking access understandable?",
@@ -175,7 +175,7 @@ function GuidedJourney() {
     <main className="mx-auto flex max-w-screen-2xl flex-col gap-6 p-6 text-sm" aria-label="Paperclip assistant connection walkthrough">
       <header className="flex flex-col gap-2">
         <p className="text-xs text-muted-foreground">STORYBOOK WALKTHROUGH · PAPERCLIP</p>
-        <h1 className="text-xl font-bold">A team behind Alex’s assistant</h1>
+        <h1 className="text-xl font-bold">Acme Research in Alex’s assistant</h1>
         <p className="text-muted-foreground">A guided story you can present, pause, and try. Screen actions affect only sample data; Next step advances the explanation.</p>
       </header>
       <nav className="flex flex-wrap gap-2" aria-label="Journey steps">

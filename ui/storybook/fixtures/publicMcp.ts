@@ -4,7 +4,7 @@ import { fn } from "storybook/test";
 export const consentSubmission = fn();
 export const request: McpConnectionRequest = {
   id: "storybook-request", clientName: "Codex", redirectOrigin: "https://chatgpt.com",
-  requestedWrite: true, offlineAccess: true, requiresSignIn: false,
+  requestedWrite: true, offlineAccess: true, requiresSignIn: false, requestedCompanyId: null,
   companies: [
     { id: "00000000-0000-4000-8000-000000000001", name: "Acme Research", canWrite: true },
     { id: "00000000-0000-4000-8000-000000000002", name: "Design Partners", canWrite: false },

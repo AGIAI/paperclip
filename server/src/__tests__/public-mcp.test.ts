@@ -96,6 +96,55 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     expect(JSON.stringify(stored)).not.toContain(f.tokens.access_token);
   });
 
+  it("pins consent to the requested organization without exposing other memberships", async () => {
+    const f = await fixture();
+    const [other] = await db.insert(companies).values({ name: "Other organization", issuePrefix: "M" + randomBytes(4).toString("hex") }).returning();
+    await db.insert(companyMemberships).values({ companyId: other!.id, principalType: "user", principalId: f.actor.userId!, membershipRole: "member", status: "active" });
+    const input = { client_id: f.client.client_id, redirect_uri: redirectUri, resource: config.resource, response_type: "code",
+      code_challenge: challenge, code_challenge_method: "S256", scope: "paperclip:read paperclip:write", company_id: f.company.id };
+    const id = (await oauth.authorize(input)).split("/").at(-1)!;
+    // The binding survives a new service instance, and the description reveals only this membership.
+    const resumed = createPublicMcpOAuth(db, config);
+    expect(await resumed.describeRequest(id, f.actor, null)).toMatchObject({ requestedCompanyId: f.company.id, companies: [{ id: f.company.id }] });
+    expect((await resumed.describeRequest(id, f.actor, null)).companies).toHaveLength(1);
+    expect((await resumed.describeRequest(id, { type: "none" }, null)).companies).toEqual([]);
+    await expect(resumed.consent(id, f.actor, { decision: "approve", companyId: other!.id, allowWrites: true })).rejects.toMatchObject({ status: 403 });
+    // A concurrent conversation has an independent binding; rejection did not consume either request.
+    const otherId = (await oauth.authorize({ ...input, company_id: other!.id })).split("/").at(-1)!;
+    expect((await resumed.describeRequest(otherId, f.actor, null)).companies.map(c => c.id)).toEqual([other!.id]);
+    const consent = await resumed.consent(id, f.actor, { decision: "approve", companyId: f.company.id, allowWrites: true });
+    const tokens = await resumed.token({ ...f.exchange, code: new URL(consent.redirectUrl).searchParams.get("code")! });
+    expect((await resumed.authenticate(tokens.access_token)).grant.companyId).toBe(f.company.id);
+    await expect(resumed.consent(otherId, f.actor, { decision: "approve", companyId: f.company.id, allowWrites: false })).rejects.toMatchObject({ status: 403 });
+    await resumed.consent(otherId, f.actor, { decision: "deny", allowWrites: false });
+    // Direct connections retain explicit choice across the user's companies.
+    const directId = (await oauth.authorize({ ...input, company_id: undefined })).split("/").at(-1)!;
+    const direct = await resumed.describeRequest(directId, f.actor, null);
+    expect(direct.requestedCompanyId).toBeNull();
+    expect(direct.companies.map(c => c.id).sort()).toEqual([f.company.id, other!.id].sort());
+    await resumed.consent(directId, f.actor, { decision: "approve", companyId: other!.id, allowWrites: false });
+    await expect(oauth.authorize({ ...input, company_id: "invalid" })).rejects.toThrow();
+  });
+
+  it("does not fall back to another organization when the requested one is unavailable", async () => {
+    const f = await fixture();
+    const begin = async (companyId: string) => (await oauth.authorize({ client_id: f.client.client_id, redirect_uri: redirectUri, resource: config.resource,
+      response_type: "code", code_challenge: challenge, code_challenge_method: "S256", company_id: companyId })).split("/").at(-1)!;
+    const missing = await begin(randomUUID());
+    expect((await oauth.describeRequest(missing, f.actor, null)).companies).toEqual([]);
+    await expect(oauth.consent(missing, f.actor, { decision: "approve", companyId: f.company.id, allowWrites: false })).rejects.toMatchObject({ status: 403 });
+    await oauth.consent(missing, f.actor, { decision: "deny", allowWrites: false });
+    for (const unavailable of ["membership", "archived"] as const) {
+      const id = await begin(f.company.id);
+      if (unavailable === "membership") await db.update(companyMemberships).set({ status: "inactive" }).where(eq(companyMemberships.id, f.membership.id));
+      else await db.update(companies).set({ status: "archived" }).where(eq(companies.id, f.company.id));
+      expect((await oauth.describeRequest(id, f.actor, null)).companies).toEqual([]);
+      await expect(oauth.consent(id, f.actor, { decision: "approve", companyId: f.company.id, allowWrites: false })).rejects.toMatchObject({ status: 403 });
+      await oauth.consent(id, f.actor, { decision: "deny", allowWrites: false });
+      await db.update(companyMemberships).set({ status: "active" }).where(eq(companyMemberships.id, f.membership.id));
+    }
+  });
+
   it("reads the experimental switch live and keeps connection revocation available while disabled", async () => {
     const f = await fixture();
     const revocable = await fixture();

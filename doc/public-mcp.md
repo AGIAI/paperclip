@@ -55,10 +55,10 @@ claude mcp add --transport http paperclip https://YOUR-PAPERCLIP-HOST/mcp/paperc
 ```
 
 Open Claude Code's `/mcp` menu and authenticate the Paperclip server. Both flows
-open browser sign-in and consent: select a team and explicitly enable task and
+open browser sign-in and consent: review the selected organization (or choose one for a direct instance connection) and explicitly enable task and
 comment writes when wanted. Read-only consent cannot delegate work.
 
-Ask the assistant to identify the connected team and list its agents, then ask
+Ask the assistant to identify the connected organization and list its agents, then ask
 it to delegate a small task to an available agent. The returned task link is the
 durable reference. In a later conversation, ask for that task's progress and
 report. Configure the agent's provider credentials, execution environment and
@@ -251,7 +251,7 @@ local protocol and paid model tests do not establish store/UI readiness.
 Run `pnpm storybook` and open the **Assistant connections** group. The stories
 render the production consent, connection-management, and Experimental pages,
 including read-only roles, loading, empty, unavailable, pending, revoked, and
-failed-save states. Interactive stories verify team-switch consent reset,
+failed-save states. Interactive stories verify organization-switch consent reset,
 revocation, and settings rollback. All MCP actions use per-story in-memory
 fixtures; no credentials are issued and no work is delegated.
 
@@ -270,7 +270,7 @@ Each screen starts fresh, so sample state does not persist between chapters.
 
 The Cloud walkthrough covers sign-in, choosing or creating an organization,
 readiness, and the handoff. The Paperclip walkthrough covers the experimental
-setting, team consent, example delegation and retrieval conversations, and
+setting, organization consent, example delegation and retrieval conversations, and
 revocation. Assistant conversations are explicitly illustrative; product
 screens use isolated service fixtures. No paid work or real OAuth runs here.
 
@@ -289,3 +289,24 @@ npm run storybook -- --port 6107
 When published elsewhere, open the companion Storybook separately. Each
 walkthrough works independently. **Navigation check** is a separate interaction
 story so the presentation itself never advances automatically.
+
+### One organization from Cloud through consent
+
+Cloud selects an organization once and sends its registry company ID as the
+optional OAuth `company_id` parameter. Paperclip persists it as
+`mcp_oauth_requests.requested_company_id`, filters the consent response to that
+company, and rejects approval for any other company even if the user belongs to
+both. It is a scope restriction, never a substitute for active membership or
+explicit read/write consent. A deleted, archived, or inaccessible company cannot
+fall back to another one. The UI shows the fixed organization and permissions,
+with cancel/reconnect guidance if it is unavailable.
+
+Direct instance requests without `company_id` retain their organization picker.
+There is no separate “team” entity in this flow. Cloud’s organization maps to its
+stack’s primary Paperclip company; the stack is hosting infrastructure. The hosted
+walkthrough uses **Consent → Hosted organization**; direct selection, read-only,
+and unavailable-organization variants remain separately inspectable.
+
+Apply the additive nullable request-column migration before running this tenant
+version, and deploy tenant support before the Cloud broker that sends the binding.
+Existing direct requests and grants are unchanged.
