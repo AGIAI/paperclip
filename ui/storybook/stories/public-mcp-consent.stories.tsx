@@ -21,7 +21,6 @@ export const ChooseOrganization: Story = {};
 export const AllowDelegation: Story = { play: async context => {
   await chooseOrganization(context);
   const c = within(context.canvasElement);
-  await userEvent.click(c.getByRole("checkbox"));
   await expect(c.getByRole("checkbox")).toBeChecked();
   await expect(c.getByRole("button", { name: "Connect organization" })).toBeEnabled();
 } };
@@ -54,7 +53,10 @@ export const SaveFailed: Story = { parameters: { fixture: { mutationError: true 
 } };
 export const SubmitReadOnlyConsent: Story = { play: async context => {
   await chooseOrganization(context);
-  await userEvent.click(within(context.canvasElement).getByRole("button", { name: "Connect organization" }));
+  const c = within(context.canvasElement);
+  await userEvent.click(c.getByRole("checkbox"));
+  await expect(c.getByRole("checkbox")).not.toBeChecked();
+  await userEvent.click(c.getByRole("button", { name: "Connect organization" }));
   await expect(consentSubmission).toHaveBeenCalledWith({ decision: "approve", companyId: request.companies[0].id, allowWrites: false });
 } };
 export const Cancel: Story = { play: async ({ canvasElement }) => {
@@ -70,8 +72,7 @@ export const HostedConsentCheck: Story = { ...HostedOrganization, play: async ({
   await expect(await c.findByText("Acme Research")).toBeVisible();
   await expect(c.queryByRole("radio")).not.toBeInTheDocument();
   await expect(c.queryByText("Design Partners")).not.toBeInTheDocument();
-  await expect(c.getByRole("checkbox")).not.toBeChecked();
-  await userEvent.click(c.getByRole("checkbox"));
+  await expect(c.getByRole("checkbox")).toBeChecked();
   await userEvent.click(c.getByRole("button", { name: "Connect organization" }));
   await expect(consentSubmission).toHaveBeenCalledWith({ decision: "approve", companyId: request.companies[0].id, allowWrites: true });
 } };
@@ -80,6 +81,7 @@ export const HostedReadOnly: Story = { parameters: { fixture: { request: { reque
   await expect(await c.findByText("Design Partners")).toBeVisible();
   await expect(c.queryByRole("radio")).not.toBeInTheDocument();
   await expect(c.getByRole("checkbox")).toBeDisabled();
+  await expect(c.getByRole("checkbox")).not.toBeChecked();
   await expect(c.getByRole("button", { name: "Connect organization" })).toBeEnabled();
 } };
 export const HostedOrganizationUnavailable: Story = { parameters: { fixture: { request: { requestedCompanyId: request.companies[0].id, companies: [], setupUrl: "https://my.paperclip.app/orgs/new" } } }, play: async ({ canvasElement }) => {

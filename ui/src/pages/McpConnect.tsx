@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Paperclip } from "lucide-react";
 import { Link, useParams } from "@/lib/router";
 import type { McpConnection, McpConnectionRequest } from "@paperclipai/shared";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CompanyPatternIcon } from "@/components/CompanyPatternIcon";
 import { api } from "../api/client";
 
 export function McpConnectPage() {
@@ -13,42 +16,48 @@ export function McpConnectPage() {
 
 function McpConnectRequest({ id }: { id: string }) {
   const [companyId, setCompanyId] = useState("");
-  const [allowWrites, setAllowWrites] = useState(false);
+  const [writeEnabled, setWriteEnabled] = useState(true);
   const request = useQuery({ queryKey: ["mcp-request", id], queryFn: () => api.get<McpConnectionRequest>(`/mcp/requests/${encodeURIComponent(id)}`), retry: false });
   const data = request.data;
   const selectedCompanyId = data?.requestedCompanyId ?? companyId;
+  const company = data?.companies.find((item) => item.id === selectedCompanyId);
+  const allowWrites = Boolean(data?.requestedWrite && company?.canWrite && writeEnabled);
   const consent = useMutation({
     mutationFn: (decision: "approve" | "deny") => api.post<{ redirectUrl: string }>(`/mcp/requests/${encodeURIComponent(id)}/consent`, { decision, companyId: selectedCompanyId || undefined, allowWrites }),
     onSuccess: ({ redirectUrl }) => { window.location.assign(redirectUrl); },
   });
-  const company = data?.companies.find((item) => item.id === selectedCompanyId);
   return <div className="mx-auto max-w-xl py-10">
     <Card className="block space-y-4 p-6">
+      <Paperclip className="size-8 text-foreground" role="img" aria-label="Paperclip" />
       <h1 className="text-xl font-semibold">Connect your assistant to Paperclip</h1>
       {request.isPending && <p className="text-sm text-muted-foreground">Loading connection request…</p>}
       {request.error && <p className="text-sm text-destructive">{request.error.message} Start a new connection from your assistant.</p>}
       {data && <>
         <p className="text-sm"><strong>{data.clientName}</strong> is requesting access. The connection returns to <span className="font-mono">{data.redirectOrigin}</span>.</p>
         {data.requiresSignIn ? <Button asChild><Link to={`/auth?next=${encodeURIComponent(`/mcp-connect/${id}`)}`}>Sign in / Create account</Link></Button> : <>
-          <p className="text-sm text-muted-foreground">{data.requestedCompanyId ? "Review access to the organization you selected." : "Choose the organization this assistant may use as you."} Your permissions and attribution apply to every action.</p>
-          {data.requestedCompanyId ? <div className="space-y-2 rounded-md border border-border p-4">
-            <p className="text-sm font-medium">Organization</p>
-            {company ? <p className="text-sm">{company.name}</p> : <p className="text-sm text-destructive">The selected organization is no longer available to this account. Cancel and reconnect from your assistant to choose an organization you can access.</p>}
+          {data.requestedCompanyId ? <div className="flex items-center gap-4 rounded-md border border-border p-4">
+            {company && <CompanyPatternIcon companyName={company.name} logoUrl={company.logoUrl} className="size-14 shrink-0 rounded-lg text-xl" />}
+            <div className="min-w-0 space-y-1">
+              <p className="text-xs text-muted-foreground">Organization</p>
+              {company ? <p className="break-words text-lg font-semibold">{company.name}</p> : <p className="text-sm text-destructive">The selected organization is no longer available to this account. Cancel and reconnect from your assistant to choose an organization you can access.</p>}
+            </div>
           </div> : <fieldset className="space-y-2" disabled={consent.isPending}>
             <legend className="mb-2 text-sm font-medium">Organization</legend>
-            {data.companies.map((item) => <label key={item.id} className="flex items-center gap-2 text-sm">
-              <input type="radio" name="company" value={item.id} checked={companyId === item.id} onChange={() => { setCompanyId(item.id); setAllowWrites(false); }} />{item.name}
+            {data.companies.map((item) => <label key={item.id} className="flex items-center gap-3 rounded-md border border-border p-3 text-sm">
+              <input type="radio" name="company" aria-label={item.name} value={item.id} checked={companyId === item.id} onChange={() => { setCompanyId(item.id); setWriteEnabled(true); }} />
+              <CompanyPatternIcon companyName={item.name} logoUrl={item.logoUrl} className="size-12 shrink-0 rounded-lg" />
+              <span className="min-w-0 break-words font-medium">{item.name}</span>
             </label>)}
             {!data.companies.length && <p className="text-sm text-muted-foreground">{data.setupUrl ? "No organization is available for this account yet. Create a hosted organization, configure its agents and spending, then return here. If this request expires, reconnect from your assistant." : "This account has no available organizations. Ask an organization owner to add you, then reconnect from your assistant."}</p>}
           </fieldset>}
           <p className="text-sm">Read agents, projects, tasks, comments, documents, deliverables and pending approvals.</p>
-          {data.requestedWrite && <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" checked={allowWrites} disabled={!company?.canWrite || consent.isPending} onChange={(event) => setAllowWrites(event.target.checked)} />
+          {data.requestedWrite && <label htmlFor="mcp-allow-writes" className="flex items-start gap-3 text-sm leading-6">
+            <span className="flex h-6 shrink-0 items-center">
+              <Checkbox id="mcp-allow-writes" checked={allowWrites} disabled={!company?.canWrite || consent.isPending} onCheckedChange={(checked) => setWriteEnabled(checked === true)} />
+            </span>
             <span>Also allow creating tasks and adding comments as me. These actions can start or wake agents and use my organization’s configured execution budget.</span>
           </label>}
           {company && !company.canWrite && <p className="text-sm text-muted-foreground">Your role in this organization is read-only.</p>}
-          {data.offlineAccess && <p className="text-sm text-muted-foreground">This connection can stay signed in between conversations. You can revoke it at any time.</p>}
-          <p className="text-sm text-muted-foreground">Approval decisions stay in Paperclip. Installing a plugin does not create an organization, configure model credentials, or start paid work.</p>
           {data.setupUrl && !data.requestedCompanyId && <Button variant="outline" asChild><a href={data.setupUrl} target="_blank" rel="noopener noreferrer">Create a hosted organization</a></Button>}
           {consent.error && <p className="text-sm text-destructive">{consent.error.message}</p>}
           <div className="flex items-center justify-between gap-3">
@@ -56,7 +65,6 @@ function McpConnectRequest({ id }: { id: string }) {
             <Button disabled={!company || consent.isPending} onClick={() => consent.mutate("approve")}>{consent.isPending ? "Connecting…" : "Connect organization"}</Button>
           </div>
         </>}
-        <Link className="text-sm underline" to="/assistant-connections">Manage assistant connections</Link>
       </>}
     </Card>
   </div>;

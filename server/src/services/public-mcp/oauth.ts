@@ -4,7 +4,7 @@ import { and, eq, gt, inArray, isNull, lt, notExists, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Request } from "express";
 import {
-  type Db, activityLog, companies, mcpOauthClients, mcpOauthGrants, mcpOauthRequests, mcpOauthTokens,
+  type Db, activityLog, companies, companyLogos, mcpOauthClients, mcpOauthGrants, mcpOauthRequests, mcpOauthTokens,
 } from "@paperclipai/db";
 import { PUBLIC_MCP_PATH, PUBLIC_MCP_SCOPES, type McpConnectionRequest } from "@paperclipai/shared";
 import { boardAuthService } from "../board-auth.js";
@@ -176,8 +176,8 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
       if (!row) throw new McpOAuthError("invalid_request", "Connection request is expired or already decided.", 404);
       const signedIn = actor.type === "board" && !!actor.userId && ["session", "cloud_tenant"].includes(actor.source ?? "");
       const access = signedIn ? await boardAuth.resolveBoardAccess(actor.userId!) : null;
-      const available = access?.user && access.companyIds.length ? await db.select({ id: companies.id, name: companies.name, status: companies.status })
-        .from(companies).where(inArray(companies.id, access.companyIds)) : [];
+      const available = access?.user && access.companyIds.length ? await db.select({ id: companies.id, name: companies.name, status: companies.status, logoAssetId: companyLogos.assetId })
+        .from(companies).leftJoin(companyLogos, eq(companyLogos.companyId, companies.id)).where(inArray(companies.id, access.companyIds)) : [];
       return {
         id, clientName: row.client.name, redirectOrigin: new URL(row.request.redirectUri).origin,
         requestedWrite: row.request.scopes.includes("paperclip:write"), offlineAccess: row.request.scopes.includes("offline_access"), requiresSignIn: !access?.user,
@@ -186,7 +186,7 @@ export function createPublicMcpOAuth(db: Db, config: PublicMcpConfig) {
           if (row.request.requestedCompanyId && company.id !== row.request.requestedCompanyId) return [];
           const membership = access?.memberships.find((m) => m.companyId === company.id);
           return membership?.status === "active" && company.status !== "archived"
-            ? [{ id: company.id, name: company.name, canWrite: membership.membershipRole !== "viewer" }] : [];
+            ? [{ id: company.id, name: company.name, logoUrl: company.logoAssetId ? `/api/assets/${company.logoAssetId}/content` : null, canWrite: membership.membershipRole !== "viewer" }] : [];
         }), setupUrl,
       };
     },

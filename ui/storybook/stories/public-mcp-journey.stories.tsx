@@ -73,7 +73,7 @@ const steps: JourneyStep[] = [
     "title": "Review organization permissions",
     "place": "Paperclip · Acme Research consent",
     "why": "Alex is connecting as a person, not becoming the researcher. The selected organization and Alex’s granted permissions bound every subsequent tool call.",
-    "action": "Acme Research is already selected from Cloud. Review the organization name, check the write-permission box to allow delegation and feedback, then click Connect organization. Preview redirects stay in this frame; then use Next step.",
+    "action": "Acme Research is already selected from Cloud. Review the organization icon and name. Write access starts enabled for delegation and feedback; uncheck it for read-only access, then click Connect organization. Preview redirects stay in this frame; then use Next step.",
     "outcome": "Read access permits summaries and results. Write access also permits task creation and comments, which may wake or queue an agent. The organization stays fixed for this request. To connect a different organization, start a new connection from the assistant.",
     "question": "Would Alex understand that “delegate to researcher” does not let the assistant impersonate that agent?",
     "story": "assistant-connections-consent--hosted-organization"

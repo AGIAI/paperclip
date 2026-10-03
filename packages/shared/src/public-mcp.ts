@@ -17,7 +17,7 @@ export interface McpConnectionRequest {
   requiresSignIn: boolean;
   /** Fixed by the authorization request; null permits direct-instance selection. */
   requestedCompanyId: string | null;
-  companies: Array<{ id: string; name: string; canWrite: boolean }>;
+  companies: Array<{ id: string; name: string; logoUrl: string | null; canWrite: boolean }>;
   setupUrl: string | null;
 }
 

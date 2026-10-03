@@ -3,7 +3,7 @@ import express, { type Request } from "express";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { activityLog, mcpEventDeliveries, mcpEventSubscriptions, createDb, authUsers, companies, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
+import { activityLog, mcpEventDeliveries, mcpEventSubscriptions, createDb, authUsers, companies, companyLogos, assets, companyMemberships, mcpOauthTokens, mcpOauthRequests, mcpOauthGrants, mcpOauthClients, mcpMutationReceipts, agents, issues, issueComments, instanceUserRoles } from "@paperclipai/db";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import { createPublicMcpOAuth, publicMcpConfig, hashMcpSecret } from "../services/public-mcp/oauth.js";
 import { McpApiError, createMcpApiDispatch, createPublicMcpExecutor, publicMcpCapabilities } from "../services/public-mcp/capabilities.js";
@@ -105,13 +105,15 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     const id = (await oauth.authorize(input)).split("/").at(-1)!;
     // The binding survives a new service instance, and the description reveals only this membership.
     const resumed = createPublicMcpOAuth(db, config);
-    expect(await resumed.describeRequest(id, f.actor, null)).toMatchObject({ requestedCompanyId: f.company.id, companies: [{ id: f.company.id }] });
+    const [logo] = await db.insert(assets).values({ companyId: f.company.id, provider: "local_disk", objectKey: randomUUID(), contentType: "image/png", byteSize: 1, sha256: "fixture" }).returning();
+    await db.insert(companyLogos).values({ companyId: f.company.id, assetId: logo!.id });
+    expect(await resumed.describeRequest(id, f.actor, null)).toMatchObject({ requestedCompanyId: f.company.id, companies: [{ id: f.company.id, logoUrl: `/api/assets/${logo!.id}/content` }] });
     expect((await resumed.describeRequest(id, f.actor, null)).companies).toHaveLength(1);
     expect((await resumed.describeRequest(id, { type: "none" }, null)).companies).toEqual([]);
     await expect(resumed.consent(id, f.actor, { decision: "approve", companyId: other!.id, allowWrites: true })).rejects.toMatchObject({ status: 403 });
     // A concurrent conversation has an independent binding; rejection did not consume either request.
     const otherId = (await oauth.authorize({ ...input, company_id: other!.id })).split("/").at(-1)!;
-    expect((await resumed.describeRequest(otherId, f.actor, null)).companies.map(c => c.id)).toEqual([other!.id]);
+    expect((await resumed.describeRequest(otherId, f.actor, null)).companies).toEqual([{ id: other!.id, name: other!.name, logoUrl: null, canWrite: true }]);
     const consent = await resumed.consent(id, f.actor, { decision: "approve", companyId: f.company.id, allowWrites: true });
     const tokens = await resumed.token({ ...f.exchange, code: new URL(consent.redirectUrl).searchParams.get("code")! });
     expect((await resumed.authenticate(tokens.access_token)).grant.companyId).toBe(f.company.id);

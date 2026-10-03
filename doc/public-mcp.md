@@ -55,8 +55,8 @@ claude mcp add --transport http paperclip https://YOUR-PAPERCLIP-HOST/mcp/paperc
 ```
 
 Open Claude Code's `/mcp` menu and authenticate the Paperclip server. Both flows
-open browser sign-in and consent: review the selected organization (or choose one for a direct instance connection) and explicitly enable task and
-comment writes when wanted. Read-only consent cannot delegate work.
+open browser sign-in and consent: review the selected organization (or choose one for a direct instance connection) and review the write-access checkbox. It starts checked when the assistant requests
+writes and your organization role allows them; uncheck it for read-only access. Read-only consent cannot delegate work.
 
 Ask the assistant to identify the connected organization and list its agents, then ask
 it to delegate a small task to an available agent. The returned task link is the
