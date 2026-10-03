@@ -33,7 +33,6 @@ function McpConnectRequest({ id }: { id: string }) {
       {request.isPending && <p className="text-sm text-muted-foreground">Loading connection request…</p>}
       {request.error && <p className="text-sm text-destructive">{request.error.message} Start a new connection from your assistant.</p>}
       {data && <>
-        <p className="text-sm"><strong>{data.clientName}</strong> is requesting access. The connection returns to <span className="font-mono">{data.redirectOrigin}</span>.</p>
         {data.requiresSignIn ? <Button asChild><Link to={`/auth?next=${encodeURIComponent(`/mcp-connect/${id}`)}`}>Sign in / Create account</Link></Button> : <>
           {data.requestedCompanyId ? <div className="flex items-center gap-4 rounded-md border border-border p-4">
             {company && <CompanyPatternIcon companyName={company.name} logoUrl={company.logoUrl} className="size-14 shrink-0 rounded-lg text-xl" />}
