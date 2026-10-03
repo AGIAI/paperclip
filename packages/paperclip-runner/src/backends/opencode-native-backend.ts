@@ -14,7 +14,10 @@ export function createOpenCodeNativeSessionBackend(
     throw new Error("OpenCode native backend requires a persisted OpenCode provider/model selection");
   }
   const preparedContext = input.schema === NATIVE_EXECUTION_INPUT_SCHEMA;
-  const constraints = nativeTaskConstraints(input);
+  const constraints = [
+      ...nativeTaskConstraints(input),
+      "Return one semantic completion result through paperclip_finish or paperclip_block.",
+    ];
 
   return new HarnessDriverBackend(new OpenCodeServerDriver({
     ...options,

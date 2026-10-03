@@ -31,10 +31,8 @@ export function nativeSystemInstructions(input: NativeExecutionInput): string {
 }
 
 export function nativeTaskConstraints(input: NativeExecutionInput): string[] {
-  // Keep the discovery/ordering rule in each turn. The completion tools own
-  // reporting, rejection feedback, approval handling and final-response details.
   const finalResponseConstraint =
-    "Obtain one accepted result from paperclip_finish or paperclip_block before writing the complete user-facing final response. Follow that tool's reporting and final-response instructions.";
+    "Obtain one accepted result from paperclip_finish or paperclip_block before writing the complete user-facing final response. Use paperclip_finish with yielded and a response_wake continuation only when explicitly waiting for the next response. If the tool rejects an incomplete report, correct it and retry. When it succeeds, read its outcome and explain any pending approval with the supplied link and required action. Do not claim the task is done when completion is still gated. Then write the final response exactly once and do not call another tool.";
   const answeredQuestions = Array.isArray(input.interactionResponses)
     ? input.interactionResponses.flatMap((response, responseIndex) => {
         if (
