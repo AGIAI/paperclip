@@ -24,10 +24,10 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Runtime identity and admission | Exact runtime/profile/model; verified effective thinking; startup below the 60-second admission limit; unsupported configuration fails before a prompt | Deterministic checks and ARM installed startup pass. Recheck final source on all supported hosts. |
 | Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed profile-14 same-turn steering passes at `dc2b053f3`. Restart and three-turn warm continuity pass at historical `f5f57e380`; pending-permission Stop and stale response rejection pass at `03dd6ef93`. Final-source lifecycle and provider-death evidence remain required. |
 | Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | Historical partial passes exist. Full final-source campaign remains required. |
-| Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | Installed get-task-context passes at `f5f57e380`; context-before-action times out. Five cells remain unexecuted. |
-| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Historical ARM and Intel public installations pass. Linux CI retains `session_handshake_timeout`; queued fleet jobs were cancelled. Final-source platform receipts, Linux companion and Daytona image remain required. |
+| Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | Six of seven cases pass through installed `df424c902`, including context-before-action. Governed-wait fails durable suspension during cleanup; paid retries are held pending a concrete correction. |
+| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | ARM and Linux public installation pass at `df424c902`; Intel passes at `666cb3ecc`. Exact-source Linux companion and immutable Daytona proof remain required. Image job 37092761291 is queued on EC2; retain that handle. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Draft #14956 is stacked on #14924. Prerequisite PRs #14921–#14924 remain open. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | All 55 CI checks pass at `df424c902`. Two #14924 UI findings have tested downstream corrections. Prerequisite PRs #14921–#14924 remain open; qualification and final-head review remain required. No merge or release. |
 
 ## Bounded execution
 
@@ -238,17 +238,57 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 - No paid call, key reset, fallback credential, workflow change, lockfile
   commit, merge or release occurs in this resumed diagnosis.
 
+## Qualification update — 2026-10-02 22:50 CDT
+
+- All 55 CI checks pass at `df424c902`. Linux Canary proves normal public
+  CLI/server installation, profile-14 setup and credential-free closed admission
+  in 8.036 seconds, with clean Runner exit. ARM public admission passes in
+  7.988 seconds at the same source. Intel public admission passes in 34.059
+  seconds at `666cb3ecc`; the next commit changes only Rust test formatting.
+  These receipts do not prove the immutable Daytona image or the full matrix.
+- Installed Runner qualification uses exact source `df424c902`, private eval
+  definitions `a9e0e7e0`, frozen Pi profile 14, the exact model and low thinking.
+  Context-before-action, get-task-context, create-task-document, finish-task,
+  request-human-confirmation and workflow-context-document-progress all pass.
+  Each has one attempt and zero infrastructure retries. Original failures
+  remain unchanged.
+- Workflow-governed-wait creates its requested approval and wake and completes
+  the provider turn without finishing the mock task. Its canonical grade is
+  `infrastructure_failure`: cleanup never proves durable Runner suspension.
+  Retained stderr proves provider drain and semantic tool settlement, with zero
+  pending provider events; suspension alone fails. The owned Runner is killed.
+  The eval program deletes its temporary workspace, limiting further diagnosis.
+  No paid retry is authorized by an unchanged failure; investigate and correct
+  the close boundary first.
+- The two #14924 notice findings are reproduced and corrected downstream.
+  Error severity retains the Error label even with informational status.
+  Distinct notices share one compact category so work and a later error remain
+  visible. All 44 focused UI tests, token gates, isolated UI typecheck and UI
+  build pass. Root UI dependency links point to a different frozen checkout;
+  validation uses this task's own dependency-complete private source.
+- The existing image-only run 37092761291 remains queued for EC2 job
+  111116414966. It uses no provider credentials or prompts. Do not dispatch a
+  duplicate on an observation timeout. Its authorization binds `df424c902`;
+  source changes require new exact-source qualification evidence.
+- The dedicated key's latest API observation is $0.092409367 lifetime usage,
+  $4.907590633 remaining, and zero BYOK usage. The $5 lifetime cap and $100
+  campaign limit remain. Billing observations are provisional, not invoices.
+  Paid work is held until a concrete governed-wait correction and fresh
+  exact-source packaging. The full 26 Product cells remain required.
+
 ## Remaining work in order
 
-1. Recheck the corrected executable-scratch probe at the final source and
+1. Correct and reproduce the governed-wait suspension failure without a
+   provider call. Retain its original failed grade. Rebuild exact-source public
+   packages before one explicit paid retry. Recheck final-source lifecycle and
    classify the observed Mac ownership contention. Produce the normal Linux
-   public-install and companion receipts,
+   companion receipt,
    then import an immutable exact-source Daytona image without an override.
    Do not accept a timeout as an installation pass or widen the admission limit.
-2. Resolve Runner `context-before-action` with a concrete behavioral correction.
-   Bounded harness instructions are corrected; the retained attempt has no progress mutation.
-   Do not run an unchanged paid retry. Then execute the remaining explicit
-   Runner cases and the full 26-cell Product matrix on the frozen candidate.
+2. Complete all seven Runner cases and the full 26-cell Product matrix on the
+   frozen candidate. Context-before-action now passes after the bounded-context
+   correction; its original timeout remains unchanged. Reuse only evidence whose
+   executable inputs and source identity match the final candidate.
 3. Close the prerequisite review stack and final CI gates. Keep the original
    Codex interruption failures and the passing corrected integration evidence.
    Publish only the qualified artifacts, then use the
