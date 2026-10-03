@@ -266,9 +266,15 @@
   "fixtureIdentityVerified": true,
   "onlyDeclaredElevenNativeSourcesDiffer": true,
   "fixedMasterContextVerified": true,
-  "providerCallsSoFar": 0,
-  "liveStatus": "admitted_not_dispatched",
-  "workflowRuns": {},
+  "providerCallsSoFar": null,
+  "liveStatus": "candidate_dispatched_baseline_approval_pending",
+  "workflowRuns": {
+    "candidate": {
+      "id": 37098728980,
+      "url": "https://github.com/paperclipai/paperclip/actions/runs/37098728980",
+      "createdAt": "2026-10-03T05:06:09Z"
+    }
+  },
   "preservedZeroProviderCohorts": [
     {
       "candidate": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
@@ -292,5 +298,6 @@
       "providerCalls": 0,
       "classification": "pre_provider_calibration_mock"
     }
-  ]
+  ],
+  "workflowSourceSha": "215586d127e97c9301d86e769a39a15c13298ca2"
 }
