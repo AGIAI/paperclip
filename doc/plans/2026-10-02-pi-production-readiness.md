@@ -421,6 +421,12 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   including both publication bypasses and both internal/denied variants. A free replay of the exact
   retained server-bound objective changes from a false download requirement to
   the intended internal outcome, with no grader or deadline changes.
+- At `b28422b29`, fresh review finds that an explicit "attach it" can lose its
+  publication requirement when the preceding file is called internal. The free
+  unit/database regressions reproduce that bypass. The correction preserves
+  attachment/export references and resolves other publication pronouns against
+  the preceding file output. Inline replies remain inline. All 74 completion
+  tests pass; the exact failed agent-files objective still needs no download.
 - The `0d65753fe` broad local suite is terminal with 736 passed files, four
   skipped files, 14,982 passed tests and three failures: a Git scan load
   single-flight count (497 versus 498) and two HTTP socket resets. One associated

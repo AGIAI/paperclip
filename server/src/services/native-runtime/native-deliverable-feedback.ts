@@ -87,13 +87,18 @@ export function explicitlyRequestsFileOutput(objective: string): boolean {
           if (/^files?$/iu.test(match[0]) && /^\s+(?:tools?|permissions?|systems?|formats?|names?|paths?|types?|sizes?|descriptors?)\b/iu.test(suffix)) return false;
           return true;
         });
-        const downloadable = !/\b(?:no|without)\s+(?:downloadable|attached)/iu.test(output)
-          && /\b(?:downloadable|attached)\s+(?:file|report|document|checklist|draft)\b/iu.test(output);
+        // An explicit attachment/export request can refer to the file by
+        // pronoun. It still requires publication when its name is omitted.
+        const referencedOutput = /^(?:attach|export|send|provide|give|return)$/iu.test(create[0])
+          && /^\s+(?:me\s+)?(?:it|them|this|that)\b/iu.test(output);
+        const referencedAttachment = referencedOutput && /^(?:attach|export)$/iu.test(create[0]);
+        const downloadable = referencedAttachment || (!/\b(?:no|without)\s+(?:downloadable|attached)/iu.test(output)
+          && /\b(?:downloadable|attached)\s+(?:file|report|document|checklist|draft)\b/iu.test(output));
         const publication = /\b(?:downloadable|attached|attach|export|send|provide|return|give)\b/iu.test(create[0] + output);
         const deniedAttempt = create[0].toLowerCase() === "write" && objects.length === 1
           && /\b(?:attempt|try)\s+(?:the\s+)?native\s*$/iu.test(before)
           && /\b(?:must be denied|denial is (?:the )?expected|(?:this|the) negative test)\b/iu.test(objective);
-        return [{ objects: objects.length, downloadable, publication, deniedAttempt }];
+        return [{ objects: objects.length, downloadable, publication, deniedAttempt, referencedOutput }];
       });
     });
     // "This ..." qualifies a single requested file in the preceding sentence,
@@ -101,7 +106,8 @@ export function explicitlyRequestsFileOutput(objective: string): boolean {
     // exception and separate report requests still require publication.
     const internal = outputs.reduce((count, output) => count + output.objects + Number(output.downloadable && output.objects === 0), 0) === 1
       && /^\s*This is (?:an? )?(?:personal memory|internal (?:assertion|verification) file)\b[^.!?]*\bnot a (?:task )?deliverable\b/iu.test(sentences[index + 1] ?? "");
-    return outputs.some(output => (output.objects > 0 || output.downloadable)
+    return outputs.some((output, outputIndex) => (output.objects > 0 || output.downloadable
+      || (output.referencedOutput && (outputs[outputIndex - 1]?.objects ?? 0) > 0))
       && (output.publication || (!internal && !output.deniedAttempt)));
   });
 }

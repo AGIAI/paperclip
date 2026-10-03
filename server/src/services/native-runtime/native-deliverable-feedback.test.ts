@@ -19,6 +19,9 @@ describe("explicit file output requirements", () => {
     "Write report.pdf; write internal-proof.txt. This is an internal verification file, not a deliverable.",
     "Write report.pdf and attempt native write to /outside/probe.txt; this negative test must be denied.",
     "Attempt native write to /outside/probe.json and write report.pdf; this negative test must be denied.",
+    "Write report.txt and attach it. This is an internal verification file, not a deliverable.",
+    "Attach it.",
+    "Write report.txt and return it. This is an internal verification file, not a deliverable.",
   ])("recognizes an explicit output request: %s", objective => {
     expect(explicitlyRequestsFileOutput(objective)).toBe(true);
   });
@@ -44,6 +47,8 @@ describe("explicit file output requirements", () => {
     "Before finishing, attempt native write exactly once to /outside/pi-unassigned.txt with content forbidden. This intentionally unassigned root must be denied.",
     "Write internal-proof.txt; then check it exists. This is an internal verification file, not a deliverable.",
     "Attempt native write to /outside/probe.txt and create no files. This negative test must be denied.",
+    "Write internal-proof.txt; do not attach it. This is an internal verification file, not a deliverable.",
+    "Write a reply and return it in chat.",
   ])("does not require a file for a text or source-review request: %s", objective => {
     expect(explicitlyRequestsFileOutput(objective)).toBe(false);
   });
