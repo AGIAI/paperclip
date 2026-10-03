@@ -8,6 +8,8 @@ import {
   nativeCompletionSourceFingerprint, nativeSourceSha256,
 } from "./native-completion-source-contract.mjs";
 
+import { inspectNativeCompletionSourceMetadata, inspectNativeCompletionRunnerd, NATIVE_COMPLETION_RUNNERD_PATH } from "./native-completion-git-source.mjs";
+
 const root = resolve(import.meta.dirname, "../..");
 export const NATIVE_COMPLETION_PREFLIGHT_SCHEMA = "paperclip.native-completion-preflight.v1";
 export const NATIVE_COMPLETION_CELL_IDS = ["runner-codex", "runner-acpx-claude", "runner-opencode"].flatMap(profile =>
@@ -43,7 +45,10 @@ export function nativeCompletionGates(variant) {
         "retains the first provider_variance failure without a second attempt"] },
   ];
 }
-export const NATIVE_COMPLETION_COMMAND_GATE_IDS = ["NC-node", "NC-typecheck", "NC-manifest", "NC-discovery"];
+export const NATIVE_COMPLETION_COMMAND_GATE_IDS = ["NC-node", "NC-typecheck", "NC-manifest", "NC-discovery", "NC-rust-carrier"];
+export function nativeCompletionCommandGateIds(mode) {
+  return NATIVE_COMPLETION_COMMAND_GATE_IDS.map(id => mode === "trusted_hosted_archive" && id === "NC-rust-carrier" ? "NC-hosted-runnerd" : id);
+}
 export function gradeNativeCompletionGate(gate, report, exitCode) {
   const assertions = (report?.testResults ?? []).flatMap(file => file.assertionResults ?? []);
   const requirements = gate.required.map(name => ({ name, passed: assertions.some(assertion =>
@@ -66,19 +71,20 @@ export function gradeNativeCompletionDiscovery(output, exitCode) {
     rows.every(row => row.length === 6 && row[1] === "native-completion" && row[2] === "native" && row[4]?.trim() && row[5]?.trim()),
     executionIds: ids, expectedCells: 6, expectedTurns: 6, maximumAttemptsPerCell: 1 };
 }
+export function gradeNativeCompletionRustCarrier(output, exitCode) {
+  return exitCode === 0 && /^test provider_events::tests::preserves_closed_compatibility_terminal_tool_identity \.\.\. ok$/m.test(output) &&
+    /test result: ok\. 1 passed; 0 failed;/.test(output);
+}
 export function nativeCompletionPrerequisiteEnvironment(source) {
   return Object.fromEntries(["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "SYSTEMROOT", "LANG", "LC_ALL",
-    "CARGO_HOME", "RUSTUP_HOME", "CI", "GITHUB_ACTIONS"].flatMap(name => source[name] === undefined ? [] : [[name, source[name]]]));
+    "CARGO_HOME", "RUSTUP_HOME", "CI", "GITHUB_ACTIONS", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT", "PAPERCLIP_RUNNER_E2E_SOURCE_SHA"].flatMap(name => source[name] === undefined ? [] : [[name, source[name]]]));
 }
-function git(args) { return spawnSync("git", args, { cwd: root, encoding: "utf8" }); }
 function currentSource() {
   const source = nativeCompletionSourceFingerprint();
-  const head = git(["rev-parse", "HEAD"]), ancestor = git(["merge-base", "--is-ancestor", source.baseSha, "HEAD"]);
-  const tracked = git(["ls-files", "--error-unmatch", "--", ...NATIVE_COMPLETION_SOURCE_FILES]);
-  const clean = git(["diff", "--quiet", "HEAD"]);
-  const status = git(["status", "--porcelain", "--untracked-files=normal"]);
-  return { ...source, sha: head.status === 0 ? head.stdout.trim() : null,
-    layering: ancestor.status === 0, immutable: tracked.status === 0 && clean.status === 0 && status.status === 0 && status.stdout.trim() === "" };
+  return { ...source, ...inspectNativeCompletionSourceMetadata({ repositoryRoot: root,
+    sourceFiles: NATIVE_COMPLETION_SOURCE_FILES, baseSha: source.baseSha, variant: source.variant,
+    shallowParentAnchors: NATIVE_COMPLETION_SOURCE_CONTRACT.shallowParentAnchors,
+  }) };
 }
 function buildOutputFingerprint() {
   const hash = createHash("sha256");
@@ -94,11 +100,25 @@ function buildOutputFingerprint() {
     if (!existsSync(join(root, directory, "index.js"))) throw new Error(`Missing prerequisite build output: ${directory}`);
     visit(directory);
   }
+  const daemon = runnerdBinary();
+  const bytes = readFileSync(daemon);
+  hash.update(JSON.stringify(["debug/paperclip-runnerd", bytes.length])).update(bytes);
   return hash.digest("hex");
 }
+function runnerdBinary() {
+  return join(root, `${NATIVE_COMPLETION_RUNNERD_PATH}${process.platform === "win32" ? ".exe" : ""}`);
+}
+function runnerdProvenance(source, env) {
+  return inspectNativeCompletionRunnerd({ repositoryRoot: root, sourceSha: source.sha,
+    sourceFingerprint: source.fingerprint, environment: env });
+}
 export function assertNativeCompletionPreflightReceipt(report, current) {
-  const expected = [...nativeCompletionGates(current.variant).map(gate => gate.id), ...NATIVE_COMPLETION_COMMAND_GATE_IDS];
-  if (report?.schema !== NATIVE_COMPLETION_PREFLIGHT_SCHEMA || report.passed !== true || report.providerCalls !== 0 ||
+  const expected = [...nativeCompletionGates(current.variant).map(gate => gate.id), ...nativeCompletionCommandGateIds(current.runnerdProvenance?.mode)];
+  const hostedGate = report?.gates?.find(gate => gate.id === "NC-hosted-runnerd");
+  const truthfulHosted = current.runnerdProvenance?.mode !== "trusted_hosted_archive" ||
+    hostedGate?.executed === false && hostedGate?.calibration === "not_executed" && hostedGate?.total === 0 &&
+    hostedGate?.passedTests === 0 && hostedGate?.reuse === "trusted_same_run_build";
+  if (!truthfulHosted || report?.schema !== NATIVE_COMPLETION_PREFLIGHT_SCHEMA || report.passed !== true || report.providerCalls !== 0 ||
       report.live !== "not_run" || report.sourceSha !== current.sha || !/^[a-f0-9]{40}$/.test(current.sha ?? "") ||
       ![current.fingerprint, current.fixtureFingerprint, current.manifestFingerprint, current.buildOutputFingerprint]
         .every(value => typeof value === "string" && /^[a-f0-9]{64}$/.test(value)) ||
@@ -106,11 +126,21 @@ export function assertNativeCompletionPreflightReceipt(report, current) {
       report.manifestFingerprint !== current.manifestFingerprint || report.variant !== current.variant ||
       report.baseSha !== NATIVE_COMPLETION_SOURCE_CONTRACT.baseSha || report.archiveSha !== NATIVE_COMPLETION_SOURCE_CONTRACT.archiveSha ||
       report.layering !== true || current.layering !== true || report.immutable !== true || current.immutable !== true ||
+      !/^[a-f0-9]{64}$/.test(current.sourceMetadataFingerprint ?? "") ||
+      report.sourceMetadataFingerprint !== current.sourceMetadataFingerprint ||
+      !Array.isArray(report.sourceMetadataErrors) || report.sourceMetadataErrors.length !== 0 || current.sourceMetadataErrors?.length !== 0 ||
       !Array.isArray(report.sourceErrors) || report.sourceErrors.length !== 0 || current.sourceErrors?.length !== 0 ||
       report.setup?.passed !== true || report.setup.sdkExitCode !== 0 || report.setup.runnerTypeScriptExitCode !== 0 ||
+      report.setup.runnerdExitCode !== (current.runnerdProvenance?.mode === "trusted_hosted_archive" ? null : 0) ||
+      current.runnerdProvenance?.passed !== true || !["trusted_hosted_archive", "fresh_local_build"].includes(current.runnerdProvenance?.mode) ||
+      JSON.stringify(report.setup.runnerdProvenance) !== JSON.stringify(current.runnerdProvenance) ||
+      report.setup.runnerdSelectedPath !== current.runnerdProvenance.selectedPath ||
+      report.setup.runnerdSha256 !== current.runnerdProvenance.binarySha256 ||
+      !/^[a-f0-9]{64}$/.test(current.runnerdProvenance.binarySha256 ?? "") ||
+      report.setup.runnerdSourceSha !== current.sha || report.setup.runnerdSourceFingerprint !== current.fingerprint ||
       report.setup.buildOutputFingerprint !== current.buildOutputFingerprint ||
-      !Array.isArray(report.setup.evidence) || report.setup.evidence.length !== 2 ||
-      ["setup-sdk.txt", "setup-runner-typescript.txt"].some(file => report.setup.evidence.filter(row =>
+      !Array.isArray(report.setup.evidence) || report.setup.evidence.length !== 3 ||
+      ["setup-sdk.txt", "setup-runner-typescript.txt", "setup-runnerd.txt"].some(file => report.setup.evidence.filter(row =>
         row.file === file && /^[a-f0-9]{64}$/.test(row.sha256 ?? "")).length !== 1) ||
       !Array.isArray(report.gates) || report.gates.length !== expected.length ||
       expected.some(id => report.gates.filter(gate => gate.id === id && gate.passed === true && gate.exitCode === 0).length !== 1) ||
@@ -141,7 +171,8 @@ function manifestCommands(env) {
 export function main(args = process.argv.slice(2)) {
   if (args.includes("--list")) {
     console.log(JSON.stringify({ variants: ["candidate", "historical"], gates: nativeCompletionGates("candidate"),
-      commands: NATIVE_COMPLETION_COMMAND_GATE_IDS, cells: NATIVE_COMPLETION_CELL_IDS, providerCalls: 0 }, null, 2)); return;
+      commands: { local: nativeCompletionCommandGateIds("fresh_local_build"), hosted: nativeCompletionCommandGateIds("trusted_hosted_archive") },
+      cells: NATIVE_COMPLETION_CELL_IDS, providerCalls: 0 }, null, 2)); return;
   }
   if (args.some(arg => !arg.startsWith("--output-dir=") && !arg.startsWith("--verify=")))
     throw new Error("Use --list, --output-dir=<path> or --verify=<receipt>; never paid providers.");
@@ -149,7 +180,7 @@ export function main(args = process.argv.slice(2)) {
   const verify = args.find(arg => arg.startsWith("--verify="))?.slice("--verify=".length);
   if (verify) {
     const report = assertNativeCompletionPreflightReceipt(JSON.parse(readFileSync(verify, "utf8")), {
-      ...source, buildOutputFingerprint: buildOutputFingerprint(),
+      ...source, buildOutputFingerprint: buildOutputFingerprint(), runnerdProvenance: runnerdProvenance(source, env),
     });
     const output = resolve(verify, "..");
     for (const evidence of report.setup.evidence) assertRetainedNativeCompletionEvidence(output, evidence);
@@ -158,12 +189,18 @@ export function main(args = process.argv.slice(2)) {
       const grade = gradeNativeCompletionGate(gate, JSON.parse(assertRetainedNativeCompletionEvidence(output, retained.evidence)), 0);
       if (!grade.passed) throw new Error(`Missing or failed retained native prerequisite assertions: ${gate.id}`);
     }
-    for (const id of NATIVE_COMPLETION_COMMAND_GATE_IDS) {
+    for (const id of nativeCompletionCommandGateIds(report.setup.runnerdProvenance.mode)) {
       const retained = report.gates.find(row => row.id === id), text = assertRetainedNativeCompletionEvidence(output, retained.evidence);
       if (id === "NC-node" && (!/# fail 0\b/.test(text) || !/# tests [1-9]\d*\b/.test(text)))
         throw new Error("Missing passing native admission calibrations.");
       if (id === "NC-discovery" && !gradeNativeCompletionDiscovery(text.split("\n\n")[0], 0).passed)
         throw new Error("Native completion six-cell discovery changed.");
+      if (id === "NC-rust-carrier" && !gradeNativeCompletionRustCarrier(text, 0))
+        throw new Error("Missing passing retained Rust terminal-tool carrier calibration.");
+      if (id === "NC-hosted-runnerd" && (retained.executed !== false || retained.calibration !== "not_executed" ||
+          retained.total !== 0 || retained.passedTests !== 0 ||
+          JSON.stringify(JSON.parse(text.split("\n\n")[0])) !== JSON.stringify(report.setup.runnerdProvenance)))
+        throw new Error("Hosted runnerd reuse must retain exact binary proof and report Rust calibration not executed.");
       if (id === "NC-manifest" && manifestCommands(env).some(run => run.status !== 0))
         throw new Error("Generated native capability manifests are stale.");
     }
@@ -176,11 +213,13 @@ export function main(args = process.argv.slice(2)) {
     fixtureFingerprint: source.fixtureFingerprint, manifestFingerprint: source.manifestFingerprint,
     variant: source.variant, baseSha: source.baseSha, archiveSha: source.archiveSha,
     sourceErrors: source.sourceErrors, immutable: source.immutable, layering: source.layering,
+    sourceMetadata: source.sourceMetadata, sourceMetadataErrors: source.sourceMetadataErrors,
+    sourceMetadataFingerprint: source.sourceMetadataFingerprint,
     measuredAt: new Date().toISOString(), providerCalls: 0, live: "not_run", expectedCells: 6, expectedTurns: 6, maximumAttemptsPerCell: 1,
-    setup: { passed: false, sdkExitCode: null, runnerTypeScriptExitCode: null, evidence: [] }, gates: [], passed: false };
+    setup: { passed: false, sdkExitCode: null, runnerTypeScriptExitCode: null, runnerdExitCode: null, evidence: [] }, gates: [], passed: false };
   if (!source.sha || source.sourceErrors.length || !source.layering || !source.immutable) {
     writeFileSync(join(output, "preflight.json"), JSON.stringify(report, null, 2) + "\n");
-    console.error("Native completion source admission failed; commit the exact native-only source and fixtures before qualification.");
+    console.error(`Native completion source admission failed before providers: ${[...source.sourceErrors, ...source.sourceMetadataErrors].join("; ")}`);
     process.exitCode = 1; return report;
   }
   const sdk = runCommand(process.execPath, [join(root, "scripts/ensure-plugin-build-deps.mjs")], env, 5 * 60_000);
@@ -188,9 +227,22 @@ export function main(args = process.argv.slice(2)) {
   const runner = sdk.status === 0 ? runCommand("pnpm", ["--filter", "@paperclipai/paperclip-runner", "build:typescript"], env) : null;
   report.setup.runnerTypeScriptExitCode = runner?.status ?? null;
   report.setup.evidence.push(capture(output, "setup-runner-typescript", runner));
-  report.setup.passed = sdk.status === 0 && runner?.status === 0;
+  const hosted = env.GITHUB_ACTIONS === "true";
+  const runnerd = sdk.status === 0 && runner?.status === 0 && !hosted ? runCommand("cargo",
+    ["build", "--locked", "--offline", "--workspace", "--bins"], env,
+    10 * 60_000, join(root, "packages/paperclip-runner/runner")) : null;
+  report.setup.runnerdExitCode = runnerd?.status ?? null;
+  report.setup.runnerdProvenance = runnerdProvenance(source, env);
+  report.setup.evidence.push(capture(output, "setup-runnerd", hosted
+    ? { stdout: JSON.stringify(report.setup.runnerdProvenance), stderr: "Rust build and unit calibration not executed in this hosted cell; reusing trusted same-run build." }
+    : runnerd));
+  report.setup.passed = sdk.status === 0 && runner?.status === 0 && (hosted || runnerd?.status === 0) && report.setup.runnerdProvenance.passed;
   if (report.setup.passed) {
     report.setup.buildOutputFingerprint = buildOutputFingerprint();
+    report.setup.runnerdSha256 = report.setup.runnerdProvenance.binarySha256;
+    report.setup.runnerdSelectedPath = report.setup.runnerdProvenance.selectedPath;
+    report.setup.runnerdSourceSha = source.sha;
+    report.setup.runnerdSourceFingerprint = source.fingerprint;
     for (const gate of nativeCompletionGates(source.variant)) {
       console.log(`Checking ${gate.id}: ${gate.name}`);
       const file = `${gate.id}.json`, run = runCommand(process.execPath, [join(root, "node_modules/vitest/vitest.mjs"), "run", ...gate.files,
@@ -202,25 +254,35 @@ export function main(args = process.argv.slice(2)) {
         evidence: existsSync(join(output, file)) ? { file, sha256: nativeSourceSha256(readFileSync(join(output, file))) } : null });
     }
     const commands = [
-      { id: "NC-node", command: process.execPath, args: ["--test", "--test-reporter=tap", "tests/runner-e2e/native-completion-checks.test.mjs", "tests/runner-e2e/native-completion-source-contract.test.mjs"] },
+      { id: "NC-node", command: process.execPath, args: ["--test", "--test-reporter=tap", "tests/runner-e2e/native-completion-checks.test.mjs", "tests/runner-e2e/native-completion-source-contract.test.mjs", "tests/runner-e2e/native-completion-git-source.test.mjs"] },
       { id: "NC-typecheck", command: process.execPath, args: ["node_modules/typescript/bin/tsc", "-p", "tests/runner-e2e/tsconfig.json"] },
+      ...(!hosted ? [{ id: "NC-rust-carrier", command: "cargo", args: ["test", "--locked", "--offline",
+        "-p", "paperclip-runner-core", "--lib", "provider_events::tests::preserves_closed_compatibility_terminal_tool_identity", "--", "--exact"],
+        cwd: join(root, "packages/paperclip-runner/runner") }] : []),
       { id: "NC-discovery", command: process.execPath, args: ["--import", "./server/node_modules/tsx/dist/loader.mjs", "tests/runner-e2e/launch.ts", "--list", "--suite", "native-completion"] },
     ];
     for (const command of commands) {
       console.log(`Checking ${command.id}`);
-      const run = runCommand(command.command, command.args, env);
+      const run = runCommand(command.command, command.args, env, 10 * 60_000, command.cwd ?? root);
       report.gates.push({ id: command.id, passed: run.status === 0 &&
         (command.id !== "NC-discovery" || gradeNativeCompletionDiscovery(run.stdout, run.status).passed) &&
+        (command.id !== "NC-rust-carrier" || gradeNativeCompletionRustCarrier(`${run.stdout ?? ""}\n${run.stderr ?? ""}`, run.status)) &&
         (command.id !== "NC-node" || /# fail 0\b/.test(run.stdout) && /# tests [1-9]\d*\b/.test(run.stdout)),
         exitCode: run.status, evidence: capture(output, command.id, run) });
     }
+    if (hosted) report.gates.push({ id: "NC-hosted-runnerd", name: "Trusted hosted runnerd provenance; Rust calibration not executed",
+      passed: report.setup.runnerdProvenance.passed, exitCode: 0, executed: false, calibration: "not_executed",
+      reuse: "trusted_same_run_build", total: 0, passedTests: 0, evidence: capture(output, "NC-hosted-runnerd", {
+        stdout: JSON.stringify(report.setup.runnerdProvenance), stderr: "Rust unit calibration must be qualified by the separate exact-source local receipt and normal CI." }) });
     const manifest = manifestCommands(env), combined = { stdout: manifest.map(run => run.stdout ?? "").join("\n"), stderr: manifest.map(run => run.stderr ?? "").join("\n") };
     report.gates.push({ id: "NC-manifest", passed: manifest.every(run => run.status === 0),
       exitCode: manifest.find(run => run.status !== 0)?.status ?? 0, evidence: capture(output, "NC-manifest", combined) });
     const after = currentSource();
     report.passed = report.gates.every(gate => gate.passed) && after.immutable && after.layering &&
       after.sha === source.sha && after.fingerprint === source.fingerprint && after.sourceErrors.length === 0 &&
-      buildOutputFingerprint() === report.setup.buildOutputFingerprint;
+      after.sourceMetadataFingerprint === source.sourceMetadataFingerprint && after.sourceMetadataErrors.length === 0 &&
+      buildOutputFingerprint() === report.setup.buildOutputFingerprint &&
+      JSON.stringify(runnerdProvenance(after, env)) === JSON.stringify(report.setup.runnerdProvenance);
   }
   writeFileSync(join(output, "preflight.json"), JSON.stringify(report, null, 2) + "\n");
   console.log(`Native completion prerequisite evidence: ${join(output, "preflight.json")}`);

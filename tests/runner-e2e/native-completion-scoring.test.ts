@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { rehydrateRunnerdItemNotification } from "../../packages/paperclip-runner/src/live/runnerd-codex-transport.js";
 import { gradeNativeCompletion, type NativeCompletionObservation } from "./native-completion-scoring.js";
 type Row = Record<string, unknown>;
 function sample(blocked = true, compatibility = false): NativeCompletionObservation {
@@ -14,7 +16,7 @@ function sample(blocked = true, compatibility = false): NativeCompletionObservat
     runs: [{ id: "run", nativeIssueId: "issue", companyId: "company", agentId: "agent", status: "succeeded", runtimeMode: "native", resultJson: { nativeResult: result } }],
     comments: [{ createdByRunId: "run", authorAgentId: "agent", body }],
     initial: { issueIds: [], agentIds: ["agent"] }, state: { issueIds: ["issue"], agentIds: ["agent"], documentCount: blocked ? 0 : 1, interactionCount: 0 }, workspaceChanged: false,
-    events: [compatibility ? event(1, "item.started", { kind: "tool_call", item: { type: "tool_call", id: "tool" } }) : event(1, "tool.execution.started", { name: tool, executionId: "tool" }), event(2, "run.result.proposed", result),
+    events: [compatibility ? event(1, "item.started", { kind: "tool_call", item: { type: "tool_call", id: "tool", name: tool } }) : event(1, "tool.execution.started", { name: tool, executionId: "tool" }), event(2, "run.result.proposed", result),
       compatibility ? event(3, "item.completed", { kind: "tool_result", item: { type: "tool_result", status: "completed", id: "tool" } }) : event(3, "tool.execution.completed", { name: tool, status: "completed", executionId: "tool" }),
       event(4, "item.completed", { kind: "agentMessage", channel: "final", item: { type: "agentMessage", phase: "final_answer", text: body, channel: "final" } }),
       event(5, "run.result.accepted", { result }, "control_plane"), event(6, "run.terminal", { runTerminalState: "succeeded", turnTerminalState: "completed" }, "control_plane")],
@@ -23,6 +25,22 @@ function sample(blocked = true, compatibility = false): NativeCompletionObservat
 function payload(input: NativeCompletionObservation, index: number): Row { return ((input.events[index]!.payload as Row).prpEvent as Row).payload as Row; }
 describe("native completion independent oracle", () => {
   it.each([[true, false], [true, true], [false, false], [false, true]])("accepts disposition %s compatibility %s with final before late control-plane acceptance", (blocked, compatibility) => expect(gradeNativeCompletion(sample(blocked, compatibility)).passed).toBe(true));
+  it.each(["paperclip_finish", "paperclip_block"])("carries normalized %s identity through rehydration into the exact-call oracle", name => {
+    // The Rust normalization calibration asserts these exact fixture bytes.
+    const fixture = JSON.parse(readFileSync(new URL("./fixtures/native-completion/terminal-tool-carrier.json", import.meta.url), "utf8")) as {
+      cases: Array<{ name: string; normalizedPayload: Row }>;
+    };
+    const normalized = fixture.cases.find(value => value.name === name)!.normalizedPayload;
+    const started = rehydrateRunnerdItemNotification(normalized, "thread", "turn");
+    expect(started.item).toMatchObject({ id: "terminal-call", type: "tool_call", name });
+    const completed = rehydrateRunnerdItemNotification({ provider: "codex", itemId: "terminal-call", kind: "tool_result", status: "completed", channel: "detail", text: null }, "thread", "turn");
+    const value = sample(name === "paperclip_block", true);
+    payload(value, 0).item = started.item;
+    payload(value, 2).item = completed.item;
+    expect(gradeNativeCompletion(value).passed).toBe(true);
+    (payload(value, 2).item as Row).id = "different-call";
+    expect(gradeNativeCompletion(value).checks.find(check => check.id === "final-after-tool-result")?.passed).toBe(false);
+  });
   it("accepts authoritative acceptance before the provider final", () => {
     const value = sample();
     const events = [...value.events];
@@ -39,6 +57,13 @@ describe("native completion independent oracle", () => {
     if (kind === "canonical") payload(value, 2).executionId = "unmatched";
     else (payload(value, 2).item as Row).id = "unmatched";
     expect(gradeNativeCompletion(value).passed).toBe(false);
+  });
+  it.each(["missing-name", "unrelated-named-tool", "contradictory-result-name"])("rejects compatibility finishing identity %s despite a matching ID", name => {
+    const value = sample(true, true);
+    if (name === "missing-name") delete (payload(value, 0).item as Row).name;
+    if (name === "unrelated-named-tool") (payload(value, 0).item as Row).name = "write_document";
+    if (name === "contradictory-result-name") (payload(value, 2).item as Row).name = "write_document";
+    expect(gradeNativeCompletion(value).checks.find(check => check.id === "final-after-tool-result")?.passed).toBe(false);
   });
   it.each(["extra-run", "retry", "continuation", "wrong-account", "wrong-agent", "wrong-disposition", "punctuated-action", "wrong-scope", "missing-final", "summary-fallback", "pre-tool-final", "post-admission-call", "missing-acceptance", "runner-acceptance", "failed-terminal", "event-gap", "binding-mismatch", "extra-task", "extra-agent", "extra-document", "interaction", "changed-workspace", "process-call", "marker-only", "contradiction", "wrong-reply-run"])("rejects %s", name => {
     const value = sample(); const run = value.runs[0]!;

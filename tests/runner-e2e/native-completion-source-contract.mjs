@@ -7,6 +7,10 @@ export const NATIVE_COMPLETION_SOURCE_CONTRACT = {
   "schema": "paperclip.native-completion-source-contract.v1",
   "baseSha": "59c07ede72dc08b8aba149a01cc11e0b7a204621",
   "archiveSha": "9138f570c341c251a5727c32d6615ce238bc8e03",
+  "shallowParentAnchors": {
+    "candidate": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
+    "historical": "459455acb11a012a97ad1b4afb77a1dc024a88bc"
+  },
   "variants": {
     "candidate": {
       "packages/paperclip-runner/src/contracts/completion-result.ts": "bd4bb79d2be5c4ee3765df67dfb4da98ef95bc532cac872be40cb41a6bff6cda",
@@ -61,6 +65,9 @@ export const NATIVE_COMPLETION_FIXTURE_FILES = [
   "tests/runner-e2e/native-completion-admission.test.ts",
   "tests/runner-e2e/native-completion-checks.mjs",
   "tests/runner-e2e/native-completion-checks.test.mjs",
+  "tests/runner-e2e/native-completion-git-source.mjs",
+  "tests/runner-e2e/native-completion-git-source.test.mjs",
+  "tests/runner-e2e/fixtures/native-completion/terminal-tool-carrier.json",
   "tests/runner-e2e/native-completion-source-contract.mjs",
   "tests/runner-e2e/native-completion-source-contract.test.mjs",
   "tests/runner-e2e/automatic-retry.ts",
@@ -108,6 +115,9 @@ export const NATIVE_COMPLETION_SOURCE_FILES = [...new Set([
   "packages/paperclip-runner/src/drivers/opencode/opencode-server-driver.ts",
   "packages/adapters/codex-local/src/index.ts", "packages/adapters/claude-local/src/index.ts",
   "packages/paperclip-runner/package.json", "tsconfig.base.json",
+  "packages/paperclip-runner/runner/crates/runner-core/src/provider_events.rs",
+  "packages/paperclip-runner/runner/Cargo.toml", "packages/paperclip-runner/runner/Cargo.lock",
+  "packages/paperclip-runner/runner/crates/runner-core/Cargo.toml",
 ])].sort();
 
 export const nativeSourceSha256 = bytes => createHash("sha256").update(bytes).digest("hex");

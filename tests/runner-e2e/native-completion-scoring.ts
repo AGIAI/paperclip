@@ -83,6 +83,8 @@ export function gradeNativeCompletion(input: NativeCompletionObservation) {
         || event.eventType === "item.completed" && start.eventType === "item.started"
         && (started.kind === "tool_call" || startedItem.type === "tool_call")
         && typeof item.id === "string" && item.id.length > 0 && item.id === startedItem.id
+        && terminalName(startedItem.name, expectedTool)
+        && (item.name === undefined || item.name === null || terminalName(item.name, expectedTool))
       );
     });
   });
@@ -128,6 +130,6 @@ export function gradeNativeCompletion(input: NativeCompletionObservation) {
     check("no-deployment-or-file-work", !input.workspaceChanged && !forbidden,
       "The fixture workspace is unchanged and no process/file/deployment or extra-work tool is observed.");
   }
-  return { schema: "paperclip.native-completion-observation.v1", passed: checks.every(value => value.passed), checks,
+  return { schema: "paperclip.native-completion-observation.v2", passed: checks.every(value => value.passed), checks,
     limitations: ["Exact provider feedback identity/consumption is not measured by the public sequence."] };
 }
