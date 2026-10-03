@@ -238,22 +238,23 @@ export function Costs({
   };
 
   const policyMutation = useMutation({
-    mutationFn: (input: {
-      scopeType: BudgetPolicySummary["scopeType"];
-      scopeId: string;
-      amount: number;
-      windowKind: BudgetPolicySummary["windowKind"];
-      unpricedUsagePolicy?: "block" | "allow";
-      reservationCents?: string;
-    }) =>
-      budgetsApi.upsertPolicy(companyId, {
-        scopeType: input.scopeType,
-        scopeId: input.scopeId,
-        amount: input.amount,
-        windowKind: input.windowKind,
-        unpricedUsagePolicy: input.unpricedUsagePolicy,
-        reservationCents: input.reservationCents,
-      }),
+    mutationFn: ({ summary, changes }: {
+      summary: BudgetPolicySummary;
+      changes: Partial<Pick<BudgetPolicySummary, "amount" | "reservationCents" | "unpricedUsagePolicy">>;
+    }) => budgetsApi.upsertPolicy(companyId, {
+      scopeType: summary.scopeType,
+      scopeId: summary.scopeId,
+      metric: summary.metric,
+      windowKind: summary.windowKind,
+      amount: summary.amount,
+      warnPercent: summary.warnPercent,
+      hardStopEnabled: summary.hardStopEnabled,
+      notifyEnabled: summary.notifyEnabled,
+      isActive: summary.isActive,
+      unpricedUsagePolicy: summary.unpricedUsagePolicy,
+      reservationCents: summary.reservationCents,
+      ...changes,
+    }),
     onSuccess: invalidateBudgetViews,
   });
 
@@ -1005,16 +1006,11 @@ export function Costs({
                           <BudgetPolicyCard
                             key={summary.policyId}
                             summary={summary}
-                            onReservationChange={(reservationCents) => policyMutation.mutate({ scopeType: summary.scopeType, scopeId: summary.scopeId, windowKind: summary.windowKind, amount: summary.amount, reservationCents })}
-                            onUnpricedUsagePolicyChange={(unpricedUsagePolicy) => policyMutation.mutate({ scopeType: summary.scopeType, scopeId: summary.scopeId, windowKind: summary.windowKind, amount: summary.amount, unpricedUsagePolicy })}
+                            onReservationChange={(reservationCents) => policyMutation.mutate({ summary, changes: { reservationCents } })}
+                            onUnpricedUsagePolicyChange={(unpricedUsagePolicy) => policyMutation.mutate({ summary, changes: { unpricedUsagePolicy } })}
                             isSaving={policyMutation.isPending}
                             onSave={(amount) =>
-                              policyMutation.mutate({
-                                scopeType: summary.scopeType,
-                                scopeId: summary.scopeId,
-                                amount,
-                                windowKind: summary.windowKind,
-                              })}
+                              policyMutation.mutate({ summary, changes: { amount } })}
                           />
                         ))}
                       </div>

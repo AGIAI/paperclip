@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Costs } from "./Costs";
 import { MemoryRouter } from "react-router-dom";
 
+const upsertPolicyMock = vi.hoisted(() => vi.fn());
 const budgetOverviewMock = vi.hoisted(() => vi.fn());
 const setBreadcrumbsMock = vi.hoisted(() => vi.fn());
 const costsApiMocks = vi.hoisted(() => ({
@@ -28,7 +29,7 @@ const costsApiMocks = vi.hoisted(() => ({
 vi.mock("../api/budgets", () => ({
   budgetsApi: {
     overview: (...args: unknown[]) => budgetOverviewMock(...args),
-    upsertPolicy: vi.fn(),
+    upsertPolicy: upsertPolicyMock,
     resolveIncident: vi.fn(),
   },
 }));
@@ -95,6 +96,37 @@ describe("Shared Costs surfaces", () => {
     expect(container.querySelector('[role="tab"]')).toBeFalsy();
     expect(setBreadcrumbsMock).not.toHaveBeenCalled();
     for (const mock of Object.values(costsApiMocks)) expect(mock).not.toHaveBeenCalled();
+  });
+
+  it.each(["reservation", "unknown price", "amount"])("preserves all other budget settings when editing %s", async (field) => {
+    const summary = {
+      policyId: "policy", companyId: "company-1", scopeType: "agent", scopeId: "agent", scopeName: "Worker", metric: "billed_cents", windowKind: "lifetime",
+      amount: 500, warnPercent: 65, hardStopEnabled: false, notifyEnabled: false, isActive: false, unpricedUsagePolicy: "allow", reservationCents: "2.0000000",
+      observedAmount: 0, remainingAmount: 500, utilizationPercent: 0, unpricedEventCount: 0, pendingRunCount: 0, status: "ok", paused: false, pauseReason: null,
+    };
+    budgetOverviewMock.mockResolvedValue({ policies: [summary], activeIncidents: [], pendingApprovalCount: 0, pausedAgentCount: 0, pausedProjectCount: 0 });
+    upsertPolicyMock.mockResolvedValue({});
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    root = createRoot(container);
+    await act(async () => root.render(<QueryClientProvider client={queryClient}><Costs embedded initialTab="budgets" lockTab /></QueryClientProvider>));
+    await act(async () => { await vi.waitFor(() => expect(container.querySelector('[aria-label="Reserve per run (USD)"]')).not.toBeNull()); });
+    if (field === "unknown price") await act(async () => container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+    else {
+      const element = field === "reservation" ? container.querySelector<HTMLInputElement>('[aria-label="Reserve per run (USD)"]')! : container.querySelector<HTMLInputElement>('input:not([type="checkbox"]):not([aria-label])')!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(element, "1");
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      const label = field === "reservation" ? "Update reservation" : "Update budget";
+      await act(async () => [...container.querySelectorAll("button")].find(b => b.textContent === label)!.click());
+    }
+    await act(async () => { await vi.waitFor(() => expect(upsertPolicyMock).toHaveBeenCalled()); });
+    expect(upsertPolicyMock).toHaveBeenCalledWith("company-1", {
+      scopeType: summary.scopeType, scopeId: summary.scopeId, metric: summary.metric, windowKind: summary.windowKind,
+      amount: field === "amount" ? 100 : 500, warnPercent: 65, hardStopEnabled: false, notifyEnabled: false, isActive: false,
+      unpricedUsagePolicy: field === "unknown price" ? "block" : "allow", reservationCents: field === "reservation" ? "100.0000000" : "2.0000000",
+    });
+    queryClient.clear();
   });
 
   it.each(surfaces)("shows incomplete accounting and currency boundaries on the %s page", async (_name, props) => {

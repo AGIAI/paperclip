@@ -20,6 +20,7 @@ test("financial entry reaches the server and invoice replay does not duplicate c
     await dialog.getByLabel("Provider or biller").fill("anthropic");
     await dialog.getByLabel("Amount (USD)").fill("20.123456789");
     await dialog.getByLabel("Description").fill("Browser subscription");
+    await info.attach("finance-entry-form", { body: await page.screenshot(), contentType: "image/png" });
     const saved = page.waitForResponse(response => response.url().endsWith("/finance-events") && response.request().method() === "POST");
     await dialog.getByRole("button", { name: "Record charge", exact: true }).last().click();
     expect((await saved).status()).toBe(201);

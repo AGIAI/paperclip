@@ -16,7 +16,8 @@ function AccountingPanel({ companyId }: { companyId: string }) {
   const client = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [inspection, setInspection] = useState<AccountingInspection | null>(null);
-  const [reason, setReason] = useState("");
+  const [repairReason, setRepairReason] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
   const [invoiceJson, setInvoiceJson] = useState("");
   const [invoiceId, setInvoiceId] = useState("");
   const [notice, setNotice] = useState("");
@@ -62,9 +63,9 @@ function AccountingPanel({ companyId }: { companyId: string }) {
               {Object.keys(f.expected).map(key => <p className="text-muted-foreground" key={key}>{key}: {f.actual[key]} → {f.expected[key]}</p>)}
             </div>)}
             {inspection.findings.some(f => f.repairable) && <>
-              <Input aria-label="Accounting repair reason" placeholder="Reason for repair" value={reason} onChange={e => setReason(e.target.value)} />
-              <Button disabled={action.isPending || !reason.trim()} onClick={() => run(async () => {
-                setInspection(await accountingApi.repair(companyId, inspection.fingerprint, reason)); setNotice("Reviewed totals repaired. An audit entry records the change.");
+              <Input aria-label="Accounting repair reason" placeholder="Reason for repair" value={repairReason} onChange={e => setRepairReason(e.target.value)} />
+              <Button disabled={action.isPending || !repairReason.trim()} onClick={() => run(async () => {
+                setInspection(await accountingApi.repair(companyId, inspection.fingerprint, repairReason)); setNotice("Reviewed totals repaired. An audit entry records the change.");
               })}>Repair reviewed totals</Button>
             </>}
           </>}
@@ -75,17 +76,17 @@ function AccountingPanel({ companyId }: { companyId: string }) {
           <Textarea aria-label="Invoice JSON" value={invoiceJson} onChange={e => setInvoiceJson(e.target.value)} placeholder='{"biller":"anthropic","externalId":"invoice-123","currency":"USD","lines":[]}' />
           <Button disabled={action.isPending || !invoiceJson.trim()} onClick={() => run(async () => {
             const parsed = importBillingInvoiceSchema.parse(JSON.parse(invoiceJson));
-            const invoice = await accountingApi.importInvoice(companyId, parsed); setInvoiceId(invoice.id); setInvoiceJson(""); setNotice("Invoice imported. Review differences before applying a correction.");
+            const invoice = await accountingApi.importInvoice(companyId, parsed); setInvoiceId(invoice.id); setCorrectionReason(""); setInvoiceJson(""); setNotice("Invoice imported. Review differences before applying a correction.");
           })}>Import invoice for review</Button>
-          <div className="flex flex-wrap gap-2">{invoices.data?.map(invoice => <Button variant="outline" key={invoice.id} onClick={() => setInvoiceId(invoice.id)}>{invoice.biller} · {invoice.externalId}</Button>)}</div>
+          <div className="flex flex-wrap gap-2">{invoices.data?.map(invoice => <Button variant="outline" key={invoice.id} onClick={() => { setInvoiceId(invoice.id); setCorrectionReason(""); }}>{invoice.biller} · {invoice.externalId}</Button>)}</div>
           {report.data && <>
-            <Input aria-label="Invoice correction reason" placeholder="Reason for applying a correction" value={reason} onChange={e => setReason(e.target.value)} />
+            <Input aria-label="Invoice correction reason" placeholder="Reason for applying a correction" value={correctionReason} onChange={e => setCorrectionReason(e.target.value)} />
             {report.data.lines.map(line => <div key={line.id} className="space-y-2 border-t pt-3 text-sm">
               <p>{line.externalId} · {line.status.replaceAll("_", " ")} · {line.amountCents} {report.data!.invoice.currency} cents</p>
               {line.recordedCents !== null && <p>Recorded: {line.recordedCents} cents · Difference: {line.differenceCents} cents</p>}
-              {line.status === "difference" && line.matchedEventId && line.recordedCents !== null && <Button variant="outline" disabled={action.isPending || !reason.trim()} onClick={() => run(async () => {
+              {line.status === "difference" && line.matchedEventId && line.recordedCents !== null && <Button variant="outline" disabled={action.isPending || !correctionReason.trim()} onClick={() => run(async () => {
                 await accountingApi.adjust(companyId, line.matchedEventId!, { idempotencyKey: `invoice-line:${line.id}`, invoiceLineId: line.id,
-                  expectedCents: line.recordedCents!, correctedCents: line.amountCents, reason,
+                  expectedCents: line.recordedCents!, correctedCents: line.amountCents, reason: correctionReason,
                   pricing: { source: "provider_invoice", evidence: report.data!.invoice.externalId } });
                 setNotice("Correction recorded. The original provider charge remains in the audit history.");
               })}>Apply reviewed correction</Button>}
