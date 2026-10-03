@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
-  nativeCompletionGates, gradeNativeCompletionGate, gradeNativeCompletionDiscovery, gradeNativeCompletionRustCarrier,
+  nativeCompletionGates, gradeNativeCompletionGate, gradeNativeCompletionDiscovery, gradeNativeCompletionRustCarrier, gradeNativeCompletionHostedRunnerdEvidence,
   assertNativeCompletionPreflightReceipt, assertRetainedNativeCompletionEvidence, nativeCompletionPrerequisiteEnvironment,
   NATIVE_COMPLETION_PREFLIGHT_SCHEMA, NATIVE_COMPLETION_CELL_IDS, NATIVE_COMPLETION_COMMAND_GATE_IDS, nativeCompletionCommandGateIds,
 } from "./native-completion-checks.mjs";
@@ -169,4 +169,14 @@ for (const [name, mutate] of [
   // The hosted provenance gate is last in this deterministic fixture.
   r.gates.sort((a,b) => a.id === "NC-hosted-runnerd" ? 1 : b.id === "NC-hosted-runnerd" ? -1 : 0);
   mutate(r); assert.throws(() => assertNativeCompletionPreflightReceipt(r,c));
+});
+
+test("hosted runnerd evidence verifies the exact compact JSON capture before its diagnostic line", () => {
+  const proof = hostedFixture().c.runnerdProvenance;
+  const capture = `${JSON.stringify(proof)}\nRust unit calibration must be qualified by the separate exact-source local receipt and normal CI.`;
+  assert.equal(gradeNativeCompletionHostedRunnerdEvidence(capture, proof), true);
+  assert.equal(gradeNativeCompletionHostedRunnerdEvidence(capture.replace("\n", "\r\n"), proof), true);
+  assert.equal(gradeNativeCompletionHostedRunnerdEvidence(capture, { ...proof, binarySha256: "f".repeat(64) }), false);
+  assert.equal(gradeNativeCompletionHostedRunnerdEvidence(`not-json\n${JSON.stringify(proof)}`, proof), false);
+  assert.equal(gradeNativeCompletionHostedRunnerdEvidence("", proof), false);
 });

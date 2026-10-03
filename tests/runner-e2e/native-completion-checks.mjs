@@ -71,6 +71,11 @@ export function gradeNativeCompletionDiscovery(output, exitCode) {
     rows.every(row => row.length === 6 && row[1] === "native-completion" && row[2] === "native" && row[4]?.trim() && row[5]?.trim()),
     executionIds: ids, expectedCells: 6, expectedTurns: 6, maximumAttemptsPerCell: 1 };
 }
+/** capture() stores compact provenance JSON on its first line, then diagnostics. */
+export function gradeNativeCompletionHostedRunnerdEvidence(text, expected) {
+  try { return JSON.stringify(JSON.parse(text.split(/\r?\n/, 1)[0])) === JSON.stringify(expected); }
+  catch { return false; }
+}
 export function gradeNativeCompletionRustCarrier(output, exitCode) {
   return exitCode === 0 && /^test provider_events::tests::preserves_closed_compatibility_terminal_tool_identity \.\.\. ok$/m.test(output) &&
     /test result: ok\. 1 passed; 0 failed;/.test(output);
@@ -199,7 +204,7 @@ export function main(args = process.argv.slice(2)) {
         throw new Error("Missing passing retained Rust terminal-tool carrier calibration.");
       if (id === "NC-hosted-runnerd" && (retained.executed !== false || retained.calibration !== "not_executed" ||
           retained.total !== 0 || retained.passedTests !== 0 ||
-          JSON.stringify(JSON.parse(text.split("\n\n")[0])) !== JSON.stringify(report.setup.runnerdProvenance)))
+          !gradeNativeCompletionHostedRunnerdEvidence(text, report.setup.runnerdProvenance)))
         throw new Error("Hosted runnerd reuse must retain exact binary proof and report Rust calibration not executed.");
       if (id === "NC-manifest" && manifestCommands(env).some(run => run.status !== 0))
         throw new Error("Generated native capability manifests are stale.");
