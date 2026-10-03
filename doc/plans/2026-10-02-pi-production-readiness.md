@@ -444,6 +444,12 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   named in that same response still requires publication. All 89 completion
   tests pass, including the database-bound reviewed example. Keep the paid
   campaign closed until clean review and fresh installed qualification.
+- The subsequent download-link finding does not reproduce at `63e5d6443`.
+  Its existing `download` object matching requires publication for the exact
+  reported objective, even when the link belongs in a response. Free replay
+  returns true and the database completion gate rejects missing delivery
+  evidence. Add both as regressions: all 91 completion tests pass. No runtime
+  change is needed for this finding; retain the failed review as evidence.
 - The `0d65753fe` broad local suite is terminal with 736 passed files, four
   skipped files, 14,982 passed tests and three failures: a Git scan load
   single-flight count (497 versus 498) and two HTTP socket resets. One associated

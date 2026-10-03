@@ -28,6 +28,7 @@ describe("explicit file output requirements", () => {
     "Write report.txt and give me it. This is an internal verification file, not a deliverable.",
     "Write report.txt and return it. This is an internal verification file, not a deliverable.",
     "Write report.txt and send it as an attachment in your response. This is an internal verification file, not a deliverable.",
+    "Write report.txt. This is an internal verification file, not a deliverable. Send it as a download link in your response.",
   ])("recognizes an explicit output request: %s", objective => {
     expect(explicitlyRequestsFileOutput(objective)).toBe(true);
   });

@@ -356,6 +356,7 @@ describe("native runner file handoff", () => {
     "Write report.pdf and attempt native write to /outside/probe.txt; this negative test must be denied.",
     "Write report.txt and attach it. This is an internal verification file, not a deliverable.",
     "Write report.txt and send it to me. This is an internal verification file, not a deliverable.",
+    "Write report.txt. This is an internal verification file, not a deliverable. Send it as a download link in your response.",
   ])("still requires publication when the task also asks for internal or denied writes: %s", async objective => {
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId, executionContinuation: { objective } } })
       .where(eq(heartbeatRuns.id, runId));
