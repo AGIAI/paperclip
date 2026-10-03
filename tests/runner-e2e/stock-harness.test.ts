@@ -153,11 +153,24 @@ describe("stock harness Product E2E", () => {
       .rejects.toThrow("Public API unavailable");
   });
 
+  it("normalizes an omitted conversationMode only from a complete scoped task snapshot", async () => {
+    const api = { async get<T>(url: string): Promise<T> {
+      return (url.endsWith("/instructions-bundle") ? { entryFile: "AGENTS.md", files: [] }
+        : url.endsWith("/heartbeat-runs/run") ? { id: "run", companyId: "company", agentId: "agent", contextSnapshot: { taskId: "task", issueId: "task" } }
+        : url.includes("/events?") ? [{ eventType: "adapter.invoke", payload: { prompt: "Task context", promptMetrics: { heartbeatPromptChars: 1 } } }]
+        : { budgetMonthlyCents: 1000 }) as T;
+    } };
+    const result = await captureStockHarness({ api, companyId: "company", agentId: "agent", generation: "legacy", runIds: ["run"] });
+    expect(result.invocations[0]?.conversationMode).toBe(false);
+  });
+
   it.each([
     { id: "other", companyId: "company", agentId: "agent", contextSnapshot: {} },
     { id: "run", companyId: "other", agentId: "agent", contextSnapshot: {} },
     { id: "run", companyId: "company", agentId: "other", contextSnapshot: {} },
     { id: "run", companyId: "company", agentId: "agent" },
+    { id: "run", companyId: "company", agentId: "agent", contextSnapshot: "invalid" },
+    { id: "run", companyId: "company", agentId: "agent", contextSnapshot: [] },
     { id: "run", companyId: "company", agentId: "agent", contextSnapshot: { conversationMode: "unknown" } },
   ])("rejects missing or mismatched public invocation mode attribution %#", async run => {
     const api = { async get<T>(url: string): Promise<T> {
