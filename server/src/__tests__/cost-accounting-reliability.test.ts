@@ -125,6 +125,35 @@ databaseDescribe("cost accounting reliability (PostgreSQL)", () => {
     expect(await budgetService(db).getInvocationBlock(f.company.id, f.agent.id)).toMatchObject({ scopeType: "agent" });
   });
 
+  it("recovers live scopes despite deleted agent and project policies and an isolated transaction failure", async () => {
+    const f = await fixture(); const other = await fixture(); const budgets = budgetService(db);
+    const [removedAgent] = await db.insert(agents).values({ companyId: f.company.id, name: "Removed", adapterType: "process" }).returning();
+    const [removedProject] = await db.insert(projects).values({ companyId: f.company.id, name: "Removed" }).returning();
+    await budgets.upsertPolicy(f.company.id, { scopeType: "agent", scopeId: removedAgent.id, amount: 100 }, "board");
+    await budgets.upsertPolicy(f.company.id, { scopeType: "project", scopeId: removedProject.id, amount: 100 }, "board");
+    await db.delete(agents).where(eq(agents.id, removedAgent.id));
+    await db.delete(projects).where(eq(projects.id, removedProject.id));
+    for (const live of [f, other]) {
+      await budgets.upsertPolicy(live.company.id, { scopeType: "agent", scopeId: live.agent.id, amount: 100 }, "board");
+      await db.update(agents).set({ status: "paused", pauseReason: "budget" }).where(eq(agents.id, live.agent.id));
+    }
+    // Restrict the scanned scope list so the injected first transaction fails
+    // on the stale scope, ahead of both live policies in this real database.
+    const query = vi.spyOn(db, "selectDistinct").mockReturnValueOnce({ from: () => ({ orderBy: async () => [
+      { companyId: f.company.id, scopeType: "project", scopeId: removedProject.id },
+      { companyId: f.company.id, scopeType: "agent", scopeId: removedAgent.id },
+      ...[f, other].map(live => ({ companyId: live.company.id, scopeType: "agent", scopeId: live.agent.id })),
+    ] }) } as never);
+    const transaction = vi.spyOn(db, "transaction").mockRejectedValueOnce(new Error("Injected scope recovery failure"));
+    try { await budgets.reconcilePolicies(); } finally { query.mockRestore(); transaction.mockRestore(); }
+    for (const live of [f, other]) {
+      const [agent] = await db.select().from(agents).where(eq(agents.id, live.agent.id));
+      expect(agent).toMatchObject({ status: "idle", pauseReason: null });
+    }
+    // A subsequent sweep uses actual policy discovery and skips both deleted scopes.
+    await expect(budgets.reconcilePolicies()).resolves.toBeUndefined();
+  });
+
   it("recovers terminal run accounting exactly once across simultaneous live and recovery workers", async () => {
     const f = await fixture();
     await db.update(heartbeatRuns).set({ status: "timed_out", finishedAt: new Date(), costAccountingPending: true,

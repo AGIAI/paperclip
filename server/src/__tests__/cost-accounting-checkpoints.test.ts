@@ -42,14 +42,20 @@ describe("durable accounting stream projection", () => {
   });
   it("propagates receipt failures and leaves ordinary logs and stderr alone when disabled", async () => {
     const onLog = vi.fn(async (..._args: any[]) => {});
-    expect(createUsageCheckpointLog(onLog, undefined, () => null)).toBe(onLog);
+    const disabled = createUsageCheckpointLog(onLog, undefined, () => null);
+    await disabled("stdout", "ordinary output"); await disabled.flush();
+    expect(onLog).toHaveBeenCalledWith("stdout", "ordinary output");
+    onLog.mockClear();
     const onUsage = vi.fn(async () => { throw new Error("spool full"); });
-    const parse = vi.fn(() => ({ complete: false }));
+    const parse = vi.fn(() => ({ usage: { inputTokens: 1, outputTokens: 0 }, complete: false }));
     const log = createUsageCheckpointLog(onLog, onUsage, parse);
     await log("stderr", '{"usage":1}\n'); await log("stdout", 'invalid json\n{"text":"plain"}\n');
     expect(onUsage).not.toHaveBeenCalled(); onLog.mockClear();
-    await expect(log("stdout", '{"usage":{"input_tokens":1}}\n')).rejects.toThrow("spool full");
-    expect(onLog).not.toHaveBeenCalled();
-    await expect(log("stdout", "x".repeat(8*1024*1024+1))).rejects.toThrow("exceeds");
+    await log("stdout", '{"usage":{"input_tokens":1}}\n');
+    expect(onLog).toHaveBeenCalled();
+    await expect(log.flush()).rejects.toThrow("spool full");
+    const oversized = createUsageCheckpointLog(onLog, onUsage, parse);
+    await oversized("stdout", "x".repeat(8*1024*1024+1));
+    await expect(oversized.flush()).rejects.toThrow("exceeds");
   });
 });

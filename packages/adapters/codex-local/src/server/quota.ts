@@ -229,7 +229,7 @@ export async function fetchWithTimeout(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await fetch(url, { ...init, signal: init.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -282,13 +282,14 @@ function normalizeCodexUsedPercent(rawPct: number | null | undefined): number | 
 export async function fetchCodexQuota(
   token: string,
   accountId: string | null,
+  signal?: AbortSignal,
 ): Promise<QuotaWindow[]> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
   };
   if (accountId) headers["ChatGPT-Account-Id"] = accountId;
 
-  const resp = await fetchWithTimeout("https://chatgpt.com/backend-api/wham/usage", { headers });
+  const resp = await fetchWithTimeout("https://chatgpt.com/backend-api/wham/usage", { headers, signal });
   if (!resp.ok) {
     const message = `chatgpt wham api returned ${resp.status}`;
     const responseText = await readResponseTextPrefix(resp);

@@ -1,12 +1,12 @@
-import { usdToUnits, unitsToCents, centsToUnits } from "@paperclipai/shared";
+import { usdToUnits, unitsToCents } from "@paperclipai/shared";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { accountingRuntimeBaselines, budgetReservations, agentRuntimeState, agents, heartbeatRuns, issues, projects, type Db } from "@paperclipai/db";
+import { accountingRuntimeBaselines, budgetReservations, agentRuntimeState, agents, costEvents, heartbeatRuns, issues, projects, type Db } from "@paperclipai/db";
 import { withAccountingTransaction } from "./accounting-transaction.js";
 import { createCostEventInTransaction } from "./costs.js";
 import { budgetService, deliverBudgetEnforcement, type BudgetServiceHooks } from "./budgets.js";
 import { logger } from "../middleware/logger.js";
 
-const terminalStatuses = ["succeeded", "failed", "timed_out", "cancelled"];
+const terminalStatuses = ["succeeded", "failed", "timed_out", "cancelled", "interrupted"];
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const text = (value: unknown) => typeof value === "string" && value.length > 0 ? value : null;
 const amount = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
@@ -69,7 +69,6 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
     const validParts = parts.length > 0 && tokensMatch && costMatches
       && parts.every((part) => text(part.model) && amount(part.costUsd) !== null)
       && new Set(parts.map((part) => part.model)).size === parts.length;
-    const events = [];
     if (validParts) {
       let allocated = 0n;
       for (const [index, part] of parts.entries()) {
@@ -79,19 +78,21 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
         const partUnits = billingType === "subscription_included" ? 0n : index === parts.length - 1 ? remainder : reported < remainder ? reported : remainder;
         allocated += partUnits;
         const partCents = unitsToCents(partUnits);
-        events.push(await createCostEventInTransaction(tx, run.companyId, {
+        await createCostEventInTransaction(tx, run.companyId, {
           ...receipt, idempotencyKey: `heartbeat:${run.id}:model:${index}`, model: text(part.model)!,
           inputTokens: amount(partUsage.inputTokens) ?? 0, cachedInputTokens: amount(partUsage.cachedInputTokens) ?? 0,
           outputTokens: amount(partUsage.outputTokens) ?? 0, costCents: partCents,
-        }, publications));
+        }, publications);
       }
     } else {
-      events.push(await createCostEventInTransaction(tx, run.companyId, receipt, publications));
+      await createCostEventInTransaction(tx, run.companyId, receipt, publications);
     }
-    const event = events.reduce((total, part) => ({
-      inputTokens: total.inputTokens + part.inputTokens, cachedInputTokens: total.cachedInputTokens + part.cachedInputTokens,
-      outputTokens: total.outputTokens + part.outputTokens, costCents: total.costCents + centsToUnits(part.costCentsExact),
-    }), { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, costCents: 0n });
+    const [event] = await tx.select({
+      inputTokens: sql<string>`coalesce(sum(${costEvents.inputTokens}),0)::text`,
+      cachedInputTokens: sql<string>`coalesce(sum(${costEvents.cachedInputTokens}),0)::text`,
+      outputTokens: sql<string>`coalesce(sum(${costEvents.outputTokens}),0)::text`,
+      costCents: sql<string>`coalesce(sum(${costEvents.costCents}),0)::text`,
+    }).from(costEvents).where(and(eq(costEvents.companyId, run.companyId), eq(costEvents.heartbeatRunId, run.id)));
     const [agent] = await tx.select({ adapterType: agents.adapterType }).from(agents).where(eq(agents.id, run.agentId));
     await tx.insert(agentRuntimeState).values({ agentId: run.agentId, companyId: run.companyId, adapterType: agent.adapterType }).onConflictDoNothing();
     await tx.execute(sql`insert into accounting_runtime_baselines (agent_id,company_id,cost_cents,input_tokens,cached_input_tokens,output_tokens)
@@ -101,7 +102,7 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
       totalInputTokens: sql`${agentRuntimeState.totalInputTokens} + ${event.inputTokens}`,
       totalCachedInputTokens: sql`${agentRuntimeState.totalCachedInputTokens} + ${event.cachedInputTokens}`,
       totalOutputTokens: sql`${agentRuntimeState.totalOutputTokens} + ${event.outputTokens}`,
-      totalCostCents: sql`${agentRuntimeState.totalCostCents} + ${unitsToCents(event.costCents)}::numeric`,
+      totalCostCents: sql`${agentRuntimeState.totalCostCents} + ${event.costCents}::numeric`,
       updatedAt: new Date(),
     }).where(eq(agentRuntimeState.agentId, run.agentId));
     await tx.update(heartbeatRuns).set({ costAccountingPending: false, costAccountedAt: new Date(), accountingProjectionVersion: "v2", accountingLastError: null, accountingLastAttemptAt: new Date() }).where(eq(heartbeatRuns.id, run.id));
