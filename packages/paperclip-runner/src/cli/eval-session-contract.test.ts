@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createCapabilityFixtureState } from "../mock-core/capability-control-plane-types.js";
 
 import { parseNativeRuntimeContext } from "../contracts/runtime-context.js";
+import { NativeSessionCloseUnrecoverableError } from "../contracts/native-session-backend.js";
 import { resolveQualifiedAcpxProfile } from "../drivers/acpx/qualified-profiles.js";
 import type { CapabilityLiveSessionSnapshot } from "../live/live-session.js";
 import {
@@ -471,7 +472,7 @@ describe("eval-session usage", () => {
 });
 
 describe("eval-session budget settlement", () => {
-  it.each(["no_receipt", "grok_no_receipt", "unpriced", "mixed", "over_limit"] as const)("retains the completed provider outcome while failing %s accounting", async (kind) => {
+  it.each(["no_receipt", "grok_no_receipt", "unpriced", "mixed", "over_limit", "suspension"] as const)("retains evidence while failing %s settlement", async (kind) => {
     const workspace = await mkdtemp(join(tmpdir(), "eval-budget-settlement-"));
     try {
       const binary = join(workspace, "runnerd");
@@ -495,7 +496,15 @@ describe("eval-session budget settlement", () => {
       } as unknown as CapabilityLiveSessionSnapshot;
       const sendMessage = vi.fn(async () => ({ turnId: "turn-1", status: "completed", assistantText: "Retained actual provider response", snapshot }));
       const completeAttempt = vi.fn(async () => undefined);
-      const shutdown = vi.fn(async () => { snapshot.status = "closed"; });
+      const shutdown = vi.fn(async () => {
+        snapshot.status = "closed";
+        if (kind === "suspension") throw new NativeSessionCloseUnrecoverableError({
+          runnerSuspended: false, providerDrained: true,
+          suspensionState: { commandStatus: "pending", runnerLifecycle: "ready", runnerIdentityMatches: true },
+          semanticTools: { privateToolId: "private-value-must-not-be-copied" },
+          unrelated: "private-value-must-not-be-copied",
+        });
+      });
       const input = request({ provider: "acpx", acpxAgent: agent, model,
         runnerd: { path: binary, sha256: createHash("sha256").update("unused fake runner").digest("hex") },
         session: { workingDirectory: workspace, ...(agent === "pi" ? { piThinkingLevel: "low" } : {}) }, limits: { turnTimeoutMs: 1000, maxAgentTurns: 2, maxEstimatedCostNanodollars: 100_000_000 },
@@ -508,6 +517,19 @@ describe("eval-session budget settlement", () => {
       });
       const artifact = JSON.parse(await readFile(outputPath, "utf8"));
       expect(exitCode).toBe(2);
+      if (kind === "suspension") {
+        expect(artifact.infrastructureFailure).toEqual({
+          class: "runner_infrastructure_failure", category: "runner_infrastructure", retryable: false,
+          diagnostics: { runnerSuspended: false, providerDrained: true,
+            suspensionCommandStatus: "pending", runnerLifecycle: "ready", runnerIdentityMatches: true },
+        });
+        expect(JSON.stringify(artifact)).not.toContain("private-value-must-not-be-copied");
+        expect(artifact.snapshot.terminalTurns).toEqual([{ turnId: "turn-1", status: "completed" }]);
+        expect(sendMessage).toHaveBeenCalledTimes(1);
+        expect(shutdown).toHaveBeenCalledTimes(1);
+        expect(completeAttempt).toHaveBeenCalledWith("succeeded", null);
+        return;
+      }
       expect(artifact).not.toHaveProperty("infrastructureError");
       expect(artifact.accountingFailure).toMatchObject({ class: kind === "over_limit" ? "provider_budget_reached" : "provider_budget_coverage_unknown", retryable: false });
       expect(artifact.turn).toMatchObject({ status: "completed", assistantText: "Retained actual provider response" });

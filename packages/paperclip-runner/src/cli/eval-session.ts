@@ -35,6 +35,7 @@ import {
   type EvalSessionUsage,
 } from "./eval-session-contract.js";
 import { evalProviderTransportOptions } from "./eval-provider-runtime.js";
+import { NativeSessionCloseUnrecoverableError } from "../contracts/native-session-backend.js";
 
 interface EvalSessionCliOptions {
   requestPath: string;
@@ -225,8 +226,28 @@ function failureClass(error: unknown): {
   class: string;
   category: string;
   retryable: boolean;
-  diagnostics: Record<string, never>;
+  diagnostics: Record<string, unknown>;
 } {
+  if (error instanceof NativeSessionCloseUnrecoverableError) {
+    const settlement = error.settlement ?? {};
+    const state = settlement.suspensionState !== null && typeof settlement.suspensionState === "object"
+      ? settlement.suspensionState as Record<string, unknown> : {};
+    const closedValue = (value: unknown, allowed: string[]) =>
+      typeof value === "string" && allowed.includes(value) ? value : null;
+    const observedBoolean = (value: unknown) => typeof value === "boolean" ? value : null;
+    return {
+      class: "runner_infrastructure_failure",
+      category: "runner_infrastructure",
+      retryable: false,
+      diagnostics: {
+        runnerSuspended: observedBoolean(settlement.runnerSuspended),
+        providerDrained: observedBoolean(settlement.providerDrained),
+        suspensionCommandStatus: closedValue(state.commandStatus, ["pending", "completed", "failed", "rejected", "indeterminate"]),
+        runnerLifecycle: closedValue(state.runnerLifecycle, ["ready", "suspended", "closed", "recoverable_failure"]),
+        runnerIdentityMatches: observedBoolean(state.runnerIdentityMatches),
+      },
+    };
+  }
   if (error instanceof EvalSessionBudgetError && error.coverageUnknown) {
     return { class: "provider_budget_coverage_unknown", category: "provider_budget", retryable: false, diagnostics: {} };
   }

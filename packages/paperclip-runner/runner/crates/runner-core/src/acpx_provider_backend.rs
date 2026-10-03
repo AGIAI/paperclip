@@ -1618,25 +1618,33 @@ impl AcpxCommandExecutor {
             .state
             .as_ref()
             .and_then(|state| state.active_turn_id.clone());
-        let Some(turn_id) = turn_id else {
+        let stop_idle_pi = turn_id.is_none()
+            && self.session.is_some()
+            && self
+                .state
+                .as_ref()
+                .is_some_and(|state| state.descriptor.agent == "pi");
+        if turn_id.is_none() && !stop_idle_pi {
             return Ok(CommandExecution::result(json!({
                 "status": "already_settled",
                 "reason": reason,
             })));
-        };
+        }
         let provider_lifetime_fence_candidates = {
             let session = self
                 .session
                 .as_mut()
                 .ok_or_else(|| DurableRunnerError::invalid("ACPX session is unavailable"))?;
             let candidates = session.identity().provider_lifetime_fence_candidates;
-            session
-                .terminate_active_turn_for_suspension(&turn_id)
-                .map_err(|error| {
-                    DurableRunnerError::invalid(format!(
-                        "failed to terminate ACPX turn at the suspension boundary: {error}"
-                    ))
-                })?;
+            match turn_id.as_deref() {
+                Some(turn_id) => session.terminate_active_turn_for_suspension(turn_id),
+                None => session.terminate_idle_for_suspension(),
+            }
+            .map_err(|error| {
+                DurableRunnerError::invalid(format!(
+                    "failed to terminate ACPX provider at the suspension boundary: {error}"
+                ))
+            })?;
             candidates
         };
         // Process-group termination reaps the sidecar leader and its ordinary
@@ -1873,6 +1881,15 @@ impl AcpxCommandExecutor {
     }
 
     fn suspend(&mut self) -> Result<CommandExecution, DurableRunnerError> {
+        if self
+            .state
+            .as_ref()
+            .is_some_and(|state| state.provider_exit_unconfirmed)
+        {
+            return Err(DurableRunnerError::invalid(
+                "ACPX provider lifetime cleanup is not yet proven",
+            ));
+        }
         if let Some(session) = self.session.as_mut() {
             let identity = session.suspend("runner.suspend").map_err(|error| {
                 DurableRunnerError::invalid(format!("failed to suspend ACPX provider: {error}"))

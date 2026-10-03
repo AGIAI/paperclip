@@ -1018,6 +1018,20 @@ impl AcpxProviderSession {
         self.terminate_transport()
     }
 
+    /// Retires an idle provider at the same owned-process boundary as an active
+    /// turn. The caller must prove the inherited lifetime fence before making
+    /// the persisted identity attachable; an RPC close cannot supply that proof.
+    pub fn terminate_idle_for_suspension(&mut self) -> Result<(), LocalRunnerError> {
+        self.ensure_open()?;
+        if self.state.active_turn_id().is_some() || self.state.has_pending_requests() {
+            return Err(LocalRunnerError::invalid(
+                "ACPX idle suspension requires a settled turn and no pending requests",
+            ));
+        }
+        self.closed = true;
+        self.terminate_transport()
+    }
+
     fn terminate_transport(&mut self) -> Result<(), LocalRunnerError> {
         if self.transport_terminated {
             return Ok(());

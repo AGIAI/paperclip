@@ -576,7 +576,9 @@ function providerDrainStateFromSnapshot(state: Record<string, unknown>): {
         (typeof value !== "string" || value.length === 0),
     ) ||
     (state.ambiguousTurnStartPending !== undefined &&
-      typeof state.ambiguousTurnStartPending !== "boolean")
+      typeof state.ambiguousTurnStartPending !== "boolean") ||
+    (state.providerExitUnconfirmed !== undefined &&
+      typeof state.providerExitUnconfirmed !== "boolean")
   )
     throw new Error("Provider drain state is malformed.");
   const pending = Array.isArray(state.pendingEvents)
@@ -593,7 +595,8 @@ function providerDrainStateFromSnapshot(state: Record<string, unknown>): {
     pendingEventCount: pending + queued,
     activeProviderTurnId,
     providerSettled:
-      activeProviderTurnId === null && state.ambiguousTurnStartPending !== true,
+      activeProviderTurnId === null && state.ambiguousTurnStartPending !== true
+      && state.providerExitUnconfirmed !== true,
   };
 }
 
@@ -4199,7 +4202,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     }
   }
 
-  async #stopActiveProviderTurnBeforeSuspend(deadline: number): Promise<void> {
+  async #stopProviderBeforeSuspend(deadline: number): Promise<void> {
     const state = this.#providerDrainState();
     const core = this.#core;
     const inferredActiveProviderTurnId =
@@ -4212,9 +4215,17 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       state !== null && state !== "unreadable"
         ? state.activeProviderTurnId
         : inferredActiveProviderTurnId;
+    // Pi's idle RPC close can consume the entire suspension reserve. Retire
+    // its already-settled process during preparation instead. Native turn.stop
+    // independently checks the idle ledger and inherited lifetime fence;
+    // drain and runner.suspend still prove exact durable settlement afterward.
+    const stopIdlePi = this.options.provider === "acpx"
+      && this.options.acpxAgent === "pi"
+      && state !== "unreadable"
+      && (state === null || (state.activeProviderTurnId === null && state.providerSettled));
     if (
       state === "unreadable" ||
-      activeProviderTurnId === null ||
+      (activeProviderTurnId === null && !stopIdlePi) ||
       core === null
     ) {
       return;
@@ -4233,7 +4244,9 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       );
       if (command?.status === "completed") {
         this.#diagnostic(
-          `stopped active provider turn ${activeProviderTurnId} before runner suspension`,
+          activeProviderTurnId === null
+            ? "stopped idle Pi provider before runner suspension"
+            : `stopped active provider turn ${activeProviderTurnId} before runner suspension`,
         );
         return;
       }
@@ -4340,6 +4353,12 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
     let runnerSuspended = false;
     let providerDrained = false;
     let suspensionRequired = false;
+    let lastSuspensionState: Record<string, unknown> | null = null;
+    let suspensionState: {
+      commandStatus: string | null;
+      runnerLifecycle: string | null;
+      runnerIdentityMatches: boolean | null;
+    } | null = null;
     if (
       this.#core !== null &&
       (this.#handle !== null || adoptedRunner !== undefined) &&
@@ -4370,7 +4389,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         // trip may need to carry. Give both cases the same budget so a
         // slow-but-idle runner is not held to a tighter deadline than a
         // runner that just stopped a turn.
-        await this.#stopActiveProviderTurnBeforeSuspend(preparationDeadline);
+        await this.#stopProviderBeforeSuspend(preparationDeadline);
         providerDrained = await this.#drainSettledProviderEventsBeforeSuspend(
           Math.min(5_000, Math.max(0, preparationDeadline - Date.now())),
         );
@@ -4386,6 +4405,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         },
         readRunnerState: async () => {
           const state = await this.#readDurableRunnerState();
+          lastSuspensionState = state;
           assertSuspendedRunnerState(state, this.#core!.store.state.identity);
           return state;
         },
@@ -4394,6 +4414,21 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
         deadline: closeDeadline,
       });
       if (!runnerSuspended) {
+        const command = [...this.#core.store.state.commands].reverse().find(
+          (candidate) => candidate.type === "runner.suspend",
+        );
+        // Reuse the barrier's last observation. Diagnostic reads must not
+        // extend the close deadline or depend on a now-unreachable remote root.
+        const state = lastSuspensionState as Record<string, unknown> | null;
+        suspensionState = {
+          commandStatus: command?.status ?? null,
+          runnerLifecycle: state !== null && [
+            "ready", "suspended", "closed", "recoverable_failure",
+          ].includes(String(state.lifecycle)) ? String(state.lifecycle) : null,
+          runnerIdentityMatches: state === null ? null
+            : state.schema === "paperclip.runner.durable.state.v1"
+              && recoveryIdentityMatches(state, this.#core.store.state.identity),
+        };
         this.#diagnostic(
           "runner did not prove durable suspension before checkpoint",
         );
@@ -4504,6 +4539,7 @@ class DurablePrpCodexTransport implements CodexAppServerTransport {
       const settlement = {
         runnerSuspended,
         providerDrained,
+        suspensionState,
         semanticTools: this.#core?.semanticToolSettlementDiagnostics(),
         finalProviderState,
       };

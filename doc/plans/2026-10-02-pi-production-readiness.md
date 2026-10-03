@@ -276,10 +276,43 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   Paid work is held until a concrete governed-wait correction and fresh
   exact-source packaging. The full 26 Product cells remain required.
 
+## Idle suspension correction — 2026-10-03 00:05 CDT
+
+- The original governed-wait failure remains unchanged. A credential-free,
+  digest-bound native fixture reproduces a close-budget defect: `turn.stop`
+  reports an idle Pi provider already settled, leaving an eight-second RPC close
+  for a suspension phase that reserves only 2.5 seconds. The original regression
+  fails after 8.55 seconds. The corrected regression passes in 0.62 seconds.
+- Close preparation now stops idle Pi through its exact native process owner.
+  Native code rejects an active turn or pending callback on the idle path, proves
+  release of the original inherited lifetime fence, and retains the attested
+  identity. Drain and suspension still require their durable receipts. Native
+  suspension and the TypeScript checkpoint gate both reject unconfirmed exits.
+  A held-quorum regression verifies the non-reusable boundary and unchanged
+  state after polling. Remote Pi uses the same native guard before checkpoint.
+- The complete native suite passes with no failures and two pre-existing ignored
+  tests. All 236 transport and eval-session tests pass; Runner typecheck passes.
+  Earlier test failures remain in private evidence, including a corrected
+  negative-test expectation: safe polling returns no events and preserves the
+  unconfirmed state rather than requiring an exception.
+- Typed native suspension failures now retain allowlisted command/lifecycle/
+  identity diagnostics in eval artifacts and stay non-retryable. Diagnostic
+  collection reuses the barrier observation without extending the close bound.
+- All 55 CI checks and Greptile 5/5 pass at `00c7a4510`, with no new finding.
+  The subsequent native correction requires fresh-head review and CI. The
+  superseded image run 37092761291 is terminal/cancelled; its queue state and
+  cancellation reason remain. No duplicate or replacement image is dispatched.
+- The paid campaign remains held for fresh exact-source packaging. Its launcher
+  now rejects a mismatched or dirty harness and unpinned definitions before any
+  provider call. Only the recorded private resolved build lock may differ.
+  The next paid call is one explicit governed-wait retry after this correction;
+  the original failure is not regraded. All seven final-source Runner cases,
+  all 26 Product cells, platform receipts and the immutable image remain gates.
+
 ## Remaining work in order
 
-1. Correct and reproduce the governed-wait suspension failure without a
-   provider call. Retain its original failed grade. Rebuild exact-source public
+1. Retain the governed-wait failure and the reproduced idle-suspension correction.
+   Rebuild exact-source public
    packages before one explicit paid retry. Recheck final-source lifecycle and
    classify the observed Mac ownership contention. Produce the normal Linux
    companion receipt,
