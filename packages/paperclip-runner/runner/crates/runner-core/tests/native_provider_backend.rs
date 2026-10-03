@@ -1460,9 +1460,17 @@ fn stops_an_idle_pi_provider_before_suspension_without_waiting_for_its_close_rpc
 #[test]
 fn idle_pi_stop_cannot_publish_a_reusable_identity_while_its_lifetime_fence_is_held() {
     let directory = temporary_directory("pi-idle-held-lifetime");
-    let fence = (0..3)
-        .map(|_| std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap())
+    // Linux can assign port 0 below the identity contract's dynamic-port range.
+    // Keep this fixture distinct from the fake sidecar's default fence ports.
+    let fence = (61_000..=u16::MAX)
+        .filter_map(|port| std::net::TcpListener::bind(("127.0.0.1", port)).ok())
+        .take(3)
         .collect::<Vec<_>>();
+    assert_eq!(
+        fence.len(),
+        3,
+        "three valid lifetime fence ports are required"
+    );
     let ports = fence
         .iter()
         .map(|listener| listener.local_addr().unwrap().port().to_string())
