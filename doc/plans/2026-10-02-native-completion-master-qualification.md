@@ -8,6 +8,8 @@ Both exact-source admissions pass with zero providers: candidate 132 / historica
 
 The sandbox-denied loopback attempts and stale anchor-expectation attempts are retained under the [admission folder](2026-10-02-native-completion-master-recovery-admission). Sources or assertions were not relaxed to pass either failure. The final public launcher identity calibration covers both prepare and verify subprocesses while excluding all credential/ambient override names.
 
+[Candidate campaign](https://github.com/paperclipai/paperclip/actions/runs/37097177178) and [historical campaign](https://github.com/paperclipai/paperclip/actions/runs/37097164241) are dispatched to distinct immutable targets. The trusted workflow source is current master `94f6f3eb4725b702f850fb7b98a99fab2b1b7a04`; measured candidate/baseline code remains the frozen master59-context pair above. No graded cells are available at this publication.
+
 ## Preserved original setup cohort
 
 # Native completion guidance: master-context comparison

@@ -185,7 +185,7 @@
   "fixedMasterContextVerified": true,
   "onlyDeclaredElevenNativeSourcesDiffer": true,
   "providerCallsSoFar": 0,
-  "liveStatus": "admitted_pending_dispatch",
+  "liveStatus": "dispatched_no_graded_cells",
   "preservedInitialSetupCohort": {
     "manifestSource": "7dbc3c4594e13aebd55f7c9bf605fd332ce37544",
     "reportSource": "27653eb1a8f8ce839776d760f4563f672e5a706c",
@@ -214,5 +214,18 @@
       "GITHUB_RUN_ATTEMPT"
     ],
     "hostedRustCalibration": "not_executed; trusted same-run source/archive/selected binary proof; exact local calibration and normal CI retained separately"
+  },
+  "workflowSourceSha": "94f6f3eb4725b702f850fb7b98a99fab2b1b7a04",
+  "workflowRuns": {
+    "candidate": {
+      "id": 37097177178,
+      "url": "https://github.com/paperclipai/paperclip/actions/runs/37097177178",
+      "createdAt": "2026-10-03T04:37:51Z"
+    },
+    "baseline": {
+      "id": 37097164241,
+      "url": "https://github.com/paperclipai/paperclip/actions/runs/37097164241",
+      "createdAt": "2026-10-03T04:37:35Z"
+    }
   }
 }
