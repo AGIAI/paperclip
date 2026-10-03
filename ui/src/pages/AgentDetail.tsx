@@ -64,7 +64,7 @@ import { buildSameOriginWebSocketUrl } from "../lib/websocket-url";
 import { tryCreateWebSocket } from "../lib/websocket";
 import { formatDate, relativeTime, formatTokens, visibleRunCostUsd } from "../lib/utils";
 import { cn } from "../lib/utils";
-import { describeRunRetryState } from "../lib/runRetryState";
+import { RunRetryDetails } from "../components/RunRetryDetails";
 import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { PageTabBar } from "../components/PageTabBar";
@@ -3569,7 +3569,6 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
   const sessionChanged = run.sessionIdBefore && run.sessionIdAfter && run.sessionIdBefore !== run.sessionIdAfter;
   const sessionId = run.sessionIdAfter || run.sessionIdBefore;
   const hasNonZeroExit = run.exitCode !== null && run.exitCode !== 0;
-  const retryState = describeRunRetryState(run);
 
   return (
     <div className="space-y-4 min-w-0">
@@ -3800,30 +3799,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
                 {run.signal && <span className="text-muted-foreground ml-1">(signal: {run.signal})</span>}
               </div>
             )}
-            {retryState && (
-              <div className="rounded-md border border-border/70 bg-accent/20 px-3 py-2 text-xs leading-5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={cn(
-                      "rounded-md border px-1.5 py-0.5 text-(length:--text-micro) font-medium",
-                      retryState.tone,
-                    )}
-                  >
-                    {retryState.badgeLabel}
-                  </span>
-                  {retryState.retryOfRunId ? (
-                    <Link
-                      to={`/agents/${agentRouteId}/runs/${retryState.retryOfRunId}`}
-                      className="font-mono text-foreground hover:underline"
-                    >
-                      {retryState.retryOfRunId.slice(0, 8)}
-                    </Link>
-                  ) : null}
-                </div>
-                {retryState.detail ? <p className="mt-2 text-muted-foreground">{retryState.detail}</p> : null}
-                {retryState.secondary ? <p className="text-muted-foreground">{retryState.secondary}</p> : null}
-              </div>
-            )}
+            <RunRetryDetails run={run} agentRouteId={agentRouteId} />
           </div>
 
           {/* Right column: metrics */}

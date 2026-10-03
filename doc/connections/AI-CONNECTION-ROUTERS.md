@@ -55,3 +55,18 @@ recovery context. These records stay in the instance database.
 
 Tests: `cd server && pnpm exec vitest run src/__tests__/ai-connection-router.test.ts`
 plus the existing AI connection, retry accounting, run-dispatch and UI suites.
+
+## UI review in Storybook
+
+Run `pnpm --filter @paperclipai/ui storybook` from Core, then open
+**AI Connections / Connection pools**. The 19 stories use production components
+for pool selection, legacy-session adoption, unavailable/read-only selections,
+mixed-provider composer models and effort, mobile composer settings, usage waits,
+run selections and override notes, scheduled retries, and the experimental flag.
+`AllCoreSurfaces` provides an overview; individual stories expose the expanded
+menus and adoption dialog. Run `pnpm --filter @paperclipai/ui build-storybook`
+to build the preview.
+
+Pool configuration stories belong to the private Cloud plugin's own Storybook
+in `extensions/plugin-connection-pool/storybook/`. Both previews use fictional
+accounts; they do not call live providers or mutate a Paperclip instance.
