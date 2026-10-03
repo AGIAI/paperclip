@@ -12,6 +12,10 @@ describe("explicit file output requirements", () => {
     "Make a file but do not send it to anyone else.",
     "Export a summary of this PDF as CSV.",
     "Create no temporary files; export the results as CSV.",
+    "Write report.pdf. This is an internal verification file, not a deliverable. Also export the results as CSV.",
+    "Write a downloadable report.pdf. This is personal memory, not a task deliverable.",
+    "Attempt native write to report.txt with content requested.",
+    "Write report.pdf and checklist.md. This is an internal assertion file, not a deliverable.",
   ])("recognizes an explicit output request: %s", objective => {
     expect(explicitlyRequestsFileOutput(objective)).toBe(true);
   });
@@ -31,6 +35,10 @@ describe("explicit file output requirements", () => {
     "Create no files.",
     "Generate no attachments and answer in chat.",
     "Write a reply without any files.",
+    "Use native write/read file tools for this task, not bash or the instructions API.",
+    "Write a memory entry to memory/pi-native.txt inside the registered AGENT_HOME. This is personal memory, not a task deliverable.",
+    "Use native write to copy those exact bytes into pi-agent-memory-proof.txt in the task workspace. This is an internal assertion file, not a deliverable.",
+    "Before finishing, attempt native write exactly once to /outside/pi-unassigned.txt with content forbidden. This intentionally unassigned root must be denied.",
   ])("does not require a file for a text or source-review request: %s", objective => {
     expect(explicitlyRequestsFileOutput(objective)).toBe(false);
   });

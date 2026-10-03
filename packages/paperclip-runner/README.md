@@ -66,6 +66,11 @@ while retaining the existing Runner authority. Live adoption and ordinary
 commands retain their 30-second bounds. Closing the transport cancels admission;
 an acknowledgement received after the admission deadline cannot revive it.
 
+Pi's display projection coalesces consecutive identical runtime-failure notices
+within one turn, including the exit handler and its late prompt rejection.
+Distinct failure details, intervening retry activity and later turns remain
+visible. This does not change terminal settlement or the pinned wrapper bytes.
+
 Cursor candidate configuration accepts `acpxSessionMode: "agent" | "plan" | "ask"`
 (default `agent`). This selects the native Cursor mode independently of
 `acpxPermissionMode` and Paperclip task planning or company approvals. The mode

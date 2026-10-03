@@ -1,7 +1,40 @@
 import { expect, it } from "vitest";
 import { createPiProfileExtensionAdapter, PI_NOTICE_METHOD } from "./pi-extension-adapter.js";
-import { validateAcpxRichEvent } from "./profile-extensions.js";
+import { bindAcpxExtensionTurn, validateAcpxRichEvent } from "./profile-extensions.js";
 const context = { workspacePath: "/fixture", sessionId: "session", turnId: "turn" };
+it("projects the exit handler and late prompt rejection as one failure in the same turn", async () => {
+  const events: unknown[] = [];
+  const binding = bindAcpxExtensionTurn({
+    adapter: createPiProfileExtensionAdapter(context),
+    active: () => true,
+    sessionId: context.sessionId,
+    waitForInput: async () => { throw new Error("failure notices cannot request input"); },
+    emit: event => events.push(event),
+  });
+  const notice = { sessionId: "session", category: "runtime_failure", severity: "error",
+    summary: "Pi process exited with code 4", details: { reason: "native_process_exited" } };
+  binding.onExtensionNotification(PI_NOTICE_METHOD, notice);
+  binding.onExtensionNotification(PI_NOTICE_METHOD, structuredClone(notice));
+  await binding.drain();
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({ eventType: "provider.notice.recorded",
+    payload: { category: "pi.runtime_failure", severity: "error", summary: notice.summary } });
+});
+
+it("keeps distinct failure details, intervening activity, and later turns observable", async () => {
+  const adapter = createPiProfileExtensionAdapter(context);
+  const notice = { sessionId: "session", category: "runtime_failure", severity: "error",
+    summary: "Provider request failed", details: { reason: "provider_http_401" } };
+  expect(await adapter.notification(PI_NOTICE_METHOD, notice)).toHaveLength(1);
+  expect(await adapter.notification(PI_NOTICE_METHOD, { ...notice, details: { reason: "provider_http_429" } })).toHaveLength(1);
+  expect(await adapter.notification(PI_NOTICE_METHOD, { ...notice, severity: "warning" })).toHaveLength(1);
+  for (let i = 0; i < 2; i++) {
+    expect(await adapter.notification(PI_NOTICE_METHOD, { ...notice, category: "auto_retry_start" })).toHaveLength(1);
+  }
+  expect(await adapter.notification(PI_NOTICE_METHOD, notice)).toHaveLength(1);
+  expect(await createPiProfileExtensionAdapter({ ...context, turnId: "next-turn" })
+    .notification(PI_NOTICE_METHOD, notice)).toHaveLength(1);
+});
 it("preserves bounded native notice severity, category and meaningful metadata without assistant output", async () => {
   const adapter = createPiProfileExtensionAdapter(context);
   for (const severity of ["info", "warning", "error"]) {

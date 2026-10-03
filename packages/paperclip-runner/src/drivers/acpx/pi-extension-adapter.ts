@@ -10,6 +10,7 @@ const safeText = (value: string, limit = 4000) => String(redactPaperclipSemantic
  * content nor authority to complete a turn, execute tools, or grant approval. */
 export function createPiProfileExtensionAdapter(context: AcpxProfileExtensionContext): AcpxProfileExtensionAdapter {
   let sequence = 0;
+  let previousFailure: string | null = null;
   return {
     async request() { throw new Error("Pi has no qualified inbound extension request"); },
     async notification(method, params) {
@@ -27,6 +28,14 @@ export function createPiProfileExtensionAdapter(context: AcpxProfileExtensionCon
         for (const key of ["success", "aborted", "willRetry", "enabled"]) if (typeof native[key] === "boolean") details.push({ name: key, value: String(native[key]) });
         for (const key of ["reason", "errorMessage"]) if (typeof native[key] === "string") details.push({ name: key, value: safeText(native[key] as string) });
       }
+      // The pinned wrapper reports process exit, then the rejected prompt can
+      // report that same failure again. Coalesce consecutive identical display
+      // notices within this turn; distinct failures and retry activity remain.
+      const failure = params.category === "runtime_failure"
+        ? JSON.stringify([params.summary, params.severity, details])
+        : null;
+      if (failure !== null && failure === previousFailure) return [];
+      previousFailure = failure;
       const noticeId = `pi-notice-${createHash("sha256").update(JSON.stringify([context.sessionId, context.turnId, ++sequence])).digest("hex")}`;
       return [{ eventType: "provider.notice.recorded", itemId: noticeId, payload: {
         schema: "paperclip.provider.notice.v1", noticeId, severity: params.severity,

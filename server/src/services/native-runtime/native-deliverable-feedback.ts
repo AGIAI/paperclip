@@ -63,12 +63,13 @@ async function hasCurrentPublicationReceipt(db: Db, companyId: string, receipts:
  * an output requirement or erase a user's request for a file.
  */
 export function explicitlyRequestsFileOutput(objective: string): boolean {
-  return objective.split(/(?:[.!?](?:\s|$)|\n|[;,]|\bbut\b)/iu).some(clause => {
+  const sentences = objective.replaceAll("\\_", "_").split(/(?:[.!?](?:\s|$)|\n)/iu);
+  return sentences.some((sentence, index) => sentence.split(/(?:[;,]|\bbut\b)/iu).some(clause => {
     const file = /\b(?:files?|attachments?|downloads?|pdf|spreadsheets?|workbooks?|slide decks?|powerpoints?|docx|xlsx|csv)\b|\b[^\s/]+\.(?:md|txt|pdf|docx?|xlsx?|csv|pptx?|png|jpe?g|svg|zip)\b/giu;
     const create = /\b(?:create|make|write|save|export|attach|send|generate|produce|prepare|provide|give|return|build)\b/iu.exec(clause);
     if (create && /\b(?:do not|don't|never|no need to)\s*$/iu.test(clause.slice(0, create.index))) return false;
     const output = create ? clause.slice(create.index + create[0].length) : "";
-    const fileObject = [...output.matchAll(file)].some(match => {
+    const objects = [...output.matchAll(file)].filter(match => {
       const prefix = output.slice(0, match.index);
       const suffix = output.slice(match.index + match[0].length);
       // "Create no files" is a prohibition, even though it contains a creation
@@ -78,12 +79,18 @@ export function explicitlyRequestsFileOutput(objective: string): boolean {
       // Explicit export destinations still count after such input references.
       const destination = /\b(?:as|into|to)\s+(?:(?:a|an|the|new|separate|markdown|word|excel)\s+)*$/iu.test(prefix);
       if (!destination && /\b(?:of|about|on|from|using|for|with)\b/iu.test(prefix)) return false;
-      if (/^files?$/iu.test(match[0]) && /^\s+(?:permissions?|systems?|formats?|names?|paths?|types?|sizes?|descriptors?)\b/iu.test(suffix)) return false;
+      if (/^files?$/iu.test(match[0]) && /^\s+(?:tools?|permissions?|systems?|formats?|names?|paths?|types?|sizes?|descriptors?)\b/iu.test(suffix)) return false;
       return true;
     });
-    return fileObject ||
+    // An immediately following "This ..." can qualify one internal file, not
+    // erase a separate output request. Only the authoritative objective counts.
+    const internal = objects.length === 1 && /^\s*This is (?:an? )?(?:personal memory|internal (?:assertion|verification) file)\b[^.!?]*\bnot a (?:task )?deliverable\b/iu.test(sentences[index + 1] ?? "");
+    const deniedAttempt = /\b(?:attempt|try)\s+(?:the\s+)?native\s+(?:write|edit)\b/iu.test(clause)
+      && /\b(?:must be denied|denial is (?:the )?expected|(?:this|the) negative test)\b/iu.test(objective);
+    if ((internal || deniedAttempt) && !/\b(?:downloadable|attached|attach|export|send|provide|return|give)\b/iu.test(clause)) return false;
+    return objects.length > 0 ||
       (!/\b(?:no|without)\s+(?:downloadable|attached)/iu.test(clause) && /\b(?:downloadable|attached)\s+(?:file|report|document|checklist|draft)\b/iu.test(clause));
-  });
+  }));
 }
 
 /** Files cited as completed output must be reachable outside the agent workspace. */
