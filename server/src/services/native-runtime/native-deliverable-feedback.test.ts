@@ -42,6 +42,8 @@ describe("explicit file output requirements", () => {
     "Write a memory entry to memory/pi-native.txt inside the registered AGENT_HOME. This is personal memory, not a task deliverable.",
     "Use native write to copy those exact bytes into pi-agent-memory-proof.txt in the task workspace. This is an internal assertion file, not a deliverable.",
     "Before finishing, attempt native write exactly once to /outside/pi-unassigned.txt with content forbidden. This intentionally unassigned root must be denied.",
+    "Write internal-proof.txt; then check it exists. This is an internal verification file, not a deliverable.",
+    "Attempt native write to /outside/probe.txt and create no files. This negative test must be denied.",
   ])("does not require a file for a text or source-review request: %s", objective => {
     expect(explicitlyRequestsFileOutput(objective)).toBe(false);
   });

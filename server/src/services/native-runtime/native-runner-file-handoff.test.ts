@@ -336,6 +336,8 @@ describe("native runner file handoff", () => {
     "Use native write/read file tools. Write memory/pi-native.txt inside AGENT_HOME. This is personal memory, not a task deliverable.",
     "Use native write to copy bytes into pi-agent-memory-proof.txt. This is an internal assertion file, not a deliverable.",
     "Attempt native write once to /outside/pi-unassigned.txt. This intentionally unassigned root must be denied.",
+    "Write internal-proof.txt; then check it exists. This is an internal verification file, not a deliverable.",
+    "Attempt native write to /outside/probe.txt and create no files. This negative test must be denied.",
   ])("accepts an internal file outcome without treating it as published output: %s", async objective => {
     await db.update(heartbeatRuns).set({ contextSnapshot: { issueId, executionContinuation: { objective } } })
       .where(eq(heartbeatRuns.id, runId));

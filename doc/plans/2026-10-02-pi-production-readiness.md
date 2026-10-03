@@ -413,9 +413,12 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   actual downloadable output requirements, mixed requests, and publication
   evidence enforcement. The first correction passes 59 tests, but fresh review
   identifies two mixed-output publication bypasses. Restrict the internal
-  qualifier to the last clause and a denied attempt to its sole creation verb
-  and file object. All 64 unit/database integration tests pass, including both
-  review examples. A free replay of the exact
+  qualifier and denied-attempt scope; 64 tests pass. At `1a8900958`, fresh review
+  identifies two valid instruction variants that this narrowing still rejects.
+  Bind each file object to its own creation verb instead. An internal qualifier
+  applies only to a single requested file across the preceding sentence, even
+  if a later clause checks it. All 68 unit/database integration tests pass,
+  including both publication bypasses and both internal/denied variants. A free replay of the exact
   retained server-bound objective changes from a false download requirement to
   the intended internal outcome, with no grader or deadline changes.
 - The `0d65753fe` broad local suite is terminal with 736 passed files, four
