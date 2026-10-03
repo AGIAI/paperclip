@@ -21,13 +21,13 @@ qualification. The existing draft stack must be reviewed in dependency order.
 
 | Gate | Acceptance evidence | Current result |
 | --- | --- | --- |
-| Runtime identity and admission | Exact runtime/profile/model; verified effective thinking; startup below the 60-second admission limit; unsupported configuration fails before a prompt | Deterministic checks and ARM installed startup pass. Recheck final source on all supported hosts. |
-| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed profile-14 same-turn steering passes at `dc2b053f3`. Restart and three-turn warm continuity pass at historical `f5f57e380`; pending-permission Stop and stale response rejection pass at `03dd6ef93`. Final-source lifecycle and provider-death evidence remain required. |
-| Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | Historical partial passes exist. Full final-source campaign remains required. |
-| Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | Six of seven cases pass through installed `df424c902`, including context-before-action. Governed-wait fails durable suspension during cleanup; paid retries are held pending a concrete correction. |
-| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | ARM and Linux public installation pass at `df424c902`; Intel passes at `666cb3ecc`. Exact-source Linux companion and immutable Daytona proof remain required. Image job 37092761291 is queued on EC2; retain that handle. |
+| Runtime identity and admission | Exact runtime/profile/model; verified effective thinking; startup below the 60-second admission limit; unsupported configuration fails before a prompt | Normal public installation and credential-free profile-14 admission pass at frozen runtime `b148b73ea` on ARM Mac (8.043 s), Intel Mac (37.681 s), and Linux (5.698 s). No prompt or binary override is used. |
+| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed profile-14 same-turn steering passes at `dc2b053f3`. Restart and three-turn warm continuity pass at historical `f5f57e380`; pending-permission Stop and stale response rejection pass at `03dd6ef93`. Controller restart passes at frozen runtime `b148b73ea`. Warm continuity fails on turn 2 with `run.attach` timeout; the campaign stops. Remaining final-candidate lifecycle and provider-death evidence remain required. |
+| Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | Frozen `b148b73ea` campaign has one local pass and one retained local failure. Eleven local cells are unexecuted. All 13 Daytona cells remain held for the immutable image. The full 26-cell gate is incomplete. |
+| Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases pass through installed `b148b73ea` with pinned definitions `a9e0e7e0`, profile 14 and native-confirmed low thinking. The governed-wait retry follows the tested idle-close correction. Each case has one attempt and zero automatic retries. Its original failure remains unchanged. |
+| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | ARM, Intel and Linux public installation pass at `b148b73ea`. Exact-source Linux companion and immutable Daytona proof remain required. Image job 37099122706 is queued on EC2; retain that handle. Its older superseded image job is terminal/cancelled. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | All 55 CI checks pass at `df424c902`. Two #14924 UI findings have tested downstream corrections. Prerequisite PRs #14921–#14924 remain open; qualification and final-head review remain required. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | All 55 CI checks and Greptile 5/5 pass at `3d75626bf`, which differs from frozen shipping source only in the Linux fence test. Two #14924 UI findings have tested downstream corrections. Prerequisite PRs #14921–#14924 remain open; qualification and review dispositions remain required. Later edits require fresh-head CI/review. No merge or release. |
 
 ## Bounded execution
 
@@ -309,11 +309,59 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   the original failure is not regraded. All seven final-source Runner cases,
   all 26 Product cells, platform receipts and the immutable image remain gates.
 
+## Frozen candidate qualification — 2026-10-03 00:45 CDT
+
+- Runtime and Product harness are frozen at `b148b73ea`. The public server build
+  stamp, CLI/server package integrity, installed native digest and separate
+  Runner tar are verified. The Runner tar's daemon, eval CLI and transport bytes
+  equal the normal server-vendored files. Reused workspace package inputs are
+  unchanged from their retained tar source. The private resolved build lock is
+  recorded and is not committed.
+- `3d75626bf` changes only the held-lifetime test. Linux's port-zero allocation
+  can fall below the identity contract's allowed dynamic-port range. The fixture
+  now reserves three valid distinct ports; it keeps the production validation
+  intact. All 22 backend tests and Rust formatting pass. Shipping and harness
+  inputs are unchanged.
+- All seven installed Runner cases pass, including governed-wait in 35.7 s.
+  The original failed attempt is preserved. Every case reports profile 14 and
+  effective low thinking; all use the same package and native digests. The
+  canonical scrubbed Evalbook renders seven attempts with zero rendering
+  provider calls. Real Chromium verifies the report's chat, read-only controls,
+  navigation, reload and narrow viewport. Its $0.008861636 aggregate estimate
+  is not an authenticated bill; all seven provider-dollar receipts are unpriced.
+- Normal ARM, Intel and Linux public installations pass in 8.043, 37.681 and
+  5.698 s respectively. Each uses the normal installed daemon, verifies profile
+  14, submits no prompt and observes clean Runner exit. Workspace build and
+  typecheck pass. The full local Vitest run remains live; embedded Postgres
+  integration suites report host skips, so it is not complete integration proof.
+- The local Product controller-restart cell passes with canonical evidence.
+  The next cell, warm-three-turn, completes turn 1 but fails before turn 2
+  provider work: native `run.attach` reaches its 30-second command timeout.
+  Canonical disposition remains `transient_infrastructure`, and cleanup passes.
+  No automatic retry occurs; the campaign closes immediately. Eleven remaining
+  local cells and all 13 Daytona cells are still unexecuted.
+- A separate installed no-prompt warm-admission diagnostic opens Pi in 7.2 s,
+  then rejects attachment with `session_resume_required`. It is not a replay
+  of the completed-turn failure and does not qualify warm continuity. Its strict
+  cleanup receipt fails even though native state reports suspended and Runner
+  exits cleanly; both observations are retained. No model prompt is submitted.
+- Investigate authority rotation and native provider reopen before choosing the
+  correction. Native ACPX attachment checkpoints the old sidecar and opens a
+  new one. Pi's native session-open admission bound is 60 s, but warm attachment
+  currently uses the ordinary 30 s controller command wait. This discrepancy
+  is a candidate cause, not a measured resolution. Do not widen the 60 s bound,
+  weaken the three-turn identity checks or retry the paid failure unchanged.
+- All 55 CI checks and Greptile 5/5 are terminal at `3d75626bf`, with zero
+  unresolved draft-PR threads. The immutable image job 37099122706 remains
+  queued. Track it without a duplicate dispatch. Qualification, prerequisites
+  and image/companion gates still hold production.
+
 ## Remaining work in order
 
-1. Retain the governed-wait failure and the reproduced idle-suspension correction.
-   Rebuild exact-source public
-   packages before one explicit paid retry. Recheck final-source lifecycle and
+1. Retain the governed-wait failure and its corrected-source pass. Diagnose
+   the new completed-turn warm-attachment failure without paid retries. Make
+   and prove a concrete correction, then rebuild exact-source public packages
+   before one explicit warm-continuity retry. Recheck final-source lifecycle and
    classify the observed Mac ownership contention. Produce the normal Linux
    companion receipt,
    then import an immutable exact-source Daytona image without an override.
