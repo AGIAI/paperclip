@@ -648,6 +648,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         exitCode: attempt.proc.exitCode,
         signal: attempt.proc.signal,
         timedOut: true,
+        usageComplete: false,
         usageBasis: "per_run",
         provider: "moonshot",
         biller: "moonshot",

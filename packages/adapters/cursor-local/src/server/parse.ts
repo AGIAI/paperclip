@@ -62,6 +62,7 @@ function readSessionId(event: Record<string, unknown>): string | null {
 
 export function parseCursorJsonl(stdout: string) {
   let sessionId: string | null = null;
+  let sawResult = false;
   const messages: string[] = [];
   let errorMessage: string | null = null;
   let totalCostUsd = 0;
@@ -97,6 +98,7 @@ export function parseCursorJsonl(stdout: string) {
     }
 
     if (type === "result") {
+      sawResult = true;
       const usageObj = parseObject(event.usage);
       usage.inputTokens += asNumber(
         usageObj.input_tokens,
@@ -160,6 +162,7 @@ export function parseCursorJsonl(stdout: string) {
   }
 
   return {
+    sawResult,
     sessionId,
     summary: messages.join("\n\n").trim(),
     usage,

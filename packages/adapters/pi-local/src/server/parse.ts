@@ -1,6 +1,7 @@
 import { asNumber, asString, parseJson, parseObject } from "@paperclipai/adapter-utils/server-utils";
 
 interface ParsedPiOutput {
+  sawAgentEnd: boolean;
   sessionId: string | null;
   messages: string[];
   errors: string[];
@@ -30,6 +31,7 @@ function extractTextContent(content: string | Array<{ type: string; text?: strin
 
 export function parsePiJsonl(stdout: string): ParsedPiOutput {
   const result: ParsedPiOutput = {
+    sawAgentEnd: false,
     sessionId: null,
     messages: [],
     errors: [],
@@ -84,6 +86,7 @@ export function parsePiJsonl(stdout: string): ParsedPiOutput {
     }
 
     if (eventType === "agent_end") {
+      result.sawAgentEnd = true;
       const messages = event.messages as Array<Record<string, unknown>> | undefined;
       if (messages && messages.length > 0) {
         const lastMessage = messages[messages.length - 1];

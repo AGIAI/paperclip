@@ -630,7 +630,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     const accountingLog = createUsageCheckpointLog(onLog, ctx.onUsage, stdout => {
       const parsed = parseCursorJsonl(stdout);
       const provider = resolveProviderFromModel(model);
-      return { usage: parsed.usage, costUsd: parsed.costUsd, usageBasis: "per_run", provider, biller: resolveCursorBiller(effectiveEnv, billingType, provider), billingType, model, complete: false };
+      return { usage: parsed.usage, costUsd: parsed.costUsd, usageBasis: "per_run", provider, biller: resolveCursorBiller(effectiveEnv, billingType, provider), billingType, model, complete: parsed.sawResult };
     });
     let stdoutLineBuffer = "";
     const emitNormalizedStdoutLine = async (rawLine: string) => {
@@ -676,6 +676,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       settleRunDisposition: paperclipBridge?.settleRunDisposition,
     });
     await flushStdoutChunk("", true);
+    await accountingLog.flush({ complete: !proc.timedOut && !proc.signal });
 
     return {
       proc,
@@ -704,6 +705,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         exitCode: attempt.proc.exitCode,
         signal: attempt.proc.signal,
         timedOut: true,
+        usageComplete: attempt.parsed.sawResult,
           usage: attempt.parsed.usage,
           usageBasis: "per_run",
           provider: providerFromModel,
