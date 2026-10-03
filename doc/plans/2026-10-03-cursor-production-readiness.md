@@ -103,3 +103,50 @@ The initial full test run retained resource/startup failures. Targeted reruns
 passed 43 boundary/file-handoff checks, 196 real-runner checks, and 1,742 of 1,744
 remaining server checks. The two remaining assertions compare macOS `/var` aliases
 against canonical `/private/var` paths; no unrelated test repair is ported.
+
+## Candidate and qualification checkpoint
+
+The runtime candidate is `ccae835581923876ad5ac0ef12bf763e54958db9`,
+rebased onto mainline `569c7203aa24b95440682983ce7940ba1d4247bd`.
+Commit `d3dd596c77a9032da639201f1b05dc6891479e68` changes only verification
+fixtures: public-install probing and the provider-loss oracle/admission. It does
+not change the candidate runtime. Product results retain their runtime source and
+catalog fingerprints; the verification commit is an additional harness identity.
+
+Cursor profile v11 binds command digest
+`sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e`.
+The native patch remains `paperclip-cursor-usage-v4`.
+The ordinary macOS ARM64 pack digest is
+`sha256:7443adb3ab1d2fbd7081532923bcc6eaf8d9f511aff22fac6836c647ac6a3c8e`.
+Both macOS targets were built with official standalone Node 24.21.0; the x64
+daemon also executes under Rosetta. Linux image preparation retains its own
+manifest identity; the remotely pulled digest must be recorded before a live cell.
+
+| Required behavior | Local candidate result | Daytona candidate result |
+| --- | --- | --- |
+| Ordinary installation and completion | Public setup/closure verified; final full verifier and normal product smoke pending | Pending |
+| File editing, validation, accessible artifacts | Earlier `9ba53f` preflight passed; assembled-candidate repeat pending | Pending |
+| Semantic question with controller restart | Passed `structured-question-restart-resume-01` on `ccae835` | Pending |
+| Semantic plan acceptance | Passed `plan-approve-complete-01` on `ccae835` | Pending |
+| Native reject, revise, accept | Passed `native-plan-reject-revise-accept-01` on `ccae835` | Pending |
+| Native plan cancellation | First attempt failed during fixture migration/startup before Cursor ran; affected repeat pending | Pending |
+| Denied write and pending-permission Stop | Pending | Pending |
+| Three warm turns | Pending | Pending |
+| Owned provider loss with pending permission | Passed `pending-permission-provider-loss-03` with clean retirement, stale-answer refusal, blocked open task, failed run, and no mutation | Pending |
+
+All attempts are serial and have zero automatic retries. The original campaign
+envelope has $52.919619376 remaining after its prior committed upper bound.
+The existing $25 Cursor account-cycle cap is counted once; per-run USD is null.
+Remote runtime estimates and reservations remain separate from missing model spend.
+
+The seven authored Runner cases remain byte-identical to eval revision
+`08ae9d4a231e52fc54af0821564cded3d3ec7f37`. A fingerprinted diagnostic
+overlay binds the v11 profile and adds a closed projection of durable delivery
+receipts for failure diagnosis. The strict accounting grader remains unchanged.
+Successful semantic checks do not make an accounting-failure score green.
+
+The canonical-temporary-path full local test rerun accumulated startup, filesystem,
+and timing failures under host contention. It was interrupted before completion;
+the partial log is retained. Earlier recursive typecheck, build, contracts/replay,
+token gates, and focused runtime checks passed. Full CI and the complete acceptance
+matrix are required before promotion. Cursor production admission remains disabled.
