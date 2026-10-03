@@ -50,12 +50,12 @@ function McpConnectRequest({ id }: { id: string }) {
             </label>)}
             {!data.companies.length && <p className="text-sm text-muted-foreground">{data.setupUrl ? "No organization is available for this account yet. Create a hosted organization, configure its agents and spending, then return here. If this request expires, reconnect from your assistant." : "This account has no available organizations. Ask an organization owner to add you, then reconnect from your assistant."}</p>}
           </fieldset>}
-          <p className="text-sm">Read agents, projects, tasks, comments, documents, deliverables and pending approvals.</p>
+          <p className="text-sm">Read all of your Paperclip data</p>
           {data.requestedWrite && <label htmlFor="mcp-allow-writes" className="flex items-start gap-3 text-sm leading-6">
             <span className="flex h-6 shrink-0 items-center">
               <Checkbox id="mcp-allow-writes" checked={allowWrites} disabled={!company?.canWrite || consent.isPending} onCheckedChange={(checked) => setWriteEnabled(checked === true)} />
             </span>
-            <span>Also allow creating tasks and adding comments as me. These actions can start or wake agents and use my organization’s configured execution budget.</span>
+            <span>Allow write access and creating tasks as me</span>
           </label>}
           {company && !company.canWrite && <p className="text-sm text-muted-foreground">Your role in this organization is read-only.</p>}
           {data.setupUrl && !data.requestedCompanyId && <Button variant="outline" asChild><a href={data.setupUrl} target="_blank" rel="noopener noreferrer">Create a hosted organization</a></Button>}
