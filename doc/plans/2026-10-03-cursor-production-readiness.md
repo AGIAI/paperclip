@@ -200,4 +200,38 @@ command identity, delivered rejection, all six independent samples, a complete
 continuous watcher, and actual process retirement. It additionally requires the
 correlated terminal and the failed semantic finalization. It does not certify
 operator cancellation; pending-permission Stop remains a separate required gate.
-The affected live denial repeat is pending on the next recorded fixture identity.
+The affected live denial repeat passed on the frozen candidate below.
+
+### Frozen v11 checkpoint: `5623ff9505a8284301dd5cbd20e07f3c0596355f`
+
+All ten required local Product E2E cells passed with cleanup, including exact
+write denial, pending-permission Stop, warm three-turn continuation, questions
+after controller restart, native plan revision/acceptance/cancellation, and owned
+provider loss. The denial's first attempt failed during PostgreSQL bootstrap;
+its second attempt passed. Other local cells passed on their first attempt.
+
+All seven authored Runner semantic cases passed with independent owned-process
+retirement. Strict accounting failed all seven cases with
+`provider_budget_coverage_unknown`; per-run USD remains unavailable. Definitions
+retain provenance to eval revision `08ae9d4a231e52fc54af0821564cded3d3ec7f37`.
+Latest-head CI completed with 53 successful and four skipped checks. Greptile
+reported 5/5. An unchanged chat timing failure was diagnosed and rerun once.
+
+The actual Linux image is
+`ghcr.io/paperclipai/paperclip-daytona-runner@sha256:b5d4a95d7b4c2291a3a133afdf475846569e16588e4ae9f4bb6fde326756946c`.
+Its entire extracted provider pack was verified, and anonymous registry access
+was confirmed. All three platform packs bind source `5623ff` and Cursor v11.
+
+The first Daytona attempt failed before remote allocation during local database
+bootstrap. The second timed out in sandbox allocation before Cursor started;
+its original cleanup failure remains recorded. Subsequent ownership-filtered
+inspection found no sandbox for that run. A bounded infrastructure-only probe
+started this exact image in under one second and confirmed deletion of its
+verified allocation. That establishes current allocation health, without
+retroactively qualifying the failed attempt or establishing its cleanup receipt.
+
+The harness now retains its owner-only private recovery database when process
+or remote cleanup is unconfirmed. This repairs the demonstrated loss of the
+failed-create journal after the controller exited. It changes the harness only;
+the provider packs, daemon, and Linux image remain frozen at `5623ff`. Remote
+qualification and promotion are still pending.

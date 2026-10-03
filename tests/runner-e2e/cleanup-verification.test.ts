@@ -1,5 +1,12 @@
 import { expect, it } from "vitest";
-import { runCleanupWithObservers, verifyCleanupAssertions } from "./cleanup-verification.js";
+import { mustPreserveRecoveryState, runCleanupWithObservers, verifyCleanupAssertions } from "./cleanup-verification.js";
+
+it("retains uncertain remote allocation state even after every local process exits", () => {
+  expect(mustPreserveRecoveryState({ processCleanupFailed: false, results: [{ cleanup: "failed" }] })).toBe(true);
+  expect(mustPreserveRecoveryState({ processCleanupFailed: false, results: [{ cleanup: "not_started" }] })).toBe(true);
+  expect(mustPreserveRecoveryState({ processCleanupFailed: true, results: [{ cleanup: "passed" }] })).toBe(true);
+  expect(mustPreserveRecoveryState({ processCleanupFailed: false, results: [{ cleanup: "passed" }] })).toBe(false);
+});
 
 it("retains a failed cleanup proof and still closes every later observer", async () => {
   let closed = 0;

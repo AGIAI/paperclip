@@ -764,7 +764,10 @@ Before an access-controlled evidence artifact is uploaded, the launcher:
 7. verifies that a passing attempt has its final-state screenshot.
 
 The temporary Paperclip home, embedded database, raw workspace, master key,
-and unredacted logs are removed after each attempt. Daytona teardown destroys
+and unredacted logs are removed after confirmed cleanup. If process or remote
+cleanup is unconfirmed, the harness retains the owner-only temporary root and
+its recovery database for reconciliation; that private state is never packaged
+as public evidence. Daytona teardown destroys
 the environment and any reusable leases through the public API; provider-side
 auto-stop/archive/delete values remain as cancellation backstops.
 

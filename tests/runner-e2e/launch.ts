@@ -23,6 +23,7 @@ import { isImmutableDaytonaImage, runnerMatrix } from "./catalog.js";
 import { renderRunnerE2EDashboard } from "./dashboard.js";
 import { packageEvidence } from "./evidence.js";
 import { classifyFailure } from "./failure-classifier.js";
+import { mustPreserveRecoveryState } from "./cleanup-verification.js";
 import { effectiveAutomaticRetryLimit, executeWithAutomaticRetry } from "./automatic-retry.js";
 import { buildRunnerCampaign } from "./history.js";
 import {
@@ -799,8 +800,11 @@ async function runAttempt(input: {
   } finally {
     if (!processCleanupFailed) reapNewDetachedDarwinSharedMemory(sharedMemoryBaseline);
     let cleanupError: unknown;
-    if (processCleanupFailed) {
-      cleanupError = new Error(`Preserving temporary state after incomplete process cleanup: ${temporaryRoot}`);
+    if (mustPreserveRecoveryState({ processCleanupFailed, results: publishedResults })) {
+      // Remote allocation cleanup is journaled in this instance's database.
+      // Deleting it after the controller exits would strand uncertain creates.
+      await chmod(temporaryRoot, 0o700);
+      cleanupError = new Error(`Preserving private recovery state after unconfirmed cleanup: ${temporaryRoot}`);
     } else if (
       temporaryRoot.startsWith(`${os.tmpdir()}${path.sep}paperclip-runner-e2e-`)
     ) {

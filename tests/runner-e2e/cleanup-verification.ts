@@ -1,6 +1,15 @@
 export interface CleanupCheck { id: string; passed: boolean; detail: string }
 export type CleanupAssertion = () => Promise<CleanupCheck[]>;
 
+/** A stopped controller does not prove remote resources were retired. Retain
+ * its private recovery database whenever a cell lacks confirmed cleanup. */
+export function mustPreserveRecoveryState(input: {
+  processCleanupFailed: boolean;
+  results: readonly { cleanup: string }[];
+}) {
+  return input.processCleanupFailed || input.results.some(result => result.cleanup !== "passed");
+}
+
 /** Always finish every registered observer, even when an earlier proof fails. */
 export async function verifyCleanupAssertions(assertions: readonly CleanupAssertion[]) {
   const checks: CleanupCheck[] = [], errors: unknown[] = [];
