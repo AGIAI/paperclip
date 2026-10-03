@@ -683,7 +683,10 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     await f.activity("issue.checked_out", { status: "in_progress", _previous: { status: "todo" } });
     await f.activity("issue.released", { status: "todo", _previous: { status: "in_progress" } });
     await f.service.tick();
-    expect(f.received.filter(r => r.body.eventId).map(r => r.body.data.status)).toEqual(["in_progress", "todo"]);
+    const delivered = f.received.filter(r => r.body.eventId).map(r => r.body.data.status);
+    // Independent webhook deliveries do not promise arrival order.
+    expect(delivered).toHaveLength(2);
+    expect(delivered).toEqual(expect.arrayContaining(["in_progress", "todo"]));
     await f.service.unsubscribe(f.principal, input);
   });
 
