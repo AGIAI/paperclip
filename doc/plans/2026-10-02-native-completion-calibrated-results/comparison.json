@@ -1,0 +1,94 @@
+{
+  "schema": "paperclip.native-completion-calibrated-comparison.v1",
+  "sources": {
+    "candidate": "d6e59e4712a3158ab4cd7d58deff1389b4578c21",
+    "baseline": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33"
+  },
+  "gradedPairs": 6,
+  "pendingPairs": 0,
+  "newFailures": [],
+  "newPasses": [
+    "native-completion.runner-codex.local.native-blocked-report"
+  ],
+  "unchangedFailures": [],
+  "unchangedPasses": [
+    "native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+    "native-completion.runner-acpx-claude.local.native-blocked-report",
+    "native-completion.runner-codex.local.assigned-skill-explicit-invocation",
+    "native-completion.runner-opencode.local.assigned-skill-explicit-invocation",
+    "native-completion.runner-opencode.local.native-blocked-report"
+  ],
+  "providerRuns": 12,
+  "maximumAttemptsObserved": 1,
+  "pairs": [
+    {
+      "executionId": "native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+      "baselineStatus": "passed",
+      "candidateStatus": "passed",
+      "baselineAgentMs": 27643,
+      "candidateAgentMs": 27682,
+      "baselineReportedUsd": 0,
+      "candidateReportedUsd": 0,
+      "baselineResultSha256": "6933dcb354f517653824b2c166bceef0f5c524ae30f915a9f4423276e53ebd15",
+      "candidateResultSha256": "97a7d6cd5eb5bb1568b9f8ada8ef21b83323e0644d5aa7a741eefa946f6389c6"
+    },
+    {
+      "executionId": "native-completion.runner-acpx-claude.local.native-blocked-report",
+      "baselineStatus": "passed",
+      "candidateStatus": "passed",
+      "baselineAgentMs": 28241,
+      "candidateAgentMs": 29059,
+      "baselineReportedUsd": 0,
+      "candidateReportedUsd": 0,
+      "baselineResultSha256": "cdbd533c56af2b70ca9ef7650356396a45a64a6e8b9a6b370a3a50b8ea50e3fd",
+      "candidateResultSha256": "4cdce8a05751fbbc6d3711cd40dc7a4d807c5e93dd5b8008b100692517afaa52"
+    },
+    {
+      "executionId": "native-completion.runner-codex.local.assigned-skill-explicit-invocation",
+      "baselineStatus": "passed",
+      "candidateStatus": "passed",
+      "baselineAgentMs": 31884,
+      "candidateAgentMs": 34018,
+      "baselineReportedUsd": 0,
+      "candidateReportedUsd": 0,
+      "baselineResultSha256": "22043de2aba3bac6ad94ee6d31a242746bad34a11790976d48ee0027b82c81b5",
+      "candidateResultSha256": "09077172094e8f63861739884ae42e1fb5755f113e9a18a53b21697055d25607"
+    },
+    {
+      "executionId": "native-completion.runner-codex.local.native-blocked-report",
+      "baselineStatus": "failed",
+      "candidateStatus": "passed",
+      "baselineAgentMs": 17560,
+      "candidateAgentMs": 18794,
+      "baselineReportedUsd": 0,
+      "candidateReportedUsd": 0,
+      "baselineResultSha256": "b80d822f6a4c6c66ee41d7d50e135cfa039a727aab8d304a54111ee839a7490f",
+      "candidateResultSha256": "60c8a4f3e41b8ca9a80c10f73d804c30d6e6ede9ace5ce3e93d2c4a053503f32"
+    },
+    {
+      "executionId": "native-completion.runner-opencode.local.assigned-skill-explicit-invocation",
+      "baselineStatus": "passed",
+      "candidateStatus": "passed",
+      "baselineAgentMs": 27842,
+      "candidateAgentMs": 41645,
+      "baselineReportedUsd": 0.0029267655,
+      "candidateReportedUsd": 0.0027245575999999996,
+      "baselineResultSha256": "5f084208b3211b0caccc47705c08fad3ccba72fa4568882c78f8946ac26e4be6",
+      "candidateResultSha256": "f70d358b361e425fb4992b2101745a9912b2682134e780203ae5f79845dd5ee1"
+    },
+    {
+      "executionId": "native-completion.runner-opencode.local.native-blocked-report",
+      "baselineStatus": "passed",
+      "candidateStatus": "passed",
+      "baselineAgentMs": 35963,
+      "candidateAgentMs": 39947,
+      "baselineReportedUsd": 0.0012880548,
+      "candidateReportedUsd": 0.0016493492000000001,
+      "baselineResultSha256": "d8e19a8cf7770ea6138cd4f816892a7a04e6160063bbcbb6f7693efe28278826",
+      "candidateResultSha256": "8c943b38d480fcb3513fe6a458e75d0606e4669ba047ecd3a779b35a65ec2a30"
+    }
+  ],
+  "detailedBaselineFailureAudit": "in_progress",
+  "actualBillingVerified": false,
+  "generalCodingQualityMeasured": false
+}

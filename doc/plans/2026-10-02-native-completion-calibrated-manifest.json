@@ -266,8 +266,8 @@
   "fixtureIdentityVerified": true,
   "onlyDeclaredElevenNativeSourcesDiffer": true,
   "fixedMasterContextVerified": true,
-  "providerCallsSoFar": null,
-  "liveStatus": "both_dispatched_no_graded_cells",
+  "providerCallsSoFar": 12,
+  "liveStatus": "all_original_cell_results_retained_final_audit_pending",
   "workflowRuns": {
     "candidate": {
       "id": 37098728980,
@@ -304,5 +304,9 @@
       "classification": "pre_provider_calibration_mock"
     }
   ],
-  "workflowSourceSha": "215586d127e97c9301d86e769a39a15c13298ca2"
+  "workflowSourceSha": "215586d127e97c9301d86e769a39a15c13298ca2",
+  "gradedPairs": 6,
+  "candidatePassedCells": 6,
+  "baselinePassedCells": 5,
+  "comparisonPath": "doc/plans/2026-10-02-native-completion-calibrated-results/comparison.json"
 }

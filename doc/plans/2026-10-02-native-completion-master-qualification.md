@@ -1,3 +1,27 @@
+# Native completion qualification: retained paired task outcomes
+
+**TL;DR: no extra failing task outcomes were observed in the six matched pairs.** Candidate passes all six cases; historical descriptions pass five. Codex whole-task blocking improves Fail→Pass; the other five remain Pass→Pass. There are zero newly failing cells, zero unchanged failures and zero pending pairs. This is one bounded trial, not proof of general coding quality.
+
+The historical Codex blocker durably records the correct whole-task blocker and succeeds as a native run, but its visible reply omits the required marker. Its original executable failure is retained. The detailed provider-final versus semantic-fallback diagnosis is still being inspected; no cause is inferred from the grade alone.
+
+| Profile | Case | Historical | Candidate | Native run seconds: historical → candidate |
+|---|---|---|---|---|
+| runner-acpx-claude | assigned-skill-explicit-invocation | Passed | Passed | 27.6 → 27.7 |
+| runner-acpx-claude | native-blocked-report | Passed | Passed | 28.2 → 29.1 |
+| runner-codex | assigned-skill-explicit-invocation | Passed | Passed | 31.9 → 34.0 |
+| runner-codex | native-blocked-report | Failed | Passed | 17.6 → 18.8 |
+| runner-opencode | assigned-skill-explicit-invocation | Passed | Passed | 27.8 → 41.6 |
+| runner-opencode | native-blocked-report | Passed | Passed | 36.0 → 39.9 |
+
+[Closed retained-result audit and hashes](2026-10-02-native-completion-calibrated-results/comparison.json), [candidate audit](2026-10-02-native-completion-calibrated-results/candidate-audit.json), and [historical audit](2026-10-02-native-completion-calibrated-results/baseline-audit.json) are inspectable. Original access-controlled artifact ZIPs/results remain unchanged. All twelve attempts are attempt 1 and cleanup passes. Candidate source is `d6e59e4712a3158ab4cd7d58deff1389b4578c21`; historical source is `e74ed61a69fbdd8b3a8f15dd6456bc3140246e33`. Both use suite hash `96e18a7bcde391304cbdb2e811276e95f7c6a99c01b183facd7c5e1e4a98363d` and the frozen matched configurations.
+
+Independent candidate retained-input replay agrees with all original grades: 51 strict native checks, 12 production-default/budget checks and 21 original assigned-skill document checks pass. The three requested documents are durably saved; the three blockers retain exact owner/action/scope and visible explanation, with no commanded file/deployment work. Named same-call finishing results precede provider finals with authoritative native acceptance/termination. Historical passed cases also retain their named sequence and document evidence; the failed Codex blocker exits before its additional native snapshot is written.
+
+Recorded model-cost subtotal is $0.00421482 historical and $0.00437391 candidate. Only OpenCode reports positive costs; Codex/Claude report zeros with unknown billing type. These are recorded subtotals, **not verified invoices or evidence of free calls**. Hosted execution cost is unmetered. Per-run token/count/timing coverage is retained, and every actual run is counted. Single-run timing differences are descriptive; they do not establish a performance trend.
+
+Exact-head normal CI and fresh Greptile 5/5 are green with no unresolved threads. The PR remains draft and unmerged while final evidence audit/publication completes. Fixed native prompt removal, resume behavior under paid models, provider feedback consumption and general coding quality are not measured by these single-turn cases. Native resume/catalog behavior has separate deterministic coverage.
+
+## Preserved admission and prior zero-provider cohorts
 # Native completion qualification: calibrated hosted boundary
 
 **TL;DR: model performance remains unmeasured; six task pairs are pending.** The candidate `d6e59e4712a3158ab4cd7d58deff1389b4578c21` and historical-description baseline `e74ed61a69fbdd8b3a8f15dd6456bc3140246e33` now pass complete actual launcher prepare→verify in both fresh local and explicitly synthetic hosted modes. The latter reproduces verified archive hydration, public source/run metadata and captured provenance framing without credentials or providers. It is a provider-free calibration, **not an actual trusted GitHub run**.

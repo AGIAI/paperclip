@@ -1,0 +1,886 @@
+{
+  "schema": "paperclip.native-completion-retained-audit.v1",
+  "originalResultsChanged": false,
+  "providerRuns": 6,
+  "rows": [
+    {
+      "executionId": "native-completion.runner-codex.local.native-blocked-report",
+      "variant": "candidate",
+      "source": {
+        "sha": "d6e59e4712a3158ab4cd7d58deff1389b4578c21",
+        "ref": "refs/heads/codex/native-completion-master-calibrated-candidate",
+        "workflowRunUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980"
+      },
+      "suiteDefinitionHash": "96e18a7bcde391304cbdb2e811276e95f7c6a99c01b183facd7c5e1e4a98363d",
+      "artifactId": 11265785208,
+      "artifactUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980/artifacts/11265785208",
+      "zipSha256": "53b1125e7b5d183462e1e1e536cd7674cacfec9995ee8a47e32116740564916f",
+      "resultSha256": "60c8a4f3e41b8ca9a80c10f73d804c30d6e6ede9ace5ce3e93d2c4a053503f32",
+      "nativeSnapshotSha256": "ad5cc611524fc7ac98dd8a65201b90eacb75d76309031f4e39090768fca1a909",
+      "defaultSnapshotSha256": "c5bb4c9b1ed1a9f13c90320d0081fc22f04ae4cf40af751864a8de1c5cc04d7a",
+      "contextSnapshotSha256": null,
+      "status": "passed",
+      "attempt": 1,
+      "runCount": 1,
+      "runStatus": "succeeded",
+      "issueStatus": "blocked",
+      "model": "gpt-5.6-sol",
+      "provider": "codex",
+      "grade": {
+        "schema": "paperclip.native-completion-observation.v2",
+        "passed": true,
+        "checks": [
+          {
+            "id": "one-native-attempt",
+            "passed": true,
+            "detail": "Exactly one succeeded native run, with no continuation/retry or uncounted extra work."
+          },
+          {
+            "id": "durable-disposition",
+            "passed": true,
+            "detail": "Public durable issue status and the native semantic result agree with the requested disposition."
+          },
+          {
+            "id": "exact-blocker",
+            "passed": true,
+            "detail": "The structured owner, exact action and whole-task scope are independently checked."
+          },
+          {
+            "id": "complete-bound-events",
+            "passed": true,
+            "detail": "A complete contiguous public PRP stream is bound to this run and persisted source identity."
+          },
+          {
+            "id": "authoritative-native-result",
+            "passed": true,
+            "detail": "One runner proposal is independently accepted and terminated by the control plane."
+          },
+          {
+            "id": "final-after-tool-result",
+            "passed": true,
+            "detail": "The provider final follows the observed finishing result; no new invocation follows admission. Control-plane acceptance precedes its terminal receipt independently."
+          },
+          {
+            "id": "persisted-provider-final",
+            "passed": true,
+            "detail": "A nonempty provider final is durably projected as this run's agent reply; semantic-summary fallback is insufficient."
+          },
+          {
+            "id": "visible-blocker-content",
+            "passed": true,
+            "detail": "The final explains the actual unresolved blocker and its owner/action, rather than supplying only a marker."
+          },
+          {
+            "id": "bounded-durable-work",
+            "passed": true,
+            "detail": "No additional tasks, agents or interactions; completion permits its one required document and blocker permits none."
+          },
+          {
+            "id": "no-deployment-or-file-work",
+            "passed": true,
+            "detail": "The fixture workspace is unchanged and no process/file/deployment or extra-work tool is observed."
+          }
+        ],
+        "limitations": [
+          "Exact provider feedback identity/consumption is not measured by the public sequence."
+        ]
+      },
+      "integrityFailures": [],
+      "defaultGrade": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "production-default-bundle",
+            "passed": true,
+            "detail": "The served public hire bundle is the unchanged master default, with no QA or reduced-manual injection."
+          },
+          {
+            "id": "bounded-company-and-agent",
+            "passed": true,
+            "detail": "Both public budgets enforce the declared 1,000-cent hard stop."
+          }
+        ]
+      },
+      "contextChecks": null,
+      "durableState": {
+        "documentCount": 0,
+        "interactionCount": 0,
+        "additionalIssueCount": 1,
+        "additionalAgentCount": 0
+      },
+      "sequencing": {
+        "proposalSeq": [
+          60
+        ],
+        "acceptedSeq": [
+          72
+        ],
+        "terminalSeq": [
+          73
+        ],
+        "providerFinalSeq": [
+          67
+        ]
+      },
+      "durationMs": 61424,
+      "agentRunDurationMs": 18794,
+      "tokens": {
+        "input": 44226,
+        "output": 577,
+        "cachedInput": 21814
+      },
+      "reportedCostUsd": 0,
+      "costStatus": "reported",
+      "billingType": "unknown",
+      "actualBillingVerified": false,
+      "runtimeCostStatus": "not_metered",
+      "cleanup": "passed",
+      "matcherCount": 21,
+      "failedMatchers": [],
+      "independentRetainedReplayPassed": true
+    },
+    {
+      "executionId": "native-completion.runner-codex.local.assigned-skill-explicit-invocation",
+      "variant": "candidate",
+      "source": {
+        "sha": "d6e59e4712a3158ab4cd7d58deff1389b4578c21",
+        "ref": "refs/heads/codex/native-completion-master-calibrated-candidate",
+        "workflowRunUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980"
+      },
+      "suiteDefinitionHash": "96e18a7bcde391304cbdb2e811276e95f7c6a99c01b183facd7c5e1e4a98363d",
+      "artifactId": 11265632369,
+      "artifactUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980/artifacts/11265632369",
+      "zipSha256": "afc06b58cb048774274bd856b25cb8359b28f3c07f104428a92219148f60fca4",
+      "resultSha256": "09077172094e8f63861739884ae42e1fb5755f113e9a18a53b21697055d25607",
+      "nativeSnapshotSha256": "efc7af6363ffda141ed4d7648f48db79069ceb7bcc96475beb30be1c10b35dca",
+      "defaultSnapshotSha256": "b4af7764ab4a84b541f2045468889296538a3ef420d7f8898835df0d12faaf4e",
+      "contextSnapshotSha256": "4f221d6c03955759889c978521cab9d617a8477cce8f1276f55457b5dc71b988",
+      "status": "passed",
+      "attempt": 1,
+      "runCount": 1,
+      "runStatus": "succeeded",
+      "issueStatus": "done",
+      "model": "gpt-5.6-sol",
+      "provider": "codex",
+      "grade": {
+        "schema": "paperclip.native-completion-observation.v2",
+        "passed": true,
+        "checks": [
+          {
+            "id": "one-native-attempt",
+            "passed": true,
+            "detail": "Exactly one succeeded native run, with no continuation/retry or uncounted extra work."
+          },
+          {
+            "id": "durable-disposition",
+            "passed": true,
+            "detail": "Public durable issue status and the native semantic result agree with the requested disposition."
+          },
+          {
+            "id": "complete-bound-events",
+            "passed": true,
+            "detail": "A complete contiguous public PRP stream is bound to this run and persisted source identity."
+          },
+          {
+            "id": "authoritative-native-result",
+            "passed": true,
+            "detail": "One runner proposal is independently accepted and terminated by the control plane."
+          },
+          {
+            "id": "final-after-tool-result",
+            "passed": true,
+            "detail": "The provider final follows the observed finishing result; no new invocation follows admission. Control-plane acceptance precedes its terminal receipt independently."
+          },
+          {
+            "id": "persisted-provider-final",
+            "passed": true,
+            "detail": "A nonempty provider final is durably projected as this run's agent reply; semantic-summary fallback is insufficient."
+          },
+          {
+            "id": "bounded-durable-work",
+            "passed": true,
+            "detail": "No additional tasks, agents or interactions; completion permits its one required document and blocker permits none."
+          }
+        ],
+        "limitations": [
+          "Exact provider feedback identity/consumption is not measured by the public sequence."
+        ]
+      },
+      "integrityFailures": [],
+      "defaultGrade": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "production-default-bundle",
+            "passed": true,
+            "detail": "The served public hire bundle is the unchanged master default, with no QA or reduced-manual injection."
+          },
+          {
+            "id": "bounded-company-and-agent",
+            "passed": true,
+            "detail": "Both public budgets enforce the declared 1,000-cent hard stop."
+          }
+        ]
+      },
+      "contextChecks": [
+        {
+          "id": "assigned-skill-present",
+          "passed": true,
+          "detail": "The task run must receive one pinned skill version through the public assignment state."
+        },
+        {
+          "id": "skill-request-explicit",
+          "passed": true,
+          "detail": "The task request must explicitly name the assigned skill with a supported slash or dollar reference."
+        },
+        {
+          "id": "skill-source-marker",
+          "passed": true,
+          "detail": "The assigned pinned skill source must contain the output marker."
+        },
+        {
+          "id": "marker-not-in-request",
+          "passed": true,
+          "detail": "The output marker must originate from the assigned skill, not the task request or comments."
+        },
+        {
+          "id": "single-durable-output",
+          "passed": true,
+          "detail": "Exactly one durable task document must contain the skill's marker."
+        },
+        {
+          "id": "completed-task",
+          "passed": true,
+          "detail": "Final task status: done."
+        },
+        {
+          "id": "successful-runs",
+          "passed": true,
+          "detail": "All recorded context-integrity runs must succeed."
+        }
+      ],
+      "durableState": {
+        "documentCount": 1,
+        "interactionCount": 0,
+        "additionalIssueCount": 1,
+        "additionalAgentCount": 0
+      },
+      "sequencing": {
+        "proposalSeq": [
+          158
+        ],
+        "acceptedSeq": [
+          191
+        ],
+        "terminalSeq": [
+          192
+        ],
+        "providerFinalSeq": [
+          186
+        ]
+      },
+      "durationMs": 78188,
+      "agentRunDurationMs": 34018,
+      "tokens": {
+        "input": 234514,
+        "output": 1598,
+        "cachedInput": 209637
+      },
+      "reportedCostUsd": 0,
+      "costStatus": "reported",
+      "billingType": "unknown",
+      "actualBillingVerified": false,
+      "runtimeCostStatus": "not_metered",
+      "cleanup": "passed",
+      "matcherCount": 14,
+      "failedMatchers": [],
+      "independentRetainedReplayPassed": true
+    },
+    {
+      "executionId": "native-completion.runner-opencode.local.assigned-skill-explicit-invocation",
+      "variant": "candidate",
+      "source": {
+        "sha": "d6e59e4712a3158ab4cd7d58deff1389b4578c21",
+        "ref": "refs/heads/codex/native-completion-master-calibrated-candidate",
+        "workflowRunUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980"
+      },
+      "suiteDefinitionHash": "96e18a7bcde391304cbdb2e811276e95f7c6a99c01b183facd7c5e1e4a98363d",
+      "artifactId": 11265222862,
+      "artifactUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980/artifacts/11265222862",
+      "zipSha256": "0037c195e310ec8dbe5d54f4c23d00bbc3edf1bd812f75f33bd4fa0eb3f3ba4c",
+      "resultSha256": "f70d358b361e425fb4992b2101745a9912b2682134e780203ae5f79845dd5ee1",
+      "nativeSnapshotSha256": "f7273fd6716e145f2136211be32e7a2f1e9b18501eac32d9217a02d2abc10ce1",
+      "defaultSnapshotSha256": "015a77243ee0298d729d893aa941fed93c8f8252eaa4a12a63673bcaf909edb4",
+      "contextSnapshotSha256": "0291e48dc4873d5d20c0d1daeef05c9536445ee3d24a6b51af9d787c324ca4e6",
+      "status": "passed",
+      "attempt": 1,
+      "runCount": 1,
+      "runStatus": "succeeded",
+      "issueStatus": "done",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "provider": "opencode",
+      "grade": {
+        "schema": "paperclip.native-completion-observation.v2",
+        "passed": true,
+        "checks": [
+          {
+            "id": "one-native-attempt",
+            "passed": true,
+            "detail": "Exactly one succeeded native run, with no continuation/retry or uncounted extra work."
+          },
+          {
+            "id": "durable-disposition",
+            "passed": true,
+            "detail": "Public durable issue status and the native semantic result agree with the requested disposition."
+          },
+          {
+            "id": "complete-bound-events",
+            "passed": true,
+            "detail": "A complete contiguous public PRP stream is bound to this run and persisted source identity."
+          },
+          {
+            "id": "authoritative-native-result",
+            "passed": true,
+            "detail": "One runner proposal is independently accepted and terminated by the control plane."
+          },
+          {
+            "id": "final-after-tool-result",
+            "passed": true,
+            "detail": "The provider final follows the observed finishing result; no new invocation follows admission. Control-plane acceptance precedes its terminal receipt independently."
+          },
+          {
+            "id": "persisted-provider-final",
+            "passed": true,
+            "detail": "A nonempty provider final is durably projected as this run's agent reply; semantic-summary fallback is insufficient."
+          },
+          {
+            "id": "bounded-durable-work",
+            "passed": true,
+            "detail": "No additional tasks, agents or interactions; completion permits its one required document and blocker permits none."
+          }
+        ],
+        "limitations": [
+          "Exact provider feedback identity/consumption is not measured by the public sequence."
+        ]
+      },
+      "integrityFailures": [],
+      "defaultGrade": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "production-default-bundle",
+            "passed": true,
+            "detail": "The served public hire bundle is the unchanged master default, with no QA or reduced-manual injection."
+          },
+          {
+            "id": "bounded-company-and-agent",
+            "passed": true,
+            "detail": "Both public budgets enforce the declared 1,000-cent hard stop."
+          }
+        ]
+      },
+      "contextChecks": [
+        {
+          "id": "assigned-skill-present",
+          "passed": true,
+          "detail": "The task run must receive one pinned skill version through the public assignment state."
+        },
+        {
+          "id": "skill-request-explicit",
+          "passed": true,
+          "detail": "The task request must explicitly name the assigned skill with a supported slash or dollar reference."
+        },
+        {
+          "id": "skill-source-marker",
+          "passed": true,
+          "detail": "The assigned pinned skill source must contain the output marker."
+        },
+        {
+          "id": "marker-not-in-request",
+          "passed": true,
+          "detail": "The output marker must originate from the assigned skill, not the task request or comments."
+        },
+        {
+          "id": "single-durable-output",
+          "passed": true,
+          "detail": "Exactly one durable task document must contain the skill's marker."
+        },
+        {
+          "id": "completed-task",
+          "passed": true,
+          "detail": "Final task status: done."
+        },
+        {
+          "id": "successful-runs",
+          "passed": true,
+          "detail": "All recorded context-integrity runs must succeed."
+        }
+      ],
+      "durableState": {
+        "documentCount": 1,
+        "interactionCount": 0,
+        "additionalIssueCount": 1,
+        "additionalAgentCount": 0
+      },
+      "sequencing": {
+        "proposalSeq": [
+          56
+        ],
+        "acceptedSeq": [
+          68
+        ],
+        "terminalSeq": [
+          69
+        ],
+        "providerFinalSeq": [
+          64
+        ]
+      },
+      "durationMs": 85536,
+      "agentRunDurationMs": 41645,
+      "tokens": {
+        "input": 45592,
+        "output": 731,
+        "cachedInput": 65536
+      },
+      "reportedCostUsd": 0.0027245575999999996,
+      "costStatus": "reported",
+      "billingType": "unknown",
+      "actualBillingVerified": false,
+      "runtimeCostStatus": "not_metered",
+      "cleanup": "passed",
+      "matcherCount": 14,
+      "failedMatchers": [],
+      "independentRetainedReplayPassed": true
+    },
+    {
+      "executionId": "native-completion.runner-opencode.local.native-blocked-report",
+      "variant": "candidate",
+      "source": {
+        "sha": "d6e59e4712a3158ab4cd7d58deff1389b4578c21",
+        "ref": "refs/heads/codex/native-completion-master-calibrated-candidate",
+        "workflowRunUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980"
+      },
+      "suiteDefinitionHash": "96e18a7bcde391304cbdb2e811276e95f7c6a99c01b183facd7c5e1e4a98363d",
+      "artifactId": 11264929195,
+      "artifactUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980/artifacts/11264929195",
+      "zipSha256": "33014bc90997444b1954bc465fd86ce1d93b3cfc4079a88545c110bc3896787b",
+      "resultSha256": "8c943b38d480fcb3513fe6a458e75d0606e4669ba047ecd3a779b35a65ec2a30",
+      "nativeSnapshotSha256": "b7bed5ee5d4942b3092516c790c2f527ca0859fa451ffc6b9423853ba70fea5a",
+      "defaultSnapshotSha256": "3489c5facf99991f25ba864b99c12628e3f87442cc43a251beab60e0d0fe2992",
+      "contextSnapshotSha256": null,
+      "status": "passed",
+      "attempt": 1,
+      "runCount": 1,
+      "runStatus": "succeeded",
+      "issueStatus": "blocked",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "provider": "opencode",
+      "grade": {
+        "schema": "paperclip.native-completion-observation.v2",
+        "passed": true,
+        "checks": [
+          {
+            "id": "one-native-attempt",
+            "passed": true,
+            "detail": "Exactly one succeeded native run, with no continuation/retry or uncounted extra work."
+          },
+          {
+            "id": "durable-disposition",
+            "passed": true,
+            "detail": "Public durable issue status and the native semantic result agree with the requested disposition."
+          },
+          {
+            "id": "exact-blocker",
+            "passed": true,
+            "detail": "The structured owner, exact action and whole-task scope are independently checked."
+          },
+          {
+            "id": "complete-bound-events",
+            "passed": true,
+            "detail": "A complete contiguous public PRP stream is bound to this run and persisted source identity."
+          },
+          {
+            "id": "authoritative-native-result",
+            "passed": true,
+            "detail": "One runner proposal is independently accepted and terminated by the control plane."
+          },
+          {
+            "id": "final-after-tool-result",
+            "passed": true,
+            "detail": "The provider final follows the observed finishing result; no new invocation follows admission. Control-plane acceptance precedes its terminal receipt independently."
+          },
+          {
+            "id": "persisted-provider-final",
+            "passed": true,
+            "detail": "A nonempty provider final is durably projected as this run's agent reply; semantic-summary fallback is insufficient."
+          },
+          {
+            "id": "visible-blocker-content",
+            "passed": true,
+            "detail": "The final explains the actual unresolved blocker and its owner/action, rather than supplying only a marker."
+          },
+          {
+            "id": "bounded-durable-work",
+            "passed": true,
+            "detail": "No additional tasks, agents or interactions; completion permits its one required document and blocker permits none."
+          },
+          {
+            "id": "no-deployment-or-file-work",
+            "passed": true,
+            "detail": "The fixture workspace is unchanged and no process/file/deployment or extra-work tool is observed."
+          }
+        ],
+        "limitations": [
+          "Exact provider feedback identity/consumption is not measured by the public sequence."
+        ]
+      },
+      "integrityFailures": [],
+      "defaultGrade": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "production-default-bundle",
+            "passed": true,
+            "detail": "The served public hire bundle is the unchanged master default, with no QA or reduced-manual injection."
+          },
+          {
+            "id": "bounded-company-and-agent",
+            "passed": true,
+            "detail": "Both public budgets enforce the declared 1,000-cent hard stop."
+          }
+        ]
+      },
+      "contextChecks": null,
+      "durableState": {
+        "documentCount": 0,
+        "interactionCount": 0,
+        "additionalIssueCount": 1,
+        "additionalAgentCount": 0
+      },
+      "sequencing": {
+        "proposalSeq": [
+          36
+        ],
+        "acceptedSeq": [
+          49
+        ],
+        "terminalSeq": [
+          50
+        ],
+        "providerFinalSeq": [
+          45
+        ]
+      },
+      "durationMs": 81864,
+      "agentRunDurationMs": 39947,
+      "tokens": {
+        "input": 22300,
+        "output": 735,
+        "cachedInput": 21248
+      },
+      "reportedCostUsd": 0.0016493492000000001,
+      "costStatus": "reported",
+      "billingType": "unknown",
+      "actualBillingVerified": false,
+      "runtimeCostStatus": "not_metered",
+      "cleanup": "passed",
+      "matcherCount": 21,
+      "failedMatchers": [],
+      "independentRetainedReplayPassed": true
+    },
+    {
+      "executionId": "native-completion.runner-acpx-claude.local.native-blocked-report",
+      "variant": "candidate",
+      "source": {
+        "sha": "d6e59e4712a3158ab4cd7d58deff1389b4578c21",
+        "ref": "refs/heads/codex/native-completion-master-calibrated-candidate",
+        "workflowRunUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980"
+      },
+      "suiteDefinitionHash": "96e18a7bcde391304cbdb2e811276e95f7c6a99c01b183facd7c5e1e4a98363d",
+      "artifactId": 11264674612,
+      "artifactUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980/artifacts/11264674612",
+      "zipSha256": "309843a997c07414b999c3712cdea7592e5010e70a2dceff34a1c70b397954a9",
+      "resultSha256": "4cdce8a05751fbbc6d3711cd40dc7a4d807c5e93dd5b8008b100692517afaa52",
+      "nativeSnapshotSha256": "6ef4cf8878fbb4e5d530f846b73f749d3dc3d4d19ae64ace48d35f34a9b4143c",
+      "defaultSnapshotSha256": "2f176d472827e84dc7e7d417080c6fdcdc413a6caec088164c4ffbf38b8cce91",
+      "contextSnapshotSha256": null,
+      "status": "passed",
+      "attempt": 1,
+      "runCount": 1,
+      "runStatus": "succeeded",
+      "issueStatus": "blocked",
+      "model": "claude-sonnet-5",
+      "provider": "acpx",
+      "grade": {
+        "schema": "paperclip.native-completion-observation.v2",
+        "passed": true,
+        "checks": [
+          {
+            "id": "one-native-attempt",
+            "passed": true,
+            "detail": "Exactly one succeeded native run, with no continuation/retry or uncounted extra work."
+          },
+          {
+            "id": "durable-disposition",
+            "passed": true,
+            "detail": "Public durable issue status and the native semantic result agree with the requested disposition."
+          },
+          {
+            "id": "exact-blocker",
+            "passed": true,
+            "detail": "The structured owner, exact action and whole-task scope are independently checked."
+          },
+          {
+            "id": "complete-bound-events",
+            "passed": true,
+            "detail": "A complete contiguous public PRP stream is bound to this run and persisted source identity."
+          },
+          {
+            "id": "authoritative-native-result",
+            "passed": true,
+            "detail": "One runner proposal is independently accepted and terminated by the control plane."
+          },
+          {
+            "id": "final-after-tool-result",
+            "passed": true,
+            "detail": "The provider final follows the observed finishing result; no new invocation follows admission. Control-plane acceptance precedes its terminal receipt independently."
+          },
+          {
+            "id": "persisted-provider-final",
+            "passed": true,
+            "detail": "A nonempty provider final is durably projected as this run's agent reply; semantic-summary fallback is insufficient."
+          },
+          {
+            "id": "visible-blocker-content",
+            "passed": true,
+            "detail": "The final explains the actual unresolved blocker and its owner/action, rather than supplying only a marker."
+          },
+          {
+            "id": "bounded-durable-work",
+            "passed": true,
+            "detail": "No additional tasks, agents or interactions; completion permits its one required document and blocker permits none."
+          },
+          {
+            "id": "no-deployment-or-file-work",
+            "passed": true,
+            "detail": "The fixture workspace is unchanged and no process/file/deployment or extra-work tool is observed."
+          }
+        ],
+        "limitations": [
+          "Exact provider feedback identity/consumption is not measured by the public sequence."
+        ]
+      },
+      "integrityFailures": [],
+      "defaultGrade": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "production-default-bundle",
+            "passed": true,
+            "detail": "The served public hire bundle is the unchanged master default, with no QA or reduced-manual injection."
+          },
+          {
+            "id": "bounded-company-and-agent",
+            "passed": true,
+            "detail": "Both public budgets enforce the declared 1,000-cent hard stop."
+          }
+        ]
+      },
+      "contextChecks": null,
+      "durableState": {
+        "documentCount": 0,
+        "interactionCount": 0,
+        "additionalIssueCount": 1,
+        "additionalAgentCount": 0
+      },
+      "sequencing": {
+        "proposalSeq": [
+          52
+        ],
+        "acceptedSeq": [
+          81
+        ],
+        "terminalSeq": [
+          82
+        ],
+        "providerFinalSeq": [
+          77
+        ]
+      },
+      "durationMs": 69422,
+      "agentRunDurationMs": 29059,
+      "tokens": {
+        "input": 6,
+        "output": 1420,
+        "cachedInput": 69575
+      },
+      "reportedCostUsd": 0,
+      "costStatus": "reported",
+      "billingType": "unknown",
+      "actualBillingVerified": false,
+      "runtimeCostStatus": "not_metered",
+      "cleanup": "passed",
+      "matcherCount": 21,
+      "failedMatchers": [],
+      "independentRetainedReplayPassed": true
+    },
+    {
+      "executionId": "native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+      "variant": "candidate",
+      "source": {
+        "sha": "d6e59e4712a3158ab4cd7d58deff1389b4578c21",
+        "ref": "refs/heads/codex/native-completion-master-calibrated-candidate",
+        "workflowRunUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980"
+      },
+      "suiteDefinitionHash": "96e18a7bcde391304cbdb2e811276e95f7c6a99c01b183facd7c5e1e4a98363d",
+      "artifactId": 11264634829,
+      "artifactUrl": "https://github.com/paperclipai/paperclip/actions/runs/37098728980/artifacts/11264634829",
+      "zipSha256": "7d4e0b3733bfea937167cac4ec0c18a5d9892e52b33a62f9a67fe7b55e039987",
+      "resultSha256": "97a7d6cd5eb5bb1568b9f8ada8ef21b83323e0644d5aa7a741eefa946f6389c6",
+      "nativeSnapshotSha256": "40b64742374ea90fada7fe1f8f484f1eebeaed424b12be87746efa9a60bc1e5f",
+      "defaultSnapshotSha256": "ae2ae47d2f5dac9d2bcb243ea8d62c828a4c5081acb4538ca3ee4c8eb7f871a1",
+      "contextSnapshotSha256": "2f451ae80966bb3d5512e1012048431c4e3216a97933ac222c51cdb602a11588",
+      "status": "passed",
+      "attempt": 1,
+      "runCount": 1,
+      "runStatus": "succeeded",
+      "issueStatus": "done",
+      "model": "claude-sonnet-5",
+      "provider": "acpx",
+      "grade": {
+        "schema": "paperclip.native-completion-observation.v2",
+        "passed": true,
+        "checks": [
+          {
+            "id": "one-native-attempt",
+            "passed": true,
+            "detail": "Exactly one succeeded native run, with no continuation/retry or uncounted extra work."
+          },
+          {
+            "id": "durable-disposition",
+            "passed": true,
+            "detail": "Public durable issue status and the native semantic result agree with the requested disposition."
+          },
+          {
+            "id": "complete-bound-events",
+            "passed": true,
+            "detail": "A complete contiguous public PRP stream is bound to this run and persisted source identity."
+          },
+          {
+            "id": "authoritative-native-result",
+            "passed": true,
+            "detail": "One runner proposal is independently accepted and terminated by the control plane."
+          },
+          {
+            "id": "final-after-tool-result",
+            "passed": true,
+            "detail": "The provider final follows the observed finishing result; no new invocation follows admission. Control-plane acceptance precedes its terminal receipt independently."
+          },
+          {
+            "id": "persisted-provider-final",
+            "passed": true,
+            "detail": "A nonempty provider final is durably projected as this run's agent reply; semantic-summary fallback is insufficient."
+          },
+          {
+            "id": "bounded-durable-work",
+            "passed": true,
+            "detail": "No additional tasks, agents or interactions; completion permits its one required document and blocker permits none."
+          }
+        ],
+        "limitations": [
+          "Exact provider feedback identity/consumption is not measured by the public sequence."
+        ]
+      },
+      "integrityFailures": [],
+      "defaultGrade": {
+        "passed": true,
+        "checks": [
+          {
+            "id": "production-default-bundle",
+            "passed": true,
+            "detail": "The served public hire bundle is the unchanged master default, with no QA or reduced-manual injection."
+          },
+          {
+            "id": "bounded-company-and-agent",
+            "passed": true,
+            "detail": "Both public budgets enforce the declared 1,000-cent hard stop."
+          }
+        ]
+      },
+      "contextChecks": [
+        {
+          "id": "assigned-skill-present",
+          "passed": true,
+          "detail": "The task run must receive one pinned skill version through the public assignment state."
+        },
+        {
+          "id": "skill-request-explicit",
+          "passed": true,
+          "detail": "The task request must explicitly name the assigned skill with a supported slash or dollar reference."
+        },
+        {
+          "id": "skill-source-marker",
+          "passed": true,
+          "detail": "The assigned pinned skill source must contain the output marker."
+        },
+        {
+          "id": "marker-not-in-request",
+          "passed": true,
+          "detail": "The output marker must originate from the assigned skill, not the task request or comments."
+        },
+        {
+          "id": "single-durable-output",
+          "passed": true,
+          "detail": "Exactly one durable task document must contain the skill's marker."
+        },
+        {
+          "id": "completed-task",
+          "passed": true,
+          "detail": "Final task status: done."
+        },
+        {
+          "id": "successful-runs",
+          "passed": true,
+          "detail": "All recorded context-integrity runs must succeed."
+        }
+      ],
+      "durableState": {
+        "documentCount": 1,
+        "interactionCount": 0,
+        "additionalIssueCount": 1,
+        "additionalAgentCount": 0
+      },
+      "sequencing": {
+        "proposalSeq": [
+          76
+        ],
+        "acceptedSeq": [
+          104
+        ],
+        "terminalSeq": [
+          105
+        ],
+        "providerFinalSeq": [
+          100
+        ]
+      },
+      "durationMs": 79552,
+      "agentRunDurationMs": 27682,
+      "tokens": {
+        "input": 10,
+        "output": 1096,
+        "cachedInput": 161787
+      },
+      "reportedCostUsd": 0,
+      "costStatus": "reported",
+      "billingType": "unknown",
+      "actualBillingVerified": false,
+      "runtimeCostStatus": "not_metered",
+      "cleanup": "passed",
+      "matcherCount": 14,
+      "failedMatchers": [],
+      "independentRetainedReplayPassed": true
+    }
+  ]
+}

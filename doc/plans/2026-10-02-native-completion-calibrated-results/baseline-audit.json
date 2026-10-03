@@ -1,0 +1,1568 @@
+{
+  "schema": "paperclip.native-completion.baseline-audit.v1",
+  "asOf": "2026-10-03T05:23:16.220052+00:00",
+  "workflowRunId": 37098815696,
+  "workflowSourceSha": "215586d127e97c9301d86e769a39a15c13298ca2",
+  "targetSourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+  "expectedCells": 6,
+  "completedCells": 6,
+  "pendingExecutionIds": [],
+  "rows": [
+    {
+      "executionId": "native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+      "profileId": "runner-acpx-claude",
+      "caseId": "assigned-skill-explicit-invocation",
+      "status": "passed",
+      "provider": "acpx",
+      "model": "claude-sonnet-5",
+      "attempt": 1,
+      "durationMs": 69791,
+      "cleanup": "passed",
+      "runtimeUsage": {
+        "provider": "local",
+        "agentRunDurationMs": 27643,
+        "leaseDurationMs": null,
+        "leaseCount": 0,
+        "costStatus": "not_metered",
+        "costSource": "local_not_metered"
+      },
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 10,
+          "outputTokens": 1338,
+          "cachedInputTokens": 162274,
+          "totalTokens": 163622,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 27643,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "failureClass": null,
+      "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+      "resultSha256": "6933dcb354f517653824b2c166bceef0f5c524ae30f915a9f4423276e53ebd15",
+      "sourceMatches": true,
+      "configMatches": true,
+      "expectedOneAttempt": true,
+      "originalFailedMatchers": [],
+      "originalMatcherCount": 14,
+      "persistedConfiguration": {
+        "provider": "acpx",
+        "model": "claude-sonnet-5",
+        "acpxAgent": "claude",
+        "lifecycleMode": "per_turn",
+        "codexPermissionMode": "never",
+        "acpxPermissionMode": "approve-all"
+      },
+      "declaredModelQualification": {
+        "source": "qualified_runner_profile",
+        "qualificationId": "acpx:claude"
+      },
+      "admission": {
+        "schema": "paperclip.native-completion-preflight.v1",
+        "passed": true,
+        "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+        "variant": "historical",
+        "providerCalls": 0,
+        "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+        "fixtureFingerprint": "a50581c04f3d87843d69f92050712977f8e114e4c2f23f96f243fd5386119f27",
+        "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+        "runnerdProvenance": {
+          "schema": "paperclip.native-completion-runnerd-provenance.v1",
+          "mode": "trusted_hosted_archive",
+          "passed": true,
+          "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+          "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+          "binaryBytes": 394443976,
+          "archiveMemberBytes": 394443976,
+          "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+          "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+          "archiveSha256": "d83acb6c73b9cf2256669bcf875d593aa18cfa941f07ad93ca92f30906047190",
+          "workflowRunId": "37098815696",
+          "workflowRunAttempt": "1",
+          "artifactName": "runner-e2e-build-e74ed61a69fbdd8b3a8f15dd6456bc3140246e33-37098815696-1",
+          "errors": []
+        },
+        "preflightSha256": "b323fe95681e946a7f1604f2a73c0b39197b400964d8da731337c0f7807a67f8",
+        "executedTypeScriptAssertions": 127,
+        "rustCalibrationExecutedInCell": false,
+        "failedGates": [],
+        "checksMatch": true
+      },
+      "defaults": {
+        "passed": true,
+        "entryFile": "AGENTS.md",
+        "files": [
+          {
+            "path": "AGENTS.md",
+            "sha256": "e4d2375d722602cd744403292d99f6e6c9b7e8014d9cdfa6f9811ace03428e5f",
+            "bytes": 4249
+          }
+        ],
+        "budgets": {
+          "company": 1000,
+          "agent": 1000
+        },
+        "independentMatch": true
+      },
+      "nativeAudit": {
+        "evidenceSource": "original-native-observation",
+        "originalNativeGradeAvailable": true,
+        "originalGradePassed": true,
+        "originalChecks": [
+          {
+            "id": "one-native-attempt",
+            "passed": true,
+            "detail": "Exactly one succeeded native run, with no continuation/retry or uncounted extra work."
+          },
+          {
+            "id": "durable-disposition",
+            "passed": true,
+            "detail": "Public durable issue status and the native semantic result agree with the requested disposition."
+          },
+          {
+            "id": "complete-bound-events",
+            "passed": true,
+            "detail": "A complete contiguous public PRP stream is bound to this run and persisted source identity."
+          },
+          {
+            "id": "authoritative-native-result",
+            "passed": true,
+            "detail": "One runner proposal is independently accepted and terminated by the control plane."
+          },
+          {
+            "id": "final-after-tool-result",
+            "passed": true,
+            "detail": "The provider final follows the observed finishing result; no new invocation follows admission. Control-plane acceptance precedes its terminal receipt independently."
+          },
+          {
+            "id": "persisted-provider-final",
+            "passed": true,
+            "detail": "A nonempty provider final is durably projected as this run's agent reply; semantic-summary fallback is insufficient."
+          },
+          {
+            "id": "bounded-durable-work",
+            "passed": true,
+            "detail": "No additional tasks, agents or interactions; completion permits its one required document and blocker permits none."
+          }
+        ],
+        "originalIntegrity": [],
+        "runCount": 1,
+        "runStatus": "succeeded",
+        "nativeRun": true,
+        "issueStatus": "done",
+        "reportedDisposition": "done",
+        "runOwnershipMatches": true,
+        "retryOrContinuationObserved": false,
+        "expectedNamedTool": "paperclip_finish",
+        "namedStartCount": 1,
+        "matchingCompletionCount": 1,
+        "proposalSeq": [
+          75
+        ],
+        "completionSeqs": [
+          77
+        ],
+        "finalSeqs": [
+          99
+        ],
+        "acceptedSeq": [
+          103
+        ],
+        "terminalSeq": [
+          104
+        ],
+        "independentNamedSequencePass": true,
+        "persistedProviderFinalMatches": true,
+        "finalMarkerCount": 1,
+        "finalMentionsOwner": false,
+        "finalMentionsAction": false,
+        "toolInvocationsAfterProposal": 0,
+        "blocker": null,
+        "workspaceChanged": false,
+        "documentCount": 1,
+        "interactionCount": 0,
+        "eventCount": 112
+      },
+      "perRunLedger": [
+        {
+          "model": "claude-sonnet-5",
+          "provider": "openai",
+          "biller": "openai",
+          "billingType": "unknown",
+          "usageSource": "per_run",
+          "costStatus": "reported",
+          "costUsd": 0,
+          "cacheAdjustedCostUsd": 0,
+          "inputTokens": 10,
+          "outputTokens": 1338,
+          "cachedInputTokens": 162274
+        }
+      ],
+      "runLedgerCostMatchesAggregate": true,
+      "documentAudit": {
+        "originalAllChecksPassed": true,
+        "originalChecks": [
+          {
+            "id": "assigned-skill-present",
+            "passed": true,
+            "detail": "The task run must receive one pinned skill version through the public assignment state."
+          },
+          {
+            "id": "skill-request-explicit",
+            "passed": true,
+            "detail": "The task request must explicitly name the assigned skill with a supported slash or dollar reference."
+          },
+          {
+            "id": "skill-source-marker",
+            "passed": true,
+            "detail": "The assigned pinned skill source must contain the output marker."
+          },
+          {
+            "id": "marker-not-in-request",
+            "passed": true,
+            "detail": "The output marker must originate from the assigned skill, not the task request or comments."
+          },
+          {
+            "id": "single-durable-output",
+            "passed": true,
+            "detail": "Exactly one durable task document must contain the skill's marker."
+          },
+          {
+            "id": "completed-task",
+            "passed": true,
+            "detail": "Final task status: done."
+          },
+          {
+            "id": "successful-runs",
+            "passed": true,
+            "detail": "All recorded context-integrity runs must succeed."
+          }
+        ],
+        "documentCount": 1,
+        "savedDocuments": [
+          {
+            "key": "context-integrity-output",
+            "hasRevision": true,
+            "containsMarker": true,
+            "bodySha256": "18c62978a266f6706ad41eb6054e42f6ddc2de09098d7b42da9861ac3525bf11"
+          }
+        ]
+      },
+      "ledgerAudit": {
+        "runCount": 1,
+        "tokenReceiptCount": 1,
+        "reportedCostReceiptCount": 1,
+        "reportedCostUsd": 0,
+        "allOneRunReceipts": true,
+        "externalActualBillingKnown": false,
+        "runtimeMetered": false
+      },
+      "evidenceHashes": {
+        "blob-report/report.zip": "c5b837c26c65c79bcbd5c1f67d8ee9fa67f2ec5862c59c99eaa75f233ab9486f",
+        "evidence-manifest.json": "47446c71c349c1f8982e2fe47d178d5df01328247550c1059d8a180e61c71e27",
+        "final-state.png": "3b227e1d8f403ac3c6ac66601e1bf5693c0afe82a785e43c836f23b71a4dbbea",
+        "html-report/data/a4f76fc714d2652b2df78f4838aa0019931091d4.png": "3b227e1d8f403ac3c6ac66601e1bf5693c0afe82a785e43c836f23b71a4dbbea",
+        "html-report/data/c9d42daa8139d3ae3fbb9ecdcee5d01dcc8a2ad3.json": "6933dcb354f517653824b2c166bceef0f5c524ae30f915a9f4423276e53ebd15",
+        "playwright-output/runner-native-completion-r-a812c-the-browser-and-public-APIs/attachments/final-state-58b43ab4b4432af5af042b396bc9729f665406ff.png": "3b227e1d8f403ac3c6ac66601e1bf5693c0afe82a785e43c836f23b71a4dbbea",
+        "playwright-output/runner-native-completion-r-a812c-the-browser-and-public-APIs/attachments/runner-e2e-result-976acf95b669a494f6b53b87655331d225de7a7b.json": "6933dcb354f517653824b2c166bceef0f5c524ae30f915a9f4423276e53ebd15",
+        "result.json": "6933dcb354f517653824b2c166bceef0f5c524ae30f915a9f4423276e53ebd15",
+        "snapshots/api-state.json": "1e15edc3c80caf8f0d4d233f416b0538792f15c5b13f7cedd36843e31082c8c8",
+        "snapshots/browser-diagnostics.json": "38b37eaf79a152d205e4b4d74cf598078d09ad14cd9e9e3a6e693f81b2f6c2d6",
+        "snapshots/chat-final-run-ledger.json": "e080fadf0574161e6a0cf0f2091dfb163f8806a3d6928223fa68ecf88ad1d107",
+        "snapshots/context-integrity.json": "4e36c40590094d428dacdc097dca65eab22ed829e4af93dd87b9b623486d02da",
+        "snapshots/fixtures.json": "5e73383bcc87014325b0c05fdfd0ef05bebd57272e79897f9b2eab26db4c537d",
+        "snapshots/native-completion.json": "c64b3d3da9edc3b2e1aa137ccbae821071c322f9bc4c1fd72adf1d5998b7e88a",
+        "snapshots/native-default-before-execution.json": "67b30b37debfa1d3b7ec4a34e306a2c78bd52eed7bffd173994f93fafe34cc9f"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-acpx-claude.local.native-blocked-report",
+      "profileId": "runner-acpx-claude",
+      "caseId": "native-blocked-report",
+      "status": "passed",
+      "provider": "acpx",
+      "model": "claude-sonnet-5",
+      "attempt": 1,
+      "durationMs": 69608,
+      "cleanup": "passed",
+      "runtimeUsage": {
+        "provider": "local",
+        "agentRunDurationMs": 28241,
+        "leaseDurationMs": null,
+        "leaseCount": 0,
+        "costStatus": "not_metered",
+        "costSource": "local_not_metered"
+      },
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 6,
+          "outputTokens": 1365,
+          "cachedInputTokens": 89624,
+          "totalTokens": 90995,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 28241,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "failureClass": null,
+      "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+      "resultSha256": "cdbd533c56af2b70ca9ef7650356396a45a64a6e8b9a6b370a3a50b8ea50e3fd",
+      "sourceMatches": true,
+      "configMatches": true,
+      "expectedOneAttempt": true,
+      "originalFailedMatchers": [],
+      "originalMatcherCount": 21,
+      "persistedConfiguration": {
+        "provider": "acpx",
+        "model": "claude-sonnet-5",
+        "acpxAgent": "claude",
+        "lifecycleMode": "per_turn",
+        "codexPermissionMode": "never",
+        "acpxPermissionMode": "approve-all"
+      },
+      "declaredModelQualification": {
+        "source": "qualified_runner_profile",
+        "qualificationId": "acpx:claude"
+      },
+      "admission": {
+        "schema": "paperclip.native-completion-preflight.v1",
+        "passed": true,
+        "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+        "variant": "historical",
+        "providerCalls": 0,
+        "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+        "fixtureFingerprint": "a50581c04f3d87843d69f92050712977f8e114e4c2f23f96f243fd5386119f27",
+        "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+        "runnerdProvenance": {
+          "schema": "paperclip.native-completion-runnerd-provenance.v1",
+          "mode": "trusted_hosted_archive",
+          "passed": true,
+          "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+          "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+          "binaryBytes": 394443976,
+          "archiveMemberBytes": 394443976,
+          "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+          "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+          "archiveSha256": "d83acb6c73b9cf2256669bcf875d593aa18cfa941f07ad93ca92f30906047190",
+          "workflowRunId": "37098815696",
+          "workflowRunAttempt": "1",
+          "artifactName": "runner-e2e-build-e74ed61a69fbdd8b3a8f15dd6456bc3140246e33-37098815696-1",
+          "errors": []
+        },
+        "preflightSha256": "9171ff4d7bd4caa3a73947ed1b024caf0f442834564a1bfbe6ff1f58211a389a",
+        "executedTypeScriptAssertions": 127,
+        "rustCalibrationExecutedInCell": false,
+        "failedGates": [],
+        "checksMatch": true
+      },
+      "defaults": {
+        "passed": true,
+        "entryFile": "AGENTS.md",
+        "files": [
+          {
+            "path": "AGENTS.md",
+            "sha256": "e4d2375d722602cd744403292d99f6e6c9b7e8014d9cdfa6f9811ace03428e5f",
+            "bytes": 4249
+          }
+        ],
+        "budgets": {
+          "company": 1000,
+          "agent": 1000
+        },
+        "independentMatch": true
+      },
+      "nativeAudit": {
+        "evidenceSource": "original-native-observation",
+        "originalNativeGradeAvailable": true,
+        "originalGradePassed": true,
+        "originalChecks": [
+          {
+            "id": "one-native-attempt",
+            "passed": true,
+            "detail": "Exactly one succeeded native run, with no continuation/retry or uncounted extra work."
+          },
+          {
+            "id": "durable-disposition",
+            "passed": true,
+            "detail": "Public durable issue status and the native semantic result agree with the requested disposition."
+          },
+          {
+            "id": "exact-blocker",
+            "passed": true,
+            "detail": "The structured owner, exact action and whole-task scope are independently checked."
+          },
+          {
+            "id": "complete-bound-events",
+            "passed": true,
+            "detail": "A complete contiguous public PRP stream is bound to this run and persisted source identity."
+          },
+          {
+            "id": "authoritative-native-result",
+            "passed": true,
+            "detail": "One runner proposal is independently accepted and terminated by the control plane."
+          },
+          {
+            "id": "final-after-tool-result",
+            "passed": true,
+            "detail": "The provider final follows the observed finishing result; no new invocation follows admission. Control-plane acceptance precedes its terminal receipt independently."
+          },
+          {
+            "id": "persisted-provider-final",
+            "passed": true,
+            "detail": "A nonempty provider final is durably projected as this run's agent reply; semantic-summary fallback is insufficient."
+          },
+          {
+            "id": "visible-blocker-content",
+            "passed": true,
+            "detail": "The final explains the actual unresolved blocker and its owner/action, rather than supplying only a marker."
+          },
+          {
+            "id": "bounded-durable-work",
+            "passed": true,
+            "detail": "No additional tasks, agents or interactions; completion permits its one required document and blocker permits none."
+          },
+          {
+            "id": "no-deployment-or-file-work",
+            "passed": true,
+            "detail": "The fixture workspace is unchanged and no process/file/deployment or extra-work tool is observed."
+          }
+        ],
+        "originalIntegrity": [],
+        "runCount": 1,
+        "runStatus": "succeeded",
+        "nativeRun": true,
+        "issueStatus": "blocked",
+        "reportedDisposition": "blocked",
+        "runOwnershipMatches": true,
+        "retryOrContinuationObserved": false,
+        "expectedNamedTool": "paperclip_block",
+        "namedStartCount": 1,
+        "matchingCompletionCount": 1,
+        "proposalSeq": [
+          52
+        ],
+        "completionSeqs": [
+          54
+        ],
+        "finalSeqs": [
+          79
+        ],
+        "acceptedSeq": [
+          83
+        ],
+        "terminalSeq": [
+          84
+        ],
+        "independentNamedSequencePass": true,
+        "persistedProviderFinalMatches": true,
+        "finalMarkerCount": 1,
+        "finalMentionsOwner": true,
+        "finalMentionsAction": true,
+        "toolInvocationsAfterProposal": 0,
+        "blocker": {
+          "owner": {
+            "kind": "external",
+            "name": "Release Owner"
+          },
+          "unblockAction": "Grant deployment access",
+          "scope": "task_wide"
+        },
+        "workspaceChanged": false,
+        "documentCount": 0,
+        "interactionCount": 0,
+        "eventCount": 92
+      },
+      "perRunLedger": [
+        {
+          "model": "claude-sonnet-5",
+          "provider": "openai",
+          "biller": "openai",
+          "billingType": "unknown",
+          "usageSource": "per_run",
+          "costStatus": "reported",
+          "costUsd": 0,
+          "cacheAdjustedCostUsd": 0,
+          "inputTokens": 6,
+          "outputTokens": 1365,
+          "cachedInputTokens": 89624
+        }
+      ],
+      "runLedgerCostMatchesAggregate": true,
+      "ledgerAudit": {
+        "runCount": 1,
+        "tokenReceiptCount": 1,
+        "reportedCostReceiptCount": 1,
+        "reportedCostUsd": 0,
+        "allOneRunReceipts": true,
+        "externalActualBillingKnown": false,
+        "runtimeMetered": false
+      },
+      "evidenceHashes": {
+        "blob-report/report.zip": "11eeaa524f504ffd7e6b61e57b87fc30b5b9ded9132314379727bf98d21c2e10",
+        "evidence-manifest.json": "22908c3a9fd1d8fedd27b73ac920adebf0aaa900c403bc60681f416f0b7ba6b7",
+        "final-state.png": "3c9811d15b3c8c092f47600c1174a7788edeb3133c8ed60f6787f1ecab20c969",
+        "html-report/data/45d129d15dc8cff7da9b56d7904a9931b69ba7ad.png": "3c9811d15b3c8c092f47600c1174a7788edeb3133c8ed60f6787f1ecab20c969",
+        "html-report/data/7fef77446378c87f080beca69f1600275399dbcd.json": "cdbd533c56af2b70ca9ef7650356396a45a64a6e8b9a6b370a3a50b8ea50e3fd",
+        "playwright-output/runner-native-completion-r-141db-the-browser-and-public-APIs/attachments/final-state-76d2855631cee8e29995eb1fb96f41a39fe1e924.png": "3c9811d15b3c8c092f47600c1174a7788edeb3133c8ed60f6787f1ecab20c969",
+        "playwright-output/runner-native-completion-r-141db-the-browser-and-public-APIs/attachments/runner-e2e-result-634e7fe4a283dd542979c028382100d1270d9d02.json": "cdbd533c56af2b70ca9ef7650356396a45a64a6e8b9a6b370a3a50b8ea50e3fd",
+        "result.json": "cdbd533c56af2b70ca9ef7650356396a45a64a6e8b9a6b370a3a50b8ea50e3fd",
+        "snapshots/api-state.json": "0ff529820e1e17d741a3e7c41d3f36fda92352f02e65ba24cc3d06c13565810c",
+        "snapshots/browser-diagnostics.json": "e623949e9bf51664630b7243ea35a9de351d98a7bdbbc0b3f8509e59fdb5e8d0",
+        "snapshots/fixtures.json": "a6a709c5549326a0ab5ae4910521a5be92389c34c08c55a77efc11866225e52b",
+        "snapshots/native-completion.json": "c2aee8b83b78f9fdb0672748b82074c4e3b852a61ef6d8844d8c2512da60496c",
+        "snapshots/native-default-before-execution.json": "0e86a3ef333821923975722d4785454d70780c9a6c798281903fe994615b9fbc"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-codex.local.assigned-skill-explicit-invocation",
+      "profileId": "runner-codex",
+      "caseId": "assigned-skill-explicit-invocation",
+      "status": "passed",
+      "provider": "codex",
+      "model": "gpt-5.6-sol",
+      "attempt": 1,
+      "durationMs": 71995,
+      "cleanup": "passed",
+      "runtimeUsage": {
+        "provider": "local",
+        "agentRunDurationMs": 31884,
+        "leaseDurationMs": null,
+        "leaseCount": 0,
+        "costStatus": "not_metered",
+        "costSource": "local_not_metered"
+      },
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 209614,
+          "outputTokens": 1700,
+          "cachedInputTokens": 184860,
+          "totalTokens": 396174,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 31884,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "failureClass": null,
+      "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+      "resultSha256": "22043de2aba3bac6ad94ee6d31a242746bad34a11790976d48ee0027b82c81b5",
+      "sourceMatches": true,
+      "configMatches": true,
+      "expectedOneAttempt": true,
+      "originalFailedMatchers": [],
+      "originalMatcherCount": 14,
+      "persistedConfiguration": {
+        "provider": "codex",
+        "model": "gpt-5.6-sol",
+        "lifecycleMode": "per_turn",
+        "codexPermissionMode": "never"
+      },
+      "declaredModelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "codex:qualified-model"
+      },
+      "admission": {
+        "schema": "paperclip.native-completion-preflight.v1",
+        "passed": true,
+        "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+        "variant": "historical",
+        "providerCalls": 0,
+        "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+        "fixtureFingerprint": "a50581c04f3d87843d69f92050712977f8e114e4c2f23f96f243fd5386119f27",
+        "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+        "runnerdProvenance": {
+          "schema": "paperclip.native-completion-runnerd-provenance.v1",
+          "mode": "trusted_hosted_archive",
+          "passed": true,
+          "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+          "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+          "binaryBytes": 394443976,
+          "archiveMemberBytes": 394443976,
+          "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+          "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+          "archiveSha256": "d83acb6c73b9cf2256669bcf875d593aa18cfa941f07ad93ca92f30906047190",
+          "workflowRunId": "37098815696",
+          "workflowRunAttempt": "1",
+          "artifactName": "runner-e2e-build-e74ed61a69fbdd8b3a8f15dd6456bc3140246e33-37098815696-1",
+          "errors": []
+        },
+        "preflightSha256": "934a06d0cd0fb576234ab8f4bc00f7c970b79a2f2577e9db8a017f37e26fc07b",
+        "executedTypeScriptAssertions": 127,
+        "rustCalibrationExecutedInCell": false,
+        "failedGates": [],
+        "checksMatch": true
+      },
+      "defaults": {
+        "passed": true,
+        "entryFile": "AGENTS.md",
+        "files": [
+          {
+            "path": "AGENTS.md",
+            "sha256": "e4d2375d722602cd744403292d99f6e6c9b7e8014d9cdfa6f9811ace03428e5f",
+            "bytes": 4249
+          }
+        ],
+        "budgets": {
+          "company": 1000,
+          "agent": 1000
+        },
+        "independentMatch": true
+      },
+      "nativeAudit": {
+        "evidenceSource": "original-native-observation",
+        "originalNativeGradeAvailable": true,
+        "originalGradePassed": true,
+        "originalChecks": [
+          {
+            "id": "one-native-attempt",
+            "passed": true,
+            "detail": "Exactly one succeeded native run, with no continuation/retry or uncounted extra work."
+          },
+          {
+            "id": "durable-disposition",
+            "passed": true,
+            "detail": "Public durable issue status and the native semantic result agree with the requested disposition."
+          },
+          {
+            "id": "complete-bound-events",
+            "passed": true,
+            "detail": "A complete contiguous public PRP stream is bound to this run and persisted source identity."
+          },
+          {
+            "id": "authoritative-native-result",
+            "passed": true,
+            "detail": "One runner proposal is independently accepted and terminated by the control plane."
+          },
+          {
+            "id": "final-after-tool-result",
+            "passed": true,
+            "detail": "The provider final follows the observed finishing result; no new invocation follows admission. Control-plane acceptance precedes its terminal receipt independently."
+          },
+          {
+            "id": "persisted-provider-final",
+            "passed": true,
+            "detail": "A nonempty provider final is durably projected as this run's agent reply; semantic-summary fallback is insufficient."
+          },
+          {
+            "id": "bounded-durable-work",
+            "passed": true,
+            "detail": "No additional tasks, agents or interactions; completion permits its one required document and blocker permits none."
+          }
+        ],
+        "originalIntegrity": [],
+        "runCount": 1,
+        "runStatus": "succeeded",
+        "nativeRun": true,
+        "issueStatus": "done",
+        "reportedDisposition": "done",
+        "runOwnershipMatches": true,
+        "retryOrContinuationObserved": false,
+        "expectedNamedTool": "paperclip_finish",
+        "namedStartCount": 2,
+        "matchingCompletionCount": 1,
+        "proposalSeq": [
+          175
+        ],
+        "completionSeqs": [
+          176
+        ],
+        "finalSeqs": [
+          203
+        ],
+        "acceptedSeq": [
+          208
+        ],
+        "terminalSeq": [
+          209
+        ],
+        "independentNamedSequencePass": true,
+        "persistedProviderFinalMatches": true,
+        "finalMarkerCount": 1,
+        "finalMentionsOwner": false,
+        "finalMentionsAction": false,
+        "toolInvocationsAfterProposal": 0,
+        "blocker": null,
+        "workspaceChanged": false,
+        "documentCount": 1,
+        "interactionCount": 0,
+        "eventCount": 217
+      },
+      "perRunLedger": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "biller": "openai",
+          "billingType": "unknown",
+          "usageSource": "per_run",
+          "costStatus": "reported",
+          "costUsd": 0,
+          "cacheAdjustedCostUsd": 0,
+          "inputTokens": 209614,
+          "outputTokens": 1700,
+          "cachedInputTokens": 184860
+        }
+      ],
+      "runLedgerCostMatchesAggregate": true,
+      "documentAudit": {
+        "originalAllChecksPassed": true,
+        "originalChecks": [
+          {
+            "id": "assigned-skill-present",
+            "passed": true,
+            "detail": "The task run must receive one pinned skill version through the public assignment state."
+          },
+          {
+            "id": "skill-request-explicit",
+            "passed": true,
+            "detail": "The task request must explicitly name the assigned skill with a supported slash or dollar reference."
+          },
+          {
+            "id": "skill-source-marker",
+            "passed": true,
+            "detail": "The assigned pinned skill source must contain the output marker."
+          },
+          {
+            "id": "marker-not-in-request",
+            "passed": true,
+            "detail": "The output marker must originate from the assigned skill, not the task request or comments."
+          },
+          {
+            "id": "single-durable-output",
+            "passed": true,
+            "detail": "Exactly one durable task document must contain the skill's marker."
+          },
+          {
+            "id": "completed-task",
+            "passed": true,
+            "detail": "Final task status: done."
+          },
+          {
+            "id": "successful-runs",
+            "passed": true,
+            "detail": "All recorded context-integrity runs must succeed."
+          }
+        ],
+        "documentCount": 1,
+        "savedDocuments": [
+          {
+            "key": "context-integrity-output",
+            "hasRevision": true,
+            "containsMarker": true,
+            "bodySha256": "2bfa9cf9875f4e244b388adb3ae9fd9fa4959e031a3424a78ca1e34f0c23f885"
+          }
+        ]
+      },
+      "ledgerAudit": {
+        "runCount": 1,
+        "tokenReceiptCount": 1,
+        "reportedCostReceiptCount": 1,
+        "reportedCostUsd": 0,
+        "allOneRunReceipts": true,
+        "externalActualBillingKnown": false,
+        "runtimeMetered": false
+      },
+      "evidenceHashes": {
+        "blob-report/report.zip": "b1825fc7e5edcf1d65bc0b510237561110dc9c91f0e3749844aa66115d602183",
+        "evidence-manifest.json": "0bdca2fba590b30162921b0b2c11fe5ab964c2aff32687b7566738b58d8880da",
+        "final-state.png": "f1b72104509399d3d9a04e7c11451a1712f9ba7444a23992e65c34a8df97fcfd",
+        "html-report/data/8e6fdfa895db69c6265de156033d935ce29cdbff.json": "22043de2aba3bac6ad94ee6d31a242746bad34a11790976d48ee0027b82c81b5",
+        "html-report/data/ff1807fd3e2c54f1f52483b4341e8a0a0b20639c.png": "f1b72104509399d3d9a04e7c11451a1712f9ba7444a23992e65c34a8df97fcfd",
+        "playwright-output/runner-native-completion-r-25dfe-the-browser-and-public-APIs/attachments/final-state-6ddaed261f99039773a7751ffd4f2969c86fbc57.png": "f1b72104509399d3d9a04e7c11451a1712f9ba7444a23992e65c34a8df97fcfd",
+        "playwright-output/runner-native-completion-r-25dfe-the-browser-and-public-APIs/attachments/runner-e2e-result-201710ca5c9181dab99f6979efddd0c63fdf2941.json": "22043de2aba3bac6ad94ee6d31a242746bad34a11790976d48ee0027b82c81b5",
+        "result.json": "22043de2aba3bac6ad94ee6d31a242746bad34a11790976d48ee0027b82c81b5",
+        "snapshots/api-state.json": "9075b25a0237c62824cc99f6cd3e1e087cee6b37c8c5d992f32fac7d8c1d4ad4",
+        "snapshots/browser-diagnostics.json": "e726e3bcdf57913f86621a3826d3c1492981d3ad54afdf2897c4e11e3e5ee4fa",
+        "snapshots/chat-final-run-ledger.json": "4c1416c8f47612af541fd44922f97b931844731fc50b3b72e489b9e9e1efb649",
+        "snapshots/context-integrity.json": "fac884ff4ae3697bfe85ded5a9df6ffcbaf207e44c3892d15b09cee2169e8cf1",
+        "snapshots/fixtures.json": "93d45a26f4eaa14c874d52a0abd2ffa16ba1d7e5b2018da4cc941455945dea90",
+        "snapshots/native-completion.json": "8604e2bf01bf9aaece2b3ca0b83f220b1f00911673d8eded1b1e9216910fb238",
+        "snapshots/native-default-before-execution.json": "a24381e105d2dad18100c31b3c0b1fbced8707be20574f67b1cd394131e43a95"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-codex.local.native-blocked-report",
+      "profileId": "runner-codex",
+      "caseId": "native-blocked-report",
+      "status": "failed",
+      "provider": "codex",
+      "model": "gpt-5.6-sol",
+      "attempt": 1,
+      "durationMs": 94105,
+      "cleanup": "passed",
+      "runtimeUsage": {
+        "provider": "local",
+        "agentRunDurationMs": 17560,
+        "leaseDurationMs": null,
+        "leaseCount": 0,
+        "costStatus": "not_metered",
+        "costSource": "local_not_metered"
+      },
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 44092,
+          "outputTokens": 521,
+          "cachedInputTokens": 21752,
+          "totalTokens": 66365,
+          "reportedCostUsd": 0,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 17560,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0,
+        "complete": true
+      },
+      "failureClass": "candidate_failure",
+      "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+      "resultSha256": "b80d822f6a4c6c66ee41d7d50e135cfa039a727aab8d304a54111ee839a7490f",
+      "sourceMatches": true,
+      "configMatches": true,
+      "expectedOneAttempt": true,
+      "originalFailedMatchers": [
+        {
+          "kind": "message_contains",
+          "path": null,
+          "expected": "BLOCKED_548de9e6b5fd1",
+          "detail": "expected {\"kind\":\"message_contains\",\"expected\":\"BLOCKED_548de9e6b5fd1\"}; observed \"Task blocked. Owner: Release Owner. Unblock action: Grant deployment access.\""
+        }
+      ],
+      "originalMatcherCount": 11,
+      "persistedConfiguration": {
+        "provider": "codex",
+        "model": "gpt-5.6-sol",
+        "lifecycleMode": "per_turn",
+        "codexPermissionMode": "never"
+      },
+      "declaredModelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "codex:qualified-model"
+      },
+      "admission": {
+        "schema": "paperclip.native-completion-preflight.v1",
+        "passed": true,
+        "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+        "variant": "historical",
+        "providerCalls": 0,
+        "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+        "fixtureFingerprint": "a50581c04f3d87843d69f92050712977f8e114e4c2f23f96f243fd5386119f27",
+        "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+        "runnerdProvenance": {
+          "schema": "paperclip.native-completion-runnerd-provenance.v1",
+          "mode": "trusted_hosted_archive",
+          "passed": true,
+          "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+          "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+          "binaryBytes": 394443976,
+          "archiveMemberBytes": 394443976,
+          "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+          "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+          "archiveSha256": "d83acb6c73b9cf2256669bcf875d593aa18cfa941f07ad93ca92f30906047190",
+          "workflowRunId": "37098815696",
+          "workflowRunAttempt": "1",
+          "artifactName": "runner-e2e-build-e74ed61a69fbdd8b3a8f15dd6456bc3140246e33-37098815696-1",
+          "errors": []
+        },
+        "preflightSha256": "f8c3d913ac601a2ffaf10e76df87d15d9158a4bc2c83f56a96267c78bbc851ec",
+        "executedTypeScriptAssertions": 127,
+        "rustCalibrationExecutedInCell": false,
+        "failedGates": [],
+        "checksMatch": true
+      },
+      "defaults": {
+        "passed": true,
+        "entryFile": "AGENTS.md",
+        "files": [
+          {
+            "path": "AGENTS.md",
+            "sha256": "e4d2375d722602cd744403292d99f6e6c9b7e8014d9cdfa6f9811ace03428e5f",
+            "bytes": 4249
+          }
+        ],
+        "budgets": {
+          "company": 1000,
+          "agent": 1000
+        },
+        "independentMatch": true
+      },
+      "nativeAudit": {
+        "evidenceSource": "retained-failure-api-state",
+        "originalNativeGradeAvailable": false,
+        "originalGradePassed": null,
+        "originalChecks": null,
+        "originalIntegrity": null,
+        "runCount": 1,
+        "runStatus": "succeeded",
+        "nativeRun": true,
+        "issueStatus": "blocked",
+        "reportedDisposition": "blocked",
+        "runOwnershipMatches": true,
+        "retryOrContinuationObserved": false,
+        "expectedNamedTool": "paperclip_block",
+        "namedStartCount": 1,
+        "matchingCompletionCount": 1,
+        "proposalSeq": [
+          61
+        ],
+        "completionSeqs": [
+          62
+        ],
+        "finalSeqs": [
+          81
+        ],
+        "acceptedSeq": [
+          86
+        ],
+        "terminalSeq": [
+          87
+        ],
+        "independentNamedSequencePass": true,
+        "persistedProviderFinalMatches": true,
+        "finalMarkerCount": 0,
+        "finalMentionsOwner": true,
+        "finalMentionsAction": true,
+        "toolInvocationsAfterProposal": 0,
+        "blocker": {
+          "owner": {
+            "kind": "external",
+            "name": "Release Owner"
+          },
+          "unblockAction": "Grant deployment access",
+          "scope": "task_wide"
+        },
+        "workspaceChanged": null,
+        "documentCount": 0,
+        "interactionCount": 0,
+        "eventCount": 95
+      },
+      "perRunLedger": [
+        {
+          "model": "gpt-5.6-sol",
+          "provider": "openai",
+          "biller": "openai",
+          "billingType": "unknown",
+          "usageSource": "per_run",
+          "costStatus": "reported",
+          "costUsd": 0,
+          "cacheAdjustedCostUsd": 0,
+          "inputTokens": 44092,
+          "outputTokens": 521,
+          "cachedInputTokens": 21752
+        }
+      ],
+      "runLedgerCostMatchesAggregate": true,
+      "ledgerAudit": {
+        "runCount": 1,
+        "tokenReceiptCount": 1,
+        "reportedCostReceiptCount": 1,
+        "reportedCostUsd": 0,
+        "allOneRunReceipts": true,
+        "externalActualBillingKnown": false,
+        "runtimeMetered": false
+      },
+      "evidenceHashes": {
+        "blob-report/report.zip": "e577c9c897fc92074b265ac8b68d719a0b110d46afd28ec230f16e8a88ebadc8",
+        "evidence-manifest.json": "789ee2fa73629c6dbe7603996a8d2ec5fb9b9a4f2071aa996125b9476d68d65a",
+        "failure.png": "a45aa92e0826f9efaa84f5f4603eab9cbfba8bfa3d98cadab9c6db64fd3824a0",
+        "html-report/data/340fc3360b8fe6107dd0b897e1b8b2886e292647.json": "b80d822f6a4c6c66ee41d7d50e135cfa039a727aab8d304a54111ee839a7490f",
+        "html-report/data/3e3911b774df45117d72142c8da34797ff93570d.zip": "1fe92cf097af72ddb6f819fd5eab9ea76b994fdf439358dd45a0c72d83e42320",
+        "html-report/data/f2a317ca2b8cd26e062d42fdd2d773c640e583f0.png": "a45aa92e0826f9efaa84f5f4603eab9cbfba8bfa3d98cadab9c6db64fd3824a0",
+        "playwright-output/runner-native-completion-r-aa60d-the-browser-and-public-APIs/attachments/failure-89945ece535001f5341b6d3de607d820e3f69463.png": "a45aa92e0826f9efaa84f5f4603eab9cbfba8bfa3d98cadab9c6db64fd3824a0",
+        "playwright-output/runner-native-completion-r-aa60d-the-browser-and-public-APIs/attachments/runner-e2e-result-b86746251a773f8b4eb781a6a4f7b622952a297d.json": "b80d822f6a4c6c66ee41d7d50e135cfa039a727aab8d304a54111ee839a7490f",
+        "playwright-output/runner-native-completion-r-aa60d-the-browser-and-public-APIs/test-failed-1.png": "a45aa92e0826f9efaa84f5f4603eab9cbfba8bfa3d98cadab9c6db64fd3824a0",
+        "playwright-output/runner-native-completion-r-aa60d-the-browser-and-public-APIs/trace.zip": "1fe92cf097af72ddb6f819fd5eab9ea76b994fdf439358dd45a0c72d83e42320",
+        "result.json": "b80d822f6a4c6c66ee41d7d50e135cfa039a727aab8d304a54111ee839a7490f",
+        "snapshots/api-state.json": "161ae90f28b181cc041ec41dc3892a65b906f1174cf9ad2d0222f759164bbad0",
+        "snapshots/browser-diagnostics.json": "294fa7303fe819a228f61aac5977912c6d8de4f9408fe3a25342a7ecb6c24ebf",
+        "snapshots/fixtures.json": "123fb7c906f0c3b6e23b420d930824b65f805402c64825986b759566c6204f78",
+        "snapshots/native-default-before-execution.json": "9e9a2fd1d35965fa686410ad678e57159d63b761bec0d6f8f404b7e56f01ca94"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-opencode.local.assigned-skill-explicit-invocation",
+      "profileId": "runner-opencode",
+      "caseId": "assigned-skill-explicit-invocation",
+      "status": "passed",
+      "provider": "opencode",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "attempt": 1,
+      "durationMs": 71062,
+      "cleanup": "passed",
+      "runtimeUsage": {
+        "provider": "local",
+        "agentRunDurationMs": 27842,
+        "leaseDurationMs": null,
+        "leaseCount": 0,
+        "costStatus": "not_metered",
+        "costSource": "local_not_metered"
+      },
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 23125,
+          "outputTokens": 915,
+          "cachedInputTokens": 88320,
+          "totalTokens": 112360,
+          "reportedCostUsd": 0.0029267655,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 27842,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0.0029267655,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0.0029267655,
+        "complete": true
+      },
+      "failureClass": null,
+      "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+      "resultSha256": "5f084208b3211b0caccc47705c08fad3ccba72fa4568882c78f8946ac26e4be6",
+      "sourceMatches": true,
+      "configMatches": true,
+      "expectedOneAttempt": true,
+      "originalFailedMatchers": [],
+      "originalMatcherCount": 14,
+      "persistedConfiguration": {
+        "provider": "opencode",
+        "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+        "lifecycleMode": "per_turn",
+        "codexPermissionMode": "never",
+        "opencodePermissionMode": "allow"
+      },
+      "declaredModelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "opencode:qualified-model"
+      },
+      "admission": {
+        "schema": "paperclip.native-completion-preflight.v1",
+        "passed": true,
+        "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+        "variant": "historical",
+        "providerCalls": 0,
+        "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+        "fixtureFingerprint": "a50581c04f3d87843d69f92050712977f8e114e4c2f23f96f243fd5386119f27",
+        "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+        "runnerdProvenance": {
+          "schema": "paperclip.native-completion-runnerd-provenance.v1",
+          "mode": "trusted_hosted_archive",
+          "passed": true,
+          "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+          "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+          "binaryBytes": 394443976,
+          "archiveMemberBytes": 394443976,
+          "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+          "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+          "archiveSha256": "d83acb6c73b9cf2256669bcf875d593aa18cfa941f07ad93ca92f30906047190",
+          "workflowRunId": "37098815696",
+          "workflowRunAttempt": "1",
+          "artifactName": "runner-e2e-build-e74ed61a69fbdd8b3a8f15dd6456bc3140246e33-37098815696-1",
+          "errors": []
+        },
+        "preflightSha256": "72d8d77b18f722b535a49c5630f879ca91a8f58f40783811b15899ca295769bf",
+        "executedTypeScriptAssertions": 127,
+        "rustCalibrationExecutedInCell": false,
+        "failedGates": [],
+        "checksMatch": true
+      },
+      "defaults": {
+        "passed": true,
+        "entryFile": "AGENTS.md",
+        "files": [
+          {
+            "path": "AGENTS.md",
+            "sha256": "e4d2375d722602cd744403292d99f6e6c9b7e8014d9cdfa6f9811ace03428e5f",
+            "bytes": 4249
+          }
+        ],
+        "budgets": {
+          "company": 1000,
+          "agent": 1000
+        },
+        "independentMatch": true
+      },
+      "nativeAudit": {
+        "evidenceSource": "original-native-observation",
+        "originalNativeGradeAvailable": true,
+        "originalGradePassed": true,
+        "originalChecks": [
+          {
+            "id": "one-native-attempt",
+            "passed": true,
+            "detail": "Exactly one succeeded native run, with no continuation/retry or uncounted extra work."
+          },
+          {
+            "id": "durable-disposition",
+            "passed": true,
+            "detail": "Public durable issue status and the native semantic result agree with the requested disposition."
+          },
+          {
+            "id": "complete-bound-events",
+            "passed": true,
+            "detail": "A complete contiguous public PRP stream is bound to this run and persisted source identity."
+          },
+          {
+            "id": "authoritative-native-result",
+            "passed": true,
+            "detail": "One runner proposal is independently accepted and terminated by the control plane."
+          },
+          {
+            "id": "final-after-tool-result",
+            "passed": true,
+            "detail": "The provider final follows the observed finishing result; no new invocation follows admission. Control-plane acceptance precedes its terminal receipt independently."
+          },
+          {
+            "id": "persisted-provider-final",
+            "passed": true,
+            "detail": "A nonempty provider final is durably projected as this run's agent reply; semantic-summary fallback is insufficient."
+          },
+          {
+            "id": "bounded-durable-work",
+            "passed": true,
+            "detail": "No additional tasks, agents or interactions; completion permits its one required document and blocker permits none."
+          }
+        ],
+        "originalIntegrity": [],
+        "runCount": 1,
+        "runStatus": "succeeded",
+        "nativeRun": true,
+        "issueStatus": "done",
+        "reportedDisposition": "done",
+        "runOwnershipMatches": true,
+        "retryOrContinuationObserved": false,
+        "expectedNamedTool": "paperclip_finish",
+        "namedStartCount": 1,
+        "matchingCompletionCount": 1,
+        "proposalSeq": [
+          50
+        ],
+        "completionSeqs": [
+          51
+        ],
+        "finalSeqs": [
+          57
+        ],
+        "acceptedSeq": [
+          61
+        ],
+        "terminalSeq": [
+          62
+        ],
+        "independentNamedSequencePass": true,
+        "persistedProviderFinalMatches": true,
+        "finalMarkerCount": 1,
+        "finalMentionsOwner": false,
+        "finalMentionsAction": false,
+        "toolInvocationsAfterProposal": 0,
+        "blocker": null,
+        "workspaceChanged": false,
+        "documentCount": 1,
+        "interactionCount": 0,
+        "eventCount": 70
+      },
+      "perRunLedger": [
+        {
+          "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+          "provider": "openai",
+          "biller": "openai",
+          "billingType": "unknown",
+          "usageSource": "per_run",
+          "costStatus": "reported",
+          "costUsd": 0.0029267655,
+          "cacheAdjustedCostUsd": 0.0029267655,
+          "inputTokens": 23125,
+          "outputTokens": 915,
+          "cachedInputTokens": 88320
+        }
+      ],
+      "runLedgerCostMatchesAggregate": true,
+      "documentAudit": {
+        "originalAllChecksPassed": true,
+        "originalChecks": [
+          {
+            "id": "assigned-skill-present",
+            "passed": true,
+            "detail": "The task run must receive one pinned skill version through the public assignment state."
+          },
+          {
+            "id": "skill-request-explicit",
+            "passed": true,
+            "detail": "The task request must explicitly name the assigned skill with a supported slash or dollar reference."
+          },
+          {
+            "id": "skill-source-marker",
+            "passed": true,
+            "detail": "The assigned pinned skill source must contain the output marker."
+          },
+          {
+            "id": "marker-not-in-request",
+            "passed": true,
+            "detail": "The output marker must originate from the assigned skill, not the task request or comments."
+          },
+          {
+            "id": "single-durable-output",
+            "passed": true,
+            "detail": "Exactly one durable task document must contain the skill's marker."
+          },
+          {
+            "id": "completed-task",
+            "passed": true,
+            "detail": "Final task status: done."
+          },
+          {
+            "id": "successful-runs",
+            "passed": true,
+            "detail": "All recorded context-integrity runs must succeed."
+          }
+        ],
+        "documentCount": 1,
+        "savedDocuments": [
+          {
+            "key": "context-integrity-output-eac4e7a674271",
+            "hasRevision": true,
+            "containsMarker": true,
+            "bodySha256": "5cb4e7fe93bc3159f6862ba14bcfb42a1eec48be87c1afb592b5ec906ed0b132"
+          }
+        ]
+      },
+      "ledgerAudit": {
+        "runCount": 1,
+        "tokenReceiptCount": 1,
+        "reportedCostReceiptCount": 1,
+        "reportedCostUsd": 0.0029267655,
+        "allOneRunReceipts": true,
+        "externalActualBillingKnown": false,
+        "runtimeMetered": false
+      },
+      "evidenceHashes": {
+        "blob-report/report.zip": "786633c5e6017f51c910c98cbfc74f62af3e033bf193dae867f4d70e74f98570",
+        "evidence-manifest.json": "6c23192583065f6392f48bb17e8ce917c3550e8742009d11c9330999065fa7a9",
+        "final-state.png": "fef8214feca49249941e158c7816488e8722e951156c46c83a371997936811b7",
+        "html-report/data/bfbc6e192fb74c93ad3c8575e271074105a2f080.json": "5f084208b3211b0caccc47705c08fad3ccba72fa4568882c78f8946ac26e4be6",
+        "html-report/data/dc61925a79bf5575b06535d1862806ca2a9c5ec5.png": "fef8214feca49249941e158c7816488e8722e951156c46c83a371997936811b7",
+        "playwright-output/runner-native-completion-r-39fd3-the-browser-and-public-APIs/attachments/final-state-bb2545d482a1244a26bebcbd67dbdeac7a76ea6b.png": "fef8214feca49249941e158c7816488e8722e951156c46c83a371997936811b7",
+        "playwright-output/runner-native-completion-r-39fd3-the-browser-and-public-APIs/attachments/runner-e2e-result-409b6bb773c0f7a749f7fe3250fe29c2547fb54a.json": "5f084208b3211b0caccc47705c08fad3ccba72fa4568882c78f8946ac26e4be6",
+        "result.json": "5f084208b3211b0caccc47705c08fad3ccba72fa4568882c78f8946ac26e4be6",
+        "snapshots/api-state.json": "a8b45b2b46462d2d27f7c225cdc1746b1272876f1bb46c4829062d5382c23d84",
+        "snapshots/browser-diagnostics.json": "712dd147bff6276d6a9695678adf476e1b8c27e79679e649379882ec816e97f7",
+        "snapshots/chat-final-run-ledger.json": "b9790a85d832ff2225b211f1f146fb11a0b77c5d0cfbabb0827be536f8654f8e",
+        "snapshots/context-integrity.json": "d0faa11a4aecd5928c950c43aeb2caa686f1031a8612f9588ff8481fe3a651eb",
+        "snapshots/fixtures.json": "7d8dacec7e1738d6bf86ee916f7abb01d07cbbca9f2052e97b897dc812eb2cbc",
+        "snapshots/native-completion.json": "33bbff87b4bf6b5f526563c3bbbbbedb5de8bb6500e61165f385c9f7e329de6c",
+        "snapshots/native-default-before-execution.json": "6bdef94a36b2b999dcb3ff7b80c69325ea2c3b28e0f01c3172fa1b40cfb63283"
+      }
+    },
+    {
+      "executionId": "native-completion.runner-opencode.local.native-blocked-report",
+      "profileId": "runner-opencode",
+      "caseId": "native-blocked-report",
+      "status": "passed",
+      "provider": "opencode",
+      "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "attempt": 1,
+      "durationMs": 78989,
+      "cleanup": "passed",
+      "runtimeUsage": {
+        "provider": "local",
+        "agentRunDurationMs": 35963,
+        "leaseDurationMs": null,
+        "leaseCount": 0,
+        "costStatus": "not_metered",
+        "costSource": "local_not_metered"
+      },
+      "billing": {
+        "llm": {
+          "runCount": 1,
+          "runsWithTokenUsage": 1,
+          "runsWithReportedCost": 1,
+          "inputTokens": 42988,
+          "outputTokens": 432,
+          "cachedInputTokens": 0,
+          "totalTokens": 43420,
+          "reportedCostUsd": 0.0012880548,
+          "costStatus": "reported"
+        },
+        "runtime": {
+          "provider": "local",
+          "agentRunDurationMs": 35963,
+          "leaseDurationMs": null,
+          "leaseCount": 0,
+          "costStatus": "not_metered",
+          "costSource": "local_not_metered"
+        },
+        "reportedCostUsd": 0.0012880548,
+        "estimatedRuntimeCostUsd": 0,
+        "observedAndEstimatedCostUsd": 0.0012880548,
+        "complete": true
+      },
+      "failureClass": null,
+      "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+      "resultSha256": "d8e19a8cf7770ea6138cd4f816892a7a04e6160063bbcbb6f7693efe28278826",
+      "sourceMatches": true,
+      "configMatches": true,
+      "expectedOneAttempt": true,
+      "originalFailedMatchers": [],
+      "originalMatcherCount": 21,
+      "persistedConfiguration": {
+        "provider": "opencode",
+        "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+        "lifecycleMode": "per_turn",
+        "codexPermissionMode": "never",
+        "opencodePermissionMode": "allow"
+      },
+      "declaredModelQualification": {
+        "source": "adapter_constant",
+        "qualificationId": "opencode:qualified-model"
+      },
+      "admission": {
+        "schema": "paperclip.native-completion-preflight.v1",
+        "passed": true,
+        "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+        "variant": "historical",
+        "providerCalls": 0,
+        "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+        "fixtureFingerprint": "a50581c04f3d87843d69f92050712977f8e114e4c2f23f96f243fd5386119f27",
+        "manifestFingerprint": "b92f3ab7d561188bc09214433b264f2e7810e8ccdc237f68caa82e1aecc1811e",
+        "runnerdProvenance": {
+          "schema": "paperclip.native-completion-runnerd-provenance.v1",
+          "mode": "trusted_hosted_archive",
+          "passed": true,
+          "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+          "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+          "binaryBytes": 394443976,
+          "archiveMemberBytes": 394443976,
+          "sourceSha": "e74ed61a69fbdd8b3a8f15dd6456bc3140246e33",
+          "sourceFingerprint": "a01593363d6512e30d8149fcf4f34adfff8b07aeef7f845f0c9bbed3cb7b979f",
+          "archiveSha256": "d83acb6c73b9cf2256669bcf875d593aa18cfa941f07ad93ca92f30906047190",
+          "workflowRunId": "37098815696",
+          "workflowRunAttempt": "1",
+          "artifactName": "runner-e2e-build-e74ed61a69fbdd8b3a8f15dd6456bc3140246e33-37098815696-1",
+          "errors": []
+        },
+        "preflightSha256": "c03255709fd525a05532e4941172f99df3451c4c92264142b95b77613125f005",
+        "executedTypeScriptAssertions": 127,
+        "rustCalibrationExecutedInCell": false,
+        "failedGates": [],
+        "checksMatch": true
+      },
+      "defaults": {
+        "passed": true,
+        "entryFile": "AGENTS.md",
+        "files": [
+          {
+            "path": "AGENTS.md",
+            "sha256": "e4d2375d722602cd744403292d99f6e6c9b7e8014d9cdfa6f9811ace03428e5f",
+            "bytes": 4249
+          }
+        ],
+        "budgets": {
+          "company": 1000,
+          "agent": 1000
+        },
+        "independentMatch": true
+      },
+      "nativeAudit": {
+        "evidenceSource": "original-native-observation",
+        "originalNativeGradeAvailable": true,
+        "originalGradePassed": true,
+        "originalChecks": [
+          {
+            "id": "one-native-attempt",
+            "passed": true,
+            "detail": "Exactly one succeeded native run, with no continuation/retry or uncounted extra work."
+          },
+          {
+            "id": "durable-disposition",
+            "passed": true,
+            "detail": "Public durable issue status and the native semantic result agree with the requested disposition."
+          },
+          {
+            "id": "exact-blocker",
+            "passed": true,
+            "detail": "The structured owner, exact action and whole-task scope are independently checked."
+          },
+          {
+            "id": "complete-bound-events",
+            "passed": true,
+            "detail": "A complete contiguous public PRP stream is bound to this run and persisted source identity."
+          },
+          {
+            "id": "authoritative-native-result",
+            "passed": true,
+            "detail": "One runner proposal is independently accepted and terminated by the control plane."
+          },
+          {
+            "id": "final-after-tool-result",
+            "passed": true,
+            "detail": "The provider final follows the observed finishing result; no new invocation follows admission. Control-plane acceptance precedes its terminal receipt independently."
+          },
+          {
+            "id": "persisted-provider-final",
+            "passed": true,
+            "detail": "A nonempty provider final is durably projected as this run's agent reply; semantic-summary fallback is insufficient."
+          },
+          {
+            "id": "visible-blocker-content",
+            "passed": true,
+            "detail": "The final explains the actual unresolved blocker and its owner/action, rather than supplying only a marker."
+          },
+          {
+            "id": "bounded-durable-work",
+            "passed": true,
+            "detail": "No additional tasks, agents or interactions; completion permits its one required document and blocker permits none."
+          },
+          {
+            "id": "no-deployment-or-file-work",
+            "passed": true,
+            "detail": "The fixture workspace is unchanged and no process/file/deployment or extra-work tool is observed."
+          }
+        ],
+        "originalIntegrity": [],
+        "runCount": 1,
+        "runStatus": "succeeded",
+        "nativeRun": true,
+        "issueStatus": "blocked",
+        "reportedDisposition": "blocked",
+        "runOwnershipMatches": true,
+        "retryOrContinuationObserved": false,
+        "expectedNamedTool": "paperclip_block",
+        "namedStartCount": 1,
+        "matchingCompletionCount": 1,
+        "proposalSeq": [
+          35
+        ],
+        "completionSeqs": [
+          36
+        ],
+        "finalSeqs": [
+          44
+        ],
+        "acceptedSeq": [
+          48
+        ],
+        "terminalSeq": [
+          49
+        ],
+        "independentNamedSequencePass": true,
+        "persistedProviderFinalMatches": true,
+        "finalMarkerCount": 1,
+        "finalMentionsOwner": true,
+        "finalMentionsAction": true,
+        "toolInvocationsAfterProposal": 0,
+        "blocker": {
+          "owner": {
+            "kind": "external",
+            "name": "Release Owner"
+          },
+          "unblockAction": "Grant deployment access",
+          "scope": "task_wide"
+        },
+        "workspaceChanged": false,
+        "documentCount": 0,
+        "interactionCount": 0,
+        "eventCount": 57
+      },
+      "perRunLedger": [
+        {
+          "model": "openrouter/deepseek/deepseek-v4-flash-0731",
+          "provider": "openai",
+          "biller": "openai",
+          "billingType": "unknown",
+          "usageSource": "per_run",
+          "costStatus": "reported",
+          "costUsd": 0.0012880548,
+          "cacheAdjustedCostUsd": 0.0012880548,
+          "inputTokens": 42988,
+          "outputTokens": 432,
+          "cachedInputTokens": 0
+        }
+      ],
+      "runLedgerCostMatchesAggregate": true,
+      "ledgerAudit": {
+        "runCount": 1,
+        "tokenReceiptCount": 1,
+        "reportedCostReceiptCount": 1,
+        "reportedCostUsd": 0.0012880548,
+        "allOneRunReceipts": true,
+        "externalActualBillingKnown": false,
+        "runtimeMetered": false
+      },
+      "evidenceHashes": {
+        "blob-report/report.zip": "fcc0d066b282de5c18b6ee1628c2b420d57d0a94f54e091cd8d105072f96a68e",
+        "evidence-manifest.json": "7e05f6f15f8a0bb9bcc9667b9b71d1a8556bf8cc1d64867eff216acbda74db5d",
+        "final-state.png": "490baa12e6d4a0b7eed7febc659a8922167f54fee9695cdc96c5b773823b3f5e",
+        "html-report/data/5daf64c61ab3533cea05ee059d5bff8247931e8b.png": "490baa12e6d4a0b7eed7febc659a8922167f54fee9695cdc96c5b773823b3f5e",
+        "html-report/data/ba1e1a0915714914158c5369d4b534ae27bcc316.json": "d8e19a8cf7770ea6138cd4f816892a7a04e6160063bbcbb6f7693efe28278826",
+        "playwright-output/runner-native-completion-r-c73dc-the-browser-and-public-APIs/attachments/final-state-2d96ecf321c00be1c480f2f7b4be7ca9b2fdd25d.png": "490baa12e6d4a0b7eed7febc659a8922167f54fee9695cdc96c5b773823b3f5e",
+        "playwright-output/runner-native-completion-r-c73dc-the-browser-and-public-APIs/attachments/runner-e2e-result-7649dedcc0061aec00b730ce3236af39bb7e8088.json": "d8e19a8cf7770ea6138cd4f816892a7a04e6160063bbcbb6f7693efe28278826",
+        "result.json": "d8e19a8cf7770ea6138cd4f816892a7a04e6160063bbcbb6f7693efe28278826",
+        "snapshots/api-state.json": "4180020c15489673c5dd25677cfd5daeab9743d3a27dcef003234dfed003a94e",
+        "snapshots/browser-diagnostics.json": "e46c22102670f04ffd904dc8c7716f07d5e45fedd8274011f9fd3d3bc201a9ce",
+        "snapshots/fixtures.json": "962345aed62dd41e84add9168eecffb14e517d646b416bbde92fc1d2162f4631",
+        "snapshots/native-completion.json": "cef17203858e394411e964338e62e3e421c9d5595c700ee161c5e736775388b8",
+        "snapshots/native-default-before-execution.json": "574f448b18d40fff600784b6678bba300c6425fa75f4b2c1d0e49cd42206a5d5"
+      }
+    }
+  ],
+  "limitations": [
+    "Original machine verdicts are preserved; this is a separate retained-evidence audit.",
+    "Reported provider cost is not actual external billing, and local runtime is unmetered.",
+    "Named-call sequencing is observable; provider consumption of feedback is not proven."
+  ]
+}
