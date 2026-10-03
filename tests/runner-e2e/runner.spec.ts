@@ -554,6 +554,8 @@ for (const execution of executions) {
         ? deadlineMs
         : deadlineMs + 90_000,
     );
+    // Durable admission evidence survives a worker crash before result publication.
+    await writeFile(path.join(privateRoot, "resource-admission-started"), "started\n", { mode: 0o600 });
     const startedAtMs = Date.now();
     const startedAt = new Date(startedAtMs).toISOString();
     const nonce = `${randomBytes(6).toString("hex")}-${attempt}`;

@@ -357,7 +357,7 @@ export async function runCursorNativeFlow(input: {
       await sampleDenied("after-terminal", remoteFinal ?? undefined);
       check("negative-task-unfinished", hasCursorDeniedTurnTerminal({ run: terminal.runs[0], issue: terminal.issue, events: terminal.runEvents, ...identity }), "Denied native turn supplied no semantic completion; its failed run does not falsely complete the task");
       await page.reload();
-      await expect(page.getByTestId("issue-detail-header").getByRole("button", { name: `Change status (current: ${terminal.issue.status === "blocked" ? "Blocked" : "In Progress"})`, exact: true })).toBeVisible();
+      await expect(page.getByTestId("issue-detail-header").getByRole("button", { name: terminal.issue.status === "blocked" ? /^Change status \(current: Blocked(?: · .+)?\)$/u : "Change status (current: In Progress)" })).toBeVisible();
       const comments = await api.get<Row[]>(`/api/issues/${issue.id}/comments`);
       await input.evidence("api-state.json", { ...terminal, run: runs[0], comments, checks, notices: denialNotices, commandSha256: deniedCommand!.commandSha256, denialTerminalProven, runEventsByRun: [{ runId: native.runId, events: terminal.runEvents }] });
       await input.capture("final-state", "Cursor denied command ended without completing the task", "final-state.png");

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { heartbeatRunEvents, type Db } from "@paperclipai/db";
 import type { PrpEvent } from "../../vendor/paperclip-runner/index.js";
 
@@ -48,6 +48,9 @@ export function hasCompletedCursorPermissionDecline(rows: readonly unknown[], bi
 export async function readCompletedCursorPermissionDecline(db: Db, binding: Binding, terminal: PrpEvent) {
   const rows = await db.select().from(heartbeatRunEvents).where(and(
     eq(heartbeatRunEvents.companyId, binding.companyId), eq(heartbeatRunEvents.runId, binding.runId), eq(heartbeatRunEvents.agentId, binding.agentId),
+    sql`${heartbeatRunEvents.payload}->'prpEvent'->>'turnId' = ${terminal.turnId}`,
+    sql`${heartbeatRunEvents.payload}->'prpEvent'->>'normalizedSessionId' = ${terminal.normalizedSessionId}`,
+    eq(heartbeatRunEvents.sourceInstanceId, terminal.sourceInstanceId),
     inArray(heartbeatRunEvents.eventType, TYPES),
   )).orderBy(asc(heartbeatRunEvents.seq)).limit(1001);
   if (rows.length > 1000) throw new Error("native_event_replay_conflict: permission recovery proof exceeds control-event budget");

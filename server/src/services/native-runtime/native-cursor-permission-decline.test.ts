@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { Db } from "@paperclipai/db";
 import type { PrpEvent } from "../../vendor/paperclip-runner/index.js";
-import { hasCompletedCursorPermissionDecline } from "./native-cursor-permission-decline.js";
+import { hasCompletedCursorPermissionDecline, readCompletedCursorPermissionDecline } from "./native-cursor-permission-decline.js";
 
 const binding = { companyId: "company", runId: "run", agentId: "agent" };
 function row(seq: number, eventType: string, payload: unknown): any {
@@ -35,5 +37,31 @@ describe("completed Cursor permission decline", () => {
     if (mutation === "order") resolved.seq = 4;
     if (mutation === "terminal") f.terminal.sourceEventId = "foreign";
     expect(hasCompletedCursorPermissionDecline(f.rows, binding, f.terminal)).toBe(false);
+  });
+});
+
+function readerDb(rows: unknown[]) {
+  const query = {
+    from: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(), limit: vi.fn(async () => rows),
+  };
+  return { db: { select: vi.fn(() => query) } as unknown as Db, query };
+}
+
+describe("permission decline reader event budget", () => {
+  it("scopes the database read to the terminal turn and runner before limiting events", async () => {
+    const f = facts(), { db, query } = readerDb(f.rows);
+    expect(await readCompletedCursorPermissionDecline(db, binding, f.terminal)).toBe(true);
+    const predicate = new PgDialect().sqlToQuery(query.where.mock.calls[0]![0]);
+    expect(predicate.sql).toContain("->'prpEvent'->>'turnId'");
+    expect(predicate.sql).toContain("->'prpEvent'->>'normalizedSessionId'");
+    expect(predicate.sql).toContain('"source_instance_id"');
+    expect(predicate.params.slice(0, 6)).toEqual(["company", "run", "agent", "turn", "session", "runner"]);
+    expect(query.limit).toHaveBeenCalledWith(1001);
+    expect(query.where.mock.invocationCallOrder[0]).toBeLessThan(query.limit.mock.invocationCallOrder[0]!);
+  });
+  it("fails closed if this same turn exceeds its control-event budget", async () => {
+    const f = facts(), { db } = readerDb(Array.from({ length: 1001 }, () => f.rows[0]));
+    await expect(readCompletedCursorPermissionDecline(db, binding, f.terminal)).rejects.toThrow("exceeds control-event budget");
   });
 });

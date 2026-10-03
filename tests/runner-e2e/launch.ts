@@ -485,6 +485,7 @@ async function runAttempt(input: {
   const publishedResultPaths = new Map<string, string>();
   let attemptSecrets: string[] = [];
   let processCleanupFailed = false;
+  const rawCleanupResults: Array<{ cleanup: string; synthetic: boolean }> = [];
   try {
     const paperclipHome = path.join(temporaryRoot, "paperclip-home");
     const workspace = path.join(temporaryRoot, "workspace");
@@ -628,6 +629,8 @@ async function runAttempt(input: {
           processFailureClass,
         );
         const result = await readResult(resultPath, fallback);
+        // Keep cleanup authority before evidence copying/publication can fail.
+        rawCleanupResults.push({ cleanup: result.cleanup, synthetic: result === fallback });
         return enforceResultProcessIntegrity(result, processResult);
       }),
     );
@@ -800,7 +803,9 @@ async function runAttempt(input: {
   } finally {
     if (!processCleanupFailed) reapNewDetachedDarwinSharedMemory(sharedMemoryBaseline);
     let cleanupError: unknown;
-    if (mustPreserveRecoveryState({ processCleanupFailed, results: publishedResults })) {
+    const resourceAdmissionStarted = await access(path.join(temporaryRoot, "artifacts-private", "resource-admission-started"))
+      .then(() => true).catch((error: NodeJS.ErrnoException) => error.code !== "ENOENT");
+    if (mustPreserveRecoveryState({ processCleanupFailed, resourceAdmissionStarted, results: rawCleanupResults })) {
       // Remote allocation cleanup is journaled in this instance's database.
       // Deleting it after the controller exits would strand uncertain creates.
       await chmod(temporaryRoot, 0o700);

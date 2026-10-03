@@ -5,9 +5,11 @@ export type CleanupAssertion = () => Promise<CleanupCheck[]>;
  * its private recovery database whenever a cell lacks confirmed cleanup. */
 export function mustPreserveRecoveryState(input: {
   processCleanupFailed: boolean;
-  results: readonly { cleanup: string }[];
+  resourceAdmissionStarted?: boolean;
+  results: readonly { cleanup: string; synthetic?: boolean }[];
 }) {
-  return input.processCleanupFailed || input.results.some(result => result.cleanup !== "passed");
+  return input.processCleanupFailed || input.results.some(result => result.cleanup === "failed")
+    || (input.resourceAdmissionStarted === true && (input.results.length === 0 || input.results.some(result => result.synthetic)));
 }
 
 /** Always finish every registered observer, even when an earlier proof fails. */

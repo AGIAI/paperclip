@@ -3,9 +3,23 @@ import { mustPreserveRecoveryState, runCleanupWithObservers, verifyCleanupAssert
 
 it("retains uncertain remote allocation state even after every local process exits", () => {
   expect(mustPreserveRecoveryState({ processCleanupFailed: false, results: [{ cleanup: "failed" }] })).toBe(true);
-  expect(mustPreserveRecoveryState({ processCleanupFailed: false, results: [{ cleanup: "not_started" }] })).toBe(true);
+  expect(mustPreserveRecoveryState({ processCleanupFailed: false, results: [{ cleanup: "not_started" }] })).toBe(false);
   expect(mustPreserveRecoveryState({ processCleanupFailed: true, results: [{ cleanup: "passed" }] })).toBe(true);
   expect(mustPreserveRecoveryState({ processCleanupFailed: false, results: [{ cleanup: "passed" }] })).toBe(false);
+});
+
+it("retains raw cleanup failures even when no evidence was published", () => {
+  expect(mustPreserveRecoveryState({ processCleanupFailed: false, resourceAdmissionStarted: true, results: [{ cleanup: "failed" }] })).toBe(true);
+});
+
+it("distinguishes pre-admission bootstrap failures from uncertain worker failures", () => {
+  const synthetic = { cleanup: "not_started", synthetic: true };
+  expect(mustPreserveRecoveryState({ processCleanupFailed: false, results: [synthetic] })).toBe(false);
+  expect(mustPreserveRecoveryState({ processCleanupFailed: false, resourceAdmissionStarted: true, results: [synthetic] })).toBe(true);
+  expect(mustPreserveRecoveryState({ processCleanupFailed: false, resourceAdmissionStarted: true, results: [] })).toBe(true);
+  expect(mustPreserveRecoveryState({ processCleanupFailed: false, results: [] })).toBe(false);
+  expect(mustPreserveRecoveryState({ processCleanupFailed: false, resourceAdmissionStarted: true, results: [{ cleanup: "not_started" }] })).toBe(false);
+  expect(mustPreserveRecoveryState({ processCleanupFailed: false, resourceAdmissionStarted: true, results: [{ cleanup: "passed" }] })).toBe(false);
 });
 
 it("retains a failed cleanup proof and still closes every later observer", async () => {

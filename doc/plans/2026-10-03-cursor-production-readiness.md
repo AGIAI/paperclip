@@ -272,3 +272,9 @@ operator and reassignment cancellation wins over the new typed decline error.
 The frozen v11 runtime packs and image remain at `c45cf9`; these follow-up changes
 touch the controller and harness only, and their distinct source identity is
 recorded with subsequent results.
+
+Review found three recovery gaps. Permission-decline lookup now scopes the query to the exact turn, session and runner before applying its event budget, so earlier turns cannot hide a committed denial. Cleanup retention reads raw results before packaging and records resource admission before any test provisioning; an unpublished result or worker crash can no longer discard uncertain allocation state. Confirmed pre-allocation bootstrap failures retain their original classification without an invented cleanup failure.
+
+The second local denial repeat passed its behavioral and cleanup assertions but failed a browser assertion because the Blocked status label includes the current blocker count. The assertion now checks the actual Blocked status while allowing that displayed count. This failed attempt retains its original result; the affected repeat remains required.
+
+Review-fix verification passed: 538 controller tests and 38 fixture tests, server and fixture typechecks, and production verification of the actual Linux pack. The first controller test invocation hit sandbox denial for its default checkpoint directory; the isolated-home repeat passed. The immutable c45cf9 qualification image is `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:1344d8168f15b8c1102ffbf60bf518f278b1804c9672135fb7f10642499e70ec`. All three actual platform packs now bind runtime source c45cf9.
