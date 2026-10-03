@@ -21,8 +21,8 @@ effort, credentials, skills, permissions and provider configuration are inherite
 
 The native oracle requires exactly one succeeded native run attributed to this
 issue, bound complete public events, one runner semantic proposal and authoritative
-control-plane acceptance/terminal. A matched finishing tool start/result precedes
-the actual provider final; no new invocation follows the proposal. The final
+control-plane acceptance/terminal. A matched finishing tool start/result with the expected native terminal name
+precedes the actual provider final; no new invocation follows the proposal. The final
 must be persisted as the run's agent reply. Acceptance may precede or follow the
 final. This proves observable ordering and durable disposition; it does not prove
 the provider consumed feedback or establish general coding-quality equivalence.
@@ -34,6 +34,11 @@ six cells per variant, twelve expected provider turns total, with the existing
 per-cell deadlines (skill: original deadline; blocker: five minutes).
 
 Candidate and baseline use identical executable fixtures and public oracles.
+Both include the same closed OpenCode compatibility projection: only actual
+`tool_call` invocations named `paperclip_finish` or `paperclip_block` retain a
+nested name, paired to the result by the same call ID. Arguments, arbitrary
+tool names and results are not added. Old anonymous OpenCode streams cannot
+retroactively satisfy this stricter identity check.
 Only the five native description/fingerprint source files and their six
 variant-specific unit tests may differ. The historical variant restores those
 eleven files from master, including v13; candidate uses the archived native change
@@ -52,7 +57,14 @@ pnpm test:e2e:runner -- --list --suite native-completion
 Admission requires a committed clean exact source, variant-appropriate schema,
 tool bridge/catalog and resume tests, independent oracle/default/retry calibrations,
 original context-integrity calibrations, typecheck, manifest checks and exact
-six-cell discovery. Generic stock-suite gates remain unchanged. Paid hosted runs
+six-cell discovery. The Rust carrier calibration and built runner binary digest
+are retained with source/build provenance. Generic stock-suite gates remain unchanged. Paid hosted runs
 must dispatch the trusted default-branch workflow to distinct immutable target
 branches using the exact six IDs, preserving authorization and secret boundaries.
+The initial twelve hosted cells stopped at source admission with zero provider
+calls. Their receipts and frozen refs remain separate from the recovery comparison.
+Hosted depth-one checkouts use only the declared variant-specific immediate
+parent proof when full ancestry is unavailable. The only admitted untracked
+hydration is the exact build archive/checksum pair after checksum verification;
+extra files, symlinks or source dirt remain failures.
 Live results are pending until retained cell evidence is published.

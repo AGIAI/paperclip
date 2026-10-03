@@ -50,6 +50,15 @@ test("native source contract rejects an ambiguous identical variant map", () => 
   const f = fixture(); f.contract.variants.historical = f.contract.variants.candidate;
   assert.equal(nativeCompletionSourceFingerprint(f.read, f.contract).variant, null);
 });
+test("native source contract binds common Rust carrier source and the shared behavioral projection fixture", () => {
+  const f = fixture(), before = nativeCompletionSourceFingerprint(f.read, f.contract);
+  f.bytes.set("packages/paperclip-runner/runner/crates/runner-core/src/provider_events.rs", Buffer.from("Changed carrier"));
+  const carrier = nativeCompletionSourceFingerprint(f.read, f.contract);
+  assert.equal(carrier.variant, "candidate"); assert.notEqual(carrier.fingerprint, before.fingerprint);
+  f.bytes.set("tests/runner-e2e/fixtures/native-completion/terminal-tool-carrier.json", Buffer.from("Changed projection"));
+  const projection = nativeCompletionSourceFingerprint(f.read, f.contract);
+  assert.notEqual(projection.fingerprint, carrier.fingerprint); assert.notEqual(projection.fixtureFingerprint, carrier.fixtureFingerprint);
+});
 test("native source contract binds exactly five production and six variant assertion files", () => {
   const files = Object.keys(original.variants.candidate);
   assert.equal(files.length, 11); assert.equal(files.filter(file => file.endsWith(".test.ts")).length, 6);
@@ -57,5 +66,9 @@ test("native source contract binds exactly five production and six variant asser
   assert.ok(files.every(file => original.variants.candidate[file] !== original.variants.historical[file]));
   assert.equal(original.baseSha, "59c07ede72dc08b8aba149a01cc11e0b7a204621");
   assert.equal(original.archiveSha, "9138f570c341c251a5727c32d6615ce238bc8e03");
+  assert.deepEqual(original.shallowParentAnchors, {
+    candidate: "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
+    historical: "459455acb11a012a97ad1b4afb77a1dc024a88bc",
+  });
   assert.ok(!NATIVE_COMPLETION_SOURCE_FILES.some(file => file.includes("stock-harness") || file.endsWith("issue-documents.md")));
 });
