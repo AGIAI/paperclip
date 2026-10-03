@@ -8,8 +8,8 @@ export const NATIVE_COMPLETION_SOURCE_CONTRACT = {
   "baseSha": "59c07ede72dc08b8aba149a01cc11e0b7a204621",
   "archiveSha": "9138f570c341c251a5727c32d6615ce238bc8e03",
   "shallowParentAnchors": {
-    "candidate": "e18c2cf9e96a4d31acb6d03ce918dfe223107d3f",
-    "historical": "459455acb11a012a97ad1b4afb77a1dc024a88bc"
+    "candidate": "76a247643869efda6f2adec300c0f46c88e79cae",
+    "historical": "5cafc2cbc48f86ad95dfbfb7dc71a9a588238083"
   },
   "variants": {
     "candidate": {

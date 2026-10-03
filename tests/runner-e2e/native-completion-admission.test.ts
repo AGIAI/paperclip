@@ -15,6 +15,21 @@ describe("native completion credential-free admission", () => {
       ...Object.fromEntries(CREDENTIAL_NAMES.map(name => [name, "secret"])) };
     expect(nativeCompletionPreflightEnvironment(source)).toEqual({ PATH: "/bin", HOME: "/home/fixture", CARGO_HOME: "/cargo", CI: "true" });
   });
+  it("carries only public hosted identity through actual prepare and verify subprocess options", () => {
+    const identity = { GITHUB_ACTIONS: "true", PAPERCLIP_RUNNER_E2E_SOURCE_SHA: "a".repeat(40), GITHUB_RUN_ID: "123", GITHUB_RUN_ATTEMPT: "1" };
+    for (const [name, value] of Object.entries(identity)) vi.stubEnv(name, value);
+    for (const name of [...CREDENTIAL_NAMES, "GH_TOKEN", "FUTURE_PROVIDER_API_KEY", "NODE_OPTIONS"]) vi.stubEnv(name, "secret");
+    spawn.mockReturnValueOnce({ status: 0 } as ReturnType<typeof spawnSync>);
+    spawn.mockReturnValueOnce({ status: 0, stdout: JSON.stringify({ passed: true, sourceSha: identity.PAPERCLIP_RUNNER_E2E_SOURCE_SHA }) } as ReturnType<typeof spawnSync>);
+    prepareNativeCompletionPreflight(campaignDirectory);
+    expect(spawn).toHaveBeenCalledTimes(2);
+    for (const call of spawn.mock.calls) {
+      expect(call[2]?.env).toMatchObject(identity);
+      for (const name of [...CREDENTIAL_NAMES, "GH_TOKEN", "FUTURE_PROVIDER_API_KEY", "NODE_OPTIONS"]) expect(call[2]?.env).not.toHaveProperty(name);
+    }
+    expect(spawn.mock.calls[0]?.[1]?.some(arg => arg.startsWith("--output-dir="))).toBe(true);
+    expect(spawn.mock.calls[1]?.[1]?.some(arg => arg.startsWith("--verify="))).toBe(true);
+  });
   it("rejects missing receipts without invoking a process", () => {
     expect(() => verifyNativeCompletionPreflight(undefined)).toThrow("no prerequisite receipt");
     expect(spawn).not.toHaveBeenCalled();
