@@ -31,6 +31,7 @@ export type RunnerTaskFlow =
   | "warm_three_turn"
   | "instruction_persistence"
   | "native_active_stop"
+  | "native_provider_loss"
   | "cursor_native";
 
 export interface SecretReference {

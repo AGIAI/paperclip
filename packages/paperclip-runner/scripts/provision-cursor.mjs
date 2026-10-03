@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import { lstat } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { cursorProvisionerPackageRoot } from "./cursor-provisioner-layout.mjs";
 import { cursorDistribution, materializePinnedCursorDistribution, verifyCursorDistribution } from "./materialize-cursor-distribution.mjs";
 
 /** Explicit public installation; never invoked by an npm lifecycle hook. */
 export async function provisionCursorRuntime() {
   const distribution = await cursorDistribution();
-  const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+  const packageRoot = cursorProvisionerPackageRoot(import.meta.url);
   const destination = join(packageRoot, "provider-assets", "cursor", `${distribution.platform}-${distribution.architecture}`);
   const installed = await lstat(destination).catch(error => {
     if (error.code !== "ENOENT") throw error;

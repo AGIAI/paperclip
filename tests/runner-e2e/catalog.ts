@@ -1105,6 +1105,22 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     definitionMetadata: { version: 4, qualification: "pending", scheduling: "explicit-only", evidence: "paperclip.e2e.native-active-stop-settlement.v2", pendingObservation: "retained-api-before-caller-uuid-stop", normalCompletionAccepted: false, permissionPolicy: "approve-reads", lifecycle: "per_turn", remoteEvidence: "paperclip.e2e.native-active-stop-remote-retirement.v1", remoteObservationCoverage: "continuous-through-owned-process-retirement", filesystemAfterRemoteRetirementObserved: false, localObservationCoverage: "four-phases-through-cleanup", providerDeath: "not-covered" },
   },
   {
+    id: "native-provider-loss", label: "Lose a runtime with an unanswered native permission", manualOnly: true,
+    description: "Lose the owned Cursor runtime while a native mutation remains unanswered; require a visible failed run, closed unanswerable input, stale-answer refusal and independent retirement with no effects or replay.",
+    groups: ["native"], profiles: extendedHarnessProfiles.filter(profile => profile.qualificationCandidate === "cursor"),
+    environments: runnerEnvironments,
+    tasks: [{
+      id: "pending-permission-provider-loss", label: "Owned runtime loss with pending permission", groups: [], workMode: "standard", flow: "native_provider_loss",
+      expectedRunCount: 1, attemptTimeoutMs: { local: 300_000, daytona: 300_000 }, turnTimeoutMs: 120_000,
+      expectedTerminalState: { issue: "in_progress", run: "failed" },
+      buildTitle: nonce => `Native provider loss ${nonce}`,
+      buildVisibleMarker: nonce => `NATIVE-PROVIDER-LOSS-${nonce}`,
+      buildPrompt: () => "Attempt the supplied exact native shell operation once and leave its permission callback unanswered. Do not retry, use another tool or path, answer your own permission, call paperclip_finish, or claim completion. The qualification fixture will deliberately lose the isolated runtime before any approval.",
+      buildMatchers: () => [],
+    }], expectedMatrixSize: 2,
+    definitionMetadata: { version: 1, qualification: "pending", scheduling: "explicit-only", fault: "observed-per-turn-run-root-loss", remoteFaultAuthority: "pidfd-start-ticks-boot-id", replayAllowed: false },
+  },
+  {
     id: "rich-acp-warm-continuity", label: "Rich ACP warm continuity", manualOnly: true,
     description: "Three browser-driven turns with stable native session, runner process and workspace identity for Cursor.",
     groups: ["native", "warm"],

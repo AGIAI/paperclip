@@ -76,6 +76,18 @@ function processTable(): ProcessIdentity[] {
   return output.split("\n").flatMap(line => { const m = /^\s*(\d+)\s+(\d+)\s+(.+?)\s*$/u.exec(line); return m ? [{ pid: Number(m[1]), parent: Number(m[2]), start: m[3]! }] : []; });
 }
 export interface RunProcessAuthority { pid: number; groupId: number; startedAt: string; runId: string }
+/** Closed fault injection for the already observed, isolated per-turn run.
+ * The caller cannot select a signal, executable, or an unobserved process.
+ */
+export function injectObservedRunLoss(authority: RunProcessAuthority, journal: readonly ProcessIdentity[]) {
+  const retained = journal.find(row => row.pid === authority.pid);
+  const current = processTable().find(row => row.pid === authority.pid);
+  if (!retained || !current || retained.start !== current.start || authority.pid === process.pid) throw new Error("Provider-loss run ownership changed");
+  const argv = execFileSync("/bin/ps", ["-p", String(current.pid), "-o", "command="], { encoding: "utf8", timeout: 3000, maxBuffer: 65536 });
+  if (!isPerTurnRunProcess(authority, current, argv) || !processTable().some(row => row.pid === current.pid && row.start === current.start)) throw new Error("Provider-loss run is not the retained per-turn owner");
+  process.kill(current.pid, "SIGKILL");
+  return { root: retained, signal: "SIGKILL", observedMonotonicNs: process.hrtime.bigint().toString() };
+}
 export function isPerTurnRunProcess(authority: RunProcessAuthority, observed: ProcessIdentity, command: string): boolean {
   if (!/^[a-zA-Z0-9_-]{1,128}$/u.test(authority.runId) || authority.pid !== observed.pid || authority.groupId !== observed.pid) return false;
   const started = Date.parse(authority.startedAt), actual = Date.parse(observed.start);

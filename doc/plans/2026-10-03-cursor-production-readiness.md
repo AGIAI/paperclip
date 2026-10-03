@@ -68,3 +68,38 @@ GitHub Actions ownership of lockfile commits. Its SHA-256 is
 `70af8ab3d7051c85fc1a55c11e9afe8887d9711232e3c6e97666006562217e5f`;
 retain these exact resolved bytes with candidate artifacts and pass their digest
 to the immutable image build.
+
+## Qualification preparation and demonstrated repairs
+
+Candidate `9ba53fced5de6dabd1e931b7438d9dd118e45f0f` passed local
+completion, semantic question continuation, and file-edit/validation Product E2E
+cells with the explicit Luna model, serial execution, no retries, and successful
+cleanup. Their original campaign identities remain unchanged. Measured per-run
+dollar usage is unavailable, not zero. The existing Cursor account-cycle cap is
+counted once against the reconciled campaign envelope.
+
+Fresh ordinary provider packs were built for macOS ARM64 and x64; the Linux x64
+Daytona image also built successfully. These are preparation artifacts, not a
+completed release certification.
+
+Public-package inspection found that setup derived the standalone runner layout
+when embedded in the server's vendored layout. The provisioner now selects its
+contained public asset root explicitly and rejects an unbundled source invocation.
+Three containment checks pass. `node scripts/verify-cursor-npm-install.mjs`
+packages the actual public CLI/server dependency graph and verifies installation,
+enabled npm hooks, explicit setup, and the installed Cursor execution closure in
+an isolated consumer. It retains evidence under its printed temporary directory
+and makes no model calls. npm hooks may fetch normal platform dependencies;
+Cursor provisioning must remain absent until the public setup command runs.
+
+The new explicit-only `native-provider-loss` Product E2E suite covers the missing
+transport-loss gate locally and on Daytona. It loses only the observed per-turn
+run owner while a native mutation is awaiting permission, then requires a visible
+failed run, an unanswerable stale approval, an open task, no automatic replay,
+no changed target, and retirement of the owned process tree. The remote fault uses
+a Linux pidfd bound to the retained start ticks and boot ID.
+
+The initial full test run retained resource/startup failures. Targeted reruns
+passed 43 boundary/file-handoff checks, 196 real-runner checks, and 1,742 of 1,744
+remaining server checks. The two remaining assertions compare macOS `/var` aliases
+against canonical `/private/var` paths; no unrelated test repair is ported.

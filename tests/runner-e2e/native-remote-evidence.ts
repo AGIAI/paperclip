@@ -14,6 +14,7 @@ export interface NativeRemoteSnapshot {
 export interface NativeRemoteFixture {
   binding: NativeRemoteBinding; remoteCwd: string; actionFile: string;
   snapshot(label: string): Promise<NativeRemoteSnapshot>;
+  injectOwnedRunLoss?(): Promise<unknown>;
   setupAttachedCommand(input: { marker: string; markerText: string; delayMs: number }): Promise<{ command: string; commandSha256: string }>;
   finish(): Promise<NativeRemoteSnapshot>; readFile(relative: string): Promise<Buffer>; close(): Promise<void>;
 }
@@ -63,4 +64,3 @@ export async function prepareNativeRemoteAction(input: {
   if (!target?.complete || !target.absent || target.sha256 !== null || target.mutationCount !== 0) throw new Error("Native remote target was present or unobserved before action");
   return { baseline, command, prompt: `${input.prompt}\nThe admitted remote workspace is ${f.remoteCwd}.${command ? `\nThe exact supplied command is:\n${command.command}\nDo not inspect or modify fixture code, fabricate its marker, or launch a substitute command.` : ""}` };
 }
-

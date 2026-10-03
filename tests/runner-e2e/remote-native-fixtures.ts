@@ -30,7 +30,7 @@ function relative(value: string): string {
 }
 // Only closed diagnostic enums cross the remote boundary; SDK errors and output
 // are never retained. These diagnostics explain failed evidence, not qualification.
-const RPC_PHASES = ["runtime-ready", "install", "wait", "close", "arm", "publish", "snapshot", "attached", "read"] as const;
+const RPC_PHASES = ["runtime-ready", "install", "wait", "close", "arm", "publish", "snapshot", "attached", "read", "inject-loss"] as const;
 const RPC_CODES = ["node_identity", "sentinel_type", "sentinel", "cwd", "runtime_root_identity", "runtime_binary_identity", "proc_bound", "ambiguous_run_root", "runtime_not_ready", "runtime_identity_changed", "invalid_proc_identity", "invalid_proc_fields", "socket_error", "socket_timeout", "output_bound", "rpc_deadline", "remote_unknown", "transport_failure", "invalid_response", "readiness_deadline"] as const;
 type RpcPhase = typeof RPC_PHASES[number];
 type RpcCode = typeof RPC_CODES[number];
@@ -174,6 +174,9 @@ const server=net.createServer(socket=>{sockets.add(socket);socket.on('close',()=
    child=cp.spawn(process.execPath,['-e','setTimeout(()=>process.exit(0),'+r.delayMs+')'],{env:{PATH:'/usr/bin:/bin'},stdio:'ignore'});child.once('error',()=>{attached.failure='child_start';s.destroy()});child.once('exit',(code,signal)=>{attached.commandExit={code:code??-1,observedAtMs:Date.now(),observedMonotonicNs:process.hrtime.bigint().toString()};if(code!==0||signal){attached.failure='child_failed';s.destroy();return}try{fs.writeFileSync(path.join(config.binding.remoteCwd,r.marker),r.markerText,{flag:'wx'});attached.markerWrittenAtMs=Date.now();attached.markerWrittenMonotonicNs=process.hrtime.bigint().toString();s.end(JSON.stringify({code:0})+'\n')}catch{attached.failure='marker_failed';s.destroy()}});
   }catch{attached.failure='client_rejected';s.destroy()}})});srv.listen(clientSocket);attached.server=srv;result={clientScript,clientSocket};
  }
+ else if(r.op==='inject-loss'){const p=sample();if(sealed||!complete||!publishedHash||!root||!p.live.includes(root.pid))throw Error('loss_owner_missing');const original=journal.get(root.pid);if(!original||original.startTicks!==root.startTicks||original.bootId!==root.bootId)throw Error('loss_owner_changed');
+  const program="import os,signal,sys\npid=int(sys.argv[1]);fd=os.pidfd_open(pid)\ntry:\n s=open('/proc/'+str(pid)+'/stat').read();ticks=s[s.rfind(') ')+2:].split()[19];boot=open('/proc/sys/kernel/random/boot_id').read().strip()\n if ticks!=sys.argv[2] or boot!=sys.argv[3]:raise RuntimeError('identity changed')\n signal.pidfd_send_signal(fd,signal.SIGKILL)\nfinally:os.close(fd)";
+  const killed=cp.spawnSync('/usr/bin/python3',['-c',program,String(root.pid),root.startTicks,root.bootId],{env:{PATH:'/usr/bin:/bin'},stdio:'pipe',timeout:3000});if(killed.status!==0)throw Error('loss_not_injected');result={root:original,signal:'SIGKILL',observedMonotonicNs:process.hrtime.bigint().toString()};}
  else if(r.op==='finish'){result=snapshot();if(!result.complete||!result.processes.captured||result.processes.live.length)throw Error('retirement_unproven');sealed=true;workspaceWatch.close();for(const t of targets.values())t.watch.close();}
  else if(r.op==='close'){shutdown(socket);return;}
  else throw Error('unknown_operation');
@@ -212,6 +215,7 @@ export interface RemoteNativeFixture {
   /** Watchers and exact run-root identity are already armed at return from bind. */
   readonly baseline: RemoteNativeSnapshot;
   snapshot(label: string): Promise<RemoteNativeSnapshot>;
+  injectOwnedRunLoss?(): Promise<unknown>;
   readFile(path: string): Promise<Buffer>;
   publishAction(path: string, text: string): Promise<void>;
   setupAttachedCommand(input: { marker: string; markerText: string; delayMs: number }): Promise<{ command: string; commandSha256: string }>;
@@ -441,6 +445,14 @@ export async function bindRemoteNativeFixture(options: RemoteNativeFixtureOption
       const bytes = Buffer.from(data.base64 as string, "base64");
       fail(bytes.length <= 65536 && `sha256:${createHash("sha256").update(bytes).digest("hex")}` === data.sha256, "read_digest");
       return bytes;
+    },
+    async injectOwnedRunLoss() {
+      fail(!closed && published && !finished, "loss_fixture_unavailable");
+      const value = record(await rpc({ op: "inject-loss" }));
+      const observed = record(value.root), root = baseline.processes.root;
+      fail(root && observed.pid === root.pid && observed.startTicks === root.startTicks && observed.bootId === root.bootId
+        && value.signal === "SIGKILL" && typeof value.observedMonotonicNs === "string" && /^\d+$/u.test(value.observedMonotonicNs), "loss_owner_acknowledgement");
+      return value;
     },
     async publishAction(path, text) {
       fail(!closed && !published && path === actionFile && typeof text === "string" && Buffer.byteLength(text) <= 16384, "publish_bound");
