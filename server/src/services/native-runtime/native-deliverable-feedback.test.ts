@@ -22,6 +22,11 @@ describe("explicit file output requirements", () => {
     "Write report.txt and attach it. This is an internal verification file, not a deliverable.",
     "Attach it.",
     "Write report.txt and return it as an attachment. This is an internal verification file, not a deliverable.",
+    "Write report.txt and send it to me. This is an internal verification file, not a deliverable.",
+    "Write report.txt. This is an internal verification file, not a deliverable. Send it to me.",
+    "Write report.txt and provide it to me. This is an internal verification file, not a deliverable.",
+    "Write report.txt and give me it. This is an internal verification file, not a deliverable.",
+    "Write report.txt and return it. This is an internal verification file, not a deliverable.",
   ])("recognizes an explicit output request: %s", objective => {
     expect(explicitlyRequestsFileOutput(objective)).toBe(true);
   });
@@ -50,6 +55,8 @@ describe("explicit file output requirements", () => {
     "Write internal-proof.txt; do not attach it. This is an internal verification file, not a deliverable.",
     "Write a reply and return it in chat.",
     "Write internal-proof.txt and return it in chat. This is an internal verification file, not a deliverable.",
+    "Write internal-proof.txt and send it in chat. This is an internal verification file, not a deliverable.",
+    "Write internal-proof.txt. This is an internal verification file, not a deliverable. Return it inline.",
   ])("does not require a file for a text or source-review request: %s", objective => {
     expect(explicitlyRequestsFileOutput(objective)).toBe(false);
   });

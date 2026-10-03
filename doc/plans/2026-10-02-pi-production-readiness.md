@@ -431,6 +431,13 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   in chat do not. All 76 completion tests pass; the exact failed agent-files
   objective still needs no download. Wait for clean source review before
   rebuilding public packages again.
+- At `fef9e8456`, review identifies a missing explicit "send it" delivery
+  requirement. Preserve delivery references to the preceding file, including
+  across sentences, while explicit inline/chat content remains inline.
+  Attachment/export directives always retain publication requirements. All 84
+  completion tests pass, including both delivery and inline instructions. The
+  exact failed agent-files objective still needs no download; no paid retry runs
+  on these intermediate candidates.
 - The `0d65753fe` broad local suite is terminal with 736 passed files, four
   skipped files, 14,982 passed tests and three failures: a Git scan load
   single-flight count (497 versus 498) and two HTTP socket resets. One associated

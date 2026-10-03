@@ -64,6 +64,7 @@ async function hasCurrentPublicationReceipt(db: Db, companyId: string, receipts:
  */
 export function explicitlyRequestsFileOutput(objective: string): boolean {
   const sentences = objective.replaceAll("\\_", "_").split(/(?:[.!?](?:\s|$)|\n)/iu);
+  let precedingFileOutput = false;
   return sentences.some((sentence, index) => {
     const file = /\b(?:files?|attachments?|downloads?|pdf|spreadsheets?|workbooks?|slide decks?|powerpoints?|docx|xlsx|csv)\b|\b[^\s/]+\.(?:md|txt|pdf|docx?|xlsx?|csv|pptx?|png|jpe?g|svg|zip)\b/giu;
     const outputs = sentence.split(/(?:[;,]|\bbut\b)/iu).flatMap(clause => {
@@ -89,15 +90,19 @@ export function explicitlyRequestsFileOutput(objective: string): boolean {
         });
         // An explicit attachment/export request can refer to the file by
         // pronoun. It still requires publication when its name is omitted.
-        const referencedAttachment = /^(?:attach|export)$/iu.test(create[0])
+        const referencesOutput = /^(?:attach|export|send|provide|give|return)$/iu.test(create[0])
           && /^\s+(?:me\s+)?(?:it|them|this|that)\b/iu.test(output);
+        const referencedAttachment = referencesOutput && /^(?:attach|export)$/iu.test(create[0]);
+        const inline = /\b(?:in (?:the )?chat|inline|as (?:a |the )?(?:chat )?(?:reply|message)|(?:its|the) contents)\b/iu.test(output);
         const downloadable = referencedAttachment || (!/\b(?:no|without)\s+(?:downloadable|attached)/iu.test(output)
           && /\b(?:downloadable|attached)\s+(?:file|report|document|checklist|draft)\b/iu.test(output));
         const publication = /\b(?:downloadable|attached|attach|export|send|provide|return|give)\b/iu.test(create[0] + output);
         const deniedAttempt = create[0].toLowerCase() === "write" && objects.length === 1
           && /\b(?:attempt|try)\s+(?:the\s+)?native\s*$/iu.test(before)
           && /\b(?:must be denied|denial is (?:the )?expected|(?:this|the) negative test)\b/iu.test(objective);
-        return [{ objects: objects.length, downloadable, publication, deniedAttempt }];
+        if (objects.length === 0 && !downloadable && /^\s+(?:no|zero|without)\b/iu.test(output)) return [];
+        return [{ objects: objects.length, downloadable, publication, deniedAttempt,
+          referencesOutput, publicationReference: referencesOutput && !inline }];
       });
     });
     // "This ..." qualifies a single requested file in the preceding sentence,
@@ -105,8 +110,12 @@ export function explicitlyRequestsFileOutput(objective: string): boolean {
     // exception and separate report requests still require publication.
     const internal = outputs.reduce((count, output) => count + output.objects + Number(output.downloadable && output.objects === 0), 0) === 1
       && /^\s*This is (?:an? )?(?:personal memory|internal (?:assertion|verification) file)\b[^.!?]*\bnot a (?:task )?deliverable\b/iu.test(sentences[index + 1] ?? "");
-    return outputs.some(output => (output.objects > 0 || output.downloadable)
-      && (output.publication || (!internal && !output.deniedAttempt)));
+    return outputs.some(output => {
+      const publicationReference = output.publicationReference && precedingFileOutput;
+      if (!output.referencesOutput) precedingFileOutput = output.objects > 0;
+      return (output.objects > 0 || output.downloadable || publicationReference)
+        && (output.publication || (!internal && !output.deniedAttempt));
+    });
   });
 }
 
