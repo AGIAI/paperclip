@@ -148,12 +148,15 @@ Remaining corrections and evidence:
   its exact-child fault observer receipt. Canonical independent retirement and
   cleanup pass; provider-loss and stale-answer assertions are not reached.
   The unchanged Linux fault calibration passes all nine tests, including a real
-  pidfd signal. A separate free image inspection finds built-in Pi closure
+  pidfd signal. A separate free image inspection finds raw metadata file hash
   `a82188d45ef98396c50880c1352a0dc77e81283ccaefe587156b3468d34e8c0b`,
-  while admitted profile 14 requires
+  while admitted profile 14 pins the canonical entries hash
   `2957c0ec20ca1ace64d1a2b10c4a99f47f59e0c5c33a89161c1d5b48341c2b25`.
-  The fixture hardcodes the built-in pack, so its closure check cannot admit
-  the separately installed runtime. The original observer error masks its
+  The unchanged production parser accepts all 15,671 entries in that exact
+  image-derived metadata. The fixture incorrectly compares the raw file hash
+  to the canonical entries pin, so its closure check rejects correct metadata.
+  The image's closure is valid; the fixture's hash representation needs repair.
+  The original observer error masks its
   specific internal cause; this diagnosis does not regrade that failure.
   A fixture correction remains held for workflow-scope clarification.
 - The unrestricted Daytona file-edit first attempt edits and publishes the
