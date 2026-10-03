@@ -25,9 +25,9 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Installed profile-14 same-turn steering passes at `dc2b053f3`. Restart and three-turn warm continuity pass at historical `f5f57e380`; pending-permission Stop and stale response rejection pass at `03dd6ef93`. Controller restart passes at frozen runtime `b148b73ea`. Warm continuity fails on turn 2 with `run.attach` timeout; the campaign stops. Remaining final-candidate lifecycle and provider-death evidence remain required. |
 | Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | At `0d65753fe`, five local cells pass: warm continuity, controller restart, pending-permission Stop, steering, and native questions. Agent-files times out after completion is rejected. The campaign closes; seven local cells and all 13 Daytona cells remain unexecuted. A subsequent shipping correction needs fresh qualification. |
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases pass through installed `b148b73ea` with pinned definitions `a9e0e7e0`, profile 14 and native-confirmed low thinking. The governed-wait retry follows the tested idle-close correction. Each case has one attempt and zero automatic retries. Its original failure remains unchanged. |
-| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | ARM, Intel and Linux public installation pass at `0d65753fe`. Exact-source Linux companion and immutable Daytona proof remain required. Image job 37102904889 remains queued on EC2. Its predecessor 37099122706 is terminal/cancelled. Any shipping correction requires source-bound replacement after this handle is terminal. |
+| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | ARM, Intel and Linux public installation pass at `0d65753fe`. Exact-source Linux companion and immutable Daytona proof remain required. Image run 37102904889 is terminal/cancelled after source supersession. Run 37106313185 is queued, pinned to `f62b8510a`; that candidate fails the frozen-profile gate and cannot qualify. Finish the current corrections before replacing its source-bound build. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | All 55 CI checks and Greptile 5/5 pass at shipping source `0d65753fe`. Two #14924 UI findings have tested downstream corrections. Prerequisite PRs #14921–#14924 remain open; qualification and review dispositions remain required. Later edits require fresh-head CI/review. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Historical `0d65753fe` CI is green. At `f62b8510a`, build/typecheck and most CI pass; the frozen notice-projection hash and two publication-bypass review findings fail. Tested corrections are preparing a new candidate. Two #14924 UI findings have downstream corrections. Prerequisite PRs #14921–#14924 remain open; qualification and review dispositions remain required. No merge or release. |
 
 ## Bounded execution
 
@@ -399,16 +399,23 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   agent-files failure. No paid retry is authorized by a presentation-only change.
 - The prerequisite #14921 exit/catch notice finding is reproduced through the
   actual extension-turn binding: two identical failure inputs produce two
-  canonical notices. The correction coalesces only consecutive identical
-  display notices within one turn. Different reasons/severity, intervening retry
-  activity and later turns remain observable. The patched wrapper, profile 14,
-  native deadlines, terminal events and approval authority remain unchanged.
-  All 115 extension/driver regressions pass.
+  canonical notices. The first correction at `f62b8510a` changes the frozen
+  notice-projection source hash, so its 115 focused passes do not qualify it.
+  Restore that source byte-for-byte and coalesce only the board's consecutive
+  identical display rows, scoped to the complete run, turn and session. Both raw
+  PRP facts remain. Different reasons/severity, retry activity and later turns
+  remain observable. The frozen binding/extension tests pass 11 cases (one
+  optional host probe skipped); UI projection tests pass 145 cases. Token gates
+  pass. No profile, wrapper, deadline, terminal or approval-authority change occurs.
 - The completion regression reproduces four false positives without model calls:
   file-tool names, managed personal memory, an explicitly internal assertion
   file, and an expected denied native-write attempt. The correction preserves
   actual downloadable output requirements, mixed requests, and publication
-  evidence enforcement. All 59 unit and database integration tests pass. A free replay of the exact
+  evidence enforcement. The first correction passes 59 tests, but fresh review
+  identifies two mixed-output publication bypasses. Restrict the internal
+  qualifier to the last clause and a denied attempt to its sole creation verb
+  and file object. All 64 unit/database integration tests pass, including both
+  review examples. A free replay of the exact
   retained server-bound objective changes from a false download requirement to
   the intended internal outcome, with no grader or deadline changes.
 - The `0d65753fe` broad local suite is terminal with 736 passed files, four
@@ -421,10 +428,11 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   handles every rejection during teardown. The unchanged assertions then prove
   500 HTTP 200 responses, two scans, 498 joins and 2.4 ms health p99. All 138
   load/redaction/recovery tests pass. The full failed command remains retained.
-- Image run 37102904889 remains queued. It is not an image receipt or Daytona
-  qualification. Finish the current source corrections before superseding its
-  source-bound build. No workflow edit, lockfile commit, new model, fallback key,
-  merge or release occurs.
+- Image run 37102904889 is terminal/cancelled after the shipping source changes.
+  Its successor 37106313185 remains queued and pins `f62b8510a` in its completed
+  authorization job. It cannot qualify the corrected source. Retain this handle
+  and supersede once the tested correction is frozen. No workflow edit, lockfile
+  commit, new model, fallback key, merge or release occurs.
 
 ## Remaining work in order
 

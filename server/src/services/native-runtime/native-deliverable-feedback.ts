@@ -64,9 +64,10 @@ async function hasCurrentPublicationReceipt(db: Db, companyId: string, receipts:
  */
 export function explicitlyRequestsFileOutput(objective: string): boolean {
   const sentences = objective.replaceAll("\\_", "_").split(/(?:[.!?](?:\s|$)|\n)/iu);
-  return sentences.some((sentence, index) => sentence.split(/(?:[;,]|\bbut\b)/iu).some(clause => {
+  return sentences.some((sentence, index) => sentence.split(/(?:[;,]|\bbut\b)/iu).some((clause, clauseIndex, clauses) => {
     const file = /\b(?:files?|attachments?|downloads?|pdf|spreadsheets?|workbooks?|slide decks?|powerpoints?|docx|xlsx|csv)\b|\b[^\s/]+\.(?:md|txt|pdf|docx?|xlsx?|csv|pptx?|png|jpe?g|svg|zip)\b/giu;
-    const create = /\b(?:create|make|write|save|export|attach|send|generate|produce|prepare|provide|give|return|build)\b/iu.exec(clause);
+    const creates = [...clause.matchAll(/\b(?:create|make|write|save|export|attach|send|generate|produce|prepare|provide|give|return|build)\b/giu)];
+    const create = creates[0];
     if (create && /\b(?:do not|don't|never|no need to)\s*$/iu.test(clause.slice(0, create.index))) return false;
     const output = create ? clause.slice(create.index + create[0].length) : "";
     const objects = [...output.matchAll(file)].filter(match => {
@@ -84,8 +85,10 @@ export function explicitlyRequestsFileOutput(objective: string): boolean {
     });
     // An immediately following "This ..." can qualify one internal file, not
     // erase a separate output request. Only the authoritative objective counts.
-    const internal = objects.length === 1 && /^\s*This is (?:an? )?(?:personal memory|internal (?:assertion|verification) file)\b[^.!?]*\bnot a (?:task )?deliverable\b/iu.test(sentences[index + 1] ?? "");
-    const deniedAttempt = /\b(?:attempt|try)\s+(?:the\s+)?native\s+(?:write|edit)\b/iu.test(clause)
+    const internal = clauseIndex === clauses.length - 1 && objects.length === 1
+      && /^\s*This is (?:an? )?(?:personal memory|internal (?:assertion|verification) file)\b[^.!?]*\bnot a (?:task )?deliverable\b/iu.test(sentences[index + 1] ?? "");
+    const attempt = /\b(?:attempt|try)\s+(?:the\s+)?native\s+(?:write|edit)\b/iu.exec(clause);
+    const deniedAttempt = creates.length === 1 && objects.length === 1 && attempt && create && attempt.index <= create.index
       && /\b(?:must be denied|denial is (?:the )?expected|(?:this|the) negative test)\b/iu.test(objective);
     if ((internal || deniedAttempt) && !/\b(?:downloadable|attached|attach|export|send|provide|return|give)\b/iu.test(clause)) return false;
     return objects.length > 0 ||

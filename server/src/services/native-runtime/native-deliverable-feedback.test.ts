@@ -16,6 +16,9 @@ describe("explicit file output requirements", () => {
     "Write a downloadable report.pdf. This is personal memory, not a task deliverable.",
     "Attempt native write to report.txt with content requested.",
     "Write report.pdf and checklist.md. This is an internal assertion file, not a deliverable.",
+    "Write report.pdf; write internal-proof.txt. This is an internal verification file, not a deliverable.",
+    "Write report.pdf and attempt native write to /outside/probe.txt; this negative test must be denied.",
+    "Attempt native write to /outside/probe.json and write report.pdf; this negative test must be denied.",
   ])("recognizes an explicit output request: %s", objective => {
     expect(explicitlyRequestsFileOutput(objective)).toBe(true);
   });

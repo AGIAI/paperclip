@@ -347,6 +347,20 @@ describe("native runner file handoff", () => {
     }
   });
 
+  it.each([
+    "Write report.pdf; write internal-proof.txt. This is an internal verification file, not a deliverable.",
+    "Write report.pdf and attempt native write to /outside/probe.txt; this negative test must be denied.",
+  ])("still requires publication when the task also asks for internal or denied writes: %s", async objective => {
+    await db.update(heartbeatRuns).set({ contextSnapshot: { issueId, executionContinuation: { objective } } })
+      .where(eq(heartbeatRuns.id, runId));
+    try {
+      await expect(nativeCompletionFeedback(db, runId, doneReport([])))
+        .rejects.toThrow("requested file has no accessible delivery evidence");
+    } finally {
+      await db.update(heartbeatRuns).set({ contextSnapshot: { issueId } }).where(eq(heartbeatRuns.id, runId));
+    }
+  });
+
   it("prepares one verified same-run attachment and replays without duplicates", async () => {
     const body = Buffer.from("native runner file handoff\n", "utf8");
     await mkdir(path.join(workspaceRoot, "out"), { recursive: true });
