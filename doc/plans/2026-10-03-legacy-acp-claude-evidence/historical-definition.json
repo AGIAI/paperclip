@@ -1,0 +1,47 @@
+{
+  "id": "stock-harness.legacy-acp-claude.local.assigned-skill-explicit-invocation",
+  "suiteDefinitionHash": "fb72ab2d637763ce4cdcb0028e8daf6292ef783dae504725ad1ce5d717926c12",
+  "profile": {
+    "id": "legacy-acp-claude",
+    "model": "claude-sonnet-4-6",
+    "credential": "ANTHROPIC_API_KEY",
+    "adapterType": "claude_local",
+    "config": {
+      "name": "Runner E2E legacy-acp-claude stock-harness.legacy-acp-claude.local.assigned-skill-explicit-invocation",
+      "role": "qa",
+      "title": "Paid full-stack runner acceptance fixture",
+      "capabilities": "Completes deterministic standard, planning, and ask-mode runner acceptance tasks.",
+      "adapterType": "claude_local",
+      "adapterConfig": {
+        "model": "claude-sonnet-4-6",
+        "timeoutSec": 360,
+        "dangerouslySkipPermissions": true,
+        "engine": "acp",
+        "mode": "oneshot",
+        "env": {
+          "ANTHROPIC_API_KEY": {
+            "type": "secret_ref",
+            "secretId": "22222222-2222-4222-8222-222222222222",
+            "version": "latest"
+          }
+        }
+      },
+      "defaultEnvironmentId": "11111111-1111-4111-8111-111111111111",
+      "budgetMonthlyCents": 0,
+      "runtimeConfig": {}
+    }
+  },
+  "task": {
+    "id": "assigned-skill-explicit-invocation",
+    "automaticRetryPolicy": "single_attempt",
+    "expectedRunCount": 1,
+    "attemptTimeoutMs": {
+      "local": 720000,
+      "daytona": 720000
+    },
+    "prompt": "Use the assigned Context integrity output skill for this task, then follow its instructions and finish the task. Do not create child tasks or unrelated deliverables."
+  },
+  "environment": {
+    "id": "local"
+  }
+}

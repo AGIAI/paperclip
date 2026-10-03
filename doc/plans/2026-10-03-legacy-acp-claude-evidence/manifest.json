@@ -1,0 +1,271 @@
+{
+  "schema": "paperclip.stock-acp-readiness-comparison.v1",
+  "status": "admitted-not-dispatched",
+  "masterContext": "569c7203aa24b95440682983ce7940ba1d4247bd",
+  "variants": {
+    "reduced": {
+      "sourceSha": "de0965984ff3edf611ae6d0e7ca5c7d5ae3947bb",
+      "targetBranch": "codex/stock-acp-reduced-v3-20261003",
+      "parent": "7084416945948cb44c9f2070f6356a9c1dece6ec"
+    },
+    "historical": {
+      "sourceSha": "c25697f4260b6f3adfea143c3ae9932e2f42986d",
+      "targetBranch": "codex/stock-acp-historical-20261003",
+      "parent": "f6b56a2bff2ba426213c8b56c9895488402705fe"
+    }
+  },
+  "treeProof": {
+    "totalPaths": 8291,
+    "identicalPaths": 8280,
+    "differences": [
+      {
+        "path": "packages/adapter-utils/src/acpx-engine/execute.test.ts",
+        "class": "variant-specific-unit-expectation",
+        "reducedSha256": "11b49650addafc6a1044cab21fc50e94081b6c2392308569e992b8e935a8bffb",
+        "historicalSha256": "8e04bd0124b091de7367df3f5a2d2a412db6f4c05f75b917506aad5f69a6bbf8"
+      },
+      {
+        "path": "packages/adapter-utils/src/prompt-sections.test.ts",
+        "class": "variant-specific-unit-expectation",
+        "reducedSha256": "d2affc96b650bcc7fb1943513b6c3777af3dcbac9aa5329fcf9b25d4e3e5cb2f",
+        "historicalSha256": "d2b254845b494bcaa28f4c362a552551a9361b6143995571f07030086c481064"
+      },
+      {
+        "path": "packages/adapter-utils/src/server-utils.test.ts",
+        "class": "variant-specific-unit-expectation",
+        "reducedSha256": "a2941916ef59bc50ac04747bf3c5fd927992e0d7b8a775c660091d5e0e162940",
+        "historicalSha256": "2b574ea4a7b255646082de8f437cfc2c63b83297aeefb11c243dbecda90f4653"
+      },
+      {
+        "path": "packages/adapter-utils/src/server-utils.ts",
+        "class": "production-instructions",
+        "reducedSha256": "41b3c0b4e731106948f6dd3f2525c4bbd0ead0077a8475d7d0c63d6dd25cb2a0",
+        "historicalSha256": "916e879f70a90d31c89bc1486d5f84807c4ecafeab62961f67d84d1ebec7a173"
+      },
+      {
+        "path": "packages/adapters/cursor-cloud/src/server/execute.test.ts",
+        "class": "variant-specific-unit-expectation",
+        "reducedSha256": "20b9b6f0c307099aa1eb439758d2e1d3b99a2078be2a7772bec52cdf9b561280",
+        "historicalSha256": "3811a42a5a09499bf12ac75b75c8cb87a8d5125816127c8bf5f297ab05791d34"
+      },
+      {
+        "path": "packages/adapters/hermes/src/server/prompt-rendering.test.ts",
+        "class": "variant-specific-unit-expectation",
+        "reducedSha256": "fba065a7f7d46f1905af8b1ebf44a52c08ebd95b3390d8f3712ae28cd90ebb76",
+        "historicalSha256": "132171e9e3e19a473f57b9ab091eba1357a87a42cd6b6f3e08a78414cd44befd"
+      },
+      {
+        "path": "packages/adapters/opencode-local/src/server/execute.test.ts",
+        "class": "variant-specific-unit-expectation",
+        "reducedSha256": "8d4840d5a6e7b59713c1630e28570e1fc613db322bf65206fc42ba886cb2353a",
+        "historicalSha256": "cf6de7d428ba7743ffde725f4528c27a73e1ec813c199013113ed122239b7415"
+      },
+      {
+        "path": "packages/adapters/pi-local/src/server/execute.remote.test.ts",
+        "class": "variant-specific-unit-expectation",
+        "reducedSha256": "c10daceab4e6aa0dfa966d216915b6f8b74247343128c4f2c39a97e6fd3b2bdc",
+        "historicalSha256": "fb2b50d09e6a09ae5cb45e00b133dbea5c381a35162582b7d0af0d8c671adae7"
+      },
+      {
+        "path": "server/src/__tests__/agent-skills-routes.test.ts",
+        "class": "variant-specific-unit-expectation",
+        "reducedSha256": "a2a8a281b5b543c7b32f4daebd01e9f2b50ab116f1475e1becaf8590afb0490c",
+        "historicalSha256": "cfc56951eea693f7c5cb147d02cee87711a56e2e5fd407aaf8eb9331c0856673"
+      },
+      {
+        "path": "server/src/__tests__/codex-local-execute.test.ts",
+        "class": "variant-specific-unit-expectation",
+        "reducedSha256": "4c3892f1d07a27db5eab5211f40a7f81fd43b11c34cf69235f20891c8c00ffd2",
+        "historicalSha256": "f5bd779bf940879319f26949b1a8768f96a91fc88b045cc128f3456844c4831c"
+      },
+      {
+        "path": "server/src/onboarding-assets/default/AGENTS.md",
+        "class": "production-instructions",
+        "reducedSha256": "c6318bf7e425cc0dd7acd4ff2905dab5c46ffddedef979afdf06720c82f6e95a",
+        "historicalSha256": "e4d2375d722602cd744403292d99f6e6c9b7e8014d9cdfa6f9811ace03428e5f"
+      }
+    ],
+    "commonCriticalSources": {
+      "packages/adapter-utils/src/acpx-engine/execute.ts": "03bb9f34180533fceb1ca26b34d36aefafc4165a8272cf5bf09baffe8b935199",
+      "packages/adapter-utils/src/acpx-engine/ephemeral-session-environment.ts": "100b58e782ccde265f4fe5607611bfb077827d3be0ed2003ee68ebfc99aa7ef1",
+      "packages/adapter-utils/src/acpx-engine/ephemeral-session-environment.test.ts": "af25d034a4b0f9e21285f2b05519b76f3c774512a302fc6bf133940e8d08046a",
+      "skills/paperclip/SKILL.md": "6ca593effe18704f8014ac4e8155f7513c0701aa3c61d3cf0b96d3366c92f0e1",
+      "skills/paperclip/references/issue-documents.md": "4514fe49d45a77fa865f5f35afd6a5cd7465108363bc8cbd7c5b41eacf744189",
+      "tests/runner-e2e/context-integrity-cases.ts": "d24f64ee513b4c066f876b3c5b75a78ebe536a7ad87857ee46c9d853e21b0cea",
+      "tests/runner-e2e/context-integrity-flow.ts": "efd323af2ceec81875a5bf9e8a2e5dd677e1a237e682a9d5de6048179778b664",
+      "tests/runner-e2e/context-integrity-scoring.ts": "f457b3891b81549a9a5c24d8d81404184a9173b751e975a63f9c0096be20574c",
+      "tests/runner-e2e/stock-harness.ts": "66d093fbc813bd3ff85d47be6f7dcee82bd03432c35631ef762ed652777e3b4b",
+      "tests/runner-e2e/stock-harness-checks.mjs": "17e3cadb8572781ece7619700fa1498a42286c7332b9b934f3afc7e9c80a54e9",
+      "tests/runner-e2e/stock-harness-admission.ts": "4cad5e7e703029651d79b5ace4b22368da3b326fed46fe38366c6f95d24b4451",
+      "tests/runner-e2e/catalog.ts": "0f634540f15574af108c47038a969d81ef3b6297fa29fe2149e7cd03da7e70a4",
+      "tests/runner-e2e/automatic-retry.ts": "305f0ea7f9fbb272a5cd340c1ba9d5a9da9fb0b7302586876e1ce649c7f9c8ce",
+      "tests/runner-e2e/launch.ts": "30cc776c11d680f2ab51cdbf6c573455c48bb50f2617614410150229a1848fd1"
+    }
+  },
+  "selection": {
+    "id": "stock-harness.legacy-acp-claude.local.assigned-skill-explicit-invocation",
+    "cellsPerVariant": 1,
+    "totalCells": 2,
+    "expectedPrimaryProviderTurns": 2,
+    "model": "claude-sonnet-4-6",
+    "engine": "acp",
+    "mode": "oneshot",
+    "automaticRetryPolicy": "single_attempt",
+    "maxCampaignAttemptsPerCell": 1,
+    "automaticProductRecovery": "preserved; every actual run/call/cost retained",
+    "deadlineMs": 720000,
+    "providerTimeoutSec": 360,
+    "companyBudgetCents": 1000,
+    "agentBudgetCents": 1000,
+    "maxParallelPerWorkflow": 1,
+    "all": false,
+    "trustedWorkflowRef": "master",
+    "credentialName": "ANTHROPIC_API_KEY",
+    "baselineSemantics": "Current repaired setup held identical; only historical versus reduced manual/shared instructions differ. This is not a rerun of original 2026-10-02 source context."
+  },
+  "definitionProof": {
+    "sameProfileTaskEnvironment": true,
+    "scenarioNonce": "MATCHED_NONCE only for definition comparison; live unique nonces/company/run/credential identifiers vary normally",
+    "reducedSuiteHash": "169d7c62708f73d34215d222988d8b299477be14a375b369e12d8608d0f1a835",
+    "historicalSuiteHash": "fb72ab2d637763ce4cdcb0028e8daf6292ef783dae504725ad1ce5d717926c12",
+    "suiteHashDifference": "Expected: suite sourceDigest covers declared instruction and unit differences. Selected behavioral fixture/profile/task/oracle bytes remain identical.",
+    "commonSelectedDefinitionSha256": "8cd6bf913285c727bbc65757aef4c636c79a45e001c848eb8d12aca6b6347ebd"
+  },
+  "admissions": {
+    "reduced": {
+      "receipt": "doc/plans/2026-10-03-legacy-acp-claude-evidence/reduced-final-preflight.json",
+      "sha256": "0efdc5b228c1c9e066cb0187284a5168bbbdf8576a227427bf7ba7fbb5df6357",
+      "sourceSha": "de0965984ff3edf611ae6d0e7ca5c7d5ae3947bb",
+      "sourceFingerprint": "58b479d4bc2f3000e86907a9d860637f235fa164889e5adb311e0fd82fa2677b",
+      "passed": true,
+      "providerCalls": 0,
+      "instructionVariant": {
+        "variant": "reduced",
+        "sha256": "c6318bf7e425cc0dd7acd4ff2905dab5c46ffddedef979afdf06720c82f6e95a"
+      },
+      "setup": {
+        "passed": true,
+        "exitCode": 0,
+        "sdkExitCode": 0,
+        "runnerdExitCode": 0,
+        "runnerdSha256": "ed5e87f764f8a333ba6d4cf961d89313a0e70e7494e802aa342a4c0f93dbf6dc",
+        "fakeCodexSha256": "1251e3132bccf24d5d8b838f2c5df4c5f3172506daf796ce9543b7f78fc1e098"
+      },
+      "gates": [
+        {
+          "id": "SH-1",
+          "passed": true,
+          "passedTests": 11,
+          "failedTests": 0,
+          "skippedTests": 318
+        },
+        {
+          "id": "SH-2",
+          "passed": true,
+          "passedTests": 71,
+          "failedTests": 0,
+          "skippedTests": 0
+        },
+        {
+          "id": "SH-3",
+          "passed": true,
+          "passedTests": 412,
+          "failedTests": 0,
+          "skippedTests": 0
+        },
+        {
+          "id": "SH-3-hermes",
+          "passed": true,
+          "passedTests": 13,
+          "failedTests": 0,
+          "skippedTests": 0
+        },
+        {
+          "id": "SH-eval",
+          "passed": true,
+          "passedTests": 158,
+          "failedTests": 0,
+          "skippedTests": 0
+        },
+        {
+          "id": "SH-1-rust",
+          "passed": true,
+          "passedTests": 1,
+          "failedTests": 0,
+          "skippedTests": 0
+        }
+      ]
+    },
+    "historical": {
+      "receipt": "doc/plans/2026-10-03-legacy-acp-claude-evidence/historical-final-preflight.json",
+      "sha256": "ab778d3122e4f645576771637b01314a859a4066c5fbdb4d5ccc7912a464910c",
+      "sourceSha": "c25697f4260b6f3adfea143c3ae9932e2f42986d",
+      "sourceFingerprint": "d022275d9f9f7b88c28e839c9705d7d9dd4b1baf9b273d3fd6984ad3ee40ea1b",
+      "passed": true,
+      "providerCalls": 0,
+      "instructionVariant": {
+        "variant": "historical",
+        "sha256": "e4d2375d722602cd744403292d99f6e6c9b7e8014d9cdfa6f9811ace03428e5f"
+      },
+      "setup": {
+        "passed": true,
+        "exitCode": 0,
+        "sdkExitCode": 0,
+        "runnerdExitCode": 0,
+        "runnerdSha256": "750001f36300abdfe2aee9d93abb85b509be65d8a3a14301a558534747b29489",
+        "fakeCodexSha256": "bd7994698984ac7b8a62fd381d88e5e5d9a64aabb61cc46cde659da0a3649e33"
+      },
+      "gates": [
+        {
+          "id": "SH-1",
+          "passed": true,
+          "passedTests": 11,
+          "failedTests": 0,
+          "skippedTests": 318
+        },
+        {
+          "id": "SH-2",
+          "passed": true,
+          "passedTests": 71,
+          "failedTests": 0,
+          "skippedTests": 0
+        },
+        {
+          "id": "SH-3",
+          "passed": true,
+          "passedTests": 412,
+          "failedTests": 0,
+          "skippedTests": 0
+        },
+        {
+          "id": "SH-3-hermes",
+          "passed": true,
+          "passedTests": 13,
+          "failedTests": 0,
+          "skippedTests": 0
+        },
+        {
+          "id": "SH-eval",
+          "passed": true,
+          "passedTests": 158,
+          "failedTests": 0,
+          "skippedTests": 0
+        },
+        {
+          "id": "SH-1-rust",
+          "passed": true,
+          "passedTests": 1,
+          "failedTests": 0,
+          "skippedTests": 0
+        }
+      ]
+    }
+  },
+  "supersededAdmissionSources": [
+    "da529b7ec43d7f5404a35da12139f541e167dfd9",
+    "7084416945948cb44c9f2070f6356a9c1dece6ec",
+    "f6b56a2bff2ba426213c8b56c9895488402705fe"
+  ],
+  "liveResults": "pending; no providers launched by local admission",
+  "claims": "A bounded document delivery and exact-credential safety comparison; no claim of general harness/coding quality."
+}

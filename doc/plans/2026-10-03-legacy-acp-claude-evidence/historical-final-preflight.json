@@ -1,0 +1,303 @@
+{
+  "schema": "paperclip.stock-harness-preflight.v3",
+  "instructionVariant": {
+    "variant": "historical",
+    "sha256": "e4d2375d722602cd744403292d99f6e6c9b7e8014d9cdfa6f9811ace03428e5f"
+  },
+  "sourceSha": "c25697f4260b6f3adfea143c3ae9932e2f42986d",
+  "sourceFingerprint": "d022275d9f9f7b88c28e839c9705d7d9dd4b1baf9b273d3fd6984ad3ee40ea1b",
+  "measuredAt": "2026-10-03T12:38:01.973Z",
+  "providerCalls": 0,
+  "live": "not_run",
+  "passed": true,
+  "sourceErrors": [],
+  "setup": {
+    "passed": true,
+    "exitCode": 0,
+    "sdkExitCode": 0,
+    "runnerdExitCode": 0,
+    "runnerdSha256": "750001f36300abdfe2aee9d93abb85b509be65d8a3a14301a558534747b29489",
+    "fakeCodexSha256": "bd7994698984ac7b8a62fd381d88e5e5d9a64aabb61cc46cde659da0a3649e33"
+  },
+  "gates": [
+    {
+      "id": "SH-1",
+      "name": "Native Codex additive instructions",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "src/drivers/codex/codex-app-server-driver.test.ts",
+          "passed": true
+        },
+        {
+          "file": "src/drivers/codex/codex-app-server-driver.lifecycle.test.ts",
+          "passed": true
+        },
+        {
+          "file": "src/live/runnerd-codex-transport.test.ts",
+          "passed": true
+        },
+        {
+          "file": "src/live/live-session.test.ts",
+          "passed": true
+        },
+        {
+          "file": "src/cli/eval-provider-runtime.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "adds Paperclip developer instructions",
+          "passed": true
+        },
+        {
+          "name": "preserves stock Codex instructions on task recovery",
+          "passed": true
+        },
+        {
+          "name": "preserves stock Codex instructions on prepared recovery",
+          "passed": true
+        },
+        {
+          "name": "preserves stock Codex instructions on direct recovery",
+          "passed": true
+        },
+        {
+          "name": "captures exact provider frames and correlates",
+          "passed": true
+        },
+        {
+          "name": "exposes native completion consistently on fresh and resumed sessions",
+          "passed": true
+        },
+        {
+          "name": "passes caller-supplied native system instructions",
+          "passed": true
+        }
+      ],
+      "total": 329,
+      "passedTests": 11,
+      "failedTests": 0,
+      "pendingTests": 318
+    },
+    {
+      "id": "SH-2",
+      "name": "Production-default hire bundle",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "server/src/__tests__/agent-skills-routes.test.ts",
+          "passed": true
+        },
+        {
+          "file": "server/src/services/onboarding-first-task-assets.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "materializes the bundled default instruction set for non-CEO agents with no prompt template",
+          "passed": true
+        }
+      ],
+      "total": 71,
+      "passedTests": 71,
+      "failedTests": 0,
+      "pendingTests": 0
+    },
+    {
+      "id": "SH-3",
+      "name": "Shared legacy startup and continuation",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "packages/adapter-utils/src/server-utils.test.ts",
+          "passed": true
+        },
+        {
+          "file": "packages/adapter-utils/src/prompt-sections.test.ts",
+          "passed": true
+        },
+        {
+          "file": "packages/adapter-utils/src/acpx-engine/execute.test.ts",
+          "passed": true
+        },
+        {
+          "file": "packages/adapter-utils/src/acpx-engine/ephemeral-session-environment.test.ts",
+          "passed": true
+        },
+        {
+          "file": "packages/adapters/pi-local/src/server/execute.remote.test.ts",
+          "passed": true
+        },
+        {
+          "file": "packages/adapters/opencode-local/src/server/execute.test.ts",
+          "passed": true
+        },
+        {
+          "file": "packages/adapters/cursor-cloud/src/server/execute.test.ts",
+          "passed": true
+        },
+        {
+          "file": "server/src/__tests__/codex-local-execute.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "keeps the default local-agent prompt action-oriented",
+          "passed": true
+        },
+        {
+          "name": "adds the execution contract to resume delta prompts and opted-in fresh prompts",
+          "passed": true
+        },
+        {
+          "name": "integrates the env-free store",
+          "passed": true
+        },
+        {
+          "name": "advertises folded routing metadata",
+          "passed": true
+        },
+        {
+          "name": "bounds routing descriptions",
+          "passed": true
+        },
+        {
+          "name": "loads an old env-bearing file with rotated credentials",
+          "passed": true
+        },
+        {
+          "name": "drops a skill that fails to materialize",
+          "passed": true
+        }
+      ],
+      "total": 412,
+      "passedTests": 412,
+      "failedTests": 0,
+      "pendingTests": 0
+    },
+    {
+      "id": "SH-3-hermes",
+      "name": "Hermes shared-prompt delivery",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "src/server/prompt-rendering.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "renders standard assignment wake with task authority",
+          "passed": true
+        },
+        {
+          "name": "renders scoped planning wake authority",
+          "passed": true
+        }
+      ],
+      "total": 13,
+      "passedTests": 13,
+      "failedTests": 0,
+      "pendingTests": 0
+    },
+    {
+      "id": "SH-eval",
+      "name": "Independent oracle and qualification admission",
+      "passed": true,
+      "exitCode": 0,
+      "files": [
+        {
+          "file": "tests/runner-e2e/stock-harness-manifest.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/paperclip-document.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/stock-harness.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/stock-harness-checks.test.mjs",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/stock-harness-admission.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/stock-harness-digest.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/select-rerun-artifacts.test.ts",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/stock-harness-instruction-variant.test.mjs",
+          "passed": true
+        },
+        {
+          "file": "tests/runner-e2e/automatic-retry.test.ts",
+          "passed": true
+        }
+      ],
+      "requirements": [
+        {
+          "name": "requires generated capability manifests for the current skill sources",
+          "passed": true
+        },
+        {
+          "name": "the shipped recipe delivers the current",
+          "passed": true
+        },
+        {
+          "name": "the shipped recipe supports an unnumbered issue",
+          "passed": true
+        },
+        {
+          "name": "rejects old SHA before providers",
+          "passed": true
+        },
+        {
+          "name": "allows toolchain paths and excludes every present or future credential",
+          "passed": true
+        },
+        {
+          "name": "changes when the evaluated server/src/onboarding-assets/default/AGENTS.md changes",
+          "passed": true
+        },
+        {
+          "name": "changes when the evaluated packages/adapter-utils/src/server-utils.ts changes",
+          "passed": true
+        },
+        {
+          "name": "changes when the evaluated packages/shared/src/connection-intent-guidance.ts changes",
+          "passed": true
+        },
+        {
+          "name": "retains credential-free prerequisites inside the exact campaign root",
+          "passed": true
+        }
+      ],
+      "total": 158,
+      "passedTests": 158,
+      "failedTests": 0,
+      "pendingTests": 0
+    },
+    {
+      "id": "SH-1-rust",
+      "passed": true,
+      "exitCode": 0
+    }
+  ]
+}
