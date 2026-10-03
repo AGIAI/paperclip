@@ -130,7 +130,9 @@ try {
   assert.equal(receipt.target, 'linux-x64');
   assert.equal(readFileSync(join(consumer, 'package-lock.json'), 'utf8'), consumerLock, 'Pi setup must preserve the consumer dependency graph');
   // Verified launch leases also materialize the runtime in private scratch.
-  console.log(isolated(['node', '/packages/pi-public-install-probe.mjs', '/consumer/node_modules/@paperclipai/server'], { temporarySizeMiB: 2048 }).toString().trim());
+  // Docker defaults tmpfs to noexec. The offline admission probe must execute
+  // its verified private snapshot while keeping lifecycle/download scratch noexec.
+  console.log(isolated(['node', '/packages/pi-public-install-probe.mjs', '/consumer/node_modules/@paperclipai/server'], { temporarySizeMiB: 2048, temporaryExecutable: true }).toString().trim());
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

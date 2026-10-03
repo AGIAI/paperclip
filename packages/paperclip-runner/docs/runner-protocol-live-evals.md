@@ -196,6 +196,9 @@ replacement objective or proof that a newly requested action is already done.
 Finishing the provider turn does not authorize an unrequested mock task-state
 change or completion comment. These harness instructions keep single-operation
 cases bounded while leaving their operation and state-effect assertions intact.
+For a bounded request, the harness also asks for only the context needed to act.
+A brief progress request does not require an investigation of unrelated history
+or documents. Its grader still requires the actual successful mutation.
 
 ACPX accounting uses the qualified server's billable token semantics: Claude
 and Codex already include reasoning in output, and Codex has no cache-write

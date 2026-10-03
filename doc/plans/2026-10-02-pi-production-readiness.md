@@ -202,15 +202,48 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   the verifier gives that launch's private runtime snapshots the same bounded
   scratch capacity. This is not counted as a passing Linux receipt yet.
 
+## Resumed goal — 2026-10-02 21:50 CDT
+
+- Current-head `6cfc79b50` CI completes with two failures: Linux Canary
+  admission and a 15-second issue-document route test timeout. Runner, build,
+  typecheck and the browser shards pass. The prerequisite stack remains open.
+- The Linux admission failure is reproduced through normal public packages.
+  Pi setup verifies profile 14, then admission times out in 37.3 seconds.
+  A credential-free direct native RPC response arrives in 2.4 seconds.
+  The actual Docker scratch mount reports `noexec`; executing the verified
+  snapshot fails with `EACCES`. The offline runtime probe now uses executable
+  scratch. Lifecycle and download probes explicitly retain `noexec`.
+  The same installed Linux packages then pass the unchanged public admission
+  assertions in 17.2 seconds, with clean Runner exit and zero prompts.
+  This receipt uses historical shipping source `dc2b053f3` and native inputs
+  from `3728bb45f`. It diagnoses and validates the sandbox correction; it does
+  not qualify the new native source or the final Daytona image.
+- A provider-free regression proves that receipt-limit deadline settlement
+  attempted to restart the provider when polling terminal evidence. The run
+  now closes permanently at that deadline. Existing startup admission fences
+  remain intact. All 333 native core tests and the original Mac interruption
+  test pass after the correction. The regression checks both the existing
+  controller and a fresh controller with unacknowledged terminal evidence.
+- Runner progress evidence contains four successful reads and continued model
+  output before the 120-second cutoff, including unrelated fixture notes.
+  Bounded direct-eval instructions now ask for the minimum context needed,
+  the requested action, then turn completion. Case assertions and timeout
+  stay unchanged. All 35 Runner session-contract tests and TypeScript
+  typecheck pass. The retained paid failure remains unchanged. Fresh exact
+  source packaging and profile-14 eval definitions must precede a paid retry.
+- No paid call, key reset, fallback credential, workflow change, lockfile
+  commit, merge or release occurs in this resumed diagnosis.
+
 ## Remaining work in order
 
 1. Diagnose Linux closed admission from its real startup and cleanup evidence.
-   Resolve `session_handshake_timeout` and classify the observed Mac ownership
-   contention. Produce the normal Linux public-install and companion receipts,
+   Recheck the corrected executable-scratch probe at the final source and
+   classify the observed Mac ownership contention. Produce the normal Linux
+   public-install and companion receipts,
    then import an immutable exact-source Daytona image without an override.
    Do not accept a timeout as an installation pass or widen the admission limit.
 2. Resolve Runner `context-before-action` with a concrete behavioral correction.
-   It currently repeats context calls without the required progress mutation.
+   Bounded harness instructions are corrected; the retained attempt has no progress mutation.
    Do not run an unchanged paid retry. Then execute the remaining explicit
    Runner cases and the full 26-cell Product matrix on the frozen candidate.
 3. Close the prerequisite review stack and final CI gates. Retain the local
