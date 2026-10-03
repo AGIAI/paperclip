@@ -737,6 +737,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         }
       };
 
+      const accountingLog = createUsageCheckpointLog(bufferedOnLog, ctx.onUsage, stdout => {
+        const parsed = parsePiJsonl(stdout);
+        return { usage: parsed.usage, costUsd: parsed.usage.costUsd, usageBasis: "per_run", provider, biller: resolvePiBiller(runtimeEnv, provider), billingType: "unknown", model, complete: parsed.sawAgentEnd };
+      });
       const proc = await runAdapterExecutionTargetProcess(runId, runtimeExecutionTarget, command, args, {
         onProcessStopped: providerStop.beginInvocation(),
         cwd,
@@ -745,13 +749,11 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         graceSec,
         onSpawn,
         onRuntimeProgress: ctx.onRuntimeProgress,
-        onLog: createUsageCheckpointLog(bufferedOnLog, ctx.onUsage, stdout => {
-          const parsed = parsePiJsonl(stdout);
-          return { usage: parsed.usage, costUsd: parsed.usage.costUsd, usageBasis: "per_run", provider, biller: resolvePiBiller(runtimeEnv, provider), billingType: "unknown", model, complete: false };
-        }),
+        onLog: accountingLog,
         runLogTail: paperclipBridge?.runLogTail,
         settleRunDisposition: paperclipBridge?.settleRunDisposition,
       });
+      await accountingLog.flush({ complete: !proc.timedOut && !proc.signal });
 
       // Flush any remaining buffer content
       if (stdoutBuffer) {
@@ -778,6 +780,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           exitCode: attempt.proc.exitCode,
           signal: attempt.proc.signal,
           timedOut: true,
+        usageComplete: attempt.parsed.sawAgentEnd,
         usage: attempt.parsed.usage, usageBasis: "per_run", provider, biller: resolvePiBiller(runtimeEnv, provider), model, billingType: "unknown", costUsd: attempt.parsed.usage.costUsd,
           errorMessage: `Timed out after ${timeoutSec}s`,
           clearSession: clearSessionOnMissingSession,

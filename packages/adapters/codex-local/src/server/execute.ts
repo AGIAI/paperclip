@@ -1347,6 +1347,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           settleRunDisposition: paperclipBridge?.settleRunDisposition,
           localProcessSandbox,
         });
+        await accountingLog.flush({ complete: !proc.timedOut && !proc.signal });
         const cleanedStderr = stripCodexRolloutNoise(proc.stderr);
         return {
           proc: {
@@ -1428,6 +1429,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           exitCode: attempt.proc.exitCode,
           signal: attempt.proc.signal,
           timedOut: true,
+        usageComplete: attempt.parsed.sawProtocolTerminalEvent,
           usage: attempt.parsed.usage,
           usageBasis: "per_run",
           provider: "openai",
