@@ -93,7 +93,7 @@ export function explicitlyRequestsFileOutput(objective: string): boolean {
         const referencesOutput = /^(?:attach|export|send|provide|give|return)$/iu.test(create[0])
           && /^\s+(?:me\s+)?(?:it|them|this|that)\b/iu.test(output);
         const referencedAttachment = referencesOutput && /^(?:attach|export)$/iu.test(create[0]);
-        const inline = /\b(?:in (?:the )?chat|inline|as (?:a |the )?(?:chat )?(?:reply|message)|(?:its|the) contents)\b/iu.test(output);
+        const inline = /\b(?:inline|(?:in|within|inside|as|into)\s+(?:(?:a|an|the|my|your|our|final|plain|markdown|chat|fenced)\s+)*(?:chat|response|reply|message|comment|text|code block)|(?:its|the) contents)\b/iu.test(output);
         const downloadable = referencedAttachment || (!/\b(?:no|without)\s+(?:downloadable|attached)/iu.test(output)
           && /\b(?:downloadable|attached)\s+(?:file|report|document|checklist|draft)\b/iu.test(output));
         const publication = /\b(?:downloadable|attached|attach|export|send|provide|return|give)\b/iu.test(create[0] + output);

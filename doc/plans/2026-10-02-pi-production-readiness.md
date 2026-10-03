@@ -438,6 +438,12 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
   completion tests pass, including both delivery and inline instructions. The
   exact failed agent-files objective still needs no download; no paid retry runs
   on these intermediate candidates.
+- At `062902cea`, review identifies an inline code-block response that the
+  delivery rule still treats as a download. Recognize explicit response/reply,
+  code-block and plain-text formats as inline content. An actual attachment
+  named in that same response still requires publication. All 89 completion
+  tests pass, including the database-bound reviewed example. Keep the paid
+  campaign closed until clean review and fresh installed qualification.
 - The `0d65753fe` broad local suite is terminal with 736 passed files, four
   skipped files, 14,982 passed tests and three failures: a Git scan load
   single-flight count (497 versus 498) and two HTTP socket resets. One associated
