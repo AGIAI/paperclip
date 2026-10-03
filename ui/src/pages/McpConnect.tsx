@@ -30,6 +30,7 @@ function McpConnectRequest({ id }: { id: string }) {
     <Card className="block space-y-4 p-6">
       <Paperclip className="size-8 text-foreground" role="img" aria-label="Paperclip" />
       <h1 className="text-xl font-semibold">Connect your assistant to Paperclip</h1>
+      {data && <p className="break-words text-sm">Access for <bdi className="font-medium">{data.clientName}</bdi> · <bdi className="text-muted-foreground">{data.redirectOrigin}</bdi></p>}
       {request.isPending && <p className="text-sm text-muted-foreground">Loading connection request…</p>}
       {request.error && <p className="text-sm text-destructive">{request.error.message} Start a new connection from your assistant.</p>}
       {data && <>

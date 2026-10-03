@@ -48,6 +48,17 @@ function setup() {
   };
 }
 
+it("identifies the receiving app and registered callback origin before approval", async () => {
+  route.companyId = "company-one";
+  const page = setup();
+  try {
+    await vi.waitFor(() => expect(page.container.textContent).toContain("Access for Assistant · https://assistant.example.test"));
+    expect(page.connect().disabled).toBe(false);
+    // Registration metadata is text, never an executable link or verified-app badge.
+    expect(page.container.querySelector('a[href="https://assistant.example.test"]')).toBeNull();
+  } finally { page.cleanup(); }
+});
+
 it("defaults eligible writes on and preserves opt-out across organization changes and refetch", async () => {
   const page = setup();
   try {

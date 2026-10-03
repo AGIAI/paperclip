@@ -80,6 +80,11 @@ installation requires the separate deployment and submission work below.
 - Browser consent: `/mcp-connect/:requestId`.
 - User connection management: `/assistant-connections`.
 
+Consent identifies the registered client and callback origin. Client names are
+self-reported; verify the receiving domain before approving an unexpected request.
+The hosted organization chooser also identifies the original client and callback
+origin before its tenant handoff.
+
 Dynamic registration uses public clients, exact registered HTTPS redirect URIs
 (or HTTP loopback), authorization code flow, S256 PKCE and exact resource
 binding to the endpoint. Authorization requests expire in ten minutes; codes
