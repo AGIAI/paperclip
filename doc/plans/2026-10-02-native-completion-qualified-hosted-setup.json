@@ -1,0 +1,540 @@
+{
+  "schema": "paperclip.native-completion-qualified-hosted-setup.v1",
+  "cells": 12,
+  "providerCalls": 0,
+  "gradedPairs": 0,
+  "workflowRuns": {
+    "candidate": 37097177178,
+    "baseline": 37097164241
+  },
+  "records": [
+    {
+      "variant": "candidate",
+      "cell": "native-completion.runner-acpx-claude.local.native-blocked-report",
+      "artifactId": "11265275075",
+      "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+      "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+        "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+        "archiveSha256": "9eea3fb9df6cd024c7667f6513e8ab4b772e54efbe34921454a04cf6a3eec837",
+        "workflowRunId": "37097177178",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-0a9c5a75164cd0b02115ff12273aadb6a86c9464-37097177178-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/candidate-native-completion.runner-acpx-claude.local.native-blocked-report.json",
+      "receiptSha256": "2b336a30defb0c0cd5c481b28bccac4c2d7b61b012b0b7aecd3cab9b3aa78c83"
+    },
+    {
+      "variant": "candidate",
+      "cell": "native-completion.runner-codex.local.assigned-skill-explicit-invocation",
+      "artifactId": "11264877315",
+      "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+      "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+        "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+        "archiveSha256": "9eea3fb9df6cd024c7667f6513e8ab4b772e54efbe34921454a04cf6a3eec837",
+        "workflowRunId": "37097177178",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-0a9c5a75164cd0b02115ff12273aadb6a86c9464-37097177178-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/candidate-native-completion.runner-codex.local.assigned-skill-explicit-invocation.json",
+      "receiptSha256": "7d295024d23dd81bf7d56e807378c0a2ff94faf49886e0739aa42876a641a058"
+    },
+    {
+      "variant": "candidate",
+      "cell": "native-completion.runner-opencode.local.assigned-skill-explicit-invocation",
+      "artifactId": "11265090449",
+      "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+      "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+        "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+        "archiveSha256": "9eea3fb9df6cd024c7667f6513e8ab4b772e54efbe34921454a04cf6a3eec837",
+        "workflowRunId": "37097177178",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-0a9c5a75164cd0b02115ff12273aadb6a86c9464-37097177178-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/candidate-native-completion.runner-opencode.local.assigned-skill-explicit-invocation.json",
+      "receiptSha256": "4c6c4a1ab533e4d590cd642f133625f1fb1a2325279279514e200075f74f66e3"
+    },
+    {
+      "variant": "candidate",
+      "cell": "native-completion.runner-opencode.local.native-blocked-report",
+      "artifactId": "11264389672",
+      "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+      "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+        "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+        "archiveSha256": "9eea3fb9df6cd024c7667f6513e8ab4b772e54efbe34921454a04cf6a3eec837",
+        "workflowRunId": "37097177178",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-0a9c5a75164cd0b02115ff12273aadb6a86c9464-37097177178-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/candidate-native-completion.runner-opencode.local.native-blocked-report.json",
+      "receiptSha256": "e4aa804ea6215c0eb6bc2df975f591a64ccf3726529c16b00c9360a3866a03d2"
+    },
+    {
+      "variant": "candidate",
+      "cell": "native-completion.runner-codex.local.native-blocked-report",
+      "artifactId": "11264039991",
+      "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+      "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+        "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+        "archiveSha256": "9eea3fb9df6cd024c7667f6513e8ab4b772e54efbe34921454a04cf6a3eec837",
+        "workflowRunId": "37097177178",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-0a9c5a75164cd0b02115ff12273aadb6a86c9464-37097177178-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/candidate-native-completion.runner-codex.local.native-blocked-report.json",
+      "receiptSha256": "e71e8216914c2f9432dfafa8351780abfdadaf9ed658b808bc921fe166c6403e"
+    },
+    {
+      "variant": "candidate",
+      "cell": "native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+      "artifactId": "11264937136",
+      "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+      "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "0a9c5a75164cd0b02115ff12273aadb6a86c9464",
+        "sourceFingerprint": "977d88b7318da67938c3e1e4cff7b10481b739b34cd6a13e12b1be5f833506b2",
+        "archiveSha256": "9eea3fb9df6cd024c7667f6513e8ab4b772e54efbe34921454a04cf6a3eec837",
+        "workflowRunId": "37097177178",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-0a9c5a75164cd0b02115ff12273aadb6a86c9464-37097177178-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/candidate-native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation.json",
+      "receiptSha256": "263ee5cf8d11dc41b1e9ae716f9e12e38a2f6b145a081918d92c27f9b32efe5c"
+    },
+    {
+      "variant": "baseline",
+      "cell": "native-completion.runner-opencode.local.native-blocked-report",
+      "artifactId": "11264224944",
+      "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+      "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+        "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+        "archiveSha256": "7f29e7851f68f9e0914e90e98504826bfcdacce39a93a6d691d2e50ae1350e36",
+        "workflowRunId": "37097164241",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-00a761b967f9f73b0f45069c0ba828fae277a76e-37097164241-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/baseline-native-completion.runner-opencode.local.native-blocked-report.json",
+      "receiptSha256": "505e2b89978aeef25b859e942a472c574f5807aa20c2275341e5968a3bbb4392"
+    },
+    {
+      "variant": "baseline",
+      "cell": "native-completion.runner-acpx-claude.local.native-blocked-report",
+      "artifactId": "11264787483",
+      "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+      "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+        "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+        "archiveSha256": "7f29e7851f68f9e0914e90e98504826bfcdacce39a93a6d691d2e50ae1350e36",
+        "workflowRunId": "37097164241",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-00a761b967f9f73b0f45069c0ba828fae277a76e-37097164241-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/baseline-native-completion.runner-acpx-claude.local.native-blocked-report.json",
+      "receiptSha256": "ca5deb11c6215ccfbb2479c5f57c585dd2d03451cb6f8488a3999dc1da13ae57"
+    },
+    {
+      "variant": "baseline",
+      "cell": "native-completion.runner-codex.local.assigned-skill-explicit-invocation",
+      "artifactId": "11264639198",
+      "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+      "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+        "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+        "archiveSha256": "7f29e7851f68f9e0914e90e98504826bfcdacce39a93a6d691d2e50ae1350e36",
+        "workflowRunId": "37097164241",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-00a761b967f9f73b0f45069c0ba828fae277a76e-37097164241-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/baseline-native-completion.runner-codex.local.assigned-skill-explicit-invocation.json",
+      "receiptSha256": "b9b67ff51d8ab679d14926869418e5d5a920bbf9c994900892fa61241467afc2"
+    },
+    {
+      "variant": "baseline",
+      "cell": "native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation",
+      "artifactId": "11264677726",
+      "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+      "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+        "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+        "archiveSha256": "7f29e7851f68f9e0914e90e98504826bfcdacce39a93a6d691d2e50ae1350e36",
+        "workflowRunId": "37097164241",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-00a761b967f9f73b0f45069c0ba828fae277a76e-37097164241-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/baseline-native-completion.runner-acpx-claude.local.assigned-skill-explicit-invocation.json",
+      "receiptSha256": "ec044f5520cd07ff349fd1f6051bc4a96de8c3bfaa247a09394e1c6f949559fa"
+    },
+    {
+      "variant": "baseline",
+      "cell": "native-completion.runner-opencode.local.assigned-skill-explicit-invocation",
+      "artifactId": "11265270060",
+      "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+      "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+        "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+        "archiveSha256": "7f29e7851f68f9e0914e90e98504826bfcdacce39a93a6d691d2e50ae1350e36",
+        "workflowRunId": "37097164241",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-00a761b967f9f73b0f45069c0ba828fae277a76e-37097164241-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/baseline-native-completion.runner-opencode.local.assigned-skill-explicit-invocation.json",
+      "receiptSha256": "f191191bf70dfe08ca60d33404d271f02a211adc5c0a448c273f25ef06827d23"
+    },
+    {
+      "variant": "baseline",
+      "cell": "native-completion.runner-codex.local.native-blocked-report",
+      "artifactId": "11264782530",
+      "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+      "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+      "fixtureFingerprint": "6568138fe6b1abb1d44a48f9678140c2e63adb2edb09e07047492250cf5e40d6",
+      "providerCalls": 0,
+      "live": "not_run",
+      "classification": "pre_provider_calibration_mock",
+      "sourceErrors": [],
+      "immutable": true,
+      "layering": true,
+      "setupPassed": true,
+      "runnerdProvenance": {
+        "schema": "paperclip.native-completion-runnerd-provenance.v1",
+        "mode": "trusted_hosted_archive",
+        "passed": true,
+        "selectedPath": "packages/paperclip-runner/runner/target/debug/paperclip-runnerd",
+        "binarySha256": "9a007971dd5079bbc4d7c5bf6d385560c7e3fdedefb4990188836bbd5ae016a2",
+        "binaryBytes": 394443976,
+        "archiveMemberBytes": 394443976,
+        "sourceSha": "00a761b967f9f73b0f45069c0ba828fae277a76e",
+        "sourceFingerprint": "07d39fd1b0e9fc15455193e0c77550b5da21fe67d4cdf4abb1599ecea786799b",
+        "archiveSha256": "7f29e7851f68f9e0914e90e98504826bfcdacce39a93a6d691d2e50ae1350e36",
+        "workflowRunId": "37097164241",
+        "workflowRunAttempt": "1",
+        "artifactName": "runner-e2e-build-00a761b967f9f73b0f45069c0ba828fae277a76e-37097164241-1",
+        "errors": []
+      },
+      "failedGates": [
+        "NC-eval"
+      ],
+      "failedAssertions": [
+        {
+          "name": "native completion credential-free admission retains credential-free prerequisites inside the exact campaign root and verifies them",
+          "messages": [
+            "Error: Native completion prerequisite source SHA differs from the requested immutable source.\n    at verifyNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:47:11)\n    at Module.prepareNativeCompletionPreflight (/home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.ts:58:3)\n    at /home/runner/_work/paperclip/paperclip/tests/runner-e2e/native-completion-admission.test.ts:46:21\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20\n    at new Promise (<anonymous>)\n    at runWithCancel (file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)\n    at file:///home/runner/_work/paperclip/paperclip/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20\n    at new Promise (<anonymous>)"
+          ]
+        }
+      ],
+      "receipt": "doc/plans/2026-10-02-native-completion-qualified-hosted-setup-receipts/baseline-native-completion.runner-codex.local.native-blocked-report.json",
+      "receiptSha256": "d4422c6637b0cf9ff38edd06dd0cac7485e3685755c633f14bc905c2ce9aab21"
+    }
+  ]
+}
