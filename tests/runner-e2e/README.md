@@ -1597,3 +1597,20 @@ The v3 hiring grader uses turn-accounting v2 in both executable guards. It requi
 The live fixture retries entire bracketed observations, waits for both known task callbacks and attributed replies (including batching), checks untruncated pending-wake diagnostics, and requires two equal settled observations. Silence before outbox enqueue is not delivery. Five-turn generic accounting remains calibrated for no owed notifications; this delegated fixture owes two completions. All actual runs remain counted for usage and cost. Retained original, limited sidecar-v1, initial executable, and stricter v3 assessments remain separately versioned; no models are rerun by the repair.
 
 Recovery-state retention uses raw cleanup results before evidence publication. An owner-only resource-admission marker also preserves state if the test worker dies before producing a result. Confirmed bootstrap failures before allocation remove their temporary state and retain their original failure classification.
+
+## Public installed release smoke
+
+Set `PAPERCLIP_RUNNER_E2E_INSTALLED_CLI` to the absolute public consumer's
+`paperclipai/dist/index.js` for an installed-product acceptance run. Install the
+public package graph and run its ordinary `runtime setup cursor` first. The
+supervisor launches that compiled CLI from its own package directory; repository
+server-entry patches, provider-bin shims, loader injection, provider packs and
+native binary overrides are removed from the server environment. Qualification
+admission is rejected, so this path requires production admission. Use the
+existing browser/API cases and encrypted company-secret fixture path.
+
+For a diagnosed failure campaign, `PAPERCLIP_RUNNER_E2E_KEEP_FAILED_PRIVATE=1`
+retains the attempt's owner-only private directory after a failed case even
+when owned cleanup passed. This does not alter the case or cleanup outcome.
+Private traces and database files must not be published. Unconfirmed cleanup
+always preserves recovery state regardless of this optional diagnostic flag.

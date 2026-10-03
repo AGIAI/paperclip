@@ -485,7 +485,7 @@ async function runAttempt(input: {
   const publishedResultPaths = new Map<string, string>();
   let attemptSecrets: string[] = [];
   let processCleanupFailed = false;
-  const rawCleanupResults: Array<{ cleanup: string; synthetic: boolean }> = [];
+  const rawCleanupResults: Array<{ cleanup: string; synthetic: boolean; status: string }> = [];
   try {
     const paperclipHome = path.join(temporaryRoot, "paperclip-home");
     const workspace = path.join(temporaryRoot, "workspace");
@@ -630,7 +630,7 @@ async function runAttempt(input: {
         );
         const result = await readResult(resultPath, fallback);
         // Keep cleanup authority before evidence copying/publication can fail.
-        rawCleanupResults.push({ cleanup: result.cleanup, synthetic: result === fallback });
+        rawCleanupResults.push({ cleanup: result.cleanup, synthetic: result === fallback, status: result.status });
         return enforceResultProcessIntegrity(result, processResult);
       }),
     );
@@ -810,6 +810,11 @@ async function runAttempt(input: {
       // Deleting it after the controller exits would strand uncertain creates.
       await chmod(temporaryRoot, 0o700);
       cleanupError = new Error(`Preserving private recovery state after unconfirmed cleanup: ${temporaryRoot}`);
+    } else if (process.env.PAPERCLIP_RUNNER_E2E_KEEP_FAILED_PRIVATE === "1" && rawCleanupResults.some(result => result.status === "failed")) {
+      // Explicit diagnosis only. Confirmed resource cleanup stays confirmed;
+      // keep private traces for investigation without publishing provider data.
+      await chmod(temporaryRoot, 0o700);
+      console.warn(`Retained private failed-case diagnostics: ${temporaryRoot}`);
     } else if (
       temporaryRoot.startsWith(`${os.tmpdir()}${path.sep}paperclip-runner-e2e-`)
     ) {
