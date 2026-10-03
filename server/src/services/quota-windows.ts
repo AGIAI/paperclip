@@ -4,7 +4,7 @@ import { listServerAdapters } from "../adapters/registry.js";
 import { logger } from "../middleware/logger.js";
 import { createHash } from "node:crypto";
 import { eq, inArray, and } from "drizzle-orm";
-import { companySecrets, companySecretVersions, type Db } from "@paperclipai/db";
+import { companySecrets, companySecretVersions, userSecretDefinitions, type Db } from "@paperclipai/db";
 import { fetchCodexQuota } from "@paperclipai/adapter-codex-local/server";
 import { fetchClaudeQuota } from "@paperclipai/adapter-claude-local/server";
 import { aiConnectionService } from "./ai-connections.js";
@@ -25,15 +25,19 @@ export async function fetchCompanyQuotaWindows(db: Db, companyId: string, userId
   // Resolve revision metadata before consulting the cache, so rotation and
   // revocation cannot serve windows associated with an old credential.
   const secretIds = accounts.flatMap(row => row.grant.credentialSecretRefs.map(ref => ref.secretId));
-  const revisions = secretIds.length ? await db.select({ id: companySecrets.id, latestVersion: companySecrets.latestVersion, status: companySecrets.status, versionStatus: companySecretVersions.status, revokedAt: companySecretVersions.revokedAt })
-    .from(companySecrets).leftJoin(companySecretVersions, and(eq(companySecretVersions.secretId, companySecrets.id), eq(companySecretVersions.version, companySecrets.latestVersion))).where(and(eq(companySecrets.companyId, companyId), inArray(companySecrets.id, secretIds))) : [];
+  const revisions = secretIds.length ? await db.select({ id: companySecrets.id, latestVersion: companySecrets.latestVersion, status: companySecrets.status, versionStatus: companySecretVersions.status, revokedAt: companySecretVersions.revokedAt, definitionId: companySecrets.userSecretDefinitionId, definitionStatus: userSecretDefinitions.status, definitionDeletedAt: userSecretDefinitions.deletedAt })
+    .from(companySecrets).leftJoin(companySecretVersions, and(eq(companySecretVersions.secretId, companySecrets.id), eq(companySecretVersions.version, companySecrets.latestVersion))).leftJoin(userSecretDefinitions, and(eq(userSecretDefinitions.id, companySecrets.userSecretDefinitionId), eq(userSecretDefinitions.companyId, companyId))).where(and(eq(companySecrets.companyId, companyId), inArray(companySecrets.id, secretIds))) : [];
   async function readAccount(row: (typeof accounts)[number]): Promise<ProviderQuotaResult> {
     const accountKey = createHash("sha256").update(JSON.stringify([companyId, row.connection.id, row.grant.id,
       row.connection.updatedAt, row.grant.updatedAt,
       row.grant.credentialSecretRefs.map(ref => [ref.secretId, revisions.find(r => r.id === ref.secretId)]),
     ])).digest("hex");
     const base = { provider: row.summary.provider, accountKey, accountLabel: row.summary.name, source: "managed-connection" };
-    if (row.summary.status !== "connected") {
+    const definitionUnavailable = row.grant.credentialSecretRefs.some(ref => {
+      const revision = revisions.find(value => value.id === ref.secretId);
+      return revision?.definitionId && (revision.definitionStatus !== "active" || revision.definitionDeletedAt !== null);
+    });
+    if (row.summary.status !== "connected" || definitionUnavailable) {
       return { ...base, ok: false, errorFamily: "credentials_unavailable", error: publicError, windows: [] };
     }
     const key = `${userId}:${accountKey}`;
