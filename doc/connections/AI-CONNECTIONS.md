@@ -523,3 +523,12 @@ identity, a different grant or responsible user, or a changed credential generat
 requires a fresh session. The metadata is removed before passing session params
 to an adapter. Temporary authentication-home paths do not change the configuration
 fingerprint. These checks do not relax current connection authorization.
+
+Quota polling has a 20-second response deadline. Once a managed OAuth refresh
+starts, it has its own 60-second request lifetime so the replacement token body
+can still be read and committed after the dashboard stops waiting. A successful
+refreshed observation uses the saved grant/secret revision as its cache identity.
+A reconnect during credential resolution defers the poll instead of associating
+one account's quota with another revision. Both Costs surfaces retain matching
+successful observations on transient failures and clear them on authentication
+failure or credential rotation.
