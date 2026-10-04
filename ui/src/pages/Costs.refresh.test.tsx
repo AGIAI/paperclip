@@ -116,6 +116,25 @@ describe.each([
     expect(container.textContent).not.toContain("Showing the last loaded data");
   });
 
+  it.each(["Last 7 Days", "Last 30 Days"])("retains all report cache entries for %s across midnight", async (period) => {
+    vi.setSystemTime(new Date(2026, 8, 29, 23, 59, 50));
+    await render(); await click(period);
+    await click("Providers"); await click("Billers"); await click("Overview");
+    const keys = client.getQueryCache().getAll().map(q => q.queryHash).sort();
+    const firstFrom = api.summary.mock.calls.at(-1)![1];
+    const row = container.querySelector('[title="Bender"]')!.closest(".border");
+    for (const method of ["summary", "financeEvents", "byProvider", "byBiller"]) api[method].mockRejectedValue(new Error("private failure"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); }); await settle();
+    await act(async () => { await vi.advanceTimersByTimeAsync(31_000); }); await settle();
+    expect(api.summary.mock.calls.at(-1)![1]).not.toBe(firstFrom);
+    expect(container.textContent).toContain("$402.88");
+    expect(container.querySelector('[title="Bender"]')?.closest(".border")).toBe(row);
+    expect(container.textContent).toContain("Showing the last loaded data");
+    expect(container.textContent).not.toContain("private failure");
+    await click("Providers"); await click("Billers");
+    expect(client.getQueryCache().getAll().map(q => q.queryHash).sort()).toEqual(keys);
+  });
+
   it("does not reuse another company's or selected period's data after a failed initial load", async () => {
     await render();
     api.summary.mockRejectedValue(new Error("database detail must stay private"));

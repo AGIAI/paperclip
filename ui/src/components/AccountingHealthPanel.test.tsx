@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../api/client";
 import { AccountingHealthPanel } from "./AccountingHealthPanel";
 const api = vi.hoisted(() => ({ health: vi.fn(), inspect: vi.fn(), repair: vi.fn(), retry: vi.fn(), invoices: vi.fn(), importInvoice: vi.fn(), reconcile: vi.fn(), adjust: vi.fn() }));
 vi.mock("../api/accounting", () => ({ accountingApi: api }));
@@ -66,6 +67,42 @@ describe("operator accounting tools", () => {
     expect(button("Apply reviewed correction").disabled).toBe(true);
     expect(container.querySelector<HTMLInputElement>('[aria-label="Accounting repair reason"]')!.value).toBe("Repair company drift");
     expect(api.adjust).not.toHaveBeenCalled();
+  });
+
+  it("confirms an uncertain correction with the original payload after reconciliation changes", async () => {
+    api.invoices.mockResolvedValue([{ id: "first", biller: "openai", externalId: "invoice-one" }, { id: "second", biller: "openai", externalId: "invoice-two" }]);
+    api.reconcile.mockResolvedValue({ invoice: { externalId: "invoice-one", currency: "USD" }, lines: [{ id: "line", externalId: "charge", status: "difference", matchedEventId: "event", recordedCents: "1", amountCents: "2", differenceCents: "1" }] });
+    api.adjust.mockRejectedValueOnce(new Error("Response lost")).mockResolvedValue({});
+    await render(); await click("Open accounting tools"); await click("openai · invoice-one");
+    await input("Invoice correction reason", "Provider receipt"); await click("Apply reviewed correction");
+    const original = structuredClone(api.adjust.mock.calls[0]);
+    expect(original).toEqual(["one", "event", { idempotencyKey: "invoice-line:line", invoiceLineId: "line", expectedCents: "1", correctedCents: "2", reason: "Provider receipt", pricing: { source: "provider_invoice", evidence: "invoice-one" } }]);
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Invoice correction reason"]')!.disabled).toBe(true);
+    expect(button("openai · invoice-two").disabled).toBe(true);
+    expect(button("Apply reviewed correction").disabled).toBe(true);
+    // A focus refresh may already show the saved adjustment. Confirmation must
+    // still be available and must not derive its payload from these new totals.
+    api.reconcile.mockResolvedValue({ invoice: { externalId: "invoice-one", currency: "USD" }, lines: [] });
+    await act(async () => { await client.invalidateQueries(); }); await flush();
+    await click("Hide accounting tools"); await click("Open accounting tools");
+    await click("Confirm original correction");
+    expect(api.adjust.mock.calls[1]).toEqual(original);
+    expect(container.textContent).toContain("Correction recorded");
+    expect(container.textContent).not.toContain("Confirm original correction");
+    expect(button("openai · invoice-two").disabled).toBe(false);
+  });
+
+  it("refreshes rejected corrections so the operator can review current evidence", async () => {
+    api.invoices.mockResolvedValue([{ id: "first", biller: "openai", externalId: "invoice-one" }]);
+    api.reconcile.mockResolvedValue({ invoice: { externalId: "invoice-one", currency: "USD" }, lines: [{ id: "line", externalId: "charge", status: "difference", matchedEventId: "event", recordedCents: "1", amountCents: "2", differenceCents: "1" }] });
+    api.adjust.mockRejectedValue(new ApiError("Evidence changed", 409, {}));
+    await render(); await click("Open accounting tools"); await click("openai · invoice-one");
+    await input("Invoice correction reason", "Provider receipt");
+    const reads = api.reconcile.mock.calls.length;
+    await click("Apply reviewed correction");
+    expect(api.reconcile.mock.calls.length).toBeGreaterThan(reads);
+    expect(container.querySelector<HTMLInputElement>('[aria-label="Invoice correction reason"]')!.disabled).toBe(false);
+    expect(container.textContent).not.toContain("Confirm original correction");
   });
 
   it("retries only ready receipts and keeps incomplete evidence visible", async () => {
