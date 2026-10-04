@@ -24,6 +24,41 @@ function project(value: unknown, depth = 0, field = ""): unknown {
       : project(entry, depth + 1, key)]));
 }
 
+/** Bound strings before buffering whole JSON lines. Provider records can carry
+ * many MiB of conversation text alongside a small usage object. Preserve JSON
+ * escapes across chunks so discarded text cannot corrupt the accounting fields. */
+function createStringCompactor() {
+  let inString = false, length = 0, escapeRemaining = 0;
+  let escapeCode = false, keepEscape = false;
+  return (chunk: string) => {
+    let output = "";
+    for (const character of chunk) {
+      if (character === "\n") {
+        inString = false; escapeRemaining = 0; escapeCode = false;
+        output += character;
+      } else if (!inString) {
+        output += character;
+        if (character === '"') { inString = true; length = 0; }
+      } else if (escapeRemaining > 0) {
+        if (keepEscape) output += character;
+        escapeRemaining = escapeCode && character === "u" ? 4 : escapeRemaining - 1;
+        escapeCode = false;
+        length++;
+      } else if (character === '"') {
+        output += character; inString = false;
+      } else if (character === "\\") {
+        keepEscape = length < 250;
+        if (keepEscape) output += character;
+        escapeRemaining = 1; escapeCode = true; length++;
+      } else {
+        if (length < 250) output += character;
+        length++;
+      }
+    }
+    return output;
+  };
+}
+
 /** The consumer incrementally parses only new records (never the full history).
  * A fresh instance belongs to one CLI attempt. Call flush() after its process
  * exits, before retrying or final result handling. Checkpoint failures are
@@ -34,6 +69,7 @@ export function createUsageCheckpointLog(
   consume: (records: string) => AdapterUsageCheckpoint | null,
 ) {
   const attemptId = randomUUID();
+  const compactStrings = createStringCompactor();
   let remainder = "", accounting = "", previous = "";
   let snapshot: AdapterUsageCheckpoint | null = null;
   let failure: unknown;
@@ -63,7 +99,7 @@ export function createUsageCheckpointLog(
   const log = async (stream: "stdout" | "stderr", chunk: string) => {
     if (onUsage && !failed && stream === "stdout") {
       try {
-        remainder += chunk;
+        remainder += compactStrings(chunk);
         const lines = remainder.split("\n"); remainder = lines.pop() ?? "";
         if (remainder.length > 8 * 1024 * 1024) throw new Error("Accounting protocol line exceeds 8 MiB");
         for (const line of lines) retain(line);
