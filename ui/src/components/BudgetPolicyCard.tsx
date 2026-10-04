@@ -1,5 +1,5 @@
 import { centsToUsd, usdToCents } from "@paperclipai/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { BudgetPolicySummary } from "@paperclipai/shared";
 import { AlertTriangle, PauseCircle, ShieldAlert, Wallet } from "lucide-react";
 import { cn, formatCents } from "../lib/utils";
@@ -53,13 +53,16 @@ export function BudgetPolicyCard({
   }, [summary.amount]);
 
   const [reservation, setReservation] = useState(centsToUsd(summary.reservationCents ?? 0));
+  const reservationErrorId = useId();
   useEffect(() => setReservation(centsToUsd(summary.reservationCents ?? 0)), [summary.reservationCents]);
   let reservationCents: string | null = null;
   try { if (!reservation.trim().startsWith("-")) reservationCents = usdToCents(reservation.trim()); } catch { /* Shown as invalid input below. */ }
   const reservationSection = onReservationChange ? <div className="space-y-2">
     <label className="text-sm">Reserve per run (USD)
-      <Input aria-label="Reserve per run (USD)" value={reservation} onChange={event => setReservation(event.target.value)} inputMode="decimal" />
+      <Input aria-label="Reserve per run (USD)" aria-invalid={reservationCents === null} aria-describedby={reservationCents === null ? reservationErrorId : undefined}
+        value={reservation} onChange={event => setReservation(event.target.value)} inputMode="decimal" />
     </label>
+    {reservationCents === null && <p id={reservationErrorId} role="alert" className="text-xs text-destructive">Enter a valid amount of zero or more.</p>}
     <p className="text-xs text-muted-foreground">An estimate held before each run starts. Zero disables the estimate. Actual provider charges may exceed it.</p>
     <Button variant="outline" disabled={isSaving || reservationCents === null || reservationCents === (summary.reservationCents ?? "0.0000000")}
       onClick={() => { if (reservationCents !== null) onReservationChange(reservationCents); }}>Update reservation</Button>
