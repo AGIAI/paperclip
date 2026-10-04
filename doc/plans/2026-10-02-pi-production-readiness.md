@@ -27,7 +27,7 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases are attempted at `0bd040093`: five pass; context-before-action retains its 120-second terminal timeout, and finish-task retains use of the advisory report without the required task mutation. One context/document workflow retry passes only after verified protection against the recorded host sleep; its original failure stays unchanged. The seven `b148b73ea` passes remain historical. |
 | Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Exact-source public CLI/server installation and normal Pi setup pass on all three platforms. Public immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47` imports into native Linux Daytona and passes closed admission. Temporary sandbox cleanup passes. Image jobs 37102904889, 37106313185 and 37110683910 are terminal/cancelled. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Verified head `8872f9d4a` has 53 successful CI checks and two skips. Its completed Greptile review scores 5/5 and retains the CI-wording finding corrected by this documentation update. Each subsequent head requires its own completed CI and review. Predecessor `82ee4ec91` has the same CI count and no unresolved root review thread after one permitted rerun; its original browser failure stays retained and its nondeterministic cause is unproven. Shipping inputs remain equivalent to `0bd040093`. The complete native Linux command remains open: a repeat with normal npm restored fails six suites after disk drops below the unchanged 256 MiB workspace reserve. Reclaiming only the unused owned pnpm store restores 2.75 GiB free; all six failed suites (75 tests) then pass unchanged. The next full repeat passes typecheck and is running tests; build remains unexecuted. Every original failed command stays failed. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held until all 33 cases pass. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Verified head `e90143a5c` has 53 successful CI checks, two skips, a completed Greptile 5/5 and no unresolved root review threads. Each subsequent head requires its own completed CI and review. Predecessor `82ee4ec91` has the same CI count and no unresolved root review thread after one permitted rerun; its original browser failure stays retained and its nondeterministic cause is unproven. Shipping inputs remain equivalent to `0bd040093`. The earlier complete native Linux command fails six suites after normal npm is restored after disk drops below the unchanged 256 MiB workspace reserve. Reclaiming only the unused owned pnpm store restores 2.75 GiB free; all six failed suites (75 tests) then pass unchanged. The next full repeat passes typecheck and the complete test command: 29,447 tests pass with 69 skips, including all 149 serialized suites. The command still fails when build lacks the Node headers required for SO_PEERCRED. A checksum-verified complete Node 24.21.0 distribution with identical executable bytes repairs headers in the owned tools. That corrected build retains exit 137 and the sandbox OOM counter at its 8 GiB limit; the resize endpoint returns 404. Full native Linux CI job 111317358779 independently passes the same `pnpm build` across all 35 build projects, with Node 24.21.0 and Rust 1.97.1. Its checkout tree exactly equals `e90143a5c`. Typecheck, the complete tests and the full CI build now pass on proven equivalent executable inputs. The failed Daytona wrapper and both failed builds stay failed. Every original failed command stays failed. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held until all 33 cases pass. No merge or release. |
 
 ## Bounded execution
 
@@ -66,7 +66,11 @@ Remaining corrections and evidence:
 
 - Local agent-files and Runner context-before-action reach successful tools,
   then exceed the unchanged 120-second terminal bound. No supported product
-  correction is identified yet; both paid failures stay held.
+  correction is identified yet; both paid failures stay held. A fresh
+  read-only power-log audit places the original Runner context timeout between
+  a full wake and the next sleep, with no state event during its 11:54–11:57 UTC
+  attempt. The separate workflow-context/document sleep correction does not
+  establish a correction for this failure.
 - Runner finish-task reports the run through `paperclip_finish` without invoking
   the advertised `finish_task` mutation. Preserve the mock authority distinction
   and the failed behavior grade. The actual failed attempt advertises and
@@ -208,13 +212,13 @@ Remaining corrections and evidence:
   stderr prevents proving the original cause. Do not regrade the full command,
   change host limits, or stop unrelated servers as part of that inference.
 
-The next work is to collect the exact live full Linux verification command;
+The next work is to finish fresh CI/review for this documentation update;
 correct the diagnosed remote fault fixture and restrictive
 bootstrap only within clarified workflow scope; and find concrete corrections
-for the remaining failed behavior and observer cases. CI at `8872f9d4a` passes
-53 checks with two skips. Its completed Greptile review scores 5/5 but retains
-the CI-wording finding addressed by this documentation update. Each subsequent
-head requires its own completed CI and review before handoff.
+for the remaining failed behavior and observer cases. CI at `e90143a5c` passes
+53 checks with two skips. Its completed Greptile review scores 5/5 and all root
+review threads are resolved. Each subsequent head requires its own completed CI
+and review before handoff.
 The two restrictive Daytona first attempts
 remain held for the identified bootstrap/oracle constraint. All failed paid cases
 require a concrete correction before retry. Keep
@@ -645,8 +649,8 @@ rollout held until every original release gate is proven.
 
 ## Remaining work in order
 
-1. Complete the full typecheck, test and build commands in the isolated native
-   Linux workspace. Keep the original Mac command failures and the unclassified
+1. Preserve the completed full native Linux typecheck, test and build evidence.
+   Keep the original Mac command failures and the unclassified
    OAuth socket failure. The first Linux command compiles the Runner but fails
    staging because the check wrapper sets Cargo's target outside the staging
    script's expected path. Correcting that owned check environment permits one
@@ -657,8 +661,20 @@ rollout held until every original release gate is proven.
    preserve that failed command. The next repeat fails six suites after free
    disk drops below the unchanged workspace reserve. Reclaiming only the unused
    owned pnpm store restores 2.75 GiB; all 75 tests in those six suites pass
-   unchanged. The current full repeat passes typecheck and is running tests;
-   build is unexecuted. This is not a completed gate.
+   unchanged. The current full repeat passes typecheck and all tests: 29,447
+   passes and 69 skips across 164 groups, including every serialized suite.
+   Build then fails immediately on missing Node headers. The complete official
+   Node 24.21.0 archive verifies against its checksum and contains the identical
+   pinned executable. Installing it only in the owned build tools supplies the
+   matching headers without changing the sealed provider pack. The corrected
+   build then exits 137; the kernel records one OOM kill and a peak at the
+   8 GiB cap. The resize request fails with an unavailable API endpoint.
+   The full native Linux CI build independently passes `pnpm build` across all
+   35 build projects using Node 24.21.0 and Rust 1.97.1. [Job 111317358779](https://github.com/paperclipai/paperclip/actions/runs/37162051919/job/111317358779)
+   checks out `5e36276bd`; its complete Git tree exactly equals PR head `e90143a5c`.
+   Shipping inputs also match the frozen artifacts. This proves the required
+   full build command without regrading either failed Daytona build or claiming
+   a passing combined Daytona wrapper.
    Normal ARM/Intel/native-Linux installation and immutable Daytona import now
    pass; retain their exact-source receipts and original failures.
 2. Complete all seven Runner cases and all 26 Product cells on the frozen
