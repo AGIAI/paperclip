@@ -135,6 +135,24 @@ describe.each([
     expect(client.getQueryCache().getAll().map(q => q.queryHash).sort()).toEqual(keys);
   });
 
+  it.each([
+    ["Month to Date (UTC)", "2026-09-30T23:59:50Z"],
+    ["Year to Date", "2026-12-31T23:59:50Z"],
+  ])("starts a new %s report at its UTC boundary", async (period, boundary) => {
+    vi.setSystemTime(new Date(boundary));
+    await render(); await click(period);
+    expect(container.textContent).toContain("$402.88");
+    const previousFrom = api.summary.mock.calls.at(-1)![1];
+    api.summary.mockRejectedValue(new Error("private failure"));
+    api.financeEvents.mockRejectedValue(new Error("private failure"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000); }); await settle();
+    expect(api.summary.mock.calls.at(-1)![1]).not.toBe(previousFrom);
+    expect(container.textContent).not.toContain("$402.88");
+    expect(container.textContent).not.toContain("Bender");
+    expect(container.textContent).toContain("Cost data could not be loaded");
+    expect(container.textContent).not.toContain("private failure");
+  });
+
   it("does not reuse another company's or selected period's data after a failed initial load", async () => {
     await render();
     api.summary.mockRejectedValue(new Error("database detail must stay private"));

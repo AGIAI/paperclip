@@ -890,9 +890,13 @@ export function aiConnectionService(db: Db) {
       const auth = JSON.parse(current);
       const refreshToken = auth.tokens?.refresh_token;
       if (typeof refreshToken !== "string" || !refreshToken) throw new Error("authentication_required");
+      // Once exchange starts, its lifetime is independent of the dashboard's
+      // shorter deadline. A consumed single-use token must still be read/saved.
+      signal.throwIfAborted();
+      const refreshSignal = AbortSignal.timeout(60_000);
       // Matches the Codex OAuth client (openai/codex, login/src/auth/manager.rs).
       const response = await fetch("https://auth.openai.com/oauth/token", {
-        method: "POST", redirect: "error", signal,
+        method: "POST", redirect: "error", signal: refreshSignal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ client_id: "app_EMoamEEZ73f0CkXaXp7hrann", grant_type: "refresh_token", refresh_token: refreshToken }),
       });

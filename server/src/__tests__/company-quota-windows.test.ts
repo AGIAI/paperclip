@@ -160,13 +160,35 @@ describe("connected account quotas", () => {
   it("refreshes an expired selected credential once before retrying quota", async () => {
     mocks.accounts.mockResolvedValue([account("refresh-account")]);
     mocks.codex.mockRejectedValueOnce(new Error("chatgpt wham api returned 401"));
-    mocks.refresh.mockResolvedValueOnce(JSON.stringify({ tokens: { access_token: "new-token", account_id: "same-account" } }));
+    mocks.refresh.mockImplementationOnce(async () => {
+      const value = JSON.stringify({ tokens: { access_token: "new-token", account_id: "same-account" } });
+      revision++;
+      mocks.credential.mockResolvedValue(value);
+      return value;
+    });
     const [result] = await fetchCompanyQuotaWindows(db, "refresh-company", "user");
     expect(result.ok).toBe(true);
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     expect(mocks.codex).toHaveBeenLastCalledWith("new-token", "same-account", expect.any(AbortSignal));
     expect(JSON.stringify(result)).not.toContain("new-token");
+    const again = await fetchCompanyQuotaWindows(db, "refresh-company", "user");
+    expect(again[0]).toEqual(result);
+    expect(mocks.codex).toHaveBeenCalledTimes(2); // initial 401 and one refreshed read
+
   });
+  it("does not cache a quota read under a credential revision that changed during resolution", async () => {
+    mocks.accounts.mockResolvedValue([account("rotating-during-refresh")]);
+    mocks.codex.mockRejectedValueOnce(new Error("401"));
+    mocks.refresh.mockResolvedValue(JSON.stringify({ accessToken: "refreshed" }));
+    mocks.credential.mockResolvedValueOnce(JSON.stringify({ accessToken: "expired" })).mockImplementationOnce(async () => {
+      revision++;
+      return JSON.stringify({ accessToken: "changed-again" });
+    });
+    const [result] = await fetchCompanyQuotaWindows(db, "changing-revision", "user");
+    expect(result).toMatchObject({ ok: false, errorFamily: "provider_unavailable" });
+    expect(mocks.codex).toHaveBeenCalledTimes(1);
+  });
+
   it("bounds a stalled credential lookup and preserves its account identity", async () => {
     vi.useFakeTimers();
     mocks.accounts.mockResolvedValue([account("stalled")]);

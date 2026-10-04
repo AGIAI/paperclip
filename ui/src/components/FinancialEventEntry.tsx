@@ -9,6 +9,7 @@ import {
   usdToCents,
 } from "@paperclipai/shared";
 import { costsApi } from "../api/costs";
+import { ApiError } from "../api/client";
 import { accountingApi } from "../api/accounting";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -109,6 +110,13 @@ function Entry({ companyId }: { companyId: string }) {
         await costsApi.createFinanceEvent(companyId, parsed);
       }
       return true;
+    },
+    onError: (error) => {
+      // These responses reject the request before it can save. Lost responses,
+      // server failures and idempotency conflicts must retain the original.
+      if (error instanceof ApiError && [400, 401, 403, 404, 422].includes(error.status)) {
+        setSubmittedCharge(null);
+      }
     },
     onSuccess: async (saved) => {
       if (!saved) return;
