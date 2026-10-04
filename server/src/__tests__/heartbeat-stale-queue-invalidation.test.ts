@@ -196,7 +196,9 @@ describeEmbeddedPostgres("heartbeat stale queued-run invalidation", () => {
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Terminal run status precedes accounting and comment finalization. Drain
+    // the registered executions before taking TRUNCATE locks during teardown.
+    await heartbeat.drainActiveRunExecutions();
     await cleanupHeartbeatInvalidationFixture(db);
   });
 

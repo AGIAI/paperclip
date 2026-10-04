@@ -29,6 +29,29 @@ describe("usage checkpoint stream", () => {
     expect(parser.mock.calls[0][0]).not.toContain("private content");
   });
 
+  it("bounds large content strings before buffering and preserves usage on either side", async () => {
+    const saved = vi.fn(); const parser = vi.fn(createParser()); const output = vi.fn();
+    const log = createUsageCheckpointLog(output, saved, parser);
+    const line = JSON.stringify({ type: "result", usage: { inputTokens: 2, costUsd: 0.25 }, messages: [{ content: '"\\\n'.repeat(2 * 1024 * 1024) }], model: "after-large-content" });
+    for (let offset = 0; offset < line.length; offset += 4093) await log("stdout", line.slice(offset, offset + 4093));
+    await log.flush();
+    expect(saved).toHaveBeenLastCalledWith(expect.objectContaining({ costUsd: 0.25, complete: true }));
+    expect(parser.mock.calls[0][0]).toContain("after-large-content");
+    expect(parser.mock.calls[0][0].length).toBeLessThan(1000);
+    expect(output.mock.calls.map(call => call[1]).join("")).toBe(line);
+  });
+
+  it("preserves Unicode and escaped quotes across the string limit and chunk boundaries", async () => {
+    for (const suffix of ['\\u1234', '\\"', '\\\\']) {
+      const saved = vi.fn(); const parser = vi.fn(createParser());
+      const log = createUsageCheckpointLog(vi.fn(), saved, parser);
+      const line = '{"type":"result","text":"' + 'a'.repeat(249) + suffix + 'discarded","usage":{"costUsd":0.25}}\n';
+      for (const character of line) await log("stdout", character);
+      await log.flush();
+      expect(saved).toHaveBeenCalledWith(expect.objectContaining({ costUsd: 0.25 }));
+    }
+  });
+
   it("surfaces a persistence failure outside the local process's best-effort log path", async () => {
     const failure = new Error("Receipt storage unavailable");
     const output = vi.fn(); const saved = vi.fn().mockRejectedValue(failure);

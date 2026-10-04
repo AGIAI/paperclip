@@ -7838,6 +7838,22 @@ async function executePaperclipNativeSessionWithinScope(
     binding: { ...input.execution.binding, normalizedSessionId: nativeSessionKey(input.execution), runnerSourceInstanceId: effectiveRunnerInstanceId },
     resolve: resolveNativeRuntimeRequest,
   });
+  let observedAccountingUsage: Record<string, unknown> | null = null;
+  let observedAccountingTurn: string | undefined;
+  const persistAccountingUsage = async (usage: Record<string, unknown> | null, complete: boolean) => {
+    const accountingUsage = normalizeNativeUsage(usage, { inputIncludesCacheReads: input.execution.provider.kind === "codex" });
+    const accountingCost = nativeUsageCostUsd(usage, input.execution.provider);
+    const billing = resolveNativeBilling(input.execution.provider, input.runnerEnvironment, input.billingIdentity);
+    await input.onUsage?.({ usage: accountingUsage, ...billing, complete, usageBasis: "per_run",
+      model: input.execution.provider.model ?? "unknown", costUsd: accountingCost ?? null });
+    if (!input.onUsage) await input.db.update(heartbeatRuns).set({
+      costAccountingPending: true,
+      usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || ${JSON.stringify({
+        ...accountingUsage, ...billing, accountingReceiptReady: complete, model: input.execution.provider.model ?? "unknown",
+        costUsd: accountingCost ?? null, usageSource: "per_run",
+      })}::jsonb`,
+    }).where(and(eq(heartbeatRuns.id, input.execution.binding.runId), eq(heartbeatRuns.companyId, input.execution.binding.companyId), isNull(heartbeatRuns.costAccountedAt)));
+  };
   let completedConversationReply: PrpEvent | null = null;
   const controlPlane = new PaperclipControlPlanePort(
     input.db,
@@ -7854,6 +7870,25 @@ async function executePaperclipNativeSessionWithinScope(
     },
     {
       onCommittedEvent: async (event) => {
+        const payload = record(event.payload);
+        const usage = record(payload.usage);
+        const delta = record(usage.runDelta);
+        if (event.eventType === "turn.started" && observedAccountingUsage) {
+          observedAccountingTurn = undefined;
+          await persistAccountingUsage(observedAccountingUsage, false);
+        }
+        // Only an explicit run delta is safe here: session totals can include
+        // earlier work. Save provisional evidence before ancillary finalizers.
+        if (payload.kind === "usage" && numericUsageField(delta, ["inputTokens"]) !== undefined
+          && numericUsageField(delta, ["outputTokens"]) !== undefined) {
+          observedAccountingUsage = { runDelta: usage.runDelta };
+          observedAccountingTurn = event.turnId;
+          await persistAccountingUsage(observedAccountingUsage, false);
+        }
+        if (["turn.failed", "turn.cancelled", "turn.interrupted"].includes(event.eventType)
+          && observedAccountingUsage && event.turnId === observedAccountingTurn) {
+          await persistAccountingUsage(observedAccountingUsage, true);
+        }
         await toolTrace.observe(event);
         if (event.eventType === "item.completed" &&
             record(event.payload).kind === "agentMessage" &&
@@ -8602,18 +8637,8 @@ async function executePaperclipNativeSessionWithinScope(
     );
     // Persist provider accounting before any workspace/issue finalization. A
     // detached controller or failed finalizer must not lose a completed turn.
-    const accountingUsage = normalizeNativeUsage(native.usage, { inputIncludesCacheReads: input.execution.provider.kind === "codex" });
-    const accountingCost = nativeUsageCostUsd(native.usage, input.execution.provider);
-    const billing = resolveNativeBilling(input.execution.provider, input.runnerEnvironment, input.billingIdentity);
-    await input.onUsage?.({ usage: accountingUsage, ...billing, complete: true, usageBasis: "per_run",
-      model: input.execution.provider.model ?? "unknown", costUsd: accountingCost ?? null });
-    if (!input.onUsage) await input.db.update(heartbeatRuns).set({
-      costAccountingPending: true,
-      usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || ${JSON.stringify({
-        ...accountingUsage, ...billing, accountingReceiptReady: true, model: input.execution.provider.model ?? "unknown",
-        costUsd: accountingCost ?? null, usageSource: "per_run",
-      })}::jsonb`,
-    }).where(and(eq(heartbeatRuns.id, input.execution.binding.runId), eq(heartbeatRuns.companyId, input.execution.binding.companyId), isNull(heartbeatRuns.costAccountedAt)));
+    native = { ...native, usage: native.usage ?? observedAccountingUsage };
+    await persistAccountingUsage(native.usage, true);
     try {
       await completeManagedNativeCredentialTurn(managedCredentialSession);
     } catch {
