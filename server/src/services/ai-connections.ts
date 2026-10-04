@@ -1,6 +1,6 @@
 import { syncConnectionCredentialBindings } from "./connection-credential-bindings.js";
 import { createHash, randomUUID } from "node:crypto";
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import {
   type Db,
   authUsers,
@@ -8,6 +8,7 @@ import {
   aiConnectionDefaults,
   aiProviderDefaults,
   agents,
+  heartbeatRuns,
   companyMemberships,
   companySecrets,
   userSecretDefinitions,
@@ -848,6 +849,63 @@ export function aiConnectionService(db: Db) {
       });
     });
   }
+  /** Refresh only the selected vaulted identity, serializing rotation and reconnect. */
+  async function refreshQuotaCredential(row: Parameters<typeof credential>[0], failedValue: string, signal: AbortSignal) {
+    return db.transaction(async (tx) => {
+      const companyId = row.connection.companyId;
+      const [grant] = await tx.select().from(connectionGrants).where(and(
+        eq(connectionGrants.id, row.grant.id), eq(connectionGrants.companyId, companyId),
+        eq(connectionGrants.connectionId, row.connection.id),
+      )).for("update");
+      if (!grant || grant.status !== "active") throw new Error("credentials_unavailable");
+      const ref = grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential");
+      if (!ref) throw new Error("credentials_unavailable");
+      await tx.select({ id: companySecrets.id }).from(companySecrets).where(and(
+        eq(companySecrets.id, ref.secretId), eq(companySecrets.companyId, companyId),
+      )).for("update");
+      const current = await aiConnectionService(tx as unknown as Db).credential({ connection: row.connection, grant });
+      signal.throwIfAborted();
+      // Another poll, an agent, or reconnect already supplied a newer credential.
+      if (current !== failedValue) return current;
+      // An active provider may rotate this single-use token itself. Defer polling
+      // until its credential write-back instead of invalidating its live copy.
+      const [active] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
+        .innerJoin(agents, and(eq(agents.id, heartbeatRuns.agentId), eq(agents.companyId, companyId))).where(and(
+        eq(heartbeatRuns.companyId, companyId), inArray(heartbeatRuns.status, ["queued", "running"]),
+        or(sql`${heartbeatRuns.contextSnapshot}->'aiConnection'->>'grantId' = ${grant.id}`,
+          sql`${agents.runtimeConfig}->'aiConnection'->>'provider' = 'openai'`, eq(agents.adapterType, "codex_local")),
+      )).limit(1);
+      if (active) throw new Error("provider_unavailable");
+      const auth = JSON.parse(current);
+      const refreshToken = auth.tokens?.refresh_token;
+      if (typeof refreshToken !== "string" || !refreshToken) throw new Error("authentication_required");
+      // Matches the Codex OAuth client (openai/codex, login/src/auth/manager.rs).
+      const response = await fetch("https://auth.openai.com/oauth/token", {
+        method: "POST", redirect: "error", signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: "app_EMoamEEZ73f0CkXaXp7hrann", grant_type: "refresh_token", refresh_token: refreshToken }),
+      });
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error(response.status === 400 || response.status === 401 ? "authentication_required" : "provider_unavailable");
+      }
+      const tokens = await response.json() as Record<string, unknown>;
+      if (typeof tokens.access_token !== "string" || !tokens.access_token) throw new Error("provider_unavailable");
+      const refreshed = JSON.stringify({ ...auth, tokens: { ...auth.tokens,
+        access_token: tokens.access_token,
+        ...(typeof tokens.refresh_token === "string" && tokens.refresh_token ? { refresh_token: tokens.refresh_token } : {}),
+        ...(typeof tokens.id_token === "string" && tokens.id_token ? { id_token: tokens.id_token } : {}),
+      }, last_refresh: new Date().toISOString() });
+      // Persist the rotated token even if the quota deadline expires after the
+      // successful exchange; losing it would strand all subsequent executions.
+      await secretService(tx).rotate(ref.secretId, { value: refreshed }, { userId: grant.subjectUserId });
+      await tx.update(connectionGrants).set({ updatedAt: new Date() }).where(eq(connectionGrants.id, grant.id));
+      await logActivity(tx as unknown as Db, { companyId, actorType: "system", actorId: "quota",
+        action: "ai_connection.credential_refreshed", entityType: "tool_connection", entityId: row.connection.id,
+        details: { provider: "openai", grantId: grant.id } });
+      return refreshed;
+    });
+  }
   // A quota read uses the same credential audience as execution. Operator status
   // alone never grants access to another member's personal subscription.
   async function quotaAccounts(companyId: string, userId: string) {
@@ -860,5 +918,5 @@ export function aiConnectionService(db: Db) {
       return [{ ...row, summary }];
     });
   }
-  return { list, quotaAccounts, select, credential, probeUsage, save, setDefault, membership, markAuthenticationFailed };
+  return { list, quotaAccounts, refreshQuotaCredential, select, credential, probeUsage, save, setDefault, membership, markAuthenticationFailed };
 }
