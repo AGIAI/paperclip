@@ -332,7 +332,7 @@ export function Costs() {
     staleTime: 10_000,
   });
 
-  const { data: quotaData, isLoading: quotaLoading } = useQuery({
+  const { data: quotaData, isLoading: quotaLoading, error: quotaFetchError } = useQuery({
     queryKey: queryKeys.usageQuotaWindows(companyId),
     queryFn: () => costsApi.quotaWindows(companyId),
     structuralSharing: (previous, incoming) => retainQuotaWindows(
@@ -405,8 +405,12 @@ export function Costs() {
     for (const result of quotaData ?? []) {
       if (!result.ok && result.error) map.set(result.provider, result.error);
     }
+    if (quotaFetchError) {
+      map.set("anthropic", "unavailable");
+      map.set("openai", "unavailable");
+    }
     return map;
-  }, [quotaData]);
+  }, [quotaData, quotaFetchError]);
 
   const quotaSourcesByProvider = useMemo(() => {
     const map = new Map<string, string>();
@@ -980,6 +984,7 @@ export function Costs() {
                           windowRows={windowSpendByProvider.get(provider) ?? []}
                           showDeficitNotch={deficitNotchByProvider.get(provider) ?? false}
                           quotaAccounts={quotaData?.filter(account => account.provider === provider)}
+                      quotaRequestFailed={Boolean(quotaFetchError)}
                           quotaWindows={quotaWindowsByProvider.get(provider) ?? []}
                           quotaError={quotaErrorsByProvider.get(provider) ?? null}
                           quotaSource={quotaSourcesByProvider.get(provider) ?? null}
@@ -1001,6 +1006,7 @@ export function Costs() {
                       windowRows={windowSpendByProvider.get(provider) ?? []}
                       showDeficitNotch={deficitNotchByProvider.get(provider) ?? false}
                       quotaAccounts={quotaData?.filter(account => account.provider === provider)}
+                      quotaRequestFailed={Boolean(quotaFetchError)}
                           quotaWindows={quotaWindowsByProvider.get(provider) ?? []}
                       quotaError={quotaErrorsByProvider.get(provider) ?? null}
                       quotaSource={quotaSourcesByProvider.get(provider) ?? null}

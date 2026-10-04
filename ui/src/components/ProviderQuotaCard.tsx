@@ -35,6 +35,7 @@ interface ProviderQuotaCardProps {
   quotaSource?: string | null;
   quotaLoading?: boolean;
   quotaAccounts?: ProviderQuotaResult[];
+  quotaRequestFailed?: boolean;
 }
 
 export function ProviderQuotaCard({
@@ -50,6 +51,7 @@ export function ProviderQuotaCard({
   quotaSource = null,
   quotaLoading = false,
   quotaAccounts,
+  quotaRequestFailed,
 }: ProviderQuotaCardProps) {
   // single-pass aggregation over rows — memoized so the 8 derived values are not
   // recomputed on every parent render tick (providers tab polls every 30s, and each
@@ -325,7 +327,7 @@ export function ProviderQuotaCard({
               {quotaLoading ? (
                 <QuotaPanelSkeleton />
               ) : quotaAccounts ? (
-                <AccountQuotaPanels accounts={quotaAccounts} />
+                <AccountQuotaPanels accounts={quotaAccounts} failed={quotaRequestFailed} />
               ) : isClaudeQuotaPanel ? (
                 <ClaudeSubscriptionPanel windows={quotaWindows} source={quotaSource} error={quotaError} />
               ) : isCodexQuotaPanel ? (

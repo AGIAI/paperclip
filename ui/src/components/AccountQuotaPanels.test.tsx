@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { formatDateTime } from "../lib/utils";
 import { AccountQuotaPanels } from "./AccountQuotaPanels";
 
 describe("account quota panels", () => {
@@ -18,7 +19,7 @@ describe("account quota panels", () => {
       { provider: "openai", accountKey: "a", ok: true, windows: [{ label: "Credits", usedPercent: null, resetsAt: "2026-10-05T00:00:00Z", valueLabel: "$5 remaining" }] },
     ]} />);
     expect(html).toContain("$5 remaining");
-    expect(html).toContain(`Resets ${new Date("2026-10-05T00:00:00Z").toLocaleString()}`);
+    expect(html).toContain(`Resets ${formatDateTime("2026-10-05T00:00:00Z")}`);
     expect(html).not.toContain("0%");
     expect(html).not.toContain('role="progressbar"');
   });
