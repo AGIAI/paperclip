@@ -439,7 +439,7 @@ export function companyService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
 
         if (data.budgetMonthlyCents !== undefined) {
           await budgetServiceInTransaction(tx as unknown as Db, budgetPublications).upsertPolicy(id, {
-            scopeType: "company", scopeId: id, amount: data.budgetMonthlyCents, windowKind: "calendar_month_utc",
+            scopeType: "company", scopeId: id, amount: data.budgetMonthlyCents, isActive: data.budgetMonthlyCents > 0, windowKind: "calendar_month_utc",
           }, actor.actorType === "user" ? actor.actorId : null);
           const [budgetUpdated] = await tx.select().from(companies).where(eq(companies.id, id));
           Object.assign(updated, budgetUpdated);

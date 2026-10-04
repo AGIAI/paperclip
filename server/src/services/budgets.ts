@@ -627,7 +627,7 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
 
       if (!existing && input.amount === undefined) throw unprocessable("Amount is required for a new budget policy");
       const amount = Math.max(0, Math.floor(input.amount ?? existing!.amount));
-      const nextIsActive = amount > 0 && (input.isActive ?? (input.amount !== undefined ? true : existing?.isActive ?? true));
+      const nextIsActive = amount > 0 && (input.isActive ?? existing?.isActive ?? true);
       const now = new Date();
       const row = existing
         ? await db

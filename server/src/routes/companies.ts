@@ -279,8 +279,9 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
   const router = Router();
   const importTransferSpoolRoot =
     options?.importTransferSpoolRoot ?? resolveDefaultImportTransferSpoolRoot();
-  const heartbeat = heartbeatService(db);
-  const svc = companyService(db, { cancelWorkForScope: heartbeat.cancelBudgetScopeWork });
+  const svc = companyService(db, {
+    cancelWorkForScope: (scope) => heartbeatService(db).cancelBudgetScopeWork(scope),
+  });
   const agents = agentService(db);
   const portability = companyPortabilityService(db, storage);
   const access = accessService(db);

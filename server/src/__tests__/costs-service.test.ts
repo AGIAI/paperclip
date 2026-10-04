@@ -398,6 +398,7 @@ describe("cost routes", () => {
         scopeType: "agent",
         scopeId: "agent-1",
         amount: 2500,
+        isActive: true,
         windowKind: "calendar_month_utc",
       },
       "board-user",
