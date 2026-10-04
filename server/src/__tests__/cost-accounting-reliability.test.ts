@@ -311,6 +311,10 @@ databaseDescribe("cost accounting reliability (PostgreSQL)", () => {
     await budgets.upsertPolicy(f.company.id, { ...identity, amount: 200, hardStopEnabled: false, warnPercent: 60, notifyEnabled: false }, "other-operator");
     const saved = await budgets.upsertPolicy(f.company.id, upsertBudgetPolicySchema.parse({ ...identity, reservationCents: "10" }), "board");
     expect(saved).toMatchObject({ amount: 200, hardStopEnabled: false, warnPercent: 60, notifyEnabled: false, reservationCents: "10.0000000" });
+    await budgets.upsertPolicy(f.company.id, { ...identity, isActive: false }, "other-operator");
+    const disabled = await budgets.upsertPolicy(f.company.id, upsertBudgetPolicySchema.parse({ ...identity, amount: 300 }), "board");
+    expect(await db.select({ amount: budgetPolicies.amount, isActive: budgetPolicies.isActive }).from(budgetPolicies).where(eq(budgetPolicies.id, disabled.policyId))).toEqual([{ amount: 300, isActive: false }]);
+    expect(disabled).toMatchObject({ amount: 0, isActive: false, hardStopEnabled: false, warnPercent: 60, notifyEnabled: false, reservationCents: "10.0000000" });
     await expect(budgets.upsertPolicy(f.company.id, { scopeType: "project", scopeId: f.project.id, reservationCents: "1" }, "board")).rejects.toThrow("Amount is required");
   });
 

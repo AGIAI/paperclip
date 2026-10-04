@@ -831,7 +831,7 @@ export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
 
       if (normalizedPatch.budgetMonthlyCents !== undefined) {
         await budgetServiceInTransaction(txDb, publications).upsertPolicy(existing.companyId, {
-          scopeType: "agent", scopeId: id, amount: normalizedPatch.budgetMonthlyCents, windowKind: "calendar_month_utc",
+          scopeType: "agent", scopeId: id, amount: normalizedPatch.budgetMonthlyCents, isActive: normalizedPatch.budgetMonthlyCents > 0, windowKind: "calendar_month_utc",
         }, options?.recordRevision?.createdByUserId ?? null);
       }
       const normalizedUpdated = await agentService(txDb).getById(updated.id);

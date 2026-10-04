@@ -166,7 +166,9 @@ provider adapters with missing prices still do.
 
 Budget policy updates may omit unchanged settings, including the amount for an
 existing policy. Omitted settings are read under the accounting transaction lock.
-Creating a policy still requires an amount. Generic agent and company budget
+Creating a policy still requires an amount. Partial edits preserve an explicitly
+disabled policy; the legacy monthly-cap endpoints explicitly enable a positive
+cap and disable a zero cap. Generic agent and company budget
 edits deliver hard-stop cancellation after their transaction commits.
 
 Status-card update costs retain the ledger's fractional-cent storage precision.
