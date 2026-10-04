@@ -73,6 +73,8 @@ The spool lives at `<instance-root>/accounting-receipts`. Directories use mode 0
 
 Before replacing a stopped run's recorder, recovery saves every pending spool receipt for that company and run, independently of the bounded startup sweep. A save failure blocks replacement and retains the old source for retry. Native recovery then restores its latest journal snapshot; subsequent cumulative run usage replaces that snapshot rather than adding it twice.
 
+Settlement also drains every pending spool receipt for the run under the company accounting lock before checking completeness or acknowledging usage. A newer partial receipt prevents settlement of an older complete snapshot. Recovered journal writes and ledger settlement share a transaction; spool files are removed only after its commit, so a failed charge or projection write leaves the original evidence available for retry. A concurrent replay rename causes a rescan; repeated file movement defers settlement.
+
 The spool survives process death on persistent local storage, including the tested boundary before the first database write. It does not survive destruction of that storage, and cannot recover provider activity that was never emitted as usage. Back up persistent instance storage together with PostgreSQL. No arbitrary provider-log scraping or automatic provider re-execution occurs during accounting recovery.
 
 Board-only routes under `/api/companies/:companyId/accounting` provide:
@@ -181,7 +183,10 @@ Failed native turns persist observed run-delta usage before semantic-result
 finalization. A matching terminal failure, cancellation, or interruption closes
 that usage snapshot; ledger acknowledgement still waits until the native coordinator
 has a result or a terminal failure. A retryable failed heartbeat keeps its
-reservation and can resume. Replacing its recorder restores the native run's
+reservation and can resume. An open native coordinator's pending accounting
+blocks fresh admission without pausing or cancelling its own recovery. Actual
+budget overruns, unpriced charges, and closed runs missing accounting still
+enforce hard stops; manual pauses remain unchanged. Replacing its recorder restores the native run's
 cumulative snapshot; recovery does not add the same tokens twice, and an empty
 final result cannot erase earlier observed usage. Missing terminal evidence and
 session-only totals remain pending.

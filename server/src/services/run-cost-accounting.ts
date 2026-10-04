@@ -5,6 +5,8 @@ import { withAccountingTransaction } from "./accounting-transaction.js";
 import { createCostEventInTransaction } from "./costs.js";
 import { budgetService, deliverBudgetEnforcement, type BudgetServiceHooks } from "./budgets.js";
 import { logger } from "../middleware/logger.js";
+import { promises as fs } from "node:fs";
+import { recoverPendingRunUsageReceipts } from "./usage-receipts.js";
 
 const terminalStatuses = ["succeeded", "failed", "timed_out", "cancelled", "interrupted"];
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -16,13 +18,19 @@ const amount = (value: unknown) => typeof value === "number" && Number.isFinite(
 export async function accountRunCost(db: Db, runId: string, hooks: BudgetServiceHooks = {}) {
   const [identity] = await db.select({ companyId: heartbeatRuns.companyId }).from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
   if (!identity) return false;
+  let recoveredFiles: string[] = [];
   const accounted = await withAccountingTransaction(db, identity.companyId, async (tx, publications) => {
-    const [run] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)).for("update");
+    let [run] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)).for("update");
     if (!run?.costAccountingPending || !terminalStatuses.includes(run.status)) return false;
     if (run.costAccountedAt) {
       await tx.update(heartbeatRuns).set({ costAccountingPending: false }).where(eq(heartbeatRuns.id, run.id));
       return false;
     }
+    // The bounded global replay can leave a newer receipt behind an older
+    // complete snapshot. Drain this run under the accounting lock before
+    // deciding completeness, and retain disk evidence until the outer commit.
+    recoveredFiles = await recoverPendingRunUsageReceipts(tx, { ...identity, runId }, undefined, true);
+    [run] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
     const preProviderFailure = object(object(run.resultJson).executionRecovery).providerWorkStarted === false
       || object(run.usageJson).accountingProviderWorkStarted === false;
     // A failed native turn is not necessarily the end of this heartbeat: the
@@ -118,6 +126,10 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
     await tx.update(heartbeatRuns).set({ costAccountingPending: false, costAccountedAt: new Date(), accountingProjectionVersion: "v2", accountingLastError: null, accountingLastAttemptAt: new Date() }).where(eq(heartbeatRuns.id, run.id));
     return true;
   });
+  for (const file of recoveredFiles) {
+    try { await fs.rm(file, { force: true }); }
+    catch (error) { logger.warn({ err: error, runId }, "Accounting committed; recovered receipt cleanup will retry"); }
+  }
   await deliverBudgetEnforcement(db, hooks, identity.companyId);
   return accounted;
 }
