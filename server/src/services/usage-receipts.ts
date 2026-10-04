@@ -113,6 +113,30 @@ export async function replayUsageReceipts(db: Db, directory = usageReceiptSpoolP
   return { replayed, failed };
 }
 
+async function recoverPendingRunUsageReceipts(db: Db, input: { companyId: string; runId: string }, directory: string) {
+  // Startup's bounded sweep may not reach this run. Its stopped controller's
+  // durable evidence must reach the journal before we fence that source out.
+  // A failed save deliberately aborts replacement so recovery can retry.
+  for (const name of (await fs.readdir(directory)).filter(name => name.endsWith(".json"))) {
+    const file = path.join(directory, name);
+    let raw: unknown;
+    try {
+      const info = await fs.lstat(file);
+      if (!info.isFile() || info.size > 1024 * 1024) continue;
+      raw = JSON.parse(await fs.readFile(file, "utf8"));
+    } catch (error) {
+      // The background replayer can move/remove a file while we scan. Invalid
+      // JSON remains on disk for its normal recovery/error reporting path.
+      if ((error as NodeJS.ErrnoException).code === "ENOENT" || error instanceof SyntaxError) continue;
+      throw error;
+    }
+    if (!raw || typeof raw !== "object" || !("companyId" in raw) || !("runId" in raw)
+      || raw.companyId !== input.companyId || raw.runId !== input.runId) continue;
+    await persistUsageReceipt(db, envelopeSchema.parse(raw));
+    await fs.rm(file, { force: true });
+  }
+}
+
 export async function createRunUsageRecorder(db: Db, input: { companyId: string; runId: string; adapterType: string }, directory = usageReceiptSpoolPath()) {
   const sourceId = randomUUID();
   // Verify durable storage before starting paid work, including a directory
@@ -121,6 +145,7 @@ export async function createRunUsageRecorder(db: Db, input: { companyId: string;
   const probe = await fs.open(path.join(directory, `${sourceId}.probe`), "wx", 0o600);
   try { await probe.sync(); } finally { await probe.close(); await fs.rm(path.join(directory, `${sourceId}.probe`)); }
   await syncDirectory(directory);
+  await recoverPendingRunUsageReceipts(db, input, directory);
   const bound = await db.update(heartbeatRuns).set({ usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || ${JSON.stringify({ accountingReceiptSourceId: sourceId, accountingReceiptSequence: 0, accountingReceiptReady: false })}::jsonb` })
     .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId), isNull(heartbeatRuns.costAccountedAt))).returning({ id: heartbeatRuns.id, runtimeMode: heartbeatRuns.runtimeMode, usageJson: heartbeatRuns.usageJson });
   if (bound.length !== 1) throw conflict("Run cannot accept a new usage recorder");
