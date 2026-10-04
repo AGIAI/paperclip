@@ -498,9 +498,10 @@ existing account name. Connecting installs access for that agent and resumes the
 work automatically. Explicit incompatible bindings and shared-account permission
 denials still fail; hiring never expands a restricted shared account's audience.
 
-Concurrent runs of one subscription do not wait for each other. No credential
-lease exists to hold them, so a fresh task execution cannot enter a contention
-wait. A run that already entered this wait keeps its scheduled retries. It does
+Concurrent runs of one subscription do not hold a credential lease. A fresh
+task can briefly wait when a credential rotation holds the company file lock or
+a grant/secret database row lock. Lock timeouts become `ai_connection_busy`,
+keeping the task on its automatic pre-provider scheduled retry path. It does
 not request new credentials, and it does not consume the provider-failure retry
 allowance. Each retry revalidates the account, and existing run-dispatch rules
 still suppress cancelled, reassigned, or otherwise ineligible work. An assignee

@@ -16,7 +16,7 @@ import { aiConnectionService } from "../services/ai-connections.js";
 import * as codexAdapter from "@paperclipai/adapter-codex-local/server";
 import { WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE } from "@paperclipai/adapter-utils/workspace-restore-merge";
 import * as executionTarget from "@paperclipai/adapter-utils/execution-target";
-import { prepareManagedAiRuntime, assertManagedAiProjectAuth } from "../services/ai-connection-runtime.js";
+import { prepareManagedAiRuntime, assertManagedAiProjectAuth, isAiConnectionBusy } from "../services/ai-connection-runtime.js";
 import { toolAccessService } from "../services/tool-access.js";
 import { secretService } from "../services/secrets.js";
 import { aiConnectionBindingSchema, connectionPurposeTransportSchema, isAiConnectionCompatible } from "@paperclipai/shared";
@@ -141,6 +141,35 @@ describe("managed AI connections", () => {
       request.mockRestore();
       if (!triggerDropped) await db.execute(sql.raw(`drop trigger quota_save_failure on ${table}; drop function quota_save_failure();`));
     }
+  });
+
+  it.each(["company_file", "grant_row", "secret_row"] as const)("defers runtime preparation on a contended %s lock and succeeds once it clears", async (kind) => {
+    const owner = `runtime-lock-${kind}`;
+    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const auth = JSON.stringify({ tokens: { access_token: "valid-access", refresh_token: "valid-refresh", account_id: owner } });
+    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth);
+    const [row] = await service.quotaAccounts(companyId, owner);
+    const ref = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!;
+    const prepare = () => prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local",
+      binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
+    const held = deferredSignal(), release = deferredSignal();
+    const lock = kind === "company_file" ? vi.spyOn(codexAdapter, "withAccountHomeSecretMutationLock")
+      .mockRejectedValueOnce(Object.assign(new Error("company lock held by another account"), { code: WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE })) : undefined;
+    const holding = kind === "company_file" ? Promise.resolve() : db.transaction(async tx => {
+      if (kind === "grant_row") await tx.select().from(connectionGrants).where(eq(connectionGrants.id, row.grant.id)).for("update");
+      else await tx.select().from(companySecrets).where(eq(companySecrets.id, ref.secretId)).for("update");
+      held.resolve(); await release.promise;
+    });
+    try {
+      if (kind !== "company_file") await held.promise;
+      const error = await prepare().then(() => { throw new Error("Runtime must defer"); }, error => error);
+      expect(isAiConnectionBusy(error)).toBe(true);
+      expect(error).toMatchObject({ status: 422, details: { code: "ai_connection_busy" } });
+      expect((await db.select().from(connectionGrants).where(eq(connectionGrants.id, row.grant.id)))[0].status).toBe("active");
+    } finally { release.resolve(); await holding; lock?.mockRestore(); }
+    const run = await prepare();
+    try { expect(await readFile(path.join(String(run.config.env.CODEX_HOME), "auth.json"), "utf8")).toBe(auth); }
+    finally { await run.cleanup(); }
   });
 
   it.each(["runtime", "failed_run"] as const)("recovers pending quota credentials before %s can reuse or invalidate the consumed token", async (consumer) => {
