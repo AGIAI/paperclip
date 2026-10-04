@@ -113,28 +113,44 @@ export async function replayUsageReceipts(db: Db, directory = usageReceiptSpoolP
   return { replayed, failed };
 }
 
-async function recoverPendingRunUsageReceipts(db: Db, input: { companyId: string; runId: string }, directory: string) {
-  // Startup's bounded sweep may not reach this run. Its stopped controller's
-  // durable evidence must reach the journal before we fence that source out.
-  // A failed save deliberately aborts replacement so recovery can retry.
-  for (const name of (await fs.readdir(directory)).filter(name => name.endsWith(".json"))) {
-    const file = path.join(directory, name);
-    let raw: unknown;
-    try {
-      const info = await fs.lstat(file);
-      if (!info.isFile() || info.size > 1024 * 1024) continue;
-      raw = JSON.parse(await fs.readFile(file, "utf8"));
-    } catch (error) {
-      // The background replayer can move/remove a file while we scan. Invalid
-      // JSON remains on disk for its normal recovery/error reporting path.
-      if ((error as NodeJS.ErrnoException).code === "ENOENT" || error instanceof SyntaxError) continue;
-      throw error;
+export async function recoverPendingRunUsageReceipts(db: Db, input: { companyId: string; runId: string }, directory = usageReceiptSpoolPath(), retainFiles = false) {
+  // The bounded sweep may not reach this run. Its durable evidence must
+  // reach the journal before source replacement or ledger acknowledgement.
+  // A failed save aborts the operation so recovery can retry.
+  const recovered = new Set<string>();
+  // A concurrent failed replay can rename a file after releasing its company
+  // lock. Rescan disappearing paths rather than certify an incomplete scan.
+  for (let scan = 0; scan < 3; scan++) {
+    let names: string[];
+    try { names = await fs.readdir(directory); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return [...recovered]; throw error; }
+    let moved = false;
+    for (const name of names.filter(name => name.endsWith(".json"))) {
+      const file = path.join(directory, name);
+      if (recovered.has(file)) continue;
+      let raw: unknown;
+      try {
+        const info = await fs.lstat(file);
+        if (!info.isFile() || info.size > 1024 * 1024) continue;
+        raw = JSON.parse(await fs.readFile(file, "utf8"));
+      } catch (error) {
+        // The background replayer can move/remove a file while we scan. Invalid
+        // JSON remains on disk for its normal recovery/error reporting path.
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") { moved = true; continue; }
+        if (error instanceof SyntaxError) continue;
+        throw error;
+      }
+      if (!raw || typeof raw !== "object" || !("companyId" in raw) || !("runId" in raw)
+        || raw.companyId !== input.companyId || raw.runId !== input.runId) continue;
+      await persistUsageReceipt(db, envelopeSchema.parse(raw));
+      // Settlement uses the caller's transaction: deleting before its commit
+      // would lose the only durable evidence if the later ledger write fails.
+      recovered.add(file);
+      if (!retainFiles) await fs.rm(file, { force: true });
     }
-    if (!raw || typeof raw !== "object" || !("companyId" in raw) || !("runId" in raw)
-      || raw.companyId !== input.companyId || raw.runId !== input.runId) continue;
-    await persistUsageReceipt(db, envelopeSchema.parse(raw));
-    await fs.rm(file, { force: true });
+    if (!moved) return [...recovered];
   }
+  throw new Error("Accounting spool changed during recovery; retry required");
 }
 
 export async function createRunUsageRecorder(db: Db, input: { companyId: string; runId: string; adapterType: string }, directory = usageReceiptSpoolPath()) {
