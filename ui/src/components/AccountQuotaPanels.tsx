@@ -31,7 +31,7 @@ export function AccountQuotaPanels({
             <div key={`${window.label}:${index}`} className="space-y-1 text-sm">
               <div className="flex justify-between gap-3">
                 <span>{window.label}</span>
-                <span className="text-muted-foreground">{window.valueLabel ?? "Usage not reported"}</span>
+                <span className="font-mono text-muted-foreground">{window.valueLabel ?? "Usage not reported"}</span>
               </div>
               {window.resetsAt && <p className="text-xs font-mono text-muted-foreground">Resets {formatDateTime(window.resetsAt)}</p>}
             </div>
