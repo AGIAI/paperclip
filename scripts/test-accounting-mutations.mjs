@@ -9,6 +9,7 @@ const artifactDirectory = path.join(root, "coverage/accounting/mutations");
 const targets = { deduplication: "deduplicates a retried receipt", company: "isolates company reporting", projection: "conserves agent projections", threshold: "stops at the exact budget boundary" };
 const evidence = [];
 const persist = () => writeFile(path.join(root, "coverage/accounting/mutations.json"), JSON.stringify({ generatedAt: new Date().toISOString(), evidence }, null, 2));
+await rm(artifactDirectory, { recursive: true, force: true });
 await mkdir(artifactDirectory, { recursive: true });
 try {
   for (const name of ["baseline", ...Object.keys(targets)]) {
