@@ -252,7 +252,7 @@ export async function prepareManagedAiRuntime(
       throw unprocessable(
         "The selected default changed. Retry this execution.",
       );
-    const value = await service.credential(selection);
+    const value = await service.runtimeCredential(selection);
     home = await mkdtemp(
       path.join(
         os.tmpdir(),

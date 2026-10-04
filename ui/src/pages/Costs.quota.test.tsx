@@ -34,6 +34,20 @@ describe("Costs account quota polling", () => {
   });
   afterEach(() => { act(() => root.unmount()); client.clear(); container.remove(); vi.unstubAllGlobals(); });
   const flush = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); }); };
+  it("keeps quota readings with a safe notice when the endpoint rejects", async () => {
+    await act(async () => root.render(<MemoryRouter><SidebarProvider><QueryClientProvider client={client}><Costs /></QueryClientProvider></SidebarProvider></MemoryRouter>));
+    await flush();
+    const tab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(button => button.textContent === "Providers")!;
+    await act(async () => { tab.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 })); tab.click(); });
+    await flush();
+    expect(container.textContent).toContain("37% used");
+    api.quotaWindows.mockRejectedValue(new Error("Raw provider diagnostic: secret command"));
+    await act(async () => { await client.invalidateQueries({ queryKey }); }); await flush();
+    expect(container.textContent).toContain("37% used");
+    expect(container.textContent).toContain("Showing the last available quota");
+    expect(container.textContent).not.toContain("Raw provider diagnostic");
+    expect(client.getQueryData(queryKey)).toMatchObject([{ capturedAt: observed.capturedAt }]);
+  });
   it.each(["provider_unavailable", "permission_denied"])("retains the observation on %s but clears rejected or rotated credentials", async (errorFamily) => {
     await act(async () => root.render(<MemoryRouter><SidebarProvider><QueryClientProvider client={client}><Costs initialTab="providers" /></QueryClientProvider></SidebarProvider></MemoryRouter>));
     await flush();
