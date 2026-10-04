@@ -16,9 +16,14 @@ const amount = (value: unknown) => typeof value === "number" && Number.isFinite(
 /** The run's persisted usage is a durable receipt. Ledger, runtime totals, and
  * acknowledgement commit together, including after a restart or failed run. */
 export async function accountRunCost(db: Db, runId: string, hooks: BudgetServiceHooks = {}, receiptIndex?: UsageReceiptIndex) {
-  const [identity] = await db.select({ companyId: heartbeatRuns.companyId }).from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
+  const [identity] = await db.select({ companyId: heartbeatRuns.companyId, status: heartbeatRuns.status,
+    pending: heartbeatRuns.costAccountingPending, accountedAt: heartbeatRuns.costAccountedAt,
+  }).from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
   if (!identity) return false;
-  const index = receiptIndex ?? await indexPendingUsageReceipts();
+  // Finalization can call twice. Avoid disk work for settled or active runs,
+  // but retain the locked recheck, stale-marker cleanup, and stop delivery.
+  const index = identity.pending && !identity.accountedAt && terminalStatuses.includes(identity.status)
+    ? receiptIndex ?? await indexPendingUsageReceipts() : undefined;
   let recoveredFiles: string[] = [];
   const accounted = await withAccountingTransaction(db, identity.companyId, async (tx, publications) => {
     let [run] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)).for("update");
@@ -30,7 +35,7 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
     // The bounded global replay can leave a newer receipt behind an older
     // complete snapshot. Drain this run under the accounting lock before
     // deciding completeness, and retain disk evidence until the outer commit.
-    recoveredFiles = await recoverPendingRunUsageReceipts(tx, { ...identity, runId }, undefined, { retainFiles: true, index });
+    recoveredFiles = await recoverPendingRunUsageReceipts(tx, { companyId: identity.companyId, runId }, undefined, { retainFiles: true, index });
     [run] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
     const preProviderFailure = object(object(run.resultJson).executionRecovery).providerWorkStarted === false
       || object(run.usageJson).accountingProviderWorkStarted === false;
