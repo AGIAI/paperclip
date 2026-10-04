@@ -175,11 +175,30 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(result).toMatchObject({costUsdExact:"0.040000001",complete:true,usage:{inputTokens:14,cachedInputTokens:22,outputTokens:6}});
     await recorder.capture({attemptId:randomUUID(),usage,complete:false,billingType:"subscription"});
     const uncertain = await recorder.complete({exitCode:1,signal:null,timedOut:false,usage});
-    expect(uncertain).toMatchObject({costUsd:null,costUsdExact:null,billingType:"unknown"});
+    expect(uncertain).toMatchObject({costUsd:0.040000001,costUsdExact:"0.040000001",costStatus:"unpriced",billingType:"unknown"});
     const partial = await recorder.complete({exitCode:1,signal:null,timedOut:false});
     expect(partial.complete).toBe(false);
     expect(partial.usage?.inputTokens).toBe(21);
   });
+  it.each(["block", "allow"] as const)("keeps known attempted-run spend when unknown prices %s new work", async (unpricedUsagePolicy) => {
+    const f = await fixture(), budgets = budgetService(db);
+    await budgets.upsertPolicy(f.company.id, { scopeType: "company", scopeId: f.company.id, amount: 100, unpricedUsagePolicy }, "board");
+    await reserveRunBudget(db, f.company.id, f.run.id, null);
+    const recorder = await createRunUsageRecorder(db, { companyId: f.company.id, runId: f.run.id, adapterType: "process" }, path.join(directory, randomUUID()));
+    await recorder.capture({ attemptId: randomUUID(), complete: true, billingType: "metered_api", usage, costUsdExact: "0.010000001" });
+    const aggregate = await recorder.capture({ attemptId: randomUUID(), complete: true, billingType: "metered_api", usage, costUsd: null, costStatus: "unpriced" });
+    expect(aggregate).toMatchObject({ costUsdExact: "0.010000001", costStatus: "unpriced", complete: true });
+    await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.run.id));
+    expect(await accountRunCost(db, f.run.id)).toBe(true);
+    expect(await accountRunCost(db, f.run.id)).toBe(false);
+    expect(await costService(db).summary(f.company.id)).toMatchObject({ spendCentsExact: "1.0000001", unpricedEventCount: 1, pricingComplete: false, pendingRunCount: 0 });
+    const [runtime] = await db.select().from(agentRuntimeState).where(eq(agentRuntimeState.agentId, f.agent.id));
+    expect(runtime.totalCostCents).toBe(1.0000001);
+    const [reservation] = await db.select().from(budgetReservations).where(eq(budgetReservations.runId, f.run.id));
+    expect(reservation.state).toBe("settled");
+    expect((await budgets.getInvocationBlock(f.company.id, f.agent.id)) !== null).toBe(unpricedUsagePolicy === "block");
+  });
+
   it("refuses invalid checkpoints and does not certify a run after capture failure", async () => {
     const f = await fixture();
     const recorder = await createRunUsageRecorder(db,{companyId:f.company.id,runId:f.run.id,adapterType:"process"},path.join(directory,randomUUID()));
