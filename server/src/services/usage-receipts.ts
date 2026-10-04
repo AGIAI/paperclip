@@ -121,12 +121,22 @@ export async function createRunUsageRecorder(db: Db, input: { companyId: string;
   const probe = await fs.open(path.join(directory, `${sourceId}.probe`), "wx", 0o600);
   try { await probe.sync(); } finally { await probe.close(); await fs.rm(path.join(directory, `${sourceId}.probe`)); }
   await syncDirectory(directory);
-  const bound = await db.update(heartbeatRuns).set({ usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || ${JSON.stringify({ accountingReceiptSourceId: sourceId, accountingReceiptSequence: 0 })}::jsonb` })
-    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId), isNull(heartbeatRuns.costAccountedAt))).returning({ id: heartbeatRuns.id });
+  const bound = await db.update(heartbeatRuns).set({ usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || ${JSON.stringify({ accountingReceiptSourceId: sourceId, accountingReceiptSequence: 0, accountingReceiptReady: false })}::jsonb` })
+    .where(and(eq(heartbeatRuns.id, input.runId), eq(heartbeatRuns.companyId, input.companyId), isNull(heartbeatRuns.costAccountedAt))).returning({ id: heartbeatRuns.id, runtimeMode: heartbeatRuns.runtimeMode, usageJson: heartbeatRuns.usageJson });
   if (bound.length !== 1) throw conflict("Run cannot accept a new usage recorder");
   let sequence = 0;
   let currentAttempt = "default";
   const attempts = new Map<string, AdapterUsageCheckpoint>();
+  // Native run deltas retain their baseline across same-run recovery. Restore
+  // the previous snapshot as the same attempt, never add it a second time.
+  // An empty final result must not erase the last durable observation.
+  const priorReceiptId = bound[0].usageJson?.accountingReceiptId;
+  if (bound[0].runtimeMode === "native" && typeof priorReceiptId === "string") {
+    const [previous] = await db.select().from(runUsageReceipts).where(and(
+      eq(runUsageReceipts.id, priorReceiptId), eq(runUsageReceipts.runId, input.runId), eq(runUsageReceipts.companyId, input.companyId),
+    ));
+    if (previous) attempts.set("default", envelopeSchema.parse(previous.receiptJson).receipt as AdapterUsageCheckpoint);
+  }
   let chain = Promise.resolve();
   let captureFailed = false;
   async function capture(raw: AdapterUsageCheckpoint) {

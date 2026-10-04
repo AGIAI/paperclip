@@ -177,7 +177,25 @@ The mutation gate retains partial results and per-run reports/logs under
 
 Failed native turns persist observed run-delta usage before semantic-result
 finalization. A matching terminal failure, cancellation, or interruption closes
-that receipt; missing terminal evidence and session-only totals remain pending.
+that usage snapshot; ledger acknowledgement still waits until the native coordinator
+has a result or a terminal failure. A retryable failed heartbeat keeps its
+reservation and can resume. Replacing its recorder restores the native run's
+cumulative snapshot; recovery does not add the same tokens twice, and an empty
+final result cannot erase earlier observed usage. Missing terminal evidence and
+session-only totals remain pending.
+
+Budget admission completes before the final dispatch ownership check. A rejected
+handoff releases a newly created hold using explicit evidence that the adapter
+was never entered. Process adapter configuration and spawn failures likewise
+return pre-provider proof; failures after a child exists cannot claim it.
+
+Scheduled retry gates acquire company, issue, then run locks, in the same order
+as accounting and attribution writes. Delayed budget cancellation rechecks the
+policy version and current blocking state when it writes durable stop intent,
+under the company admission lock. External shutdown happens after that lock is
+released so the provider can save its final receipt. Raising a budget before the
+stop is claimed preserves newly admitted work, including previously queued rows;
+a run with an already claimed stop cannot enter provider work after the grant.
 For multiple provider attempts, known prices remain in the exact spend total
 when another attempt is unpriced. The aggregate stays marked unpriced, so the
 configured unknown-price policy still controls whether new work may start.
