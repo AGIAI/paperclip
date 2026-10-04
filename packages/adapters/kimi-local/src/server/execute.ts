@@ -648,7 +648,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         exitCode: attempt.proc.exitCode,
         signal: attempt.proc.signal,
         timedOut: true,
-        usageComplete: false,
+        // This stream protocol has no usage receipt to recover after exit.
+        // Close collection with an explicitly unknown price, never a free run.
+        usageComplete: true,
+        costStatus: "unpriced",
         usageBasis: "per_run",
         provider: "moonshot",
         biller: "moonshot",
@@ -711,6 +714,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       exitCode: attempt.proc.exitCode,
       signal: attempt.proc.signal,
       timedOut: false,
+      usageComplete: true,
+      costStatus: "unpriced",
       usageBasis: "per_run",
       errorMessage: failed ? fallbackErrorMessage : null,
       // Forward the transport-level error code from the run-disposition seam
