@@ -349,6 +349,16 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(charges).toHaveLength(8);
     expect(charges.find(charge => charge.heartbeatRunId === f.run.id)).toMatchObject({ inputTokens: 200, costCents: 20 });
     expect((await costService(db).summary(f.company.id)).spendCents).toBe(55);
+    const listing = vi.spyOn(fs, "readdir");
+    try {
+      for (const run of runs) expect(await accountRunCost(db, run.id)).toBe(false);
+      // An acknowledged run with a stale pending flag still needs its locked
+      // cleanup, but neither form of duplicate finalization needs spool I/O.
+      await db.update(heartbeatRuns).set({ costAccountingPending: true }).where(eq(heartbeatRuns.id, f.run.id));
+      expect(await accountRunCost(db, f.run.id)).toBe(false);
+      expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].costAccountingPending).toBe(false);
+      expect(listing).not.toHaveBeenCalled();
+    } finally { listing.mockRestore(); }
     await Promise.all([...foreignFiles].map(file => fs.rm(file)));
   });
 
