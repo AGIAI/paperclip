@@ -113,7 +113,39 @@ export async function replayUsageReceipts(db: Db, directory = usageReceiptSpoolP
   return { replayed, failed };
 }
 
-export async function recoverPendingRunUsageReceipts(db: Db, input: { companyId: string; runId: string }, directory = usageReceiptSpoolPath(), retainFiles = false) {
+type ReceiptIdentity = { companyId: unknown; runId: unknown } | null;
+export type UsageReceiptIndex = Map<string, ReceiptIdentity>;
+function receiptIdentity(raw: unknown): ReceiptIdentity {
+  return raw && typeof raw === "object" && "companyId" in raw && "runId" in raw
+    ? { companyId: raw.companyId, runId: raw.runId } : null;
+}
+
+/** Build once per recovery batch, before acquiring any accounting lock.
+ * Spool publications are immutable, uniquely named files. Cache identities,
+ * never receipt contents: matching evidence is revalidated during settlement. */
+export async function indexPendingUsageReceipts(directory = usageReceiptSpoolPath()): Promise<UsageReceiptIndex> {
+  const index: UsageReceiptIndex = new Map();
+  let names: string[];
+  try { names = await fs.readdir(directory); }
+  // Indexing is only an optimization. The locked drain reports missing or
+  // unreadable storage through the existing per-run recovery error path.
+  catch { return index; }
+  for (const name of names.filter(name => name.endsWith(".json"))) {
+    const file = path.join(directory, name);
+    try {
+      const info = await fs.lstat(file);
+      if (!info.isFile() || info.size > 1024 * 1024) { index.set(file, null); continue; }
+      index.set(file, receiptIdentity(JSON.parse(await fs.readFile(file, "utf8"))));
+    } catch (error) {
+      if (error instanceof SyntaxError) index.set(file, null);
+      // Unreadable or concurrently moved entries remain unknown and are
+      // checked again under the lock, preserving per-run failure reporting.
+    }
+  }
+  return index;
+}
+
+export async function recoverPendingRunUsageReceipts(db: Db, input: { companyId: string; runId: string }, directory = usageReceiptSpoolPath(), options: { retainFiles?: boolean; index?: UsageReceiptIndex } = {}) {
   // The bounded sweep may not reach this run. Its durable evidence must
   // reach the journal before source replacement or ledger acknowledgement.
   // A failed save aborts the operation so recovery can retry.
@@ -128,6 +160,8 @@ export async function recoverPendingRunUsageReceipts(db: Db, input: { companyId:
     for (const name of names.filter(name => name.endsWith(".json"))) {
       const file = path.join(directory, name);
       if (recovered.has(file)) continue;
+      const indexed = options.index?.get(file);
+      if (indexed !== undefined && (indexed?.companyId !== input.companyId || indexed?.runId !== input.runId)) continue;
       let raw: unknown;
       try {
         const info = await fs.lstat(file);
@@ -140,13 +174,14 @@ export async function recoverPendingRunUsageReceipts(db: Db, input: { companyId:
         if (error instanceof SyntaxError) continue;
         throw error;
       }
-      if (!raw || typeof raw !== "object" || !("companyId" in raw) || !("runId" in raw)
-        || raw.companyId !== input.companyId || raw.runId !== input.runId) continue;
+      const identity = receiptIdentity(raw);
+      options.index?.set(file, identity);
+      if (identity?.companyId !== input.companyId || identity?.runId !== input.runId) continue;
       await persistUsageReceipt(db, envelopeSchema.parse(raw));
       // Settlement uses the caller's transaction: deleting before its commit
       // would lose the only durable evidence if the later ledger write fails.
       recovered.add(file);
-      if (!retainFiles) await fs.rm(file, { force: true });
+      if (!options.retainFiles) await fs.rm(file, { force: true });
     }
     if (!moved) return [...recovered];
   }
