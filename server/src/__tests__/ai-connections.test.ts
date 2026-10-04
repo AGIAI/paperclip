@@ -103,9 +103,12 @@ describe("managed AI connections", () => {
       await exchangeStarted.promise;
       const edit = secretService(db).update(secretId, { description: "Changed during refresh" });
       const preparing = prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
-      // Keep the provider exchange pending while both contenders reach their
-      // lock/read paths. Neither may hold a conflicting row lock or vend old auth.
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // Wait for the runtime's old-token read to reach its bookkeeping update.
+      // After the refresh commits, resolution must detect the changed version.
+      await vi.waitFor(async () => {
+        const waiting = await db.execute(sql`select 1 from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock' and query like '%last_resolved_at%'`);
+        expect(waiting.length).toBeGreaterThan(0);
+      });
       releaseExchange.resolve();
       const results = await Promise.all([refreshing, edit, preparing]);
       runtime = results[2];
@@ -124,6 +127,14 @@ describe("managed AI connections", () => {
     const request = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ access_token: "fresh-access", refresh_token: "rotated-once" })));
     const signal = new AbortController().signal;
     try {
+      // A pre-existing transaction may own a secret row before asking for the
+      // company file lock. Refresh must defer before exchanging its token.
+      await db.transaction(async tx => {
+        const secretId = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!.secretId;
+        await tx.select().from(companySecrets).where(eq(companySecrets.id, secretId)).for("update");
+        await expect(service.refreshQuotaCredential(row, original, signal)).rejects.toThrow();
+        expect(request).not.toHaveBeenCalled();
+      });
       const activeId = randomUUID();
       await db.insert(heartbeatRuns).values({ id: activeId, companyId, agentId, invocationSource: "on_demand", status: "running", contextSnapshot: { aiConnection: { grantId: account.grantId } } });
       await expect(service.refreshQuotaCredential(row, original, signal)).rejects.toThrow("provider_unavailable");

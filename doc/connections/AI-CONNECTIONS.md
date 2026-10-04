@@ -186,6 +186,17 @@ and contain neither credentials nor raw provider errors. Expired credentials
 report `authentication_required`; the probe does not exchange refresh tokens
 or change connection health.
 
+The Costs dashboard uses the company quota endpoint. It reads each authorized
+managed subscription separately, retaining the last successful observation on
+transient errors. For managed Codex accounts, a 401 can trigger one persisted
+OAuth refresh; it defers while potentially competing OpenAI work is active.
+Refresh takes the company secret-mutation lock before database row locks and
+requires those row locks immediately, before exchanging a single-use token.
+Reconnect and runtime credential write-back follow the same lock order.
+Credential resolution checks its version after any database wait and reloads a
+rotated value before giving it to a new run. Unknown utilization has no progress
+bar, but any provider-reported reset time remains visible.
+
 Verification:
 
 ```sh
