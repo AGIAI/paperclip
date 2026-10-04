@@ -238,6 +238,30 @@ describe.each([
     expect(container.textContent).toContain("Bender");
   });
 
+  it.each(["summary", "financeEvents", "byProvider", "byBiller", "windowSpend"])("shows independent budget and stale-report notices when %s refresh fails", async (method) => {
+    overview.mockRejectedValue(new Error("internal budget failure"));
+    await render();
+    if (method === "byProvider" || method === "windowSpend") await click("Providers");
+    if (method === "byBiller") await click("Billers");
+    const successfulReport = api[method].getMockImplementation()!;
+    api[method].mockRejectedValue(new Error("internal report failure"));
+    await act(async () => { await client.invalidateQueries(); });
+    await settle();
+    expect(container.textContent).toContain("Budget data could not be loaded");
+    expect(container.textContent).toContain("Showing the last loaded data");
+    expect(container.textContent).toContain("$402.88");
+    expect(container.textContent).not.toContain("internal");
+    overview.mockResolvedValue({ policies: [], activeIncidents: [], pendingApprovalCount: 0, pausedAgentCount: 0, pausedProjectCount: 0 });
+    await act(async () => { await client.invalidateQueries(); });
+    await settle();
+    expect(container.textContent).not.toContain("Budget data could not be loaded");
+    expect(container.textContent).toContain("Showing the last loaded data");
+    api[method].mockImplementation(successfulReport);
+    await act(async () => { await client.invalidateQueries(); });
+    await settle();
+    expect(container.textContent).not.toContain("Showing the last loaded data");
+  });
+
   it("retains loaded budget controls and finance totals on background errors", async () => {
     overview.mockResolvedValue({
       policies: [], activeIncidents: [{ id: "incident", scopeType: "agent", scopeName: "Codie", status: "open", thresholdType: "hard", amountObserved: 200, amountLimit: 1000 }],

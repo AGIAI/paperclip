@@ -670,11 +670,14 @@ export function Costs({
         </div>
       ) : null}
 
-      {((spendData && spendError) || (financeData && financeError) || budgetError || providerError || billerError || weekError || weekBillerError || windowError) ? (
+      {budgetError && !budgetData ? (
         <p role="status" className="text-sm text-muted-foreground">
-          {budgetError && !budgetData
-            ? "Budget data could not be loaded. Please try again shortly."
-            : "Showing the last loaded data. Updates will resume automatically."}
+          Budget data could not be loaded. Please try again shortly.
+        </p>
+      ) : null}
+      {((spendData && spendError) || (financeData && financeError) || (budgetData && budgetError) || providerError || billerError || weekError || weekBillerError || windowError) ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          Showing the last loaded data. Updates will resume automatically.
         </p>
       ) : null}
 
