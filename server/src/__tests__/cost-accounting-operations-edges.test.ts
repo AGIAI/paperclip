@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { accountingRuntimeBaselines, agents, agentRuntimeState, billingInvoiceLines, budgetPolicies, budgetReservations, companies, costEvents, createDb, heartbeatRuns, projects, runUsageReceipts } from "@paperclipai/db";
+import { accountingRuntimeBaselines, agents, agentRuntimeState, billingInvoiceLines, budgetPolicies, budgetReservations, companies, costEvents, createDb, heartbeatRuns, nativeRunFinalizations, issues, projects, runUsageReceipts } from "@paperclipai/db";
 import { accountingIntegrityService } from "../services/accounting-integrity.js";
 import { billingReconciliationService } from "../services/billing-reconciliation.js";
 import { budgetService } from "../services/budgets.js";
@@ -67,6 +67,35 @@ const support = await getEmbeddedPostgresTestSupport();
     expect((await db.select().from(budgetReservations).where(eq(budgetReservations.runId,f.run.id)))[0].state).toBe("released");
     expect(await db.select().from(costEvents).where(eq(costEvents.companyId,f.company.id))).toEqual([]);
   });
+  it.each(["retryable_failure", "observed"])("keeps native %s receipts open through same-run recovery", async (phase) => {
+    const f = await fixture();
+    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Recoverable native work" }).returning();
+    await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issue.id }).where(eq(heartbeatRuns.id, f.run.id));
+    await reserveRunBudget(db, f.company.id, f.run.id, null);
+    await db.insert(nativeRunFinalizations).values({ companyId: f.company.id, runId: f.run.id, issueId: issue.id, phase });
+    const input = { companyId: f.company.id, runId: f.run.id, adapterType: "paperclip_runner" };
+    const spool = path.join(directory, randomUUID());
+    const recorder = await createRunUsageRecorder(db, input, spool);
+    await recorder.capture({ complete: true, usageBasis: "per_run", usage: { inputTokens: 100, outputTokens: 10 }, costUsd: 0.1 });
+    await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.run.id));
+    expect(await accountRunCost(db, f.run.id)).toBe(false);
+    await reconcileRunCosts(db);
+    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].costAccountedAt).toBeNull();
+    expect((await db.select().from(budgetReservations).where(eq(budgetReservations.runId, f.run.id)))[0].state).toBe("held");
+    await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, f.run.id));
+    const resumed = await createRunUsageRecorder(db, input, spool);
+    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].usageJson?.accountingReceiptReady).toBe(false);
+    const empty = await resumed.complete({ exitCode: 0, signal: null, timedOut: false });
+    expect(empty).toMatchObject({ complete: false, usage: { inputTokens: 100, outputTokens: 10 } });
+    // The provider's native delta is cumulative for this run across recovery.
+    await resumed.capture({ complete: true, usageBasis: "per_run", usage: { inputTokens: 150, outputTokens: 15 }, costUsd: 0.15 });
+    await db.update(nativeRunFinalizations).set({ phase: "terminal_failure" }).where(eq(nativeRunFinalizations.runId, f.run.id));
+    await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.run.id));
+    expect(await accountRunCost(db, f.run.id)).toBe(true);
+    expect(await accountRunCost(db, f.run.id)).toBe(false);
+    expect((await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.run.id)))[0]).toMatchObject({ inputTokens: 150, outputTokens: 15, costCents: 15 });
+  });
+
   it("reports over-limit advisory budgets without blocking, and tolerates legacy active zero limits", async () => {
     const f = await fixture(), budgets = budgetService(db);
     const policy = await budgets.upsertPolicy(f.company.id, { scopeType: "company", scopeId: f.company.id, amount: 1, hardStopEnabled: false }, "board");

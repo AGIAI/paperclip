@@ -1,6 +1,6 @@
 import { usdToUnits, unitsToCents } from "@paperclipai/shared";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { accountingRuntimeBaselines, budgetReservations, agentRuntimeState, agents, costEvents, heartbeatRuns, issues, projects, type Db } from "@paperclipai/db";
+import { accountingRuntimeBaselines, budgetReservations, agentRuntimeState, agents, costEvents, heartbeatRuns, nativeRunFinalizations, issues, projects, type Db } from "@paperclipai/db";
 import { withAccountingTransaction } from "./accounting-transaction.js";
 import { createCostEventInTransaction } from "./costs.js";
 import { budgetService, deliverBudgetEnforcement, type BudgetServiceHooks } from "./budgets.js";
@@ -25,6 +25,13 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
     }
     const preProviderFailure = object(object(run.resultJson).executionRecovery).providerWorkStarted === false
       || object(run.usageJson).accountingProviderWorkStarted === false;
+    // A failed native turn is not necessarily the end of this heartbeat: the
+    // coordinator can resume the same run. Only its closed provider boundary
+    // authorizes acknowledgement; finalization may still run after a result.
+    if (run.runtimeMode === "native" && !preProviderFailure) {
+      const [coordinator] = await tx.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id));
+      if (coordinator && !coordinator.resultId && coordinator.phase !== "terminal_failure") return false;
+    }
     // A stop can mark the run terminal before the provider's shutdown receipt
     // arrives. Keep the debt pending instead of acknowledging an invented zero
     // and permanently discarding that late receipt.
@@ -118,6 +125,11 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
 export async function reconcileRunCosts(db: Db, hooks: BudgetServiceHooks = {}) {
   const pending = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(and(
     eq(heartbeatRuns.costAccountingPending, true), inArray(heartbeatRuns.status, terminalStatuses),
+    sql`(${heartbeatRuns.resultJson}->'executionRecovery'->>'providerWorkStarted' = 'false'
+      or ${heartbeatRuns.usageJson}->>'accountingProviderWorkStarted' = 'false'
+      or not exists (select 1 from ${nativeRunFinalizations} where ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
+      and ${heartbeatRuns.runtimeMode} = 'native' and ${nativeRunFinalizations.resultId} is null
+      and ${nativeRunFinalizations.phase} <> 'terminal_failure'))`,
     sql`(${heartbeatRuns.usageJson}->>'accountingReceiptReady' is distinct from 'false' or ${heartbeatRuns.resultJson}->'executionRecovery'->>'providerWorkStarted' = 'false' or ${heartbeatRuns.usageJson}->>'accountingProviderWorkStarted' = 'false')`,
   )).orderBy(asc(heartbeatRuns.updatedAt), asc(heartbeatRuns.id)).limit(100);
   let accounted = 0;

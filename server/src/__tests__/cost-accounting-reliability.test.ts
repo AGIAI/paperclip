@@ -2,9 +2,11 @@ import { upsertBudgetPolicySchema } from "@paperclipai/shared";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { activityLog, agentRuntimeState, agents, approvals, budgetIncidents, budgetPolicies, companies, costEvents, createDb, financeEvents, goals, heartbeatRuns, issues, projects } from "@paperclipai/db";
-import { costService } from "../services/costs.js";
-import { budgetService } from "../services/budgets.js";
+import { activityLog, agentRuntimeState, agentWakeupRequests, agents, approvals, budgetIncidents, budgetPolicies, companies, costEvents, createDb, financeEvents, goals, heartbeatRuns, issues, projects } from "@paperclipai/db";
+import { reserveRunBudget } from "../services/budget-reservations.js";
+import { createRunDispatch } from "../modules/run-dispatch/index.js";
+import { costService, createCostEventInTransaction } from "../services/costs.js";
+import { budgetService, withCurrentBudgetEnforcement, type BudgetEnforcementScope } from "../services/budgets.js";
 import { accountRunCost, reconcileRunCosts } from "../services/run-cost-accounting.js";
 import { financeService } from "../services/finance.js";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "./helpers/embedded-postgres.js";
@@ -56,6 +58,31 @@ databaseDescribe("cost accounting reliability (PostgreSQL)", () => {
       expect(await budgetService(db).getInvocationBlock(f.company.id, f.agent.id)).toBeNull();
     });
   }, 5000);
+
+  it("takes the company lock before retry issue/run locks during an attributed cost write", async () => {
+    const f = await fixture();
+    await db.update(issues).set({ status: "in_progress", assigneeAgentId: f.agent.id }).where(eq(issues.id, f.issue.id));
+    await db.update(heartbeatRuns).set({ status: "scheduled_retry", scheduledRetryAt: new Date(0), scheduledRetryReason: "workspace_busy",
+      contextSnapshot: { issueId: f.issue.id, projectId: f.project.id },
+    }).where(eq(heartbeatRuns.id, f.run.id));
+    let promotion: ReturnType<ReturnType<typeof createRunDispatch>["promoteScheduledRetry"]> | undefined;
+    await db.transaction(async (tx) => {
+      await tx.select().from(companies).where(eq(companies.id, f.company.id)).for("no key update");
+      promotion = createRunDispatch(db).promoteScheduledRetry({ companyId: f.company.id, runId: f.run.id });
+      // Observe the actual blocked company-lock query before checking the issue;
+      // no timing guess or timeout is used as proof of lock ordering.
+      await vi.waitFor(async () => {
+        const result = await db.execute(sql`select pid from pg_stat_activity where datname = current_database()
+          and pid <> pg_backend_pid() and wait_event_type = 'Lock' and query like '%companies%for no key update%'`);
+        expect(result.length).toBeGreaterThan(0);
+      }, { timeout: 3000 });
+      await tx.execute(sql`select id from issues where id = ${f.issue.id} for key share nowait`);
+      await createCostEventInTransaction(tx as unknown as ReturnType<typeof createDb>, f.company.id,
+        { ...f.receipt, issueId: f.issue.id, projectId: f.project.id }, []);
+    });
+    expect((await promotion)?.outcome).toBe("promoted");
+    expect((await costService(db).summary(f.company.id)).spendCents).toBe(100);
+  }, 10000);
 
   it("deduplicates concurrent retries and rejects changed receipt content", async () => {
     const f = await fixture();
@@ -417,6 +444,59 @@ databaseDescribe("cost accounting reliability (PostgreSQL)", () => {
     await heartbeat.cancelBudgetScopeWork({ companyId: f.company.id, scopeType, scopeId, createdBefore: cutoff });
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].status).toBe("cancelled");
     expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, newRun.id)))[0].status).toBe("scheduled_retry");
+  });
+
+  it.each(["agent", "company", "project"] as const)("rechecks delayed %s enforcement after a grant admits an old queued run", async (scopeType) => {
+    const f = await fixture();
+    const { heartbeatService } = await import("../services/heartbeat.js");
+    const heartbeat = heartbeatService(db);
+    const budgets = budgetService(db);
+    const scopeId = scopeType === "agent" ? f.agent.id : scopeType === "company" ? f.company.id : f.project.id;
+    const policyInput = { scopeType, scopeId, amount: 1 };
+    await db.update(heartbeatRuns).set({ status: "queued", contextSnapshot: { projectId: f.project.id } }).where(eq(heartbeatRuns.id, f.run.id));
+    const [wake] = await db.insert(agentWakeupRequests).values({ companyId: f.company.id, agentId: f.agent.id, source: "automation", payload: { projectId: f.project.id } }).returning();
+    await budgets.upsertPolicy(f.company.id, policyInput, "board");
+    await costService(db).createEvent(f.company.id, { ...f.receipt, projectId: f.project.id, costCents: 2 });
+    let release!: () => void;
+    const paused = new Promise<void>(resolve => { release = resolve; });
+    let snapshotReady!: (scope: BudgetEnforcementScope) => void;
+    const snapshot = new Promise<BudgetEnforcementScope>(resolve => { snapshotReady = resolve; });
+    const delivery = budgetService(db, { cancelWorkForScope: async (scope) => {
+      snapshotReady(scope); await paused; await heartbeat.cancelBudgetScopeWork(scope);
+    } }).deliverPendingEnforcement(f.company.id);
+    try {
+      expect((await snapshot).enforcement).toMatchObject({ policyId: expect.any(String), version: expect.any(Number) });
+      await budgets.upsertPolicy(f.company.id, { ...policyInput, amount: 100 }, "board");
+      await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, f.run.id));
+      await reserveRunBudget(db, f.company.id, f.run.id, f.project.id);
+    } finally { release(); }
+    await delivery;
+    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0]).toMatchObject({ status: "running", resultJson: null });
+    expect((await db.select().from(agentWakeupRequests).where(eq(agentWakeupRequests.id, wake.id)))[0].status).toBe("queued");
+  });
+
+  it("keeps a durably claimed budget stop fenced after a later grant", async () => {
+    const f = await fixture(), budgets = budgetService(db);
+    await budgets.upsertPolicy(f.company.id, { scopeType: "company", scopeId: f.company.id, amount: 1 }, "board");
+    await costService(db).createEvent(f.company.id, { ...f.receipt, costCents: 2 });
+    const [policy] = await db.select().from(budgetPolicies).where(eq(budgetPolicies.companyId, f.company.id));
+    const scope: BudgetEnforcementScope = { companyId: f.company.id, scopeType: "company", scopeId: f.company.id,
+      enforcement: { policyId: policy.id, version: policy.enforcementVersion } };
+    expect(await withCurrentBudgetEnforcement(db, scope, async (tx) => {
+      await tx.update(heartbeatRuns).set({ status: "running", resultJson: { cancellation: { reason: "Budget stop" } } }).where(eq(heartbeatRuns.id, f.run.id));
+      return true;
+    })).toBe(true);
+    await budgets.upsertPolicy(f.company.id, { scopeType: "company", scopeId: f.company.id, amount: 100 }, "board");
+    await expect(reserveRunBudget(db, f.company.id, f.run.id, null)).rejects.toThrow("cancellation already requested");
+    const effect = vi.fn(async () => true);
+    for (const invalid of [
+      scope,
+      { ...scope, enforcement: { ...scope.enforcement!, policyId: randomUUID() } },
+      { ...scope, scopeId: randomUUID() },
+      { ...scope, scopeType: "agent" as const },
+      { ...scope, enforcement: { ...scope.enforcement!, version: policy.enforcementVersion + 1 } },
+    ]) expect(await withCurrentBudgetEnforcement(db, invalid, effect)).toBeNull();
+    expect(effect).not.toHaveBeenCalled();
   });
 
 });
