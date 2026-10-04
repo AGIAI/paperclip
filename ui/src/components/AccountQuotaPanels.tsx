@@ -1,4 +1,5 @@
 import type { ProviderQuotaResult } from "@paperclipai/shared";
+import { formatDateTime } from "../lib/utils";
 import { QuotaBar } from "./QuotaBar";
 import { quotaUnavailableMessage } from "../lib/quota-refresh";
 
@@ -32,11 +33,12 @@ export function AccountQuotaPanels({
                 <span>{window.label}</span>
                 <span className="text-muted-foreground">{window.valueLabel ?? "Usage not reported"}</span>
               </div>
-              {window.resetsAt && <p className="text-xs text-muted-foreground">Resets {new Date(window.resetsAt).toLocaleString()}</p>}
+              {window.resetsAt && <p className="text-xs font-mono text-muted-foreground">Resets {formatDateTime(window.resetsAt)}</p>}
             </div>
           ) : (
             <QuotaBar
               key={`${window.label}:${index}`}
+              className="font-mono"
               label={window.label}
               percentUsed={window.usedPercent}
               leftLabel={
@@ -47,14 +49,14 @@ export function AccountQuotaPanels({
               }
               rightLabel={
                 window.resetsAt
-                  ? `Resets ${new Date(window.resetsAt).toLocaleString()}`
+                  ? `Resets ${formatDateTime(window.resetsAt)}`
                   : undefined
               }
             />
           ))}
           {account.capturedAt && (
-            <p className="text-xs text-muted-foreground">
-              Last checked {new Date(account.capturedAt).toLocaleString()}
+            <p className="text-xs font-mono text-muted-foreground">
+              Last checked {formatDateTime(account.capturedAt)}
             </p>
           )}
         </section>
