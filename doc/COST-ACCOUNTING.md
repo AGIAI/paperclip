@@ -71,6 +71,8 @@ Run `pnpm exec playwright test --config tests/e2e/playwright.config.ts tests/e2e
 
 The spool lives at `<instance-root>/accounting-receipts`. Directories use mode 0700 and receipt files 0600. Files contain accounting fields only; transcript text, prompts, tools, and credentials are excluded. Publication awaits file and directory fsync on POSIX. Each record carries company/run identity, a controller source ID, sequence, timestamp, normalized usage, completeness, and price. Replay validates the schema and fingerprint and rotates failures behind fresh entries in bounded batches. Old controller snapshots are retained as evidence but cannot overwrite a replacement controller or an acknowledged run. Multiple provider attempts are accounted together; incomplete attempts and capture failures remain incomplete.
 
+Before replacing a stopped run's recorder, recovery saves every pending spool receipt for that company and run, independently of the bounded startup sweep. A save failure blocks replacement and retains the old source for retry. Native recovery then restores its latest journal snapshot; subsequent cumulative run usage replaces that snapshot rather than adding it twice.
+
 The spool survives process death on persistent local storage, including the tested boundary before the first database write. It does not survive destruction of that storage, and cannot recover provider activity that was never emitted as usage. Back up persistent instance storage together with PostgreSQL. No arbitrary provider-log scraping or automatic provider re-execution occurs during accounting recovery.
 
 Board-only routes under `/api/companies/:companyId/accounting` provide:
