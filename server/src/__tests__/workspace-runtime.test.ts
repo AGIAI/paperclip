@@ -6764,7 +6764,8 @@ describeEmbeddedPostgres("workspace runtime service control persistence", () => 
         status: "starting",
         healthStatus: "unknown",
       });
-      expect(startingRow.providerRef).toMatch(/^\d+$/);
+      // Starting is persisted before the asynchronous spawn metadata write.
+      // The child marker alone does not prove that write has committed.
       expect(startingRow.port).toEqual(expect.any(Number));
 
       const services = await startPromise;
@@ -6777,6 +6778,7 @@ describeEmbeddedPostgres("workspace runtime service control persistence", () => 
 
       const runningRow = await waitForPersistedStatus("running");
       expect(runningRow.id).toBe(startingRow.id);
+      expect(runningRow.providerRef).toMatch(/^\d+$/);
       await expect(fetch(services[0]!.url!)).resolves.toMatchObject({ ok: true });
       const runtimeProvisionOperations = await db
         .select()
