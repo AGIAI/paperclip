@@ -6,6 +6,76 @@ and Linux x64 (including Daytona). Qualification uses the explicitly selected
 authoritative per-run USD accounting are excluded from certification. Semantic
 Paperclip questions remain the supported question path. Unknown usage is unknown.
 
+## Current release checkpoint
+
+The integration is in draft PR [#15075](https://github.com/paperclipai/paperclip/pull/15075).
+Production admission remains disabled. The frozen runtime is
+`d0b90756e3abe9e7516caded784036f01e76ad25`; the latest controller and fixture
+repairs are `473206cd9d5c7e4399b03869b42a9e9f6ba96c09`. Cursor profile v11,
+patch `paperclip-cursor-usage-v4`, CLI version and explicit Luna model remain fixed.
+
+| Required case | Current local proof | Fresh Daytona proof |
+| --- | --- | --- |
+| Completion through authenticated tools | `hello-complete-01`: passed, cleanup passed | Pending |
+| File edit, validation and registered download | `file-edit-validate-02`: passed, cleanup passed | Pending |
+| Semantic question after controller restart | `structured-question-restart-resume-01`: passed, cleanup passed | Pending |
+| Semantic plan approval and completion | `plan-approve-complete-01`: passed, cleanup passed | Pending |
+| Native reject, revise and accept | `native-plan-reject-revise-accept-01`: passed, cleanup passed | Pending |
+| Native plan cancellation | `native-plan-cancel-01`: passed, cleanup passed | Pending |
+| Denied write after reconnect | `native-write-deny-reconnect-01`: passed, cleanup passed | Pending |
+| Stop during pending permission | `pending-permission-stop-01`: passed, cleanup passed | Pending |
+| Three warm turns | `warm-three-turn-01`: passed, cleanup passed | Pending |
+| Pending permission followed by provider loss | `pending-permission-provider-loss-01`: passed, cleanup passed | Pending |
+
+Each local identity has prefix `cursor-v11-d0b907-local-`. Results live under
+`tests/runner-e2e/results/<identity>/<suite>/runner-acpx-cursor/local/<case>/attempt-1/result.json`.
+The file repeat uses controller/fixture 473206; the other cases use 5e6c16.
+All ten cases use runtime d0b907. Automatic retries are zero.
+
+All seven Runner semantic cases passed on this frozen runtime with owned
+processes retired. Their campaign identities have prefix `cursor-v11-d0b907-`
+and suffix `-01`: `get-task-context`, `context-before-action`,
+`create-task-document`, `finish-task`, `request-human-confirmation`,
+`workflow-context-document-progress`, and `workflow-governed-wait`.
+Every strict score remains `accounting_failure` for
+`provider_budget_coverage_unknown`; per-run USD is null. These failures are not
+included in the semantic pass count.
+
+| Platform | Provider-pack manifest digest | Daemon SHA-256 |
+| --- | --- | --- |
+| macOS ARM64 | `9e3312c292a5cf9705c75cf2ae6d7435222547e749bf210330be0e7f5d09b822` | `70174bb6f293bb5348ea638e3052abbdc69689b5b4635827c3b7d50e23a2b8e0` |
+| macOS x64 | `51a146a4013fcf4de05254509cb6056356e60c9f825feec648a347310953899e` | `0efe9ca359b961d429a475354473c462c31b95c6670a1d9ce50be601568c80c8` |
+| Linux x64 | `7c7bdec69c69e890c5ae3da7d8f80026412c397436adec8aa074f3653ff852c2` | `34d1b96550669613e91b3df75752164609ddfbeec70ea821e540558f8a96ddb6` |
+
+The qualification image is built locally at
+`sha256:16c7be3610f45e409f67873dd4bd829f9a1e0e5f017c8826d01db4bb05720f97`.
+Automatic approval review requires explicit authorization to publish it to
+`ghcr.io/paperclipai/paperclip-daytona-runner:cursor-qualification-d0b90756e3ab`.
+That approval is pending; the fresh remote matrix has not started.
+
+The isolated public package verifier passed at source 473206: 18 public packages,
+enabled lifecycle hooks, no implicit Cursor provisioning, explicit pinned setup,
+all three packaged daemon targets, and an ordinary installed Linux daemon launch.
+The consumer image is `node:24-trixie@sha256:be40f6a87b9b22215ddb20da0a2320a5c6d583fe3ee3b0024d9fa4f05b40c8fd`.
+Package version is `0.0.0-cursor-verify.473206cd9d5c`; provider calls were zero.
+
+MacOS release assembly re-signs copied daemon inodes. The exact packaged hashes
+are ARM64 `33bb9276b4d79be33f77c89a76ab71946808583500c6200a144b324479fbd9d8`,
+x64 `1bcd1bdc015f15a8321c9564d008284fd105da4f019632ff81ba0c9f75ae28d7`,
+and Linux x64 `34d1b96550669613e91b3df75752164609ddfbeec70ea821e540558f8a96ddb6`.
+The source daemon hashes remain as listed above.
+
+All 53 applicable CI checks passed at 473206, with four skipped. Greptile reported
+5/5 with no new blocker. Local default-suite coverage is complete through the
+original general-server run, its affected repeats, the remaining workspace groups
+and the serialized route files. Original failed attempts keep their failed status;
+the complete default command was not repeated.
+Recursive typecheck, full build, token gates, four native launch/selection tests,
+1,568 Vitest harness checks and 128 Node harness checks passed. The combined
+harness wrapper exits nonzero because it includes three Node suites as Vitest
+files; their separate Node execution passed. The final installed task smoke,
+production promotion and final certification remain required.
+
 ## Source-to-port map
 
 | Source | Destination / decision |
@@ -29,13 +99,13 @@ preserved; semantic behavior is assessed separately.
 - [x] Create the branch from the agreed mainline base.
 - [x] Port Cursor and necessary shared implementation without replacing newer controller files wholesale.
 - [x] Complete targeted tests and make the consolidated branch buildable with admission disabled.
-- [ ] Ship and verify explicit public runtime setup; npm lifecycle must not download Cursor.
-- [ ] Include Cursor in ordinary provider-pack and Daytona image builds.
-- [ ] Verify company secret bindings, exact model diagnostics and Agent/Plan/Ask configuration.
-- [ ] Preserve successful accepted planning runs as open tasks awaiting explicit user direction.
-- [ ] Show unavailable accounting explicitly and keep partial counters diagnostic-only.
-- [ ] Freeze candidate source/profile/patch/pack/image identities and build all three platforms.
-- [ ] Reconcile the remaining campaign budget; run paid cells serially within the existing account cap.
+- [x] Ship and verify explicit public runtime setup; npm lifecycle must not download Cursor.
+- [x] Include Cursor in ordinary provider-pack and Daytona image builds.
+- [x] Verify company secret bindings, exact model diagnostics and Agent/Plan/Ask configuration.
+- [x] Preserve successful accepted planning runs as open tasks awaiting explicit user direction.
+- [x] Show unavailable accounting explicitly and keep partial counters diagnostic-only.
+- [x] Freeze candidate source/profile/patch/pack/image identities and build all three platforms.
+- [x] Reconcile the remaining campaign budget; run paid cells serially within the existing account cap.
 - [ ] Qualify normal setup/completion locally and on Daytona.
 - [ ] Qualify file editing, independently checked bytes/validation and accessible artifacts on both targets.
 - [ ] Qualify semantic questions/restart with exactly-once answer consumption on both targets.
@@ -43,9 +113,9 @@ preserved; semantic behavior is assessed separately.
 - [ ] Qualify denied writes and Stop during pending approval, including owned process retirement, on both targets.
 - [ ] Qualify three warm turns with stable session/workspace/agent-files ownership and no duplicate output on both targets.
 - [ ] Qualify provider loss, input expiry and actionable errors without mutation replay or false success.
-- [ ] Run seven semantic Runner cases; retain strict accounting results separately.
+- [x] Run seven semantic Runner cases; retain strict accounting results separately.
 - [ ] Promote Cursor consistently only after the candidate passes; leave other pending providers gated.
-- [ ] Run contracts/replay, token gates, recursive typecheck, full tests and build.
+- [x] Run contracts/replay, token gates, recursive typecheck, full tests and build; retain failed local attempts and verify affected repeats separately.
 - [ ] Repeat a clean normal-install smoke with qualification overrides absent.
 - [ ] Deliver exact identities, capability limits and completed acceptance matrix; prepare focused template-based PR.
 
@@ -104,7 +174,7 @@ passed 43 boundary/file-handoff checks, 196 real-runner checks, and 1,742 of 1,7
 remaining server checks. The two remaining assertions compare macOS `/var` aliases
 against canonical `/private/var` paths; no unrelated test repair is ported.
 
-## Candidate and qualification checkpoint
+## Historical candidate and qualification checkpoint
 
 The runtime candidate is `ccae835581923876ad5ac0ef12bf763e54958db9`,
 rebased onto mainline `569c7203aa24b95440682983ce7940ba1d4247bd`.
@@ -330,3 +400,48 @@ The rebuilt d0b907 runtime passed all ten local Product E2E workflows with confi
 Review then repaired the installed server's independent daemon lookup to use the Runner's verified platform selector. The public npm probe now verifies both selectors agree. Harness diagnostic retention follows the final verdict and preserves incomplete publication; remote-admission uncertainty is marked only for Daytona. The file gate now additionally downloads the registered run-attributed artifact and verifies its exact bytes and stored hash. The earlier local file result retains its original oracle and identity; an affected repeat is required for the new download proof. These repairs do not change the frozen Runner source.
 
 The d0b907 Linux qualification image built successfully and its extracted provider pack passed manifest and command verification. Publishing `ghcr.io/paperclipai/paperclip-daytona-runner:cursor-qualification-d0b90756e3ab` was rejected by automatic approval review because explicit authorization for that payload and registry destination is required. The image remains local at `sha256:16c7be3610f45e409f67873dd4bd829f9a1e0e5f017c8826d01db4bb05720f97`; an approval request is pending. The fresh Daytona matrix has not started. Production admission remains disabled.
+
+The current public npm proof is `/tmp/cursor-public-npm-install-473206.log`; its provider-free report remains at the task-owned consumer root printed there. The file-download repeat is `cursor-v11-d0b907-local-file-edit-validate-02`, with status and cleanup passed. The seven Runner proof summary is `/tmp/cursor-production-20261003/runner-results/semantic-summary-d0b907.json`. Private provider traces and databases are not published.
+
+At 473206, the explicit Runner protocol, Rust, conformance and replay stages passed. The final authority stage passed 1,851 of 1,852 checks; its single failing test could not start embedded PostgreSQL after five attempts and did not reach its stale-question assertion. That attempt is retained at `/tmp/cursor-runner-contract-replay-473206.log`. Repeat only the affected `runner-api.integration.test.ts` stale source-run question case after the full test run releases its databases.
+
+The default full local command stopped after its general-server group: 15,207 tests passed, four failed and 88 were skipped, with one additional suite setup failure. The failures were two embedded PostgreSQL startup errors, socket resets and a 500-request Git-scan join count of 497 instead of 498. All five affected files then passed in isolation (123 tests), including the authority-stage stale-question case. Original failures remain retained. The workspace and serialized groups skipped by the stopped command are being run separately; no passing general-server coverage is repeated. No unrelated source or test repair was made.
+
+
+## Final local verification at code source 473206
+
+All required default Vitest groups were exercised. The original default command
+failed in its first group and remains failed in the record. Passing coverage was
+completed through its remaining groups and isolated repeats, without rerunning
+the already passing general-server cases:
+
+- General-server: 15,207 passed in the original run; all five affected files passed
+  in the diagnosed isolated repeat (123 tests). This includes the authority-stage
+  stale-question assertion that previously failed during database setup.
+- UI: 7,282 passed. CLI: 504 passed initially; the one worktree-seed PostgreSQL
+  startup failure passed in isolation.
+- Shared and skills-catalog groups passed. Database: 116 passed initially; both
+  migration startup failures passed serially with other database groups idle.
+- All nine remaining default adapter/plugin projects passed with two workers.
+- All 150 serialized route/auth files were exercised. The earlier built-in-agent
+  socket-reset case passed during resumption. Two later cross-company socket/
+  timeout failures passed in the final isolated repeat. Their original failed
+  records remain retained.
+- Runner protocol, Rust, conformance and replay checks passed. The authority
+  stage's one database-startup failure was covered by the passing isolated
+  stale-question test; its other 1,851 checks passed in the original stage.
+
+No unrelated source or test repair was made. Targeted final logs are
+`/tmp/cursor-targeted-failures-473206.log`,
+`/tmp/cursor-cli-seed-repeat-473206.log`,
+`/tmp/cursor-db-migration-repeat-473206.log`, and
+`/tmp/cursor-route-repeat-473206.log`. The exact resumed coverage is recorded in
+`/tmp/cursor-production-20261003/workspaces-b-remaining-summary-473206.json` and
+`/tmp/cursor-production-20261003/serialized-remainder-summary-473206.json`.
+
+The remaining critical path is unchanged: approve the exact qualification-image
+registry publication; qualify the frozen candidate on Daytona; apply Cursor-only
+production admission; assemble and verify the final package/image combination;
+run the real installed task smoke without qualification overrides; then prepare
+the PR for production review. Native AskQuestion and complete per-run dollar
+accounting remain excluded. Production merge/deployment remains a separate action.
