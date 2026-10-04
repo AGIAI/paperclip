@@ -68,6 +68,7 @@ export function parseCursorJsonl(stdout: string) {
 export function createCursorJsonlParser() {
   let sessionId: string | null = null;
   let sawResult = false;
+  let sawLegacyStep = false;
   const messages: string[] = [];
   let errorMessage: string | null = null;
   let totalCostUsd = 0;
@@ -156,6 +157,7 @@ export function createCursorJsonlParser() {
       }
 
       if (type === "step_finish") {
+        sawLegacyStep = true;
         const part = parseObject(event.part);
         const tokens = parseObject(part.tokens);
         const cache = parseObject(tokens.cache);
@@ -169,6 +171,7 @@ export function createCursorJsonlParser() {
 
     return {
       sawResult,
+      sawLegacyStep,
       sessionId,
       summary: messages.join("\n\n").trim(),
       usage: { ...usage },

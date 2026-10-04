@@ -1452,6 +1452,59 @@ describe("shared ACPX engine runtime behavior", () => {
     expect(result.billingType).toBe("unknown");
   });
 
+  it.each(["failed", "cancelled"] as const)("keeps %s in-stream usage provisional without a final receipt", async (status) => {
+    const root = await makeTempRoot();
+    const stateDir = path.join(root, "state");
+    const execute = createAcpxEngineExecutor({
+      createRuntime: () => ({
+        ensureSession: async () => ({
+          backendSessionId: "backend-session",
+          agentSessionId: "agent-session",
+          runtimeSessionName: "runtime-session",
+        }),
+        startTurn: () => ({
+          events: (async function* () {
+            yield {
+              type: "status",
+              text: "usage",
+              tag: "usage_update",
+              cost: { amount: 0.31, currency: "USD" },
+              breakdown: { inputTokens: 40, outputTokens: 700, cachedReadTokens: 60 },
+            };
+            
+          })(),
+          result: Promise.resolve({ status, error: { code: "INTERNAL", message: "fixture failure" } }),
+          cancel: async () => {},
+        }),
+        close: async () => {},
+      }) as never,
+    });
+
+    const onUsage = vi.fn();
+    const result = await execute({
+      runId: "run-usage-event-fallback",
+      agent: {
+        id: "agent-1",
+        companyId: "company-1",
+      },
+      runtime: {},
+      config: { agent: "custom", agentCommand: "node ./fake-acp.js", stateDir },
+      context: {},
+      onLog: async () => {},
+      onMeta: async () => {},
+      onUsage,
+    } as never);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.usageComplete).toBe(false);
+    expect(onUsage).toHaveBeenLastCalledWith(expect.objectContaining({ complete: false, costUsd: 0.31 }));
+    expect(result.usage).toEqual({ inputTokens: 40, outputTokens: 700, cachedInputTokens: 60 });
+    expect(result.usageBasis).toBe("per_run");
+    expect(result.costUsd).toBeCloseTo(0.31);
+    expect(result.provider).toBe("acpx");
+    expect(result.billingType).toBe("unknown");
+  });
+
   it.skipIf(process.platform === "win32")("materializes ACPX Claude skills without symlinked descendants", async () => {
     const root = await makeTempRoot();
     const skillRoot = path.join(root, "skills");
