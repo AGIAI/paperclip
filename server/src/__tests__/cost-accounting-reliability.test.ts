@@ -1,3 +1,4 @@
+import { upsertBudgetPolicySchema } from "@paperclipai/shared";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
@@ -286,6 +287,31 @@ databaseDescribe("cost accounting reliability (PostgreSQL)", () => {
     const policies = await budgetService(db).listPolicies(f.company.id);
     expect(policies).toEqual(expect.arrayContaining([expect.objectContaining({ scopeType: "agent", amount: 50 }), expect.objectContaining({ scopeType: "company", amount: 75 })]));
     expect(await budgetService(db).getInvocationBlock(f.company.id, f.agent.id)).toMatchObject({ scopeType: "company" });
+  });
+
+  it("delivers cancellation after generic budget updates commit", async () => {
+    const f = await fixture();
+    await costService(db).createEvent(f.company.id, f.receipt);
+    const cancelWorkForScope = vi.fn(async (scope) => {
+      const policies = await budgetService(db).listPolicies(f.company.id);
+      expect(policies.some(policy => policy.scopeType === scope.scopeType && policy.amount < 100)).toBe(true);
+    });
+    await services.value.agentService(db, { cancelWorkForScope }).update(f.agent.id, { budgetMonthlyCents: 50 });
+    await services.value.companyService(db, { cancelWorkForScope }).update(f.company.id, { budgetMonthlyCents: 75 });
+    expect(cancelWorkForScope).toHaveBeenCalledWith(expect.objectContaining({ scopeType: "agent", scopeId: f.agent.id }));
+    expect(cancelWorkForScope).toHaveBeenCalledWith(expect.objectContaining({ scopeType: "company", scopeId: f.company.id }));
+    const rows = await db.select().from(budgetPolicies).where(eq(budgetPolicies.companyId, f.company.id));
+    expect(rows.every(row => row.enforcementVersion === row.enforcementDeliveredVersion)).toBe(true);
+  });
+
+  it("merges partial policy edits with current settings under the accounting lock", async () => {
+    const f = await fixture(); const budgets = budgetService(db);
+    const identity = { scopeType: "agent" as const, scopeId: f.agent.id };
+    await budgets.upsertPolicy(f.company.id, { ...identity, amount: 100, hardStopEnabled: true }, "board");
+    await budgets.upsertPolicy(f.company.id, { ...identity, amount: 200, hardStopEnabled: false, warnPercent: 60, notifyEnabled: false }, "other-operator");
+    const saved = await budgets.upsertPolicy(f.company.id, upsertBudgetPolicySchema.parse({ ...identity, reservationCents: "10" }), "board");
+    expect(saved).toMatchObject({ amount: 200, hardStopEnabled: false, warnPercent: 60, notifyEnabled: false, reservationCents: "10.0000000" });
+    await expect(budgets.upsertPolicy(f.company.id, { scopeType: "project", scopeId: f.project.id, reservationCents: "1" }, "board")).rejects.toThrow("Amount is required");
   });
 
   it("conserves both spend and tokens across complete per-model receipts", async () => {

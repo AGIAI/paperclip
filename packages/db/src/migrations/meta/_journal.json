@@ -2059,6 +2059,13 @@
       "when": 1790983662974,
       "tag": "0295_lean_baron_strucker",
       "breakpoints": true
+    },
+    {
+      "idx": 296,
+      "version": "7",
+      "when": 1791086889296,
+      "tag": "0296_perpetual_black_cat",
+      "breakpoints": true
     }
   ]
 }

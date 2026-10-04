@@ -16,6 +16,7 @@ import { api } from "./client";
 
 function dateParams(from?: string, to?: string): string {
   const params = new URLSearchParams();
+  if (!from && !to) params.set("period", "all");
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   const qs = params.toString();
@@ -51,6 +52,7 @@ export const costsApi = {
 
 function dateParamsWithLimit(from?: string, to?: string, limit?: number): string {
   const params = new URLSearchParams();
+  if (!from && !to) params.set("period", "all");
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   if (limit) params.set("limit", String(limit));
