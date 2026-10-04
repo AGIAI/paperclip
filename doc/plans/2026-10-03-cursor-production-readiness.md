@@ -6,6 +6,25 @@ and Linux x64 (including Daytona). Qualification uses the explicitly selected
 authoritative per-run USD accounting are excluded from certification. Semantic
 Paperclip questions remain the supported question path. Unknown usage is unknown.
 
+The proposed release supports authenticated Paperclip tools, semantic questions,
+native plan decisions, permission control, rich activity, file delivery, durable
+responses, cancellation and warm continuation. The matrix below records the
+current proof for those capabilities; it does not certify pending remote cells.
+Accepted planning succeeds while the task waits for explicit user direction.
+Acceptance does not start implementation.
+
+Install with `paperclipai runtime setup cursor`. Configure company secret bindings
+for `CURSOR_API_KEY` or `CURSOR_AUTH_TOKEN` and select the model explicitly.
+Agent is the default mode; Plan and Ask are explicit alternatives. Missing assets,
+credentials, model availability and entitlement are diagnosed without substituting
+a model. A new managed-login experience is outside this release.
+
+Image-input delivery, detailed native diffs and deeper child transcripts remain
+follow-ups. Partial counters are diagnostics; they do not establish measured
+spend or enforceable per-run dollar accounting. Native AskQuestion is implemented
+defensively but is not advertised or certified. See the
+[Cursor capability contract](../architecture/runner-cursor-capabilities.md).
+
 ## Current release checkpoint
 
 The integration is in draft PR [#15075](https://github.com/paperclipai/paperclip/pull/15075).
