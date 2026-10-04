@@ -33,13 +33,16 @@ test("provider quotas keep accounts separate, preserve unknown usage, and retain
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.clock.install();
     await page.goto(`/${company.issuePrefix}/activity/costs`);
+    const dismissAnnouncement = page.getByRole("button", { name: "Dismiss announcement" });
+    if (await dismissAnnouncement.isVisible()) await dismissAnnouncement.click();
     await page.getByRole("tab", { name: "Providers", exact: true }).click();
     const personal = page.locator("section").filter({ has: page.getByText("Personal subscription", { exact: true }) });
     const team = page.locator("section").filter({ has: page.getByText("Team subscription", { exact: true }) });
+    const providerCard = page.locator('[data-slot="card"]').filter({ has: personal });
     await expect(personal.getByRole("progressbar", { name: "5h: 42%" })).toBeVisible();
     await expect(team.getByText("Usage not reported", { exact: true })).toBeVisible();
     await expect(team.getByRole("progressbar")).toHaveCount(0);
-    await info.attach("provider-quota-multiple-accounts-and-unknown-usage", { body: await page.screenshot(), contentType: "image/png" });
+    await info.attach("provider-quota-multiple-accounts-and-unknown-usage", { body: await providerCard.screenshot(), contentType: "image/png" });
 
     refreshFails = true;
     const refresh = page.waitForResponse(response => response.url().endsWith("/costs/quota-windows"));
@@ -49,7 +52,7 @@ test("provider quotas keep accounts separate, preserve unknown usage, and retain
     await expect(team.getByText("Usage not reported", { exact: true })).toBeVisible();
     await expect(personal.getByText("Showing the last available quota. Updates will resume automatically.", { exact: true })).toBeVisible();
     await expect(page.getByText("raw provider command failed", { exact: false })).toHaveCount(0);
-    await info.attach("provider-quota-refresh-failure-retains-readings", { body: await page.screenshot(), contentType: "image/png" });
+    await info.attach("provider-quota-refresh-failure-retains-readings", { body: await providerCard.screenshot(), contentType: "image/png" });
   } finally {
     await request.delete(api);
   }
