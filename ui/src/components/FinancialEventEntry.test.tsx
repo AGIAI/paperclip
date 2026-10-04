@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../api/client";
 import { FinancialEventEntry } from "./FinancialEventEntry";
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -152,6 +153,34 @@ describe("financial event entry", () => {
     await fill("Amount (USD)", "3"); await submit();
     expect(mocks.create.mock.calls[2][1].amountCents).toBe("300.0000000");
     expect(mocks.create.mock.calls[2][1].idempotencyKey).not.toBe(original[1].idempotencyKey);
+  });
+
+  it.each([400, 401, 403, 404, 422])("unlocks a charge rejected with %s so it can be edited or abandoned", async (status) => {
+    await render(); await click("Record or import charges");
+    await fill("Provider or biller", "anthropic"); await fill("Amount (USD)", "2");
+    mocks.create.mockRejectedValueOnce(new ApiError("Private rejection detail", status, {}));
+    await submit();
+    const original = mocks.create.mock.calls[0][1];
+    expect(document.body.textContent).not.toContain("This charge may already be saved");
+    expect(document.body.textContent).not.toContain("Private rejection detail");
+    expect([...document.querySelectorAll<HTMLInputElement>("form input")].every(input => !input.disabled)).toBe(true);
+    await click("Cancel"); await click("Record or import charges");
+    await click("Import invoice");
+    expect(document.querySelector('[aria-label="Financial invoice JSON"]')).not.toBeNull();
+    await click("Record charge"); await fill("Amount (USD)", "3"); await submit();
+    expect(mocks.create.mock.calls[1][1]).toMatchObject({ amountCents: "300.0000000", idempotencyKey: original.idempotencyKey });
+  });
+
+  it.each([409, 500, 502])("keeps a charge with uncertain %s outcome immutable", async (status) => {
+    await render(); await click("Record or import charges");
+    await fill("Provider or biller", "anthropic"); await fill("Amount (USD)", "2");
+    mocks.create.mockRejectedValueOnce(new ApiError("Uncertain response", status, {}));
+    await submit();
+    const original = mocks.create.mock.calls[0];
+    expect(document.body.textContent).toContain("Confirm original charge");
+    expect([...document.querySelectorAll<HTMLInputElement>("form input")].every(input => input.disabled)).toBe(true);
+    await click("Confirm original charge");
+    expect(mocks.create.mock.calls[1]).toEqual(original);
   });
 
   it("validates invoice input and sends the normalized invoice to the current company", async () => {

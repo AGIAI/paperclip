@@ -219,7 +219,9 @@ export function Costs({
   // The clock advances the request bounds, not the identity of the report.
   // Keep successful data visible during polling; a different company or selected
   // period still gets its own cache entry and initial loading state.
-  const reportQueryFrom = preset === "custom" ? from || undefined : undefined;
+  // Month/year-to-date become a different reporting period at their UTC
+  // boundary. Rolling windows retain identity as their lower bound advances.
+  const reportQueryFrom = ["custom", "mtd", "ytd"].includes(preset) ? from || undefined : undefined;
   const reportQueryTo = preset === "custom" ? to || undefined : preset;
 
   const { data: budgetData, isLoading: budgetLoading, error: budgetError } = useQuery({
