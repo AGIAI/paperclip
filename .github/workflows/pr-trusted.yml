@@ -641,6 +641,7 @@ jobs:
         if: ${{ !cancelled() && matrix.group == 'general-server-without-chat' && matrix.shard_index == 0 }}
         run: |
           node --test scripts/test-accounting-mutations.test.mjs
+          pnpm --filter @paperclipai/paperclip-runner build:typescript
           pnpm test:accounting
 
       - name: Upload accounting coverage
