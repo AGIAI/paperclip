@@ -98,10 +98,12 @@ describe("CLI adapter accounting on timeout", () => {
       }
       const end = fixture.name === "pi" && !timedOut ? '\n{"type":"agent_end","messages":[]}' : "";
       const first = JSON.stringify(early) + "\n";
-      const noise = JSON.stringify({ type: "text", part: { text: "x".repeat(5 * 1024 * 1024) } }) + "\n";
+      const noise = JSON.stringify({ type: "text", part: { text: "x".repeat(9 * 1024 * 1024) } }) + "\n";
       const last = JSON.stringify(fixture.event) + end;
       processResult.mockImplementation(async (_run, _target, _command, _args, options) => {
-        for (const chunk of [first, noise, last]) await options.onLog("stdout", chunk);
+        for (const record of [first, noise, last]) {
+          for (let offset = 0; offset < record.length; offset += 65521) await options.onLog("stdout", record.slice(offset, offset + 65521));
+        }
         return { exitCode: timedOut ? null : 0, signal: timedOut ? "SIGTERM" : null, timedOut, stdout: (first + noise + last).slice(-4 * 1024 * 1024), stderr: "", pid: 123, startedAt: new Date().toISOString() };
       });
       const onUsage = checkpoint ? vi.fn() : undefined;
