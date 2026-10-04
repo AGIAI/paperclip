@@ -128,7 +128,20 @@ try {
   const extraAgents = await db.insert(agents).values(Array.from({ length: 100 }, (_, i) => ({ companyId: company.id, name: `Idle ${i}`, role: "engineer", adapterType: "process" }))).returning();
   await db.insert(budgetPolicies).values(extraAgents.map(extra => ({ companyId: company.id, scopeType: "agent", scopeId: extra.id, windowKind: "calendar_month_utc", amount: 2_000_000_000 })));
   const largeOverview: number[] = [];
-  for (let i = 0; i < 10; i++) largeOverview.push(await time(() => budgetService(db).overview(company.id)));
+  for (let i = 0; i < 10; i++) largeOverview.push(await time(async () => {
+    const overview = await budgetService(db).overview(company.id);
+    if (overview.policies.length !== 102) throw new Error("Benchmark policy fixture is incomplete");
+  }));
+  const largePolicyWrites: number[] = [], largePolicyAdmissions: number[] = [];
+  const largePolicyStart = performance.now();
+  for (let batch = 0; batch < 4; batch++) await Promise.all(Array.from({ length: concurrency }, (_, index) => time(() => costService(db).createEvent(company.id, {
+    agentId: agent.id, provider: "fixture", model: "fixture", costCents: "0.0000001", idempotencyKey: `large-policy:${batch}:${index}`, occurredAt: new Date(),
+  })).then(ms => largePolicyWrites.push(ms))));
+  const largePolicyMs = performance.now() - largePolicyStart;
+  for (let i = 0; i < 20; i++) {
+    const [run] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, status: "running" }).returning();
+    largePolicyAdmissions.push(await time(() => reserveRunBudget(db, company.id, run.id, null)));
+  }
   const integrity = await accountingIntegrityService(db).inspect(company.id);
   if (integrity.findings.length) throw new Error(`Benchmark violated accounting integrity: ${JSON.stringify(integrity.findings)}`);
   const plan = await db.$client`explain (analyze,buffers,format json) select sum(cost_cents) from cost_events where company_id = ${company.id} and project_id = ${project.id}
@@ -139,7 +152,9 @@ try {
     budgetedCompanyWrites: { activePolicies: 2, ...distribution(budgetedWrites), writesPerSecond: budgetedWrites.length / (budgetedMs / 1000) },
     admission: distribution(admissions), concurrentDashboard: distribution(dashboard), writesWhilePolling: distribution(writesWhilePolling),
     durableCheckpoint: distribution(checkpoints), healthWith100kHistoricalRuns: distribution(health),
-    overviewWith102Policies: distribution(largeOverview), spoolBacklogs,
+    overviewWith102Policies: distribution(largeOverview),
+    writesWith102Policies: { activePolicies: 102, relevantPolicies: 2, ...distribution(largePolicyWrites), writesPerSecond: largePolicyWrites.length / (largePolicyMs / 1000) },
+    admissionWith102Policies: distribution(largePolicyAdmissions), spoolBacklogs,
     eventLoopDelay: { p95Ms: eventLoop.percentile(95) / 1e6, maxMs: eventLoop.max / 1e6 },
     recovery, projectBudgetQueryPlan: plan, integrityFindings: integrity.findings.length, totalMs: performance.now()-started };
   const output = path.resolve("coverage/accounting/scale.json"); await mkdir(path.dirname(output), { recursive: true }); await writeFile(output, JSON.stringify(report,null,2));
