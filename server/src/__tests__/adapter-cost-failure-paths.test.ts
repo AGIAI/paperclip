@@ -176,3 +176,32 @@ describe("incremental protocol accounting", () => {
     expect(second.usage).toMatchObject(Object.fromEntries(Object.entries(fixture.tokens!).map(([key, count]) => [key, count * multiplier])));
   });
 });
+
+
+describe("process adapter bootstrap accounting proof", () => {
+  const context = (config: Record<string, unknown>): AdapterExecutionContext => ({
+    runId: `bootstrap-${crypto.randomUUID()}`,
+    agent: { id: "agent", companyId: "company", name: "Process", adapterType: "process", adapterConfig: {} },
+    runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
+    config, context: {}, onLog: async () => {},
+  });
+  it.each([{}, { command: "/nonexistent-paperclip-accounting-command" },
+    { command: process.execPath, cwd: "/nonexistent-paperclip-accounting-directory" }])(
+    "proves no provider work for a failure before spawn: %j", async (config) => {
+      const { execute } = await import("../adapters/process/execute.js");
+      const onSpawn = vi.fn();
+      const result = await execute({ ...context(config), onSpawn });
+      expect(result).toMatchObject({ exitCode: 1, executionRecovery: { kind: "bootstrap", providerWorkStarted: false } });
+      expect(result.errorMessage).toBeTruthy();
+      expect(onSpawn).not.toHaveBeenCalled();
+    },
+  );
+  it("does not invent bootstrap proof when a spawned process fails", async () => {
+    const { execute } = await import("../adapters/process/execute.js");
+    const onSpawn = vi.fn(async () => { throw new Error("Metadata persistence failed"); });
+    const result = await execute({ ...context({ command: process.execPath, args: ["-e", "process.exit(7)"] }), onSpawn });
+    expect(onSpawn).toHaveBeenCalledOnce();
+    expect(result.exitCode).toBe(7);
+    expect(result.executionRecovery).toBeUndefined();
+  });
+});
