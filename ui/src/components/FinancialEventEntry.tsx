@@ -41,6 +41,7 @@ function Entry({ companyId }: { companyId: string }) {
   const [secretId, setSecretId] = useState("");
   const [accountId, setAccountId] = useState("");
   const [scopes, setScopes] = useState("");
+  const [providerFrom, setProviderFrom] = useState(() => new Date(Date.now() - 86_400_000).toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10));
   const secrets = useQuery({
     queryKey: ["billing-credentials", companyId],
@@ -52,6 +53,10 @@ function Entry({ companyId }: { companyId: string }) {
   const action = useMutation({
     mutationFn: async () => {
       if (mode === "provider") {
+        if (providerFrom && endDate && providerFrom >= endDate) {
+          setValidation("End date must be after start date (exclusive).");
+          return false;
+        }
         const input = importProviderCostsSchema.safeParse({
           provider,
           secretId,
@@ -60,7 +65,7 @@ function Entry({ companyId }: { companyId: string }) {
             .split(",")
             .map((s) => s.trim())
             .filter(Boolean),
-          from: date,
+          from: providerFrom,
           to: endDate,
         });
         if (!input.success) {
@@ -306,8 +311,8 @@ function Entry({ companyId }: { companyId: string }) {
                   <span>From (UTC)</span>
                   <Input
                     type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
+                    value={providerFrom}
+                    onChange={(e) => setProviderFrom(e.target.value)}
                     required
                     disabled={action.isPending}
                   />

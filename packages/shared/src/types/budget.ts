@@ -92,7 +92,7 @@ export interface BudgetPolicyUpsertInput {
   scopeId: string;
   metric?: BudgetMetric;
   windowKind?: BudgetWindowKind;
-  amount: number;
+  amount?: number;
   reservationCents?: string | number;
   warnPercent?: number;
   hardStopEnabled?: boolean;

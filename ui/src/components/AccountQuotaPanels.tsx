@@ -26,11 +26,16 @@ export function AccountQuotaPanels({
                 : quotaUnavailableMessage(account.windows.length > 0)}
             </p>
           )}
-          {account.windows.map((window, index) => (
+          {account.windows.map((window, index) => window.usedPercent == null ? (
+            <div key={`${window.label}:${index}`} className="flex justify-between gap-3 text-sm">
+              <span>{window.label}</span>
+              <span className="text-muted-foreground">{window.valueLabel ?? "Usage not reported"}</span>
+            </div>
+          ) : (
             <QuotaBar
               key={`${window.label}:${index}`}
               label={window.label}
-              percentUsed={window.usedPercent ?? 0}
+              percentUsed={window.usedPercent}
               leftLabel={
                 window.valueLabel ??
                 (window.usedPercent === null

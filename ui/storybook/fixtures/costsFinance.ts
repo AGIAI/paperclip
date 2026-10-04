@@ -34,7 +34,8 @@ export function createCostsFinanceFixtures(companyId: string) {
   return async (resource: string, request: Request): Promise<Response | null> => {
     const url = new URL(request.url);
     const from = url.searchParams.get("from"); const to = url.searchParams.get("to");
-    const visible = events.filter(row => (!from || row.occurredAt >= new Date(from)) && (!to || row.occurredAt <= new Date(`${to.slice(0, 10)}T23:59:59.999Z`)));
+    const until = to ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999Z` : to) : null;
+    const visible = events.filter(row => (!from || row.occurredAt >= new Date(from)) && (!until || row.occurredAt <= until));
     if (resource === "costs/finance-summary") return Response.json({ companyId, ...summary(visible), eventCount: visible.length, currencies: [...new Set(visible.map(row => row.currency))].map(currency => summary(visible, currency)) });
     if (resource === "costs/finance-events") return Response.json(visible);
     if (resource === "costs/finance-by-biller" || resource === "costs/finance-by-kind") {

@@ -1,5 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
-import { budgetPolicies, budgetReservations, heartbeatRuns, type Db } from "@paperclipai/db";
+import { budgetPolicies, budgetReservations, heartbeatRuns, nativeRunFinalizations, type Db } from "@paperclipai/db";
 import { centsToUnits, unitsToCents } from "@paperclipai/shared";
 import { conflict, notFound } from "../errors.js";
 import { withAccountingTransaction } from "./accounting-transaction.js";
@@ -8,13 +8,23 @@ import { budgetServiceInTransaction, computeObservedSpend } from "./budgets.js";
 /** Reserve before dispatch, under the same company lock as charges and policy
  * changes. Estimates constrain admission; they cannot cap a provider's bill.
  * A reservation survives timeouts and restarts until accounting proves closure. */
-export async function reserveRunBudget(db: Db, companyId: string, runId: string, projectId: string | null, ledgerScope: Record<string, unknown> = {}) {
+export async function reserveRunBudget(db: Db, companyId: string, runId: string, projectId: string | null, ledgerScope: Record<string, unknown> = {}, recoveryLeaseOwner?: string) {
   return withAccountingTransaction(db, companyId, async (tx, publications) => {
     const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId))).for("update");
     if (!run) throw notFound("Run not found");
     if (run.costAccountedAt || !["queued", "running"].includes(run.status)) throw conflict("Run can no longer start provider work");
     const [existing] = await tx.select().from(budgetReservations).where(and(eq(budgetReservations.companyId, companyId), eq(budgetReservations.runId, runId)));
-    if (existing) throw conflict("Provider dispatch has already reserved this run");
+    if (existing) {
+      // The native coordinator fences recovery ownership. Reuse the original
+      // hold only for that live owner, never for an ordinary duplicate dispatch.
+      const [owner] = recoveryLeaseOwner && run.runtimeMode === "native" && existing.state === "held"
+        && existing.projectId === projectId ? await tx.select({ runId: nativeRunFinalizations.runId })
+          .from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, companyId),
+            eq(nativeRunFinalizations.runId, runId), eq(nativeRunFinalizations.leaseOwner, recoveryLeaseOwner),
+            sql`${nativeRunFinalizations.leaseExpiresAt} > now()`)).for("update") : [];
+      if (owner) return existing;
+      throw conflict("Provider dispatch has already reserved this run");
+    }
     const block = await budgetServiceInTransaction(tx, publications).getInvocationBlock(companyId, run.agentId, { projectId });
     if (block) throw conflict(block.reason);
     const candidates = await tx.select().from(budgetPolicies).where(and(eq(budgetPolicies.companyId, companyId), eq(budgetPolicies.isActive, true), eq(budgetPolicies.hardStopEnabled, true)));

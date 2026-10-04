@@ -35,7 +35,8 @@ export async function fetchCompanyQuotaWindows(db: Db, companyId: string, userId
     const base = { provider: row.summary.provider, accountKey, accountLabel: row.summary.name, source: "managed-connection" };
     const definitionUnavailable = row.grant.credentialSecretRefs.some(ref => {
       const revision = revisions.find(value => value.id === ref.secretId);
-      return revision?.definitionId && (revision.definitionStatus !== "active" || revision.definitionDeletedAt !== null);
+      return revision && (revision.status !== "active" || revision.versionStatus === "disabled" || revision.revokedAt != null
+        || (revision.definitionId && (revision.definitionStatus !== "active" || revision.definitionDeletedAt !== null)));
     });
     if (row.summary.status !== "connected" || definitionUnavailable) {
       return { ...base, ok: false, errorFamily: "credentials_unavailable", error: publicError, windows: [] };
@@ -52,23 +53,34 @@ export async function fetchCompanyQuotaWindows(db: Db, companyId: string, userId
           credentialResolved = true;
           let windows;
           if (base.provider === "openai") {
-            const auth = JSON.parse(value);
+            let auth;
+            try { auth = JSON.parse(value); } catch { throw new Error("credentials_unavailable"); }
             const token = auth.tokens?.access_token ?? auth.accessToken;
-            const accountId = auth.tokens?.account_id ?? auth.accountId;
-            if (typeof token !== "string" || !token || typeof accountId !== "string" || !accountId) {
+            if (typeof token !== "string" || !token) {
               return { ...base, ok: false, errorFamily: "credentials_unavailable", error: publicError, windows: [] };
             }
-            windows = await fetchCodexQuota(token, accountId, controller.signal);
+            const read = (auth: { tokens?: { access_token?: string; account_id?: string | null }; accessToken?: string; accountId?: string | null }) =>
+              fetchCodexQuota(auth.tokens?.access_token ?? auth.accessToken!, auth.tokens?.account_id ?? auth.accountId ?? null, controller.signal);
+            try { windows = await read(auth); }
+            catch (error) {
+              if (!(error instanceof Error) || !/\b401\b/.test(error.message)) throw error;
+              auth = JSON.parse(await service.refreshQuotaCredential(row, value, controller.signal));
+              controller.signal.throwIfAborted();
+              windows = await read(auth);
+            }
           } else {
             windows = await fetchClaudeQuota(value, controller.signal);
           }
           return { ...base, ok: true, windows, capturedAt: new Date().toISOString() };
         } catch (error) {
           const message = error instanceof Error ? error.message : "Quota unavailable";
-          const invalid = !credentialResolved || /401|403|refresh_token_(?:reused|expired|invalidated)/i.test(message);
+          const missing = message === "credentials_unavailable";
+          const invalid = message === "authentication_required" || (credentialResolved && /\b401\b|refresh_token_(?:reused|expired|invalidated)/i.test(message));
+          const errorFamily = missing ? "credentials_unavailable" : invalid ? "authentication_required"
+            : credentialResolved && /\b403\b/.test(message) ? "permission_denied" : "provider_unavailable";
           logger.warn({ companyId, accountKey, provider: base.provider, authenticationFailed: invalid }, "Connected account quota unavailable");
           return { ...base, ok: false, windows: [], error: publicError,
-            ...(invalid ? { errorFamily: "authentication_required" } : {}) };
+            errorFamily };
         }
       })();
       const bounded = withQuotaTimeout(base.provider, result, () => controller.abort()).then(quota => ({ ...base, ...quota, ...(quota.ok ? {} : { error: publicError }) }));

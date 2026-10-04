@@ -123,9 +123,27 @@ describe("Shared Costs surfaces", () => {
     await act(async () => { await vi.waitFor(() => expect(upsertPolicyMock).toHaveBeenCalled()); });
     expect(upsertPolicyMock).toHaveBeenCalledWith("company-1", {
       scopeType: summary.scopeType, scopeId: summary.scopeId, metric: summary.metric, windowKind: summary.windowKind,
-      amount: field === "amount" ? 100 : 500, warnPercent: 65, hardStopEnabled: false, notifyEnabled: false, isActive: false,
-      unpricedUsagePolicy: field === "unknown price" ? "block" : "allow", reservationCents: field === "reservation" ? "100.0000000" : "2.0000000",
+      ...(field === "amount" ? { amount: 100 } : field === "unknown price" ? { unpricedUsagePolicy: "block" } : { reservationCents: "100.0000000" }),
     });
+    queryClient.clear();
+  });
+
+  it("compares monthly budgets only with month-to-date spend", async () => {
+    for (const mock of Object.values(costsApiMocks)) mock.mockResolvedValue([]);
+    costsApiMocks.summary.mockResolvedValue({ spendCents: 200, budgetCents: 1000, utilizationPercent: 20, pricingComplete: true });
+    costsApiMocks.financeSummary.mockResolvedValue({ netCents: 0, debitCents: 0, creditCents: 0, estimatedDebitCents: 0, eventCount: 0 });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    root = createRoot(container);
+    await act(async () => root.render(<MemoryRouter><QueryClientProvider client={queryClient}><Costs /></QueryClientProvider></MemoryRouter>));
+    await act(async () => { await vi.waitFor(() => expect(container.textContent).toContain("20% of monthly budget consumed this month")); });
+    costsApiMocks.summary.mockResolvedValue({ spendCents: 12000, budgetCents: 1000, utilizationPercent: 1200, pricingComplete: true });
+    await act(async () => [...container.querySelectorAll("button")].find(b => b.textContent === "All Time")!.click());
+    await act(async () => { await vi.waitFor(() => expect(container.textContent).toContain("$120.00")); });
+    expect(container.textContent).toContain("Monthly budget $10.00");
+    expect(container.textContent).toContain("Monthly limit");
+    expect(container.textContent).not.toContain("1200%");
+    expect(container.textContent).not.toContain("of monthly budget consumed");
+    expect(costsApiMocks.summary).toHaveBeenLastCalledWith("company-1", undefined, undefined);
     queryClient.clear();
   });
 
