@@ -7,7 +7,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { accountingRuntimeBaselines, agents, agentRuntimeState, billingInvoiceLines, budgetPolicies, budgetReservations, companies, costEvents, createDb, heartbeatRuns, nativeRunFinalizations, issues, projects, runUsageReceipts } from "@paperclipai/db";
 import { accountingIntegrityService } from "../services/accounting-integrity.js";
 import { billingReconciliationService } from "../services/billing-reconciliation.js";
-import { budgetService } from "../services/budgets.js";
+import { budgetService, type BudgetEnforcementScope } from "../services/budgets.js";
 import { reserveRunBudget } from "../services/budget-reservations.js";
 import { costService } from "../services/costs.js";
 import { financeService } from "../services/finance.js";
@@ -148,6 +148,136 @@ const support = await getEmbeddedPostgresTestSupport();
     expect((await db.select().from(budgetReservations).where(eq(budgetReservations.runId, f.run.id)))[0].state).toBe("settled");
     expect(await replayUsageReceipts(db, spool)).toEqual({ replayed: 1, failed: 0 });
     expect((await costService(db).summary(f.company.id)).spendCents).toBe(22);
+  });
+
+  it.each(["company", "agent", "project"] as const)("blocks fresh %s work without pausing native recovery", async (scopeType) => {
+    const f = await fixture(), cancelWorkForScope = vi.fn(async (_scope: BudgetEnforcementScope) => {});
+    const budgets = budgetService(db, { cancelWorkForScope });
+    const scopeId = f[scopeType].id;
+    await budgets.upsertPolicy(f.company.id, { scopeType, scopeId, amount: 100, reservationCents: "20" }, "board");
+    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Recover under budget" }).returning();
+    await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issue.id }).where(eq(heartbeatRuns.id, f.run.id));
+    const original = await reserveRunBudget(db, f.company.id, f.run.id, f.project.id);
+    await db.insert(nativeRunFinalizations).values({ companyId: f.company.id, runId: f.run.id, issueId: issue.id, phase: "retryable_failure" });
+    const recorder = await createRunUsageRecorder(db, { companyId: f.company.id, runId: f.run.id, adapterType: "paperclip_runner" }, path.join(directory, randomUUID()));
+    await recorder.capture({ complete: true, usageBasis: "per_run", usage: { inputTokens: 100, outputTokens: 10 }, costUsd: 0.1 });
+    await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.run.id));
+    // Also recover a budget-owned pause left by the previous implementation.
+    const table = { company: companies, agent: agents, project: projects }[scopeType];
+    await db.update(table).set({ pauseReason: "budget", ...(scopeType === "project" ? {} : { status: "paused" }) }).where(eq(table.id, scopeId));
+    await reconcileRunCosts(db, { cancelWorkForScope });
+    expect((await db.select().from(table).where(eq(table.id, scopeId)))[0].pauseReason).toBeNull();
+    expect((await db.select().from(agents).where(eq(agents.id, f.agent.id)))[0].status).toBe("idle");
+    expect(cancelWorkForScope.mock.calls.filter(([scope]) => scope.companyId === f.company.id)).toEqual([]);
+    expect((await budgets.getInvocationBlock(f.company.id, f.agent.id, { projectId: f.project.id }))?.reason).toContain("native run recovers");
+    const [fresh] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, status: "running" }).returning();
+    await expect(reserveRunBudget(db, f.company.id, fresh.id, f.project.id)).rejects.toThrow("native run recovers");
+    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].costAccountedAt).toBeNull();
+    await db.update(heartbeatRuns).set({ status: "running" }).where(eq(heartbeatRuns.id, f.run.id));
+    await db.update(nativeRunFinalizations).set({ leaseOwner: "recovery", leaseExpiresAt: new Date(Date.now() + 60_000) }).where(eq(nativeRunFinalizations.runId, f.run.id));
+    expect(await reserveRunBudget(db, f.company.id, f.run.id, f.project.id, {}, "recovery"))
+      .toMatchObject({ id: original.id, reused: true, amountCents: "20.0000000", state: "held" });
+    expect(await db.select().from(budgetReservations).where(eq(budgetReservations.runId, f.run.id))).toHaveLength(1);
+    await recorder.capture({ complete: true, usageBasis: "per_run", usage: { inputTokens: 150, outputTokens: 15 }, costUsd: 0.15 });
+    await db.update(nativeRunFinalizations).set({ phase: "terminal_failure" }).where(eq(nativeRunFinalizations.runId, f.run.id));
+    await db.update(heartbeatRuns).set({ status: "failed" }).where(eq(heartbeatRuns.id, f.run.id));
+    expect(await accountRunCost(db, f.run.id)).toBe(true);
+    expect(await accountRunCost(db, f.run.id)).toBe(false);
+    expect((await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.run.id)))[0]).toMatchObject({ inputTokens: 150, costCents: 15 });
+    expect((await db.select().from(budgetReservations).where(eq(budgetReservations.runId, f.run.id)))[0].state).toBe("settled");
+    expect(await budgets.getInvocationBlock(f.company.id, f.agent.id, { projectId: f.project.id })).toBeNull();
+  });
+
+  it.each(["closed", "over_budget", "unpriced", "manual"])("preserves %s stops while native accounting is unfinished", async (stop) => {
+    const f = await fixture(), budgets = budgetService(db);
+    await budgets.upsertPolicy(f.company.id, { scopeType: "agent", scopeId: f.agent.id, amount: 100 }, "board");
+    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Pending native run" }).returning();
+    await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issue.id }).where(eq(heartbeatRuns.id, f.run.id));
+    await reserveRunBudget(db, f.company.id, f.run.id, null);
+    await db.insert(nativeRunFinalizations).values({ companyId: f.company.id, runId: f.run.id, issueId: issue.id, phase: stop === "closed" ? "terminal_failure" : "retryable_failure" });
+    await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.run.id));
+    if (stop === "over_budget") await event(f, { costCents: 100 });
+    if (stop === "unpriced") await event(f, { costCents: 0, costStatus: "unpriced" });
+    if (stop === "manual") await db.update(agents).set({ status: "paused", pauseReason: "manual" }).where(eq(agents.id, f.agent.id));
+    await budgets.reconcilePolicies();
+    expect((await db.select().from(agents).where(eq(agents.id, f.agent.id)))[0])
+      .toMatchObject({ status: "paused", pauseReason: stop === "manual" ? "manual" : "budget" });
+    expect((await db.select().from(budgetReservations).where(eq(budgetReservations.runId, f.run.id)))[0].state).toBe("held");
+    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].costAccountedAt).toBeNull();
+  });
+
+  it.each(["complete", "partial", "receipt_failure", "ledger_failure", "cleanup_failure", "moved", "unstable_spool"])("settles the newest run receipt beyond a full replay batch (%s)", async (scenario) => {
+    const f = await fixture(), other = await fixture(), spool = usageReceiptSpoolPath();
+    const recorder = await createRunUsageRecorder(db, { companyId: f.company.id, runId: f.run.id, adapterType: "process" });
+    await reserveRunBudget(db, f.company.id, f.run.id, null);
+    await recorder.capture({ complete: true, usage: { inputTokens: 100, outputTokens: 10 }, costUsd: 0.1 });
+    const unavailable = vi.spyOn(db, "transaction").mockRejectedValue(new Error("Database unavailable"));
+    try { await recorder.capture({ complete: scenario !== "partial", usage: { inputTokens: 200, outputTokens: 20 }, costUsd: 0.2 }); }
+    finally { unavailable.mockRestore(); }
+    const [pending] = (await fs.readdir(spool)).filter(name => name.endsWith(".json"));
+    const file = path.join(spool, `zzz-${pending}`);
+    await fs.rename(path.join(spool, pending), file);
+    const unrelated: UsageReceiptEnvelope = { schema: "paperclip/accounting-receipt/v1", id: randomUUID(), companyId: other.company.id,
+      runId: other.run.id, sourceId: randomUUID(), sequence: 1, receivedAt: new Date().toISOString(), adapterType: "process", receipt: { complete: false } };
+    for (let index = 0; index < 101; index++) await fs.writeFile(path.join(spool, `000-${index}.json`), JSON.stringify({ ...unrelated, id: randomUUID(), sequence: index + 1 }));
+    expect(await replayUsageReceipts(db)).toEqual({ replayed: 100, failed: 0 });
+    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].usageJson?.inputTokens).toBe(100);
+    await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.run.id));
+    if (scenario === "unstable_spool") {
+      const stat = fs.lstat.bind(fs);
+      const unstable = vi.spyOn(fs, "lstat").mockImplementation(async (target, ...args) => {
+        if (target === file) throw Object.assign(new Error("Concurrent rename"), { code: "ENOENT" });
+        return stat(target, ...args);
+      });
+      try { await expect(accountRunCost(db, f.run.id)).rejects.toThrow("retry required"); }
+      finally { unstable.mockRestore(); }
+      expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].costAccountedAt).toBeNull();
+      expect(JSON.parse(await fs.readFile(file, "utf8")).receipt.usage.inputTokens).toBe(200);
+    }
+    if (scenario.endsWith("_failure") && scenario !== "cleanup_failure") {
+      const table = scenario === "receipt_failure" ? "run_usage_receipts" : "cost_events";
+      await db.execute(sql`create function reject_settlement() returns trigger language plpgsql as $$ begin raise exception 'settlement save failed'; end $$`);
+      await db.execute(sql.raw(`create trigger reject_settlement before insert on ${table} for each row execute function reject_settlement()`));
+      try {
+        await expect(accountRunCost(db, f.run.id)).rejects.toThrow();
+        expect(JSON.parse(await fs.readFile(file, "utf8")).receipt.usage.inputTokens).toBe(200);
+        expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0])
+          .toMatchObject({ costAccountedAt: null, usageJson: { inputTokens: 100 } });
+        expect(await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.run.id))).toEqual([]);
+        expect(await db.select().from(runUsageReceipts).where(eq(runUsageReceipts.runId, f.run.id))).toHaveLength(1);
+        expect((await db.select().from(budgetReservations).where(eq(budgetReservations.runId, f.run.id)))[0].state).toBe("held");
+      } finally {
+        await db.execute(sql.raw(`drop trigger reject_settlement on ${table}`));
+        await db.execute(sql`drop function reject_settlement()`);
+      }
+    }
+    const remove = fs.rm.bind(fs), stat = fs.lstat.bind(fs);
+    let moved = false;
+    const rm = scenario === "cleanup_failure" ? vi.spyOn(fs, "rm").mockImplementation(async (target, options) => {
+      if (target === file) throw new Error("Temporary cleanup failure");
+      return remove(target, options);
+    }) : null;
+    const lstat = scenario === "moved" ? vi.spyOn(fs, "lstat").mockImplementation(async (target, ...args) => {
+      if (target === file && !moved) { moved = true; await fs.rename(file, `${file.slice(0, -5)}-moved.json`); }
+      return stat(target, ...args);
+    }) : null;
+    try { await reconcileRunCosts(db); } finally { rm?.mockRestore(); lstat?.mockRestore(); }
+    if (scenario === "partial") {
+      expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0])
+        .toMatchObject({ costAccountedAt: null, usageJson: { inputTokens: 200, accountingReceiptReady: false } });
+      expect(await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.run.id))).toEqual([]);
+      await recorder.capture({ complete: true, usage: { inputTokens: 300, outputTokens: 30 }, costUsd: 0.3 });
+      expect(await accountRunCost(db, f.run.id)).toBe(true);
+    }
+    expect(await accountRunCost(db, f.run.id)).toBe(false);
+    const expected = scenario === "partial" ? 300 : 200;
+    const charges = await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.run.id));
+    expect(charges).toHaveLength(1);
+    expect(charges[0]).toMatchObject({ inputTokens: expected, outputTokens: expected / 10, costCents: expected / 10 });
+    expect((await db.select().from(budgetReservations).where(eq(budgetReservations.runId, f.run.id)))[0].state).toBe("settled");
+    expect(await replayUsageReceipts(db)).toEqual({ replayed: scenario === "cleanup_failure" ? 2 : 1, failed: 0 });
+    expect((await costService(db).summary(f.company.id)).spendCents).toBe(expected / 10);
+    expect(await fs.readdir(spool)).toEqual([]);
   });
 
   it("leaves unrelated corrupt spool evidence alone and aborts handoff on unreadable or invalid matching receipts", async () => {

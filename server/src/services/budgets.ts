@@ -9,6 +9,7 @@ import {
   companies,
   costEvents,
   heartbeatRuns,
+  nativeRunFinalizations,
   projects,
 } from "@paperclipai/db";
 import type {
@@ -152,7 +153,7 @@ export async function computeObservedSpend(
   db: Db,
   policy: Pick<PolicyRow, "companyId" | "scopeType" | "scopeId" | "windowKind" | "metric">,
 ) {
-  if (policy.metric !== "billed_cents") return { total: 0, totalExact: "0.0000000", unpricedEventCount: 0, pendingRunCount: 0 };
+  if (policy.metric !== "billed_cents") return { total: 0, totalExact: "0.0000000", unpricedEventCount: 0, pendingRunCount: 0, recoveringRunCount: 0 };
 
   const conditions = [eq(costEvents.companyId, policy.companyId)];
   if (policy.scopeType === "agent") conditions.push(eq(costEvents.agentId, policy.scopeId));
@@ -178,8 +179,17 @@ export async function computeObservedSpend(
   if (policy.windowKind === "calendar_month_utc") {
     pendingConditions.push(sql`coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) >= ${start.toISOString()}::timestamptz`, sql`coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) < ${end.toISOString()}::timestamptz`);
   }
-  const [pending] = await db.select({ count: sql<number>`count(*)::int` }).from(heartbeatRuns).where(and(...pendingConditions));
-  return { total: Number(row?.total ?? 0), totalExact: normalizeCents(row?.total ?? 0), unpricedEventCount: Number(row?.unpricedEventCount ?? 0), pendingRunCount: pending?.count ?? 0 };
+  const [pending] = await db.select({
+    count: sql<number>`count(*)::int`,
+    recovering: sql<number>`count(*) filter (where ${heartbeatRuns.runtimeMode} = 'native'
+      and exists (select 1 from ${nativeRunFinalizations}
+        where ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
+          and ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
+          and ${nativeRunFinalizations.resultId} is null
+          and ${nativeRunFinalizations.phase} <> 'terminal_failure'))::int`,
+  }).from(heartbeatRuns).where(and(...pendingConditions));
+  return { total: Number(row?.total ?? 0), totalExact: normalizeCents(row?.total ?? 0), unpricedEventCount: Number(row?.unpricedEventCount ?? 0),
+    pendingRunCount: pending?.count ?? 0, recoveringRunCount: pending?.recovering ?? 0 };
 }
 
 async function computeObservedAmount(db: Db, policy: PolicyRow) {
@@ -190,7 +200,7 @@ async function reached(db: Db, policy: PolicyRow, threshold: number) {
 }
 function observedBlocks(policy: PolicyRow, observed: Awaited<ReturnType<typeof computeObservedSpend>>) {
   if (!policy.isActive || !policy.hardStopEnabled || policy.amount <= 0) return false;
-  return compareCents(observed.totalExact, policy.amount) >= 0 || observed.pendingRunCount > 0 || (policy.unpricedUsagePolicy !== "allow" && observed.unpricedEventCount > 0);
+  return compareCents(observed.totalExact, policy.amount) >= 0 || (observed.pendingRunCount - observed.recoveringRunCount) > 0 || (policy.unpricedUsagePolicy !== "allow" && observed.unpricedEventCount > 0);
 }
 async function policyBlocks(db: Db, policy: PolicyRow) {
   if (!policy.isActive || !policy.hardStopEnabled || policy.amount <= 0) return false;
@@ -552,10 +562,11 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
     const policies = await db.select().from(budgetPolicies).where(and(
       eq(budgetPolicies.companyId, companyId), eq(budgetPolicies.scopeType, scopeType), eq(budgetPolicies.scopeId, scopeId),
     ));
+    let recoveringPolicy: PolicyRow | undefined;
     for (const policy of policies) {
-      const observed = await computeObservedAmount(db, policy);
-      if (await policyBlocks(db, policy)) {
-        await createIncidentIfNeeded(policy, "hard", observed);
+      const observed = await computeObservedSpend(db, policy);
+      if (observedBlocks(policy, observed)) {
+        await createIncidentIfNeeded(policy, "hard", observed.total);
         await pauseAndCancelScopeForBudget(policy);
         const title = scopeType === "company" ? "Company" : scopeType === "agent" ? "Agent" : "Project";
         if ((await computeObservedSpend(db, policy)).pendingRunCount > 0) {
@@ -568,6 +579,9 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
           ? "Project cannot start work because its budget hard-stop is still exceeded."
           : `${title} is paused because its budget hard-stop was reached.` };
       }
+      // An open native coordinator must finish the original run's accounting.
+      // Deny fresh work without pausing/cancelling that recovery or its hold.
+      if (policy.isActive && policy.hardStopEnabled && policy.amount > 0 && observed.recoveringRunCount > 0) recoveringPolicy ??= policy;
       // A closed UTC window, inactive policy, or budget raise releases only
       // budget-owned pauses. Manual pauses remain operator decisions.
       await resolveOpenIncidentsForPolicy(policy.id, "approved", "budget_service", "hard");
@@ -584,6 +598,8 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
       return { scopeType, scopeId, scopeName: scope.name, reason: "Budget pause requires a policy or an explicit operator resume." };
     }
     if (scope.pauseReason === "budget" && policies[0]) await resumeScopeFromBudget(policies[0]);
+    if (recoveringPolicy) return { scopeType, scopeId, scopeName: scope.name,
+      reason: "New work must wait while a native run recovers its unfinished accounting." };
     return null;
   }
 
