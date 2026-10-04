@@ -4,6 +4,7 @@ import { normalizeCents, createFinanceEventSchema, importBillingInvoiceSchema, i
 export function createCostsFinanceFixtures(companyId: string) {
   const events: FinanceEvent[] = [];
   const reports: BillingReconciliation[] = [];
+  const invoiceContents = new Map<string, string>();
   const createdAt = new Date();
   let sequence = 0;
   const id = () => `00000000-0000-4000-8000-${String(++sequence).padStart(12, "0")}`;
@@ -54,11 +55,18 @@ export function createCostsFinanceFixtures(companyId: string) {
     if (resource === "accounting/invoices") {
       if (request.method === "GET") return Response.json(reports.map(report => report.invoice));
       const input = importBillingInvoiceSchema.parse(await request.json());
+      input.lines.sort((a, b) => a.externalId.localeCompare(b.externalId));
+      const canonical = (value: unknown): unknown => value instanceof Date ? value.toISOString()
+        : Array.isArray(value) ? value.map(canonical)
+        : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)])) : value;
+      const contents = JSON.stringify(canonical(input));
       let report = reports.find(row => row.invoice.biller === input.biller && row.invoice.externalId === input.externalId);
+      if (report && invoiceContents.get(report.invoice.id) !== contents) return Response.json({ error: "Invoice identifier already has different contents" }, { status: 409 });
       if (!report) {
         const invoice = { id: id(), companyId, biller: input.biller, externalId: input.externalId, currency: input.currency, createdAt: createdAt.toISOString() };
         report = { invoice, lines: input.lines.map(line => ({ id: id(), externalId: line.externalId, kind: line.kind, amountCents: line.amountCents, status: "unmatched", matchedEventId: null, recordedCents: null, differenceCents: null })) };
         reports.push(report);
+        invoiceContents.set(invoice.id, contents);
         for (const line of input.lines) record({ idempotencyKey: `preview-invoice:${invoice.id}:${line.externalId}`, externalInvoiceId: invoice.externalId, biller: input.biller, currency: input.currency, amountCents: line.amountCents, occurredAt: line.occurredAt, direction: line.kind === "credit" ? "credit" : "debit", eventKind: line.kind === "credit" ? "credit_refund" : line.kind === "fee" ? "platform_fee" : "inference_charge", description: `Preview invoice ${input.externalId}` });
       }
       return Response.json(report.invoice);

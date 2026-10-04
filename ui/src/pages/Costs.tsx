@@ -323,7 +323,7 @@ export function Costs({
     return map;
   }, [spendData?.byAgentModel]);
 
-  const { data: providerData } = useQuery({
+  const { data: providerData, error: providerError } = useQuery({
     queryKey: queryKeys.usageByProvider(companyId, reportQueryFrom, reportQueryTo),
     queryFn: () => costsApi.byProvider(companyId, from || undefined, to || undefined),
     enabled: !!selectedCompanyId && customReady && (mainTab === "providers" || mainTab === "billers"),
@@ -331,7 +331,7 @@ export function Costs({
     staleTime: 10_000,
   });
 
-  const { data: billerData } = useQuery({
+  const { data: billerData, error: billerError } = useQuery({
     queryKey: queryKeys.usageByBiller(companyId, reportQueryFrom, reportQueryTo),
     queryFn: () => costsApi.byBiller(companyId, from || undefined, to || undefined),
     enabled: !!selectedCompanyId && customReady && mainTab === "billers",
@@ -339,7 +339,7 @@ export function Costs({
     staleTime: 10_000,
   });
 
-  const { data: weekData } = useQuery({
+  const { data: weekData, error: weekError } = useQuery({
     queryKey: queryKeys.usageByProvider(companyId, weekRange.from, weekRange.to),
     queryFn: () => costsApi.byProvider(companyId, weekRange.from, weekRange.to),
     enabled: !!selectedCompanyId && (mainTab === "providers" || mainTab === "billers"),
@@ -347,7 +347,7 @@ export function Costs({
     staleTime: 10_000,
   });
 
-  const { data: weekBillerData } = useQuery({
+  const { data: weekBillerData, error: weekBillerError } = useQuery({
     queryKey: queryKeys.usageByBiller(companyId, weekRange.from, weekRange.to),
     queryFn: () => costsApi.byBiller(companyId, weekRange.from, weekRange.to),
     enabled: !!selectedCompanyId && mainTab === "billers",
@@ -355,7 +355,7 @@ export function Costs({
     staleTime: 10_000,
   });
 
-  const { data: windowData } = useQuery({
+  const { data: windowData, error: windowError } = useQuery({
     queryKey: queryKeys.usageWindowSpend(companyId),
     queryFn: () => costsApi.windowSpend(companyId),
     enabled: !!selectedCompanyId && mainTab === "providers",
@@ -677,7 +677,7 @@ export function Costs({
         </div>
       ) : null}
 
-      {((spendData && spendError) || (financeData && financeError) || (budgetData && budgetError)) ? (
+      {((spendData && spendError) || (financeData && financeError) || (budgetData && budgetError) || providerError || billerError || weekError || weekBillerError || windowError) ? (
         <p role="status" className="text-sm text-muted-foreground">
           Showing the last loaded data. Updates will resume automatically.
         </p>

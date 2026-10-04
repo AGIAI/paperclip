@@ -29,11 +29,22 @@ describe("exact reservation editing", () => {
     const save = Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Update reservation")!;
     expect(input.value).toBe("90071992547409.920000001");
     expect(save.disabled).toBe(true);
+    for (const invalid of ["-1", "", "not an amount"]) {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, invalid);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(save.disabled).toBe(true);
+      expect(input.getAttribute("aria-invalid")).toBe("true");
+      expect(container.querySelector('[role="alert"]')?.textContent).toBe("Enter a valid amount of zero or more.");
+      expect(input.getAttribute("aria-describedby")).toBe(container.querySelector('[role="alert"]')?.id);
+    }
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "0.000000001");
       input.dispatchEvent(new Event("input", { bubbles: true }));
     });
     await act(async () => save.click());
     expect(onReservationChange).toHaveBeenCalledWith("0.0000001");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 });

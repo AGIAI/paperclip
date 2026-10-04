@@ -44,6 +44,24 @@ describe("Costs story finance actions", () => {
     }
   });
 
+  it("accepts equivalent invoice retries but rejects changed normalized content without altering charges", async () => {
+    const fixture = createCostsFinanceFixtures("preview");
+    const invoice = { biller: "Example", externalId: "immutable-invoice", currency: "USD", lines: [
+      { externalId: "fee-b", kind: "fee", amountCents: "50", occurredAt: charge.occurredAt },
+      { externalId: "fee-a", kind: "fee", amountCents: "25", occurredAt: charge.occurredAt },
+    ] };
+    const saved = await (await fixture("accounting/invoices", request("accounting/invoices", invoice)))!.json();
+    const equivalent = { ...invoice, lines: invoice.lines.slice().reverse().map(line => ({ ...line, amountCents: `${line.amountCents}.0000000` })) };
+    expect(await (await fixture("accounting/invoices", request("accounting/invoices", equivalent)))!.json()).toEqual(saved);
+    for (const changed of [
+      { ...invoice, currency: "EUR" },
+      { ...invoice, lines: [{ ...invoice.lines[0], amountCents: "51" }, invoice.lines[1]] },
+      { ...invoice, lines: [{ ...invoice.lines[0], occurredAt: "2000-01-01T00:00:00Z" }, invoice.lines[1]] },
+    ]) expect((await fixture("accounting/invoices", request("accounting/invoices", changed)))!.status).toBe(409);
+    expect(await (await fixture("costs/finance-summary", request("costs/finance-summary")))!.json()).toMatchObject({ debitCents: 75, eventCount: 2 });
+    expect(await (await fixture("accounting/invoices", request("accounting/invoices")))!.json()).toHaveLength(1);
+  });
+
   it("keeps timestamp bounds exact while date-only bounds include the full day", async () => {
     const fixture = createCostsFinanceFixtures("preview");
     for (const [hour, id] of [["12", "at-boundary"], ["18", "after-boundary"]]) {

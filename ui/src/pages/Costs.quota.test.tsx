@@ -34,6 +34,18 @@ describe("Costs account quota polling", () => {
   });
   afterEach(() => { act(() => root.unmount()); client.clear(); container.remove(); vi.unstubAllGlobals(); });
   const flush = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); }); };
+  it.each(["providers", "billers"] as const)("marks retained %s reports stale when their refresh fails", async (tab) => {
+    api.byBiller.mockResolvedValue([{ biller: "openai", costCents: 125, eventCount: 1, providerCount: 1, inputTokens: 1, outputTokens: 1, cachedInputTokens: 0 }]);
+    await act(async () => root.render(<MemoryRouter><SidebarProvider><QueryClientProvider client={client}><Costs initialTab={tab} /></QueryClientProvider></SidebarProvider></MemoryRouter>));
+    await flush();
+    expect(container.textContent).not.toContain("Showing the last loaded data");
+    const report = tab === "providers" ? api.byProvider : api.byBiller;
+    report.mockRejectedValue(new Error("Private report diagnostic"));
+    await act(async () => { await client.invalidateQueries(); }); await flush();
+    expect(container.textContent).toContain("Showing the last loaded data");
+    expect(container.textContent).toContain("OpenAI");
+    expect(container.textContent).not.toContain("Private report diagnostic");
+  });
   it("keeps quota readings with a safe notice when the endpoint rejects", async () => {
     await act(async () => root.render(<MemoryRouter><SidebarProvider><QueryClientProvider client={client}><Costs /></QueryClientProvider></SidebarProvider></MemoryRouter>));
     await flush();
