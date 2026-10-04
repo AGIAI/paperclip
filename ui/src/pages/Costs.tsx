@@ -670,9 +670,11 @@ export function Costs({
         </div>
       ) : null}
 
-      {((spendData && spendError) || (financeData && financeError) || (budgetData && budgetError) || providerError || billerError || weekError || weekBillerError || windowError) ? (
+      {((spendData && spendError) || (financeData && financeError) || budgetError || providerError || billerError || weekError || weekBillerError || windowError) ? (
         <p role="status" className="text-sm text-muted-foreground">
-          Showing the last loaded data. Updates will resume automatically.
+          {budgetError && !budgetData
+            ? "Budget data could not be loaded. Please try again shortly."
+            : "Showing the last loaded data. Updates will resume automatically."}
         </p>
       ) : null}
 
@@ -911,9 +913,7 @@ export function Costs({
           {policyMutation.error && <p role="alert" className="text-sm text-destructive">{policyMutation.error.message}</p>}
           {budgetLoading ? (
             <PageSkeleton variant="costs" />
-          ) : budgetError && !budgetData ? (
-            <p className="text-sm text-destructive">Budget data could not be loaded. Please try again shortly.</p>
-          ) : (
+          ) : budgetError && !budgetData ? null : (
             <>
               <Card className="border-border/70 bg-(image:--gradient-extract-2)">
                 <CardHeader className="px-5 pt-5 pb-3">
