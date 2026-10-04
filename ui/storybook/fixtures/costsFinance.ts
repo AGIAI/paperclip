@@ -37,7 +37,7 @@ export function createCostsFinanceFixtures(companyId: string) {
     const from = url.searchParams.get("from"); const to = url.searchParams.get("to");
     const until = to ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999Z` : to) : null;
     const visible = events.filter(row => (!from || row.occurredAt >= new Date(from)) && (!until || row.occurredAt <= until));
-    if (resource === "costs/finance-summary") return Response.json({ companyId, ...summary(visible), eventCount: visible.length, currencies: [...new Set(visible.map(row => row.currency))].map(currency => summary(visible, currency)) });
+    if (resource === "costs/finance-summary") return Response.json({ companyId, ...summary(visible), currencies: [...new Set(visible.map(row => row.currency))].sort().map(currency => summary(visible, currency)) });
     if (resource === "costs/finance-events") {
       const rawLimit = url.searchParams.get("limit");
       const limit = rawLimit == null || rawLimit === "" ? 100 : Number(rawLimit);
