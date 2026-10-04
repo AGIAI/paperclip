@@ -212,12 +212,47 @@ describe.each([
     expect(container.textContent).not.toContain("0 total events in range");
   });
 
-  it("retains loaded budget controls and finance totals on background errors", async () => {
+  it("explains first-load budget failures on Overview and restores controls after polling succeeds", async () => {
+    overview.mockRejectedValue(new Error("internal budget stack trace"));
     await render();
+    const message = "Budget data could not be loaded. Please try again shortly.";
+    const notices = () => [...container.querySelectorAll('[role="status"]')].filter(node => node.textContent === message);
+    expect(notices()).toHaveLength(1);
+    expect(container.querySelector('[role="tab"][data-state="active"]')?.textContent).toBe("Overview");
+    expect(container.textContent).toContain("Bender");
+    expect(container.textContent).not.toContain("Showing the last loaded data");
+    expect(container.textContent).not.toContain("internal budget");
+    expect(container.textContent).not.toContain("Raise budget & resume");
+    await render({ initialTab: "budgets", lockTab: true });
+    expect(container.textContent?.split(message)).toHaveLength(2);
+    expect(container.textContent).not.toContain("Budget control plane");
+    await render();
+    overview.mockResolvedValue({
+      policies: [], activeIncidents: [{ id: "incident", scopeType: "agent", scopeName: "Codie", status: "open", thresholdType: "hard", amountObserved: 200, amountLimit: 1000 }],
+      pendingApprovalCount: 1, pausedAgentCount: 1, pausedProjectCount: 0,
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    await settle();
+    expect(notices()).toHaveLength(0);
+    expect(container.textContent).toContain("Raise budget & resume");
+    expect(container.textContent).toContain("Bender");
+  });
+
+  it("retains loaded budget controls and finance totals on background errors", async () => {
+    overview.mockResolvedValue({
+      policies: [], activeIncidents: [{ id: "incident", scopeType: "agent", scopeName: "Codie", status: "open", thresholdType: "hard", amountObserved: 200, amountLimit: 1000 }],
+      pendingApprovalCount: 1, pausedAgentCount: 1, pausedProjectCount: 0,
+    });
+    await render();
+    const resume = [...container.querySelectorAll("button")].find(node => node.textContent === "Raise budget & resume");
+    expect(resume).toBeDefined();
     overview.mockRejectedValue(new Error("internal budget failure"));
     api.financeEvents.mockRejectedValue(new Error("internal finance failure"));
     await act(async () => { await client.invalidateQueries(); });
     await settle();
+    expect([...container.querySelectorAll("button")].find(node => node.textContent === "Raise budget & resume")).toBe(resume);
+    expect(container.textContent).toContain("Showing the last loaded data");
+    expect(container.textContent).not.toContain("Budget data could not be loaded");
     if (name === "streamlined") {
       await render({ initialTab: "budgets", lockTab: true });
       expect(container.querySelector('[role="tab"]')).toBeNull();
