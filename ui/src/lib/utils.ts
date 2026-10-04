@@ -179,7 +179,7 @@ function readRunCostUsd(payload: Record<string, unknown> | null): number | null 
   return null;
 }
 
-/** Receipt-backed runs and legacy Claude snapshots store uncached input
+/** Receipt-backed runs and legacy Claude/Gemini snapshots store uncached input
  * separately. Older Codex input already includes its cached tokens. Unknown
  * legacy formats retain their original input-plus-output interpretation. */
 export function visibleRunTokenTotal(usage: Record<string, unknown> | null | undefined): number {
@@ -194,6 +194,7 @@ export function visibleRunTokenTotal(usage: Record<string, unknown> | null | und
   const output = count("outputTokens", "output_tokens");
   const cached = count("cachedInputTokens", "cached_input_tokens", "cache_read_input_tokens");
   const inputExcludesCached = usage?.provider === "anthropic"
+    || usage?.provider === "google"
     || (typeof usage?.accountingReceiptId === "string" && usage.accountingReceiptId.length > 0);
   return input + output + (inputExcludesCached ? cached : 0);
 }

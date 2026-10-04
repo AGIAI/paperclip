@@ -74,4 +74,22 @@ describe("Costs story finance actions", () => {
     expect(wholeDay).toHaveLength(2);
   });
 
+  it("keeps recent events chronological and bounded after importing an older invoice", async () => {
+    const fixture = createCostsFinanceFixtures("preview");
+    await fixture("finance-events", request("finance-events", { ...charge, occurredAt: "2026-02-01T00:00:00Z" }));
+    const lines = Array.from({ length: 30 }, (_, i) => ({ externalId: `older-${i}`, kind: "fee", amountCents: "10", occurredAt: new Date(Date.UTC(2026, 0, i + 1)).toISOString() }));
+    await fixture("accounting/invoices", request("accounting/invoices", { biller: "Example", externalId: "older-invoice", currency: "USD", lines }));
+    const rows = await (await fixture("costs/finance-events", request("costs/finance-events?limit=18")))!.json();
+    expect(rows).toHaveLength(18);
+    expect(rows.map((row: { occurredAt: string }) => row.occurredAt)).toEqual([
+      "2026-02-01T00:00:00.000Z", ...Array.from({ length: 17 }, (_, i) => new Date(Date.UTC(2026, 0, 30 - i)).toISOString()),
+    ]);
+    expect(await (await fixture("costs/finance-summary", request("costs/finance-summary")))!.json()).toMatchObject({ eventCount: 31, debitCents: 425 });
+    const bounded = await (await fixture("costs/finance-events", request("costs/finance-events?from=2026-01-25&to=2026-01-30&limit=3")))!.json();
+    expect(bounded.map((row: { occurredAt: string }) => row.occurredAt)).toEqual(lines.slice(27, 30).reverse().map(line => line.occurredAt));
+    for (const limit of ["0", "-1", "1.5", "501", "invalid", "1&limit=2"]) {
+      expect((await fixture("costs/finance-events", request(`costs/finance-events?limit=${limit}`)))!.status).toBe(400);
+    }
+  });
+
 });

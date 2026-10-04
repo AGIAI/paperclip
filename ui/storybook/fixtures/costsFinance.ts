@@ -27,7 +27,7 @@ export function createCostsFinanceFixtures(companyId: string) {
       description: input.description ?? null, eventKind: input.eventKind, direction: input.direction,
       biller: input.biller, amountCents: Number(input.amountCents), amountCentsExact: String(input.amountCents),
       currency: input.currency, estimated: false, externalInvoiceId: input.externalInvoiceId ?? null,
-      idempotencyKey: input.idempotencyKey ?? null, metadataJson: input.metadataJson ?? null, occurredAt: new Date(input.occurredAt), createdAt,
+      idempotencyKey: input.idempotencyKey ?? null, metadataJson: input.metadataJson ?? null, occurredAt: new Date(input.occurredAt), createdAt: new Date(),
     };
     events.unshift(event);
     return event;
@@ -38,7 +38,15 @@ export function createCostsFinanceFixtures(companyId: string) {
     const until = to ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999Z` : to) : null;
     const visible = events.filter(row => (!from || row.occurredAt >= new Date(from)) && (!until || row.occurredAt <= until));
     if (resource === "costs/finance-summary") return Response.json({ companyId, ...summary(visible), eventCount: visible.length, currencies: [...new Set(visible.map(row => row.currency))].map(currency => summary(visible, currency)) });
-    if (resource === "costs/finance-events") return Response.json(visible);
+    if (resource === "costs/finance-events") {
+      const rawLimit = url.searchParams.get("limit");
+      const limit = rawLimit == null || rawLimit === "" ? 100 : Number(rawLimit);
+      if (url.searchParams.getAll("limit").length > 1 || !Number.isInteger(limit) || limit <= 0 || limit > 500) {
+        return Response.json({ error: "invalid 'limit' value" }, { status: 400 });
+      }
+      return Response.json(visible.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime()
+        || b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit));
+    }
     if (resource === "costs/finance-by-biller" || resource === "costs/finance-by-kind") {
       const byBiller = resource.endsWith("biller");
       const charges = visible.filter(row => row.metadataJson?.source !== "provider_cost_report");

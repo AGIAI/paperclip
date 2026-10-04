@@ -458,20 +458,13 @@ export function Costs({
     if (preset !== "mtd") return map;
     const budget = spendData?.summary.budgetCents ?? 0;
     if (budget <= 0) return map;
-    const totalSpend = spendData?.summary.spendCents ?? 0;
     const now = new Date();
-    const daysElapsed = now.getDate();
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysElapsed = now.getUTCDate();
+    const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
     for (const [providerKey, rows] of byProvider) {
       const providerCostCents = rows.reduce((sum, row) => sum + row.costCents, 0);
-      const providerShare = totalSpend > 0 ? providerCostCents / totalSpend : 0;
-      const providerBudget = budget * providerShare;
-      if (providerBudget <= 0) {
-        map.set(providerKey, false);
-        continue;
-      }
       const burnRate = providerCostCents / Math.max(daysElapsed, 1);
-      map.set(providerKey, providerCostCents + burnRate * (daysInMonth - daysElapsed) > providerBudget);
+      map.set(providerKey, providerCostCents + burnRate * (daysInMonth - daysElapsed) > budget);
     }
     return map;
   }, [preset, spendData, byProvider]);
