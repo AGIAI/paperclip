@@ -15,8 +15,8 @@ import {
 } from "./native-runtime/native-workspace-finalization-ownership.js";
 import { hasStopOnlyCleanup, settleStopOnlyCleanup } from "./sandbox-stop-and-retain.js";
 import { reserveRunBudget } from "./budget-reservations.js";
-import { accountRunCost, reconcileRunCosts } from "./run-cost-accounting.js";
-import { createRunUsageRecorder, replayUsageReceipts } from "./usage-receipts.js";
+import { accountRunCost, createCostAccountingReconciler } from "./run-cost-accounting.js";
+import { createRunUsageRecorder } from "./usage-receipts.js";
 import { applyWorkspaceRestoreFailure } from "@paperclipai/adapter-utils/workspace-restore-result";
 import { hasWorkspaceRestoreFailure } from "@paperclipai/shared";
 import { externalConversationStateSql, nonIdleSlackIssueCondition } from "./slack-conversation-state.js";
@@ -30345,10 +30345,7 @@ export function heartbeatService(
     scanSilentActiveRuns,
 
     reconcileTaskWatchdogs,
-    reconcileCostAccounting: async () => {
-      await replayUsageReceipts(db);
-      return reconcileRunCosts(db, budgetHooks);
-    },
+    reconcileCostAccounting: createCostAccountingReconciler(db, budgetHooks),
 
     buildRunOutputSilence,
 

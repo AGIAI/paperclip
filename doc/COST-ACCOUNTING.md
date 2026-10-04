@@ -108,9 +108,34 @@ A correction requires `idempotencyKey`, exact `expectedCents`, `correctedCents`,
 
 ## Scale and fault qualification
 
-`pnpm benchmark:accounting` creates its own disposable PostgreSQL database, seeds one million events across twelve months, measures report latency and eight concurrent writers on one company, exercises two active budget policies, recovers 250 pending receipts, records an analyzed project-budget query plan, and runs the independent integrity checker. `PAPERCLIP_ACCOUNTING_BENCH_ROWS` optionally sets 1,000–10,000,000 events. Results go to `coverage/accounting/scale.json`. There are no machine-dependent latency assertions in CI.
+`pnpm benchmark:accounting` creates its own disposable PostgreSQL database **and receipt-spool home**. It never uses the caller's database or pending receipts. `PAPERCLIP_ACCOUNTING_BENCH_ROWS` selects 1,000–10,000,000 events (one million by default), spread across twelve UTC months. Results go to `coverage/accounting/scale.json`; copy that file before running coverage, which cleans the same output directory. There are no machine-dependent latency assertions in CI.
 
-The September 28 local run on macOS arm64 / Node 25.6.1 measured all-time summary p95 39 ms and project grouping p95 64 ms. With eight concurrent writers, throughput was about 325 writes/s without active policies and 22 writes/s with two active policies; p95 was 72 ms and 359 ms respectively. The budgeted 250-receipt backlog drained in three bounded batches in about 12.7 seconds, with zero integrity discrepancies. Active policies deliberately read the authoritative ledger, which is more expensive than updating a projection. These synthetic warm local results are evidence, not production service-level guarantees.
+The benchmark measures all-time reports, eight concurrent writers on one company, two active budgets, admission, eight concurrent ledger/budget/health report bundles competing with writers, durable checkpoints, 100,000 historical run rows, 102 policies, 1,000/10,000-file receipt backlogs, and recovery of 250 completed runs. An independent integrity check must find no discrepancies. Report bundles measure service/database work, not browser rendering, HTTP latency, provider quota calls, or financial-event queries. The fixture concentrates spend in one agent; it is not a production traffic model.
+
+The October 4 local comparison on macOS arm64, 10 CPUs, Node 25.6.1 measured the following at one million ledger events. PostgreSQL, API code, and storage shared one developer machine. These are observations, not service-level guarantees.
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Budgeted writes/second, eight writers | 20.1 | 35.1 |
+| Budgeted write p95 | 396 ms | 227 ms |
+| All-time summary p95 | 44 ms | 48 ms |
+| All-time project grouping p95 | 71 ms | 75 ms |
+
+The expanded run measured report-bundle p95 of 678 ms with eight viewers and eight writers, write p95 of 569 ms under that read load, admission p95 of 103 ms, and durable checkpoint p95 of 11 ms. A 102-policy overview had p95 of 73 ms. Health over 100,000 historical runs had p95 of 19 ms. Scanning 10,000 pending receipt files added about 580 ms to recorder startup; receipts are retained until safely persisted. The API process's event-loop delay p95 was 12 ms. The 250-run recovery finished in three batches in 11.5 seconds, with zero integrity findings.
+
+At ten million events, budgeted throughput rose from 2.8 to 3.8 writes/s and p95 fell from 2.80 to 2.09 seconds. Recovery of 250 runs fell from 90.4 to 71.8 seconds, with no integrity discrepancies. However, eight concurrent report bundles plus eight writers reached 12.2-second report p95 and 12.4-second write p95. Warm all-time summary p95 was 649 ms; the first all-time summary took 59.2 seconds (44.5 seconds before the change). Seeding took 7.2 minutes. These larger runs shared developer hardware with test activity; report code was unchanged, so their variability is not evidence of a report-query regression. They do show that this implementation is **not qualified for heavy traffic on a ten-million-row company**. The aggregation and storage capacity limit remains; the recovery guard prevents it from also creating overlapping sweeps.
+
+Performance protections:
+
+- Cost writes aggregate the affected company, agent, and project policies in one ledger scan and one pending-run scan. Each policy retains its own scope and UTC/lifetime window. Exact ledger values remain authoritative, including unknown pricing and native recovery guards.
+- A budget operation reuses its observation for thresholds, incident amounts, and reasons. The observation also carries its UTC window across a midnight boundary. It does not cache observations across ledger mutations. PostgreSQL filters policies to the affected scopes before returning rows.
+- Overview policy and incident reads run in batches of four, so a large policy list does not enqueue one query per policy at once.
+- Health uses a read-only, repeatable-read snapshot. Its counts and details agree without taking the company accounting write lock. Inspection and repair retain their existing locking requirements.
+- One heartbeat service shares a running receipt replay/recovery/policy sweep across overlapping scheduler ticks. Success or failure releases the guard; a later tick can retry. This is a per-process scheduler protection, not a distributed lease. Ledger locks and receipt idempotency still protect multiple processes.
+
+The regression suite checks SQL scan counts, mixed-scope/window totals, pending/unpriced/native recovery guards, snapshot consistency while a writer commits, and coalesced recovery through both success and failure. It also retains the concurrency, crash recovery, exact-money, and mutation tests. Wall-clock benchmarks stay separate from CI correctness gates.
+
+Capacity remains finite. Budget decisions still sum authoritative ledger rows, so a very large company or lifetime project costs more per write. First writes after a UTC rollover rebuild monthly projections. Cold all-time reports can be much slower than warm reports. A large receipt backlog still requires directory scanning. Qualify the expected company write rate, storage latency, database pool size, and viewer concurrency on deployment hardware before increasing traffic; monitor receipt age and recovery duration as well as request latency. Sustained traffic near measured saturation needs further database aggregation work with equivalent repair and consistency guarantees.
 
 Monthly projections carry an explicit UTC month marker. The first write after upgrade or rollover initializes from the ledger; subsequent same-month writes use exact atomic increments. Backdated events do not increment the current month. Reports and budget decisions continue using the ledger. Composite project/date and partial unpriced indexes support targeted queries; pending recovery is indexed in its actual update-time order.
 

@@ -1,5 +1,5 @@
 import { compareCents, normalizeCents } from "@paperclipai/shared";
-import { and, desc, eq, gte, inArray, lt, ne, sql, or, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, ne, sql, or, isNull, type SQL } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import {
   agents,
@@ -149,55 +149,77 @@ async function resolveScopeRecord(db: Db, scopeType: BudgetScopeType, scopeId: s
   };
 }
 
-export async function computeObservedSpend(
-  db: Db,
-  policy: Pick<PolicyRow, "companyId" | "scopeType" | "scopeId" | "windowKind" | "metric">,
-) {
-  if (policy.metric !== "billed_cents") return { total: 0, totalExact: "0.0000000", unpricedEventCount: 0, pendingRunCount: 0, recoveringRunCount: 0 };
-
-  const conditions = [eq(costEvents.companyId, policy.companyId)];
-  if (policy.scopeType === "agent") conditions.push(eq(costEvents.agentId, policy.scopeId));
-  if (policy.scopeType === "project") conditions.push(eq(costEvents.projectId, policy.scopeId));
-  const { start, end } = resolveWindow(policy.windowKind as BudgetWindowKind);
-  if (policy.windowKind === "calendar_month_utc") {
-    conditions.push(gte(costEvents.occurredAt, start));
-    conditions.push(lt(costEvents.occurredAt, end));
+// Keep a large dashboard from filling the database pool with queued reads.
+async function mapBudgetReads<T, R>(rows: T[], read: (row: T) => Promise<R>): Promise<R[]> {
+  const result: R[] = [];
+  for (let start = 0; start < rows.length; start += 4) {
+    result.push(...await Promise.all(rows.slice(start, start + 4).map(read)));
   }
+  return result;
+}
 
-  const [row] = await db
-    .select({
-      unpricedEventCount: sql<number>`count(*) filter (where ${costEvents.costStatus} = 'unpriced' and ${costEvents.billingType} <> 'subscription_included')::int`,
-      total: sql<string>`coalesce(sum(${costEvents.costCents}), 0)::text`,
-    })
-    .from(costEvents)
-    .where(and(...conditions));
+/** Filter in PostgreSQL so one run never loads unrelated agents' policies. */
+export function budgetPoliciesForRun(companyId: string, agentId: string, projectId: string | null) {
+  return or(
+    and(eq(budgetPolicies.scopeType, "company"), eq(budgetPolicies.scopeId, companyId)),
+    and(eq(budgetPolicies.scopeType, "agent"), eq(budgetPolicies.scopeId, agentId)),
+    projectId ? and(eq(budgetPolicies.scopeType, "project"), eq(budgetPolicies.scopeId, projectId)) : undefined,
+  );
+}
 
-  const pendingConditions = [eq(heartbeatRuns.companyId, policy.companyId), eq(heartbeatRuns.costAccountingPending, true),
-    inArray(heartbeatRuns.status, ["succeeded", "failed", "timed_out", "cancelled", "interrupted"])];
-  if (policy.scopeType === "agent") pendingConditions.push(eq(heartbeatRuns.agentId, policy.scopeId));
-  if (policy.scopeType === "project") pendingConditions.push(sql`${heartbeatRuns.usageJson}->'ledgerScope'->>'projectId' = ${policy.scopeId}`);
-  if (policy.windowKind === "calendar_month_utc") {
-    pendingConditions.push(sql`coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) >= ${start.toISOString()}::timestamptz`, sql`coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) < ${end.toISOString()}::timestamptz`);
+type SpendPolicy = Pick<PolicyRow, "companyId" | "scopeType" | "scopeId" | "windowKind" | "metric">;
+type ObservedSpend = { windowStart: Date; windowEnd: Date; total: number; totalExact: string; unpricedEventCount: number; pendingRunCount: number; recoveringRunCount: number };
+
+/** One ledger scan and one pending-run scan for the affected policies. The
+ * company lock still protects decisions; nothing is cached across mutations.
+ * Each aggregate keeps its own scope/window, including mixed lifetime and
+ * monthly policies. An outer predicate excludes rows no policy needs. */
+async function computeObservedSpends(db: Db, policies: SpendPolicy[]): Promise<ObservedSpend[]> {
+  const now = new Date();
+  const windows = policies.map(policy => resolveWindow(policy.windowKind as BudgetWindowKind, now));
+  const billable = policies.map((policy, index) => ({ policy, index })).filter(({ policy }) => policy.metric === "billed_cents");
+  const ledgerColumns: Record<string, SQL> = {};
+  const pendingColumns: Record<string, SQL> = {};
+  const ledgerPredicates: SQL[] = [], pendingPredicates: SQL[] = [];
+  for (const { policy, index } of billable) {
+    const { start, end } = windows[index];
+    const ledger = and(
+      eq(costEvents.companyId, policy.companyId),
+      policy.scopeType === "agent" ? eq(costEvents.agentId, policy.scopeId) : undefined,
+      policy.scopeType === "project" ? eq(costEvents.projectId, policy.scopeId) : undefined,
+      policy.windowKind === "calendar_month_utc" ? and(gte(costEvents.occurredAt, start), lt(costEvents.occurredAt, end)) : undefined,
+    )!;
+    const pending = and(
+      eq(heartbeatRuns.companyId, policy.companyId), eq(heartbeatRuns.costAccountingPending, true),
+      inArray(heartbeatRuns.status, ["succeeded", "failed", "timed_out", "cancelled", "interrupted"]),
+      policy.scopeType === "agent" ? eq(heartbeatRuns.agentId, policy.scopeId) : undefined,
+      policy.scopeType === "project" ? sql`${heartbeatRuns.usageJson}->'ledgerScope'->>'projectId' = ${policy.scopeId}` : undefined,
+      policy.windowKind === "calendar_month_utc" ? sql`coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) >= ${start.toISOString()}::timestamptz
+        and coalesce(${heartbeatRuns.finishedAt}, ${heartbeatRuns.createdAt}) < ${end.toISOString()}::timestamptz` : undefined,
+    )!;
+    ledgerPredicates.push(ledger); pendingPredicates.push(pending);
+    ledgerColumns[`total${index}`] = sql`coalesce(sum(${costEvents.costCents}) filter (where ${ledger}), 0)::text`;
+    ledgerColumns[`unpriced${index}`] = sql`count(*) filter (where ${ledger} and ${costEvents.costStatus} = 'unpriced' and ${costEvents.billingType} <> 'subscription_included')::int`;
+    pendingColumns[`pending${index}`] = sql`count(*) filter (where ${pending})::int`;
+    pendingColumns[`recovering${index}`] = sql`count(*) filter (where ${pending} and ${heartbeatRuns.runtimeMode} = 'native'
+      and exists (select 1 from ${nativeRunFinalizations} where ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
+        and ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
+        and ${nativeRunFinalizations.resultId} is null and ${nativeRunFinalizations.phase} <> 'terminal_failure'))::int`;
   }
-  const [pending] = await db.select({
-    count: sql<number>`count(*)::int`,
-    recovering: sql<number>`count(*) filter (where ${heartbeatRuns.runtimeMode} = 'native'
-      and exists (select 1 from ${nativeRunFinalizations}
-        where ${nativeRunFinalizations.runId} = ${heartbeatRuns.id}
-          and ${nativeRunFinalizations.companyId} = ${heartbeatRuns.companyId}
-          and ${nativeRunFinalizations.resultId} is null
-          and ${nativeRunFinalizations.phase} <> 'terminal_failure'))::int`,
-  }).from(heartbeatRuns).where(and(...pendingConditions));
-  return { total: Number(row?.total ?? 0), totalExact: normalizeCents(row?.total ?? 0), unpricedEventCount: Number(row?.unpricedEventCount ?? 0),
-    pendingRunCount: pending?.count ?? 0, recoveringRunCount: pending?.recovering ?? 0 };
+  const [ledger = {}] = billable.length ? await db.select(ledgerColumns).from(costEvents).where(or(...ledgerPredicates)) : [];
+  const [pending = {}] = billable.length ? await db.select(pendingColumns).from(heartbeatRuns).where(or(...pendingPredicates)) : [];
+  return policies.map((_, index) => ({
+    windowStart: windows[index].start, windowEnd: windows[index].end,
+    total: Number(ledger[`total${index}`] ?? 0), totalExact: normalizeCents(String(ledger[`total${index}`] ?? 0)),
+    unpricedEventCount: Number(ledger[`unpriced${index}`] ?? 0), pendingRunCount: Number(pending[`pending${index}`] ?? 0),
+    recoveringRunCount: Number(pending[`recovering${index}`] ?? 0),
+  }));
 }
 
-async function computeObservedAmount(db: Db, policy: PolicyRow) {
-  return (await computeObservedSpend(db, policy)).total;
+export async function computeObservedSpend(db: Db, policy: SpendPolicy) {
+  return (await computeObservedSpends(db, [policy]))[0];
 }
-async function reached(db: Db, policy: PolicyRow, threshold: number) {
-  return compareCents((await computeObservedSpend(db, policy)).totalExact, threshold) >= 0;
-}
+
 function observedBlocks(policy: PolicyRow, observed: Awaited<ReturnType<typeof computeObservedSpend>>) {
   if (!policy.isActive || !policy.hardStopEnabled || policy.amount <= 0) return false;
   return compareCents(observed.totalExact, policy.amount) >= 0 || (observed.pendingRunCount - observed.recoveringRunCount) > 0 || (policy.unpricedUsagePolicy !== "allow" && observed.unpricedEventCount > 0);
@@ -367,8 +389,9 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
 
   async function buildPolicySummary(policy: PolicyRow): Promise<BudgetPolicySummary> {
     const scope = await resolveScopeRecord(db, policy.scopeType as BudgetScopeType, policy.scopeId);
-    const { total: observedAmount, totalExact: observedAmountExact, unpricedEventCount, pendingRunCount } = await computeObservedSpend(db, policy);
-    const { start, end } = resolveWindow(policy.windowKind as BudgetWindowKind);
+    const observed = await computeObservedSpend(db, policy);
+    const { total: observedAmount, totalExact: observedAmountExact, unpricedEventCount, pendingRunCount } = observed;
+    const { windowStart: start, windowEnd: end } = observed;
     const amount = policy.isActive ? policy.amount : 0;
     const utilizationPercent =
       amount > 0 ? Number(((observedAmount / amount) * 100).toFixed(2)) : 0;
@@ -393,7 +416,7 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
       hardStopEnabled: policy.hardStopEnabled,
       notifyEnabled: policy.notifyEnabled,
       isActive: policy.isActive,
-      status: await policyBlocks(db, policy) ? "hard_stop" : policy.isActive
+      status: observedBlocks(policy, observed) ? "hard_stop" : policy.isActive
         ? budgetStatusFromObserved(observedAmountExact, amount, policy.warnPercent)
         : "ok",
       paused: scope.paused,
@@ -406,9 +429,9 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
   async function createIncidentIfNeeded(
     policy: PolicyRow,
     thresholdType: BudgetThresholdType,
-    amountObserved: number,
+    observed: Awaited<ReturnType<typeof computeObservedSpend>>,
   ) {
-    const { start, end } = resolveWindow(policy.windowKind as BudgetWindowKind);
+    const { windowStart: start, windowEnd: end } = observed;
     const existing = await db
       .select()
       .from(budgetIncidents)
@@ -424,7 +447,7 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
       .then((rows) => rows[0] ?? null);
     if (existing) return { incident: existing, created: false };
 
-    const amountObservedExact = (await computeObservedSpend(db, policy)).totalExact;
+    const { total: amountObserved, totalExact: amountObservedExact } = observed;
     const scope = await resolveScopeRecord(db, policy.scopeType as BudgetScopeType, policy.scopeId);
     const payload = buildApprovalPayload({
       policy,
@@ -528,32 +551,30 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
       : [];
     const approvalStatusById = new Map(approvalRows.map((row) => [row.id, row.status]));
 
-    return Promise.all(
-      rows.map(async (row) => {
-        const scope = await resolveScopeRecord(db, row.scopeType as BudgetScopeType, row.scopeId);
-        return {
-          id: row.id,
-          companyId: row.companyId,
-          policyId: row.policyId,
-          scopeType: row.scopeType as BudgetScopeType,
-          scopeId: row.scopeId,
-          scopeName: normalizeScopeName(row.scopeType as BudgetScopeType, scope.name),
-          metric: row.metric as BudgetMetric,
-          windowKind: row.windowKind as BudgetWindowKind,
-          windowStart: row.windowStart,
-          windowEnd: row.windowEnd,
-          thresholdType: row.thresholdType as BudgetThresholdType,
-          amountLimit: row.amountLimit,
-          amountObserved: row.amountObserved,
-          status: row.status as BudgetIncident["status"],
-          approvalId: row.approvalId ?? null,
-          approvalStatus: row.approvalId ? approvalStatusById.get(row.approvalId) ?? null : null,
-          resolvedAt: row.resolvedAt ?? null,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
-        };
-      }),
-    );
+    return mapBudgetReads(rows, async (row) => {
+      const scope = await resolveScopeRecord(db, row.scopeType as BudgetScopeType, row.scopeId);
+      return {
+        id: row.id,
+        companyId: row.companyId,
+        policyId: row.policyId,
+        scopeType: row.scopeType as BudgetScopeType,
+        scopeId: row.scopeId,
+        scopeName: normalizeScopeName(row.scopeType as BudgetScopeType, scope.name),
+        metric: row.metric as BudgetMetric,
+        windowKind: row.windowKind as BudgetWindowKind,
+        windowStart: row.windowStart,
+        windowEnd: row.windowEnd,
+        thresholdType: row.thresholdType as BudgetThresholdType,
+        amountLimit: row.amountLimit,
+        amountObserved: row.amountObserved,
+        status: row.status as BudgetIncident["status"],
+        approvalId: row.approvalId ?? null,
+        approvalStatus: row.approvalId ? approvalStatusById.get(row.approvalId) ?? null : null,
+        resolvedAt: row.resolvedAt ?? null,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      };
+    });
   }
 
   async function reconcileScope(companyId: string, scopeType: BudgetScopeType, scopeId: string) {
@@ -566,13 +587,13 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
     for (const policy of policies) {
       const observed = await computeObservedSpend(db, policy);
       if (observedBlocks(policy, observed)) {
-        await createIncidentIfNeeded(policy, "hard", observed.total);
+        await createIncidentIfNeeded(policy, "hard", observed);
         await pauseAndCancelScopeForBudget(policy);
         const title = scopeType === "company" ? "Company" : scopeType === "agent" ? "Agent" : "Project";
-        if ((await computeObservedSpend(db, policy)).pendingRunCount > 0) {
+        if (observed.pendingRunCount > 0) {
           return { scopeType, scopeId, scopeName: scope.name, reason: `${title} cannot start work while completed runs await accounting.` };
         }
-        if (policy.unpricedUsagePolicy !== "allow" && (await computeObservedSpend(db, policy)).unpricedEventCount > 0) {
+        if (policy.unpricedUsagePolicy !== "allow" && observed.unpricedEventCount > 0) {
           return { scopeType, scopeId, scopeName: scope.name, reason: `${title} cannot start work because recorded usage has no reliable price.` };
         }
         return { scopeType, scopeId, scopeName: scope.name, reason: scopeType === "project"
@@ -585,7 +606,7 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
       // A closed UTC window, inactive policy, or budget raise releases only
       // budget-owned pauses. Manual pauses remain operator decisions.
       await resolveOpenIncidentsForPolicy(policy.id, "approved", "budget_service", "hard");
-      if (!policy.isActive || !policy.notifyEnabled || !(await reached(db, policy, Math.ceil(policy.amount * policy.warnPercent / 100)))) {
+      if (!policy.isActive || !policy.notifyEnabled || compareCents(observed.totalExact, Math.ceil(policy.amount * policy.warnPercent / 100)) < 0) {
         await resolveOpenIncidentsForPolicy(policy.id, "approved", "budget_service", "soft");
       }
     }
@@ -706,23 +727,23 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
       }
 
       if (row.isActive && amount > 0) {
-        const observedAmount = await computeObservedAmount(db, row);
-        if (!(await policyBlocks(db, row))) {
+        const observed = await computeObservedSpend(db, row);
+        if (!observedBlocks(row, observed)) {
           await resumeScopeFromBudget(row);
           await resolveOpenIncidentsForPolicy(row.id, "approved", actorUserId ?? "budget_service", "hard");
-          if (row.notifyEnabled && (await reached(db, row, Math.ceil(row.amount * row.warnPercent / 100)))) {
-            await createIncidentIfNeeded(row, "soft", observedAmount);
+          if (row.notifyEnabled && compareCents(observed.totalExact, Math.ceil(row.amount * row.warnPercent / 100)) >= 0) {
+            await createIncidentIfNeeded(row, "soft", observed);
           } else {
             await resolveOpenIncidentsForPolicy(row.id, null, null, "soft");
           }
         } else {
           const softThreshold = Math.ceil((row.amount * row.warnPercent) / 100);
-          if (row.notifyEnabled && (await reached(db, row, softThreshold)) && (!row.hardStopEnabled || !(await reached(db, row, row.amount)))) {
-            await createIncidentIfNeeded(row, "soft", observedAmount);
+          if (row.notifyEnabled && compareCents(observed.totalExact, softThreshold) >= 0 && (!row.hardStopEnabled || compareCents(observed.totalExact, row.amount) < 0)) {
+            await createIncidentIfNeeded(row, "soft", observed);
           }
-          if (await policyBlocks(db, row)) {
+          if (observedBlocks(row, observed)) {
             await resolveOpenSoftIncidents(row.id);
-            await createIncidentIfNeeded(row, "hard", observedAmount);
+            await createIncidentIfNeeded(row, "hard", observed);
             await pauseAndCancelScopeForBudget(row);
           }
         }
@@ -751,7 +772,7 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
 
     overview: async (companyId: string): Promise<BudgetOverview> => {
       const rows = await listPolicyRows(companyId);
-      const policies = await Promise.all(rows.map((row) => buildPolicySummary(row)));
+      const policies = await mapBudgetReads(rows, buildPolicySummary);
       const activeIncidentRows = await db
         .select()
         .from(budgetIncidents)
@@ -776,25 +797,19 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
           and(
             eq(budgetPolicies.companyId, event.companyId),
             eq(budgetPolicies.isActive, true),
-            inArray(budgetPolicies.scopeType, ["company", "agent", "project"]),
+            budgetPoliciesForRun(event.companyId, event.agentId, event.projectId),
           ),
         );
 
-      const relevantPolicies = candidatePolicies.filter((policy) => {
-        if (policy.scopeType === "company") return policy.scopeId === event.companyId;
-        if (policy.scopeType === "agent") return policy.scopeId === event.agentId;
-        if (policy.scopeType === "project") return Boolean(event.projectId) && policy.scopeId === event.projectId;
-        return false;
-      });
-
-      for (const policy of relevantPolicies) {
-        if (policy.metric !== "billed_cents" || policy.amount <= 0) continue;
-        const observed = await computeObservedSpend(db, policy);
+      const policies = candidatePolicies.filter(policy => policy.metric === "billed_cents" && policy.amount > 0);
+      const observations = await computeObservedSpends(db, policies);
+      for (const [index, policy] of policies.entries()) {
+        const observed = observations[index];
         const observedAmount = observed.total;
         const softThreshold = Math.ceil((policy.amount * policy.warnPercent) / 100);
 
         if (policy.notifyEnabled && compareCents(observed.totalExact, softThreshold) >= 0 && (!policy.hardStopEnabled || compareCents(observed.totalExact, policy.amount) < 0)) {
-          const softIncident = await createIncidentIfNeeded(policy, "soft", observedAmount);
+          const softIncident = await createIncidentIfNeeded(policy, "soft", observed);
           if (softIncident?.created) {
             await recordActivity({
               companyId: policy.companyId,
@@ -815,7 +830,7 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
 
         if (observedBlocks(policy, observed)) {
           await resolveOpenSoftIncidents(policy.id);
-          const hardIncident = await createIncidentIfNeeded(policy, "hard", observedAmount);
+          const hardIncident = await createIncidentIfNeeded(policy, "hard", observed);
           await pauseAndCancelScopeForBudget(policy);
           if (hardIncident?.created) {
             await recordActivity({
@@ -874,12 +889,12 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
       const policy = await getPolicyRow(incident.policyId);
       if (input.action === "raise_budget_and_resume") {
         const nextAmount = Math.max(0, Math.floor(input.amount ?? 0));
-        const currentObserved = await computeObservedAmount(db, policy);
-        if (policy.unpricedUsagePolicy !== "allow" && (await computeObservedSpend(db, policy)).unpricedEventCount > 0) {
+        const observed = await computeObservedSpend(db, policy);
+        if (policy.unpricedUsagePolicy !== "allow" && observed.unpricedEventCount > 0) {
           throw unprocessable("Resolve unpriced usage or explicitly allow it in the budget policy before resuming");
         }
-        if ((await computeObservedSpend(db, policy)).pendingRunCount > 0) throw unprocessable("Completed runs must finish accounting before resuming");
-        if (await reached(db, policy, nextAmount)) {
+        if (observed.pendingRunCount > 0) throw unprocessable("Completed runs must finish accounting before resuming");
+        if (compareCents(observed.totalExact, nextAmount) >= 0) {
           throw unprocessable("New budget must exceed current observed spend");
         }
 

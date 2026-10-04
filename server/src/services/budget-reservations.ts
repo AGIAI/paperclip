@@ -3,7 +3,7 @@ import { budgetPolicies, budgetReservations, heartbeatRuns, nativeRunFinalizatio
 import { centsToUnits, unitsToCents } from "@paperclipai/shared";
 import { conflict, notFound } from "../errors.js";
 import { withAccountingTransaction } from "./accounting-transaction.js";
-import { budgetServiceInTransaction, computeObservedSpend } from "./budgets.js";
+import { budgetServiceInTransaction, budgetPoliciesForRun, computeObservedSpend } from "./budgets.js";
 
 /** Reserve before dispatch, under the same company lock as charges and policy
  * changes. Estimates constrain admission; they cannot cap a provider's bill.
@@ -28,9 +28,11 @@ export async function reserveRunBudget(db: Db, companyId: string, runId: string,
     }
     const block = await budgetServiceInTransaction(tx, publications).getInvocationBlock(companyId, run.agentId, { projectId });
     if (block) throw conflict(block.reason);
-    const candidates = await tx.select().from(budgetPolicies).where(and(eq(budgetPolicies.companyId, companyId), eq(budgetPolicies.isActive, true), eq(budgetPolicies.hardStopEnabled, true)));
-    const policies = candidates.filter(p => p.metric === "billed_cents" && p.amount > 0 && (
-      p.scopeType === "company" && p.scopeId === companyId || p.scopeType === "agent" && p.scopeId === run.agentId || p.scopeType === "project" && p.scopeId === projectId));
+    const policies = await tx.select().from(budgetPolicies).where(and(
+      eq(budgetPolicies.companyId, companyId), eq(budgetPolicies.isActive, true), eq(budgetPolicies.hardStopEnabled, true),
+      eq(budgetPolicies.metric, "billed_cents"), sql`${budgetPolicies.amount} > 0`,
+      budgetPoliciesForRun(companyId, run.agentId, projectId),
+    ));
     const amount = policies.reduce((max, policy) => { const next = centsToUnits(policy.reservationCents); return next > max ? next : max; }, 0n);
     for (const policy of policies) {
       const [held] = await tx.select({ amount: sql<string>`coalesce(sum(${budgetReservations.amountCents}), 0)::text` }).from(budgetReservations).where(and(

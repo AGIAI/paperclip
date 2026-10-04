@@ -98,7 +98,11 @@ export function accountingIntegrityService(db: Db, hooks: BudgetServiceHooks = {
         throw error;
       }
     },
-    health: (companyId: string): Promise<AccountingHealth> => withAccountingTransaction(db, companyId, async tx => {
+    // A consistent read snapshot must not queue behind (or delay) cost writes.
+    // Mutation paths still use the company accounting lock.
+    health: (companyId: string): Promise<AccountingHealth> => db.transaction(async tx => {
+      const [company] = await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
+      if (!company) throw notFound("Company not found");
       const [counts] = await tx.execute<{ pending: number; unpriced: number; oldest: string | null; cancellations: number; reserved: string }>(sql`
         select (select count(*)::int from heartbeat_runs where company_id = ${companyId} and cost_accounting_pending and status in ('succeeded','failed','timed_out','cancelled','interrupted')) as pending,
         (select count(*)::int from cost_events where company_id = ${companyId} and cost_status = 'unpriced' and billing_type <> 'subscription_included') as unpriced,
@@ -116,6 +120,6 @@ export function accountingIntegrityService(db: Db, hooks: BudgetServiceHooks = {
         where company_id = ${companyId} and cost_status = 'unpriced' and billing_type <> 'subscription_included' order by occurred_at,id limit 100`);
       return { companyId, pendingRunCount: counts.pending, unpricedEventCount: counts.unpriced, oldestPendingAt: counts.oldest, pendingCancellationCount: counts.cancellations,
         heldReservationCents: normalizeCents(counts.reserved), items: [...pending, ...unpriced.map(row => ({ ...row, state: "unpriced" as const, lastError: null, attempts: 0, lastAttemptAt: null }))] };
-    }),
+    }, { isolationLevel: "repeatable read", accessMode: "read only" }),
   };
 }

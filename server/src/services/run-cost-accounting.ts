@@ -6,7 +6,7 @@ import { createCostEventInTransaction } from "./costs.js";
 import { budgetService, deliverBudgetEnforcement, type BudgetServiceHooks } from "./budgets.js";
 import { logger } from "../middleware/logger.js";
 import { promises as fs } from "node:fs";
-import { indexPendingUsageReceipts, recoverPendingRunUsageReceipts, type UsageReceiptIndex } from "./usage-receipts.js";
+import { replayUsageReceipts, indexPendingUsageReceipts, recoverPendingRunUsageReceipts, type UsageReceiptIndex } from "./usage-receipts.js";
 
 const terminalStatuses = ["succeeded", "failed", "timed_out", "cancelled", "interrupted"];
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -163,4 +163,23 @@ export async function reconcileRunCosts(db: Db, hooks: BudgetServiceHooks = {}) 
   }
   await budgetService(db, hooks).reconcilePolicies();
   return { scanned: pending.length, accounted };
+}
+
+/** Share one full sweep across overlapping scheduler ticks. Do not enqueue
+ * another sweep: the next tick retries after either success or failure. */
+export function createCostAccountingReconciler(db: Db, hooks: BudgetServiceHooks = {}) {
+  let inFlight: Promise<Awaited<ReturnType<typeof reconcileRunCosts>>> | undefined;
+  return () => {
+    if (!inFlight) {
+      inFlight = (async () => {
+        try {
+          await replayUsageReceipts(db);
+          return await reconcileRunCosts(db, hooks);
+        } finally {
+          inFlight = undefined;
+        }
+      })();
+    }
+    return inFlight;
+  };
 }
