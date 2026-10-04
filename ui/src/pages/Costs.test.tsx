@@ -131,6 +131,28 @@ describe("Shared Costs surfaces", () => {
     queryClient.clear();
   });
 
+  it("shows a safe policy-save failure without losing the operator's settings", async () => {
+    const policy = {
+      policyId: "policy", companyId: "company-1", scopeType: "agent", scopeId: "agent", scopeName: "Worker", metric: "billed_cents", windowKind: "lifetime",
+      amount: 500, warnPercent: 65, hardStopEnabled: false, notifyEnabled: false, isActive: false, unpricedUsagePolicy: "allow", reservationCents: "2.0000000",
+      observedAmount: 0, remainingAmount: 500, utilizationPercent: 0, unpricedEventCount: 0, pendingRunCount: 0, status: "ok", paused: false, pauseReason: null,
+    };
+    budgetOverviewMock.mockResolvedValue({ policies: [policy], activeIncidents: [], pausedAgentCount: 0, pausedProjectCount: 0 });
+    upsertPolicyMock.mockRejectedValueOnce(new Error("private SQL policy error"));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    root = createRoot(container);
+    await act(async () => root.render(<QueryClientProvider client={queryClient}><Costs embedded initialTab="budgets" lockTab /></QueryClientProvider>));
+    await act(async () => { await vi.waitFor(() => expect(container.querySelector('input[type="checkbox"]')).not.toBeNull()); });
+    const reservation = container.querySelector<HTMLInputElement>('[aria-label="Reserve per run (USD)"]')!;
+    const originalReservation = reservation.value;
+    await act(async () => container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
+    await act(async () => { await vi.waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent).toContain("Could not update the budget policy")); });
+    expect(container.textContent).toContain("Worker");
+    expect(container.textContent).not.toContain("private SQL");
+    expect(reservation.value).toBe(originalReservation);
+    queryClient.clear();
+  });
+
   it.each(surfaces)("shows failed budget actions on the %s Overview", async (_name, props) => {
     for (const mock of Object.values(costsApiMocks)) mock.mockResolvedValue([]);
     costsApiMocks.summary.mockResolvedValue({ spendCents: 200, budgetCents: 1000, pricingComplete: false });

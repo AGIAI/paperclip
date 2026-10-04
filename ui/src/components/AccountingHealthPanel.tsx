@@ -46,14 +46,21 @@ function AccountingPanel({ companyId }: { companyId: string }) {
     setCorrectionReason("");
     setNotice("Correction recorded. The original provider charge remains in the audit history.");
   };
-  const error = action.error ?? health.error ?? invoices.error ?? report.error;
+  const actionError = action.error instanceof ApiError && action.error.status === 409
+    ? "Accounting changed or this request conflicts with an existing record. Inspect current totals or review the invoice before trying again."
+    : action.error instanceof ApiError && [401, 403].includes(action.error.status)
+      ? "You do not have permission to complete this accounting action."
+      : "Could not complete the accounting action. Review the inputs and current accounting state, then try again.";
   return <Card>
     <CardHeader>
       <CardTitle>Accounting health</CardTitle>
       <CardDescription>Receipt recovery, budget capacity, and provider invoice reconciliation.</CardDescription>
     </CardHeader>
     <CardContent className="space-y-4">
-      {error && <p role="alert" className="text-sm text-destructive">{error instanceof Error ? error.message : "Accounting request failed"}</p>}
+      {action.error && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
+      {health.error && <p role="status" className="text-sm text-muted-foreground">{health.data ? "Showing the last loaded accounting health. Updates will resume automatically." : "Accounting health could not be loaded. Please try again shortly."}</p>}
+      {expanded && invoices.error && <p role="status" className="text-sm text-muted-foreground">{invoices.data ? "Showing the last loaded invoices. Please try again shortly." : "Invoices could not be loaded. Please try again shortly."}</p>}
+      {expanded && report.error && <p role="status" className="text-sm text-muted-foreground">{report.data ? "The invoice comparison could not be refreshed. Previously loaded values are shown." : "The invoice comparison could not be loaded. Please try again shortly."}</p>}
       {notice && <p role="status" className="text-sm">{notice}</p>}
       {health.isPending && <p className="text-sm text-muted-foreground">Loading accounting health…</p>}
       {health.data && <div className="flex flex-wrap gap-4 text-sm">
@@ -66,7 +73,7 @@ function AccountingPanel({ companyId }: { companyId: string }) {
         {health.data?.items.map(item => <div key={item.costEventId ?? item.runId} className="space-y-2 border-t pt-3 text-sm">
           <p>{item.state.replaceAll("_", " ")} · {item.runId ?? item.costEventId}</p>
           <p className="text-muted-foreground">Since {new Date(item.since).toLocaleString()} · {item.attempts} recovery attempts</p>
-          {item.lastError && <p>{item.lastError}</p>}
+          {item.lastError && <p>The last accounting attempt failed. Retry accounting or inspect stored totals.</p>}
           {item.state === "waiting_for_receipt" && <p>Waiting for provider evidence. Recovery will not invent a zero charge.</p>}
           {item.state === "unpriced" && <p>Import a provider invoice below to review and price this charge.</p>}
           {item.state === "retryable" && item.runId && <Button variant="outline" disabled={action.isPending} onClick={() => run(async () => {

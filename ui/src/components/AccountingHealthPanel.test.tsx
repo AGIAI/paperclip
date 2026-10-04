@@ -35,21 +35,57 @@ describe("operator accounting tools", () => {
     expect(container.textContent).toContain("Oldest pending:"); expect(api.invoices).not.toHaveBeenCalled();
   });
   it("shows request failures instead of a healthy zero", async () => {
-    api.health.mockRejectedValue(new Error("Accounting service unavailable")); await render();
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Accounting service unavailable");
+    api.health.mockRejectedValue(new Error("private SQL connection string")); await render();
+    expect(container.querySelector('[role="status"]')?.textContent).toContain("Accounting health could not be loaded");
+    expect(container.textContent).not.toContain("private SQL");
     expect(container.textContent).not.toContain("0 pending runs");
+  });
+  it("retains health during failed refreshes and clears the safe notice after recovery", async () => {
+    await render();
+    api.health.mockRejectedValue(new Error("private health failure"));
+    await act(async () => { await client.invalidateQueries(); }); await flush();
+    expect(container.textContent).toContain("1 pending runs");
+    expect(container.textContent).toContain("Showing the last loaded accounting health");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.textContent).not.toContain("private health");
+    api.health.mockResolvedValue({ pendingRunCount: 0, unpricedEventCount: 0, pendingCancellationCount: 0, heldReservationCents: "0", items: [] });
+    await act(async () => { await client.invalidateQueries(); }); await flush();
+    expect(container.textContent).toContain("0 pending runs");
+    expect(container.textContent).not.toContain("Showing the last loaded accounting health");
+  });
+  it("keeps invoice, comparison and action failures separate without exposing diagnostics", async () => {
+    api.invoices.mockResolvedValue([{ id: "first", biller: "openai", externalId: "invoice-one" }]);
+    api.reconcile.mockRejectedValue(new Error("private comparison failure"));
+    api.inspect.mockRejectedValue(new Error("private action failure"));
+    await render(); await click("Open accounting tools"); await click("openai · invoice-one");
+    expect(container.textContent).toContain("The invoice comparison could not be loaded");
+    api.invoices.mockRejectedValue(new Error("private invoices failure"));
+    await act(async () => { await client.invalidateQueries(); }); await flush();
+    await click("Inspect stored totals");
+    expect(container.textContent).toContain("Showing the last loaded invoices");
+    expect(container.textContent).toContain("The invoice comparison could not be loaded");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Could not complete the accounting action");
+    expect(container.textContent).toContain("openai · invoice-one");
+    expect(container.textContent).not.toContain("private");
   });
   it("requires a reason and the reviewed fingerprint, and surfaces stale repairs", async () => {
     api.inspect.mockResolvedValue({ companyId: "one", fingerprint: "a".repeat(64), checkedAt: "2026-09-28", findings: [{ kind: "company_projection", entityId: "one", repairable: true, actual: { cents: "99" }, expected: { cents: "12.5" } }] });
-    api.repair.mockRejectedValue(new Error("Accounting changed since inspection; inspect again before repairing"));
+    api.repair.mockRejectedValue(new ApiError("private conflict details", 409, {}));
     await render(); await click("Open accounting tools"); await click("Inspect stored totals");
     expect(button("Repair reviewed totals").disabled).toBe(true);
     await input("Accounting repair reason", "Rebuild known drift"); await click("Repair reviewed totals");
     expect(api.repair).toHaveBeenCalledWith("one", "a".repeat(64), "Rebuild known drift");
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain("changed since inspection");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Accounting changed");
+    expect(container.textContent).not.toContain("private conflict");
     await render("two");
     expect(container.textContent).not.toContain("Repair reviewed totals");
     expect(api.health).toHaveBeenLastCalledWith("two");
+  });
+  it.each([401, 403])("explains accounting permission failures (%s) without server details", async (status) => {
+    api.inspect.mockRejectedValue(new ApiError("private authorization details", status, {}));
+    await render(); await click("Open accounting tools"); await click("Inspect stored totals");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("You do not have permission");
+    expect(container.textContent).not.toContain("private authorization");
   });
   it("keeps repair and correction reasons separate and clears corrections when changing invoices", async () => {
     api.inspect.mockResolvedValue({ companyId: "one", fingerprint: "a".repeat(64), findings: [{ kind: "company_projection", entityId: "one", repairable: true, actual: { cents: "99" }, expected: { cents: "12.5" } }] });
@@ -113,6 +149,8 @@ describe("operator accounting tools", () => {
     await render(); await click("Open accounting tools");
     expect(Array.from(container.querySelectorAll("button")).filter(b => b.textContent === "Retry accounting")).toHaveLength(1);
     expect(container.textContent).toContain("Waiting for provider evidence");
+    expect(container.textContent).toContain("The last accounting attempt failed");
+    expect(container.textContent).not.toContain("Database unavailable");
     await click("Retry accounting"); expect(api.retry).toHaveBeenCalledWith("one", "ready");
   });
 });
