@@ -883,9 +883,12 @@ export function aiConnectionService(db: Db) {
         signal.throwIfAborted();
         // Another poll, an agent, or reconnect already supplied a newer credential.
         if (current !== failedValue) return current;
-        const pending = await recovery.read();
+        let pending = await recovery.read();
         if (pending && (pending.secretId !== ref.secretId || pending.connectionId !== row.connection.id || pending.baseHash !== quotaCredentialHash(current))) {
-          throw new Error("credentials_unavailable");
+          // Reconnect may reuse this grant. Once the current authorized token
+          // itself expires, an older journal must not prevent refreshing it.
+          await recovery.clear();
+          pending = null;
         }
         // An active provider may rotate this single-use token itself. Defer polling
         // until its credential write-back instead of invalidating its live copy.

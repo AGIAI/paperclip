@@ -166,7 +166,7 @@ describe("managed AI connections", () => {
     } finally { interrupted.mockRestore(); request.mockRestore(); }
   });
 
-  it.each(["reconnected", "revoked"] as const)("does not apply a pending refresh over a %s identity", async (change) => {
+  it.each(["reconnected", "expired_reconnect", "revoked"] as const)("does not apply a pending refresh over a %s identity", async (change) => {
     const owner = `quota-replay-${change}`;
     await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
     const original = JSON.stringify({ tokens: { access_token: "expired", refresh_token: "single-use", account_id: owner } });
@@ -182,12 +182,21 @@ describe("managed AI connections", () => {
         expect(await service.refreshQuotaCredential(row, original, new AbortController().signal)).toBe("new-authorized-identity");
         expect(await service.credential(row)).toBe("new-authorized-identity");
         expect(await journal.read()).toBeNull();
+      } else if (change === "expired_reconnect") {
+        const reconnected = JSON.stringify({ tokens: { access_token: "expired-new-account", refresh_token: "new-account-refresh", account_id: owner } });
+        await secretService(db).rotate(ref.secretId, { value: reconnected });
+        request.mockResolvedValueOnce(Response.json({ access_token: "new-account-fresh", refresh_token: "new-account-replacement" }));
+        await service.refreshQuotaCredential(row, reconnected, new AbortController().signal);
+        expect(request).toHaveBeenCalledOnce();
+        expect(JSON.parse(String(request.mock.calls[0][1]?.body))).toMatchObject({ refresh_token: "new-account-refresh" });
+        expect(JSON.parse(await service.credential(row))).toMatchObject({ tokens: { access_token: "new-account-fresh", refresh_token: "new-account-replacement" } });
+        expect(await journal.read()).toBeNull();
       } else {
         await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, row.grant.id));
         await expect(service.refreshQuotaCredential(row, original, new AbortController().signal)).rejects.toThrow("credentials_unavailable");
         expect(await journal.read()).not.toBeNull();
       }
-      expect(request).not.toHaveBeenCalled();
+      if (change !== "expired_reconnect") expect(request).not.toHaveBeenCalled();
     } finally { request.mockRestore(); await journal.clear(); }
   });
 
