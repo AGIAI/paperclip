@@ -639,7 +639,9 @@ jobs:
 
       - name: Verify accounting coverage and crash recovery
         if: ${{ !cancelled() && matrix.group == 'general-server-without-chat' && matrix.shard_index == 0 }}
-        run: pnpm test:accounting
+        run: |
+          node --test scripts/test-accounting-mutations.test.mjs
+          pnpm test:accounting
 
       - name: Upload accounting coverage
         if: ${{ !cancelled() && matrix.group == 'general-server-without-chat' && matrix.shard_index == 0 }}
