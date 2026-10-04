@@ -540,3 +540,15 @@ the private runtime home for retry; cleanup deletes it only after a successful
 transaction or an intentional freshness/authorization discard. These retained
 homes are recovery evidence, not a background replay queue; persistent database
 or lock failures still require operator intervention.
+
+Quota OAuth replacement tokens are encrypted with the instance secrets master
+key and fsynced under `<instance-root>/quota-credential-recovery/<company-id>/`
+before vault, grant, or activity writes. Storage and encryption are checked before
+exchanging a single-use refresh token. Failed saves retry without another OAuth
+exchange; persistent failures keep the encrypted record for the next quota poll,
+including after a restart. The journal is removed only after database commit (or
+when an authorized newer credential makes it obsolete). Replay checks the grant,
+connection, secret, and original credential fingerprint and cannot reactivate a
+revoked grant or overwrite a reconnect. Back up this directory and the instance
+secrets key with the instance data. Loss of durable storage while receiving a
+provider token can still require reconnecting the account.

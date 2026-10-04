@@ -34,6 +34,8 @@ import {
   type AiConnectionLoginIntent,
 } from "@paperclipai/shared";
 import { forbidden, notFound, unprocessable } from "../errors.js";
+import { quotaCredentialRecovery, quotaCredentialHash } from "./quota-credential-recovery.js";
+import { logger } from "../middleware/logger.js";
 import { logActivity } from "./activity-log.js";
 import { secretService } from "./secrets.js";
 import { probeAiConnectionUsage } from "./ai-connection-usage.js";
@@ -860,66 +862,96 @@ export function aiConnectionService(db: Db) {
   }
   /** Refresh only the selected vaulted identity, serializing rotation and reconnect. */
   async function refreshQuotaCredential(row: Parameters<typeof credential>[0], failedValue: string, signal: AbortSignal) {
-    return withAccountHomeSecretMutationLock(undefined, row.connection.companyId, () => db.transaction(async (tx) => {
-      // Do not wait on a transaction that might itself be waiting for the file
-      // lock. All database locks must be available before consuming OAuth tokens.
-      const companyId = row.connection.companyId;
-      const [grant] = await tx.select().from(connectionGrants).where(and(
-        eq(connectionGrants.id, row.grant.id), eq(connectionGrants.companyId, companyId),
-        eq(connectionGrants.connectionId, row.connection.id),
-      )).for("update", { noWait: true });
-      if (!grant || grant.status !== "active") throw new Error("credentials_unavailable");
-      const ref = grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential");
-      if (!ref) throw new Error("credentials_unavailable");
-      await tx.select({ id: companySecrets.id }).from(companySecrets).where(and(
-        eq(companySecrets.id, ref.secretId), eq(companySecrets.companyId, companyId),
-      )).for("update", { noWait: true });
-      const current = await aiConnectionService(tx as unknown as Db).credential({ connection: row.connection, grant });
-      signal.throwIfAborted();
-      // Another poll, an agent, or reconnect already supplied a newer credential.
-      if (current !== failedValue) return current;
-      // An active provider may rotate this single-use token itself. Defer polling
-      // until its credential write-back instead of invalidating its live copy.
-      const [active] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
-        .innerJoin(agents, and(eq(agents.id, heartbeatRuns.agentId), eq(agents.companyId, companyId))).where(and(
-        eq(heartbeatRuns.companyId, companyId), inArray(heartbeatRuns.status, ["queued", "running"]),
-        or(sql`${heartbeatRuns.contextSnapshot}->'aiConnection'->>'grantId' = ${grant.id}`,
-          sql`${agents.runtimeConfig}->'aiConnection'->>'provider' = 'openai'`, eq(agents.adapterType, "codex_local")),
-      )).limit(1);
-      if (active) throw new Error("provider_unavailable");
-      const auth = JSON.parse(current);
-      const refreshToken = auth.tokens?.refresh_token;
-      if (typeof refreshToken !== "string" || !refreshToken) throw new Error("authentication_required");
-      // Once exchange starts, its lifetime is independent of the dashboard's
-      // shorter deadline. A consumed single-use token must still be read/saved.
-      signal.throwIfAborted();
-      const refreshSignal = AbortSignal.timeout(60_000);
-      // Matches the Codex OAuth client (openai/codex, login/src/auth/manager.rs).
-      const response = await fetch("https://auth.openai.com/oauth/token", {
-        method: "POST", redirect: "error", signal: refreshSignal,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client_id: "app_EMoamEEZ73f0CkXaXp7hrann", grant_type: "refresh_token", refresh_token: refreshToken }),
+    return withAccountHomeSecretMutationLock(undefined, row.connection.companyId, async () => {
+      const recovery = quotaCredentialRecovery(row.connection.companyId, row.grant.id);
+      let savingReplacement = false;
+      const save = () => db.transaction(async (tx) => {
+        // Do not wait on a transaction that might itself be waiting for the file
+        // lock. All database locks must be available before consuming OAuth tokens.
+        const companyId = row.connection.companyId;
+        const [grant] = await tx.select().from(connectionGrants).where(and(
+          eq(connectionGrants.id, row.grant.id), eq(connectionGrants.companyId, companyId),
+          eq(connectionGrants.connectionId, row.connection.id),
+        )).for("update", { noWait: true });
+        if (!grant || grant.status !== "active") throw new Error("credentials_unavailable");
+        const ref = grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential");
+        if (!ref) throw new Error("credentials_unavailable");
+        await tx.select({ id: companySecrets.id }).from(companySecrets).where(and(
+          eq(companySecrets.id, ref.secretId), eq(companySecrets.companyId, companyId),
+        )).for("update", { noWait: true });
+        const current = await aiConnectionService(tx as unknown as Db).credential({ connection: row.connection, grant });
+        signal.throwIfAborted();
+        // Another poll, an agent, or reconnect already supplied a newer credential.
+        if (current !== failedValue) return current;
+        const pending = await recovery.read();
+        if (pending && (pending.secretId !== ref.secretId || pending.connectionId !== row.connection.id || pending.baseHash !== quotaCredentialHash(current))) {
+          throw new Error("credentials_unavailable");
+        }
+        // An active provider may rotate this single-use token itself. Defer polling
+        // until its credential write-back instead of invalidating its live copy.
+        const [active] = await tx.select({ id: heartbeatRuns.id }).from(heartbeatRuns)
+          .innerJoin(agents, and(eq(agents.id, heartbeatRuns.agentId), eq(agents.companyId, companyId))).where(and(
+          eq(heartbeatRuns.companyId, companyId), inArray(heartbeatRuns.status, ["queued", "running"]),
+          or(sql`${heartbeatRuns.contextSnapshot}->'aiConnection'->>'grantId' = ${grant.id}`,
+            sql`${agents.runtimeConfig}->'aiConnection'->>'provider' = 'openai'`, eq(agents.adapterType, "codex_local")),
+        )).limit(1);
+        if (active && !pending) throw new Error("provider_unavailable");
+        let refreshed = pending?.value;
+        if (!refreshed) {
+          await recovery.prepare();
+          const auth = JSON.parse(current);
+          const refreshToken = auth.tokens?.refresh_token;
+          if (typeof refreshToken !== "string" || !refreshToken) throw new Error("authentication_required");
+          // Once exchange starts, its lifetime is independent of the dashboard's
+          // shorter deadline. A consumed single-use token must still be read/saved.
+          signal.throwIfAborted();
+          const refreshSignal = AbortSignal.timeout(60_000);
+          // Matches the Codex OAuth client (openai/codex, login/src/auth/manager.rs).
+          const response = await fetch("https://auth.openai.com/oauth/token", {
+            method: "POST", redirect: "error", signal: refreshSignal,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ client_id: "app_EMoamEEZ73f0CkXaXp7hrann", grant_type: "refresh_token", refresh_token: refreshToken }),
+          });
+          if (!response.ok) {
+            await response.body?.cancel();
+            throw new Error(response.status === 400 || response.status === 401 ? "authentication_required" : "provider_unavailable");
+          }
+          const tokens = await response.json() as Record<string, unknown>;
+          if (typeof tokens.access_token !== "string" || !tokens.access_token) throw new Error("provider_unavailable");
+          refreshed = JSON.stringify({ ...auth, tokens: { ...auth.tokens,
+            access_token: tokens.access_token,
+            ...(typeof tokens.refresh_token === "string" && tokens.refresh_token ? { refresh_token: tokens.refresh_token } : {}),
+            ...(typeof tokens.id_token === "string" && tokens.id_token ? { id_token: tokens.id_token } : {}),
+          }, last_refresh: new Date().toISOString() });
+          // This fsynced encrypted journal survives transaction rollback and host
+          // restart. Never exchange the consumed token again after a failed save.
+          await recovery.write({ companyId, grantId: grant.id, connectionId: row.connection.id,
+            secretId: ref.secretId, baseHash: quotaCredentialHash(current), value: refreshed });
+        }
+        savingReplacement = true;
+        // Persist the rotated token even if the quota deadline expires after the
+        // successful exchange; losing it would strand all subsequent executions.
+        await secretService(tx).rotate(ref.secretId, { value: refreshed }, { userId: grant.subjectUserId });
+        await tx.update(connectionGrants).set({ updatedAt: new Date() }).where(eq(connectionGrants.id, grant.id));
+        await logActivity(tx as unknown as Db, { companyId, actorType: "system", actorId: "quota",
+          action: "ai_connection.credential_refreshed", entityType: "tool_connection", entityId: row.connection.id,
+          details: { provider: "openai", grantId: grant.id } });
+        return refreshed;
       });
-      if (!response.ok) {
-        await response.body?.cancel();
-        throw new Error(response.status === 400 || response.status === 401 ? "authentication_required" : "provider_unavailable");
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const value = await save();
+          // Clear only after commit. A committed-but-lost response is detected
+          // by the current credential comparison on the next attempt.
+          await recovery.clear().catch((error) => logger.warn({ err: error, grantId: row.grant.id }, "Saved quota credential recovery cleanup pending"));
+          return value;
+        } catch (error) {
+          if (!savingReplacement || attempt >= 2) throw error;
+          // Saving retries have no provider side effect. Persistent failures
+          // retain the journal for the next quota poll, including after restart.
+        }
       }
-      const tokens = await response.json() as Record<string, unknown>;
-      if (typeof tokens.access_token !== "string" || !tokens.access_token) throw new Error("provider_unavailable");
-      const refreshed = JSON.stringify({ ...auth, tokens: { ...auth.tokens,
-        access_token: tokens.access_token,
-        ...(typeof tokens.refresh_token === "string" && tokens.refresh_token ? { refresh_token: tokens.refresh_token } : {}),
-        ...(typeof tokens.id_token === "string" && tokens.id_token ? { id_token: tokens.id_token } : {}),
-      }, last_refresh: new Date().toISOString() });
-      // Persist the rotated token even if the quota deadline expires after the
-      // successful exchange; losing it would strand all subsequent executions.
-      await secretService(tx).rotate(ref.secretId, { value: refreshed }, { userId: grant.subjectUserId });
-      await tx.update(connectionGrants).set({ updatedAt: new Date() }).where(eq(connectionGrants.id, grant.id));
-      await logActivity(tx as unknown as Db, { companyId, actorType: "system", actorId: "quota",
-        action: "ai_connection.credential_refreshed", entityType: "tool_connection", entityId: row.connection.id,
-        details: { provider: "openai", grantId: grant.id } });
-      return refreshed;
-    }));
+    });
   }
   // A quota read uses the same credential audience as execution. Operator status
   // alone never grants access to another member's personal subscription.
