@@ -142,7 +142,7 @@ async function buildPiSkillsDir(config: Record<string, unknown>): Promise<string
 }
 
 function resolvePiBiller(env: Record<string, string>, provider: string | null): string {
-  return inferOpenAiCompatibleBiller(env, null) ?? provider ?? "unknown";
+  return provider === "openai" ? inferOpenAiCompatibleBiller(env, "openai") ?? "unknown" : provider ?? "unknown";
 }
 
 async function ensureSessionsDir(): Promise<string> {
@@ -738,7 +738,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       };
 
       const consumeAccounting = createPiJsonlParser();
-      const accountingLog = createUsageCheckpointLog(bufferedOnLog, ctx.onUsage, stdout => {
+      let hasAccounting = false;
+      const accountingLog = createUsageCheckpointLog(bufferedOnLog, ctx.onUsage ?? (async () => {}), stdout => {
+        hasAccounting = true;
         const parsed = consumeAccounting(stdout);
         return { usage: parsed.usage, costUsd: parsed.usage.costUsd, usageBasis: "per_run", provider, biller: resolvePiBiller(runtimeEnv, provider), billingType: "unknown", model, complete: parsed.sawAgentEnd };
       });
@@ -761,11 +763,15 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         await onLog("stdout", stdoutBuffer);
       }
 
-      return {
-        proc,
-        rawStderr: proc.stderr,
-        parsed: parsePiJsonl(proc.stdout),
-      };
+      // Display output is capped by the process transport. Keep accounting
+      // from the full stream, including when no checkpoint callback is installed.
+      const parsed = parsePiJsonl(proc.stdout);
+      if (hasAccounting) {
+        const retained = consumeAccounting("");
+        parsed.usage = retained.usage;
+        parsed.sawAgentEnd = retained.sawAgentEnd;
+      }
+      return { proc, rawStderr: proc.stderr, parsed };
     };
 
     const toResult = (
