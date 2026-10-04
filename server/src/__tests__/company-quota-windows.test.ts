@@ -3,6 +3,7 @@ import type { Db } from "@paperclipai/db";
 const mocks = vi.hoisted(() => ({
   accounts: vi.fn(),
   credential: vi.fn(),
+  refresh: vi.fn(),
   codex: vi.fn(),
   claude: vi.fn(),
   adapters: vi.fn(),
@@ -11,6 +12,7 @@ vi.mock("../services/ai-connections.js", () => ({
   aiConnectionService: () => ({
     quotaAccounts: mocks.accounts,
     credential: mocks.credential,
+    refreshQuotaCredential: mocks.refresh,
   }),
 }));
 vi.mock("../adapters/registry.js", () => ({
@@ -56,6 +58,7 @@ describe("connected account quotas", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     revision = 1;
+    mocks.refresh.mockRejectedValue(new Error("authentication_required"));
     mocks.credential.mockResolvedValue(
       JSON.stringify({
         tokens: { access_token: "private-token", account_id: "actual-account" },
@@ -135,17 +138,34 @@ describe("connected account quotas", () => {
       new Error("private credential store failure"),
     );
     const [failed] = await fetchCompanyQuotaWindows(db, "company-6", "user-6");
-    expect(failed.errorFamily).toBe("authentication_required");
+    expect(failed.errorFamily).toBe("provider_unavailable");
     expect(JSON.stringify(failed)).not.toContain("private credential");
   });
-  it("rejects an incomplete account identity without querying a different account", async () => {
+  it("reads quota for a verified login without an optional account ID", async () => {
     mocks.accounts.mockResolvedValue([account("missing-identity")]);
     mocks.credential.mockResolvedValue(
       JSON.stringify({ accessToken: "private" }),
     );
     const [result] = await fetchCompanyQuotaWindows(db, "company-7", "user-7");
-    expect(result.errorFamily).toBe("credentials_unavailable");
-    expect(mocks.codex).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    expect(mocks.codex).toHaveBeenCalledWith("private", null, expect.any(AbortSignal));
+  });
+  it("distinguishes permission errors from revoked credentials", async () => {
+    mocks.accounts.mockResolvedValue([account("permission-error")]);
+    mocks.codex.mockRejectedValueOnce(new Error("chatgpt wham api returned 403"));
+    const [result] = await fetchCompanyQuotaWindows(db, "permission-company", "user");
+    expect(result.errorFamily).toBe("permission_denied");
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+  it("refreshes an expired selected credential once before retrying quota", async () => {
+    mocks.accounts.mockResolvedValue([account("refresh-account")]);
+    mocks.codex.mockRejectedValueOnce(new Error("chatgpt wham api returned 401"));
+    mocks.refresh.mockResolvedValueOnce(JSON.stringify({ tokens: { access_token: "new-token", account_id: "same-account" } }));
+    const [result] = await fetchCompanyQuotaWindows(db, "refresh-company", "user");
+    expect(result.ok).toBe(true);
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(mocks.codex).toHaveBeenLastCalledWith("new-token", "same-account", expect.any(AbortSignal));
+    expect(JSON.stringify(result)).not.toContain("new-token");
   });
   it("bounds a stalled credential lookup and preserves its account identity", async () => {
     vi.useFakeTimers();

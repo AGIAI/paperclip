@@ -1,5 +1,6 @@
+import { AccountQuotaPanels } from "./AccountQuotaPanels";
 import { useMemo } from "react";
-import type { CostByProviderModel, CostWindowSpendRow, QuotaWindow } from "@paperclipai/shared";
+import type { CostByProviderModel, CostWindowSpendRow, QuotaWindow, ProviderQuotaResult } from "@paperclipai/shared";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuotaBar } from "./QuotaBar";
@@ -33,6 +34,7 @@ interface ProviderQuotaCardProps {
   quotaError?: string | null;
   quotaSource?: string | null;
   quotaLoading?: boolean;
+  quotaAccounts?: ProviderQuotaResult[];
 }
 
 export function ProviderQuotaCard({
@@ -47,6 +49,7 @@ export function ProviderQuotaCard({
   quotaError = null,
   quotaSource = null,
   quotaLoading = false,
+  quotaAccounts,
 }: ProviderQuotaCardProps) {
   // single-pass aggregation over rows — memoized so the 8 derived values are not
   // recomputed on every parent render tick (providers tab polls every 30s, and each
@@ -127,7 +130,7 @@ export function ProviderQuotaCard({
   const isCodexQuotaPanel = provider === "openai" && quotaSource?.startsWith("codex-");
   const supportsSubscriptionQuota = provider === "anthropic" || provider === "openai";
   const showSubscriptionQuotaSection =
-    supportsSubscriptionQuota && (quotaLoading || quotaWindows.length > 0 || quotaError != null);
+    supportsSubscriptionQuota && (quotaLoading || Boolean(quotaAccounts?.length) || quotaWindows.length > 0 || quotaError != null);
 
   return (
     <Card>
@@ -321,6 +324,8 @@ export function ProviderQuotaCard({
               </div>
               {quotaLoading ? (
                 <QuotaPanelSkeleton />
+              ) : quotaAccounts ? (
+                <AccountQuotaPanels accounts={quotaAccounts} />
               ) : isClaudeQuotaPanel ? (
                 <ClaudeSubscriptionPanel windows={quotaWindows} source={quotaSource} error={quotaError} />
               ) : isCodexQuotaPanel ? (

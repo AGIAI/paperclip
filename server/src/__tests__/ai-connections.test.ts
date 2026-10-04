@@ -84,6 +84,33 @@ describe("managed AI connections", () => {
     } finally { fetchSpy.mockRestore(); }
   });
 
+  it("serializes quota credential refresh, persists rotation, and defers while the provider is active", async () => {
+    const owner = "quota-refresh-owner";
+    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const original = JSON.stringify({ tokens: { access_token: "expired-access", refresh_token: "single-use", id_token: "identity", account_id: null } });
+    const account = await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Refresh account", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(companyId, owner);
+    const request = vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ access_token: "fresh-access", refresh_token: "rotated-once" })));
+    const signal = new AbortController().signal;
+    try {
+      const activeId = randomUUID();
+      await db.insert(heartbeatRuns).values({ id: activeId, companyId, agentId, invocationSource: "on_demand", status: "running", contextSnapshot: { aiConnection: { grantId: account.grantId } } });
+      await expect(service.refreshQuotaCredential(row, original, signal)).rejects.toThrow("provider_unavailable");
+      expect(request).not.toHaveBeenCalled();
+      await db.update(heartbeatRuns).set({ status: "succeeded" }).where(eq(heartbeatRuns.id, activeId));
+      const [first, second] = await Promise.all([
+        service.refreshQuotaCredential(row, original, signal),
+        service.refreshQuotaCredential(row, original, signal),
+      ]);
+      expect(first).toBe(second);
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(await service.credential(row))).toMatchObject({ tokens: { access_token: "fresh-access", refresh_token: "rotated-once", account_id: null } });
+      await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, account.grantId));
+      await expect(service.refreshQuotaCredential(row, first, signal)).rejects.toThrow("credentials_unavailable");
+      expect(request).toHaveBeenCalledTimes(1);
+    } finally { request.mockRestore(); }
+  });
+
   it.each([false, true])("reports the authoritative connection-manager capability for custom grants (manager: %s)", async (manager) => {
     const userId = `custom-manager-${manager}`;
     await db.insert(companyMemberships).values({ companyId, principalType: "user", principalId: userId, status: "active", membershipRole: "member" });
