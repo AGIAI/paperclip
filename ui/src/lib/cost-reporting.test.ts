@@ -19,12 +19,12 @@ describe("cost presentation", () => {
     expect(visibleRunCostUsd({ billingType: "subscription_included", costUsd: 50 })).toBe(0);
   });
 
-  it("includes separate legacy Claude cache reads without changing legacy Codex totals", () => {
+  it.each(["anthropic", "google"])("includes separate legacy %s cache reads without changing legacy Codex totals", (provider) => {
     const tokens = { inputTokens: 100, cachedInputTokens: 80, outputTokens: 10 };
-    expect(visibleRunTokenTotal({ ...tokens, provider: "anthropic" })).toBe(190);
+    expect(visibleRunTokenTotal({ ...tokens, provider })).toBe(190);
     expect(visibleRunTokenTotal({ ...tokens, provider: "openai" })).toBe(110);
-    expect(visibleRunTokenTotal({ ...tokens, provider: "anthropic", accountingReceiptId: "saved-receipt" })).toBe(190);
-    expect(visibleRunTokenTotal({ provider: "anthropic", input_tokens: 100, cache_read_input_tokens: 80, output_tokens: 10 })).toBe(190);
+    expect(visibleRunTokenTotal({ ...tokens, provider, accountingReceiptId: "saved-receipt" })).toBe(190);
+    expect(visibleRunTokenTotal({ provider, input_tokens: 100, cache_read_input_tokens: 80, output_tokens: 10 })).toBe(190);
   });
 
   it("formats finance amounts in their recorded currency", () => {

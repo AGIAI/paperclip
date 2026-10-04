@@ -45,6 +45,8 @@ vi.mock("../context/BreadcrumbContext", () => ({
   useBreadcrumbs: () => ({ setBreadcrumbs: setBreadcrumbsMock }),
 }));
 
+vi.mock("../context/SidebarContext", () => ({ useSidebar: () => ({ isMobile: false }) }));
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -165,6 +167,32 @@ describe("Shared Costs surfaces", () => {
     expect(container.textContent).not.toContain("of monthly budget consumed");
     expect(costsApiMocks.summary).toHaveBeenLastCalledWith("company-1", undefined, undefined);
     queryClient.clear();
+  });
+
+  it.each(surfaces)("uses the displayed company cap for provider warnings on the %s page", async (_name, props) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-16T00:30:00Z"));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    try {
+      for (const mock of Object.values(costsApiMocks)) mock.mockResolvedValue([]);
+      costsApiMocks.summary.mockResolvedValue({ spendCents: 800, budgetCents: 1000, pricingComplete: true });
+      const row = { model: "test", billingType: "metered_api", inputTokens: 0, cachedInputTokens: 0, outputTokens: 0,
+        apiRunCount: 1, subscriptionRunCount: 0, subscriptionInputTokens: 0, subscriptionCachedInputTokens: 0, subscriptionOutputTokens: 0 };
+      costsApiMocks.byProvider.mockResolvedValue([
+        { ...row, provider: "openai", biller: "openai", costCents: 100 },
+        { ...row, provider: "google", biller: "google", costCents: 700 },
+      ]);
+      root = createRoot(container);
+      await act(async () => root.render(<MemoryRouter><QueryClientProvider client={queryClient}><Costs {...props} initialTab="providers" /></QueryClientProvider></MemoryRouter>));
+      await act(async () => { await vi.waitFor(() => expect(container.querySelectorAll('[aria-label^="Period spend:"]')).toHaveLength(2)); });
+      const bar = (percent: number) => container.querySelector(`[aria-label="Period spend: ${percent}%"]`)!.parentElement!;
+      expect(bar(10).querySelector(".bg-destructive")).toBeNull();
+      expect(bar(70).querySelector(".bg-destructive")).not.toBeNull();
+      expect(container.textContent).toContain("10% of company budget");
+      expect(container.textContent).toContain("70% of company budget");
+      await act(async () => [...container.querySelectorAll("button")].find(button => button.textContent === "All Time")!.click());
+      await act(async () => { await vi.waitFor(() => expect(container.querySelector('[aria-label^="Period spend:"]')).toBeNull()); });
+    } finally { queryClient.clear(); vi.useRealTimers(); }
   });
 
   it.each(surfaces)("shows incomplete accounting and currency boundaries on the %s page", async (_name, props) => {
