@@ -15,9 +15,10 @@ describe("account quota panels", () => {
   });
   it("displays unknown utilization without inventing zero percent", () => {
     const html = renderToStaticMarkup(<AccountQuotaPanels accounts={[
-      { provider: "openai", accountKey: "a", ok: true, windows: [{ label: "Credits", usedPercent: null, resetsAt: null, valueLabel: "$5 remaining" }] },
+      { provider: "openai", accountKey: "a", ok: true, windows: [{ label: "Credits", usedPercent: null, resetsAt: "2026-10-05T00:00:00Z", valueLabel: "$5 remaining" }] },
     ]} />);
     expect(html).toContain("$5 remaining");
+    expect(html).toContain(`Resets ${new Date("2026-10-05T00:00:00Z").toLocaleString()}`);
     expect(html).not.toContain("0%");
     expect(html).not.toContain('role="progressbar"');
   });

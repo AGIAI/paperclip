@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatUsdExact, importBillingInvoiceSchema, type AccountingInspection } from "@paperclipai/shared";
 import { accountingApi } from "../api/accounting";
+import { ApiError } from "../api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ function AccountingPanel({ companyId }: { companyId: string }) {
   const [inspection, setInspection] = useState<AccountingInspection | null>(null);
   const [repairReason, setRepairReason] = useState("");
   const [correctionReason, setCorrectionReason] = useState("");
+  const [submittedCorrection, setSubmittedCorrection] = useState<{ eventId: string; input: Parameters<typeof accountingApi.adjust>[2] } | null>(null);
   const [invoiceJson, setInvoiceJson] = useState("");
   const [invoiceId, setInvoiceId] = useState("");
   const [notice, setNotice] = useState("");
@@ -27,6 +29,23 @@ function AccountingPanel({ companyId }: { companyId: string }) {
   const action = useMutation({ mutationFn: async (work: () => Promise<void>) => { setNotice(""); await work(); },
     onSuccess: async () => { await client.invalidateQueries(); } });
   const run = (work: () => Promise<void>) => action.mutate(work);
+  const correct = async (submission: NonNullable<typeof submittedCorrection>) => {
+    setSubmittedCorrection(submission);
+    try {
+      await accountingApi.adjust(companyId, submission.eventId, submission.input);
+    } catch (error) {
+      // A definite rejection can be reviewed again. An uncertain outcome must
+      // replay the original request, even if reconciliation has since changed.
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+        setSubmittedCorrection(null);
+        await client.invalidateQueries({ queryKey: ["accounting", companyId, "invoice", invoiceId] });
+      }
+      throw error;
+    }
+    setSubmittedCorrection(null);
+    setCorrectionReason("");
+    setNotice("Correction recorded. The original provider charge remains in the audit history.");
+  };
   const error = action.error ?? health.error ?? invoices.error ?? report.error;
   return <Card>
     <CardHeader>
@@ -74,22 +93,26 @@ function AccountingPanel({ companyId }: { companyId: string }) {
           <p className="font-medium">Provider invoices</p>
           <p className="text-sm text-muted-foreground">Import normalized invoice JSON with biller, externalId, currency, and lines. Each line needs externalId, amountCents, occurredAt, and a costEventId, runId, or providerRequestId for matching. Decimal amounts are strings in cents. Fees and credits remain separate from inference charges.</p>
           <Textarea aria-label="Invoice JSON" value={invoiceJson} onChange={e => setInvoiceJson(e.target.value)} placeholder='{"biller":"anthropic","externalId":"invoice-123","currency":"USD","lines":[]}' />
-          <Button disabled={action.isPending || !invoiceJson.trim()} onClick={() => run(async () => {
+          <Button disabled={action.isPending || !!submittedCorrection || !invoiceJson.trim()} onClick={() => run(async () => {
             const parsed = importBillingInvoiceSchema.parse(JSON.parse(invoiceJson));
             const invoice = await accountingApi.importInvoice(companyId, parsed); setInvoiceId(invoice.id); setCorrectionReason(""); setInvoiceJson(""); setNotice("Invoice imported. Review differences before applying a correction.");
           })}>Import invoice for review</Button>
-          <div className="flex flex-wrap gap-2">{invoices.data?.map(invoice => <Button variant="outline" key={invoice.id} onClick={() => { setInvoiceId(invoice.id); setCorrectionReason(""); }}>{invoice.biller} · {invoice.externalId}</Button>)}</div>
+          <div className="flex flex-wrap gap-2">{invoices.data?.map(invoice => <Button variant="outline" key={invoice.id} disabled={action.isPending || !!submittedCorrection} onClick={() => { setInvoiceId(invoice.id); setCorrectionReason(""); }}>{invoice.biller} · {invoice.externalId}</Button>)}</div>
+          {submittedCorrection && <div className="space-y-2">
+            <p role="status" className="text-sm">Confirm the original correction before changing it. Retrying will not create another charge.</p>
+            <Button variant="outline" disabled={action.isPending} onClick={() => run(() => correct(submittedCorrection))}>Confirm original correction</Button>
+          </div>}
           {report.data && <>
-            <Input aria-label="Invoice correction reason" placeholder="Reason for applying a correction" value={correctionReason} onChange={e => setCorrectionReason(e.target.value)} />
+            <Input aria-label="Invoice correction reason" placeholder="Reason for applying a correction" disabled={!!submittedCorrection} value={correctionReason} onChange={e => setCorrectionReason(e.target.value)} />
             {report.data.lines.map(line => <div key={line.id} className="space-y-2 border-t pt-3 text-sm">
               <p>{line.externalId} · {line.status.replaceAll("_", " ")} · {line.amountCents} {report.data!.invoice.currency} cents</p>
               {line.recordedCents !== null && <p>Recorded: {line.recordedCents} cents · Difference: {line.differenceCents} cents</p>}
-              {line.status === "difference" && line.matchedEventId && line.recordedCents !== null && <Button variant="outline" disabled={action.isPending || !correctionReason.trim()} onClick={() => run(async () => {
-                await accountingApi.adjust(companyId, line.matchedEventId!, { idempotencyKey: `invoice-line:${line.id}`, invoiceLineId: line.id,
+              {line.status === "difference" && line.matchedEventId && line.recordedCents !== null && <Button variant="outline" disabled={action.isPending || !!submittedCorrection || !correctionReason.trim()} onClick={() => run(() => correct({
+                eventId: line.matchedEventId!,
+                input: { idempotencyKey: `invoice-line:${line.id}`, invoiceLineId: line.id,
                   expectedCents: line.recordedCents!, correctedCents: line.amountCents, reason: correctionReason,
-                  pricing: { source: "provider_invoice", evidence: report.data!.invoice.externalId } });
-                setNotice("Correction recorded. The original provider charge remains in the audit history.");
-              })}>Apply reviewed correction</Button>}
+                  pricing: { source: "provider_invoice", evidence: report.data!.invoice.externalId } },
+              }))}>Apply reviewed correction</Button>}
             </div>)}
           </>}
         </div>

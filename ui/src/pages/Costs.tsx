@@ -219,6 +219,7 @@ export function Costs({
   // The clock advances the request bounds, not the identity of the report.
   // Keep successful data visible during polling; a different company or selected
   // period still gets its own cache entry and initial loading state.
+  const reportQueryFrom = preset === "custom" ? from || undefined : undefined;
   const reportQueryTo = preset === "custom" ? to || undefined : preset;
 
   const { data: budgetData, isLoading: budgetLoading, error: budgetError } = useQuery({
@@ -258,7 +259,7 @@ export function Costs({
   });
 
   const { data: spendData, isLoading: spendLoading, error: spendError } = useQuery({
-    queryKey: queryKeys.costs(companyId, from || undefined, reportQueryTo),
+    queryKey: queryKeys.costs(companyId, reportQueryFrom, reportQueryTo),
     queryFn: async () => {
       const [summary, byAgent, byProject, byAgentModel] = await Promise.all([
         costsApi.summary(companyId, from || undefined, to || undefined),
@@ -274,10 +275,10 @@ export function Costs({
 
   const { data: financeData, isLoading: financeLoading, error: financeError } = useQuery({
     queryKey: [
-      queryKeys.financeSummary(companyId, from || undefined, reportQueryTo),
-      queryKeys.financeByBiller(companyId, from || undefined, reportQueryTo),
-      queryKeys.financeByKind(companyId, from || undefined, reportQueryTo),
-      queryKeys.financeEvents(companyId, from || undefined, reportQueryTo, 18),
+      queryKeys.financeSummary(companyId, reportQueryFrom, reportQueryTo),
+      queryKeys.financeByBiller(companyId, reportQueryFrom, reportQueryTo),
+      queryKeys.financeByKind(companyId, reportQueryFrom, reportQueryTo),
+      queryKeys.financeEvents(companyId, reportQueryFrom, reportQueryTo, 18),
     ],
     queryFn: async () => {
       const [summary, byBiller, byKind, events] = await Promise.all([
@@ -320,7 +321,7 @@ export function Costs({
   }, [spendData?.byAgentModel]);
 
   const { data: providerData } = useQuery({
-    queryKey: queryKeys.usageByProvider(companyId, from || undefined, reportQueryTo),
+    queryKey: queryKeys.usageByProvider(companyId, reportQueryFrom, reportQueryTo),
     queryFn: () => costsApi.byProvider(companyId, from || undefined, to || undefined),
     enabled: !!selectedCompanyId && customReady && (mainTab === "providers" || mainTab === "billers"),
     refetchInterval: 30_000,
@@ -328,7 +329,7 @@ export function Costs({
   });
 
   const { data: billerData } = useQuery({
-    queryKey: queryKeys.usageByBiller(companyId, from || undefined, reportQueryTo),
+    queryKey: queryKeys.usageByBiller(companyId, reportQueryFrom, reportQueryTo),
     queryFn: () => costsApi.byBiller(companyId, from || undefined, to || undefined),
     enabled: !!selectedCompanyId && customReady && mainTab === "billers",
     refetchInterval: 30_000,
@@ -679,6 +680,7 @@ export function Costs({
       ) : null}
 
       {!!spendData?.summary.estimatedEventCount && <p role="status" className="text-sm text-muted-foreground">Includes {spendData.summary.estimatedEventCount} estimated run charges. Token estimates use published rates and recorded assumptions; provider bills may differ.</p>}
+      {incidentMutation.error && <p role="alert" className="text-sm text-destructive">Could not update the budget. Review pending accounting and unpriced usage in Accounting tools, then try again.</p>}
       <Tabs value={mainTab} onValueChange={(value) => setMainTab(value as typeof mainTab)}>
         {!lockTab ? (
           <TabsList variant="line" className="justify-start">
@@ -909,7 +911,7 @@ export function Costs({
         </TabsContent>
 
         <TabsContent value="budgets" className="mt-4 space-y-4">
-          {(policyMutation.error || incidentMutation.error) && <p role="alert" className="text-sm text-destructive">{(policyMutation.error ?? incidentMutation.error)?.message}</p>}
+          {policyMutation.error && <p role="alert" className="text-sm text-destructive">{policyMutation.error.message}</p>}
           {budgetLoading ? (
             <PageSkeleton variant="costs" />
           ) : budgetError && !budgetData ? (

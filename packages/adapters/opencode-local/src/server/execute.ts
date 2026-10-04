@@ -84,7 +84,7 @@ function parseModelProvider(model: string | null): string | null {
 }
 
 function resolveOpenCodeBiller(env: Record<string, string>, provider: string | null): string {
-  return inferOpenAiCompatibleBiller(env, null) ?? provider ?? "unknown";
+  return provider === "openai" ? inferOpenAiCompatibleBiller(env, "openai") ?? "unknown" : provider ?? "unknown";
 }
 
 const REMOTE_OPENCODE_MODELS_PROBE_DEFAULT_TIMEOUT_SEC = 20;
@@ -647,7 +647,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       }
 
       const consumeAccounting = createOpenCodeJsonlParser();
-      const accountingLog = createUsageCheckpointLog(onLog, ctx.onUsage, stdout => {
+      let hasAccounting = false;
+      const accountingLog = createUsageCheckpointLog(onLog, ctx.onUsage ?? (async () => {}), stdout => {
+        hasAccounting = true;
         const parsed = consumeAccounting(stdout);
         const provider = parseModelProvider(model || null);
         return { usage: parsed.usage, costUsd: parsed.costUsd, usageBasis: "per_run", provider, biller: resolveOpenCodeBiller(runtimeEnv, provider), billingType: "unknown", model, complete: false };
@@ -666,11 +668,15 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         settleRunDisposition: paperclipBridge?.settleRunDisposition,
       });
       await accountingLog.flush({ complete: proc.exitCode === 0 && !proc.timedOut && !proc.signal });
-      return {
-        proc,
-        rawStderr: proc.stderr,
-        parsed: parseOpenCodeJsonl(proc.stdout),
-      };
+      // Display output is capped by the process transport. Keep accounting
+      // from the full stream, including when no checkpoint callback is installed.
+      const parsed = parseOpenCodeJsonl(proc.stdout);
+      if (hasAccounting) {
+        const retained = consumeAccounting("");
+        parsed.usage = retained.usage;
+        parsed.costUsd = retained.costUsd;
+      }
+      return { proc, rawStderr: proc.stderr, parsed };
     };
 
     const toResult = (

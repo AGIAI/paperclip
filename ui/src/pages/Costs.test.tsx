@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Costs } from "./Costs";
 import { MemoryRouter } from "react-router-dom";
 
+const resolveIncidentMock = vi.hoisted(() => vi.fn());
 const upsertPolicyMock = vi.hoisted(() => vi.fn());
 const budgetOverviewMock = vi.hoisted(() => vi.fn());
 const setBreadcrumbsMock = vi.hoisted(() => vi.fn());
@@ -30,7 +31,7 @@ vi.mock("../api/budgets", () => ({
   budgetsApi: {
     overview: (...args: unknown[]) => budgetOverviewMock(...args),
     upsertPolicy: upsertPolicyMock,
-    resolveIncident: vi.fn(),
+    resolveIncident: resolveIncidentMock,
   },
 }));
 
@@ -125,6 +126,25 @@ describe("Shared Costs surfaces", () => {
       scopeType: summary.scopeType, scopeId: summary.scopeId, metric: summary.metric, windowKind: summary.windowKind,
       ...(field === "amount" ? { amount: 100 } : field === "unknown price" ? { unpricedUsagePolicy: "block" } : { reservationCents: "100.0000000" }),
     });
+    queryClient.clear();
+  });
+
+  it.each(surfaces)("shows failed budget actions on the %s Overview", async (_name, props) => {
+    for (const mock of Object.values(costsApiMocks)) mock.mockResolvedValue([]);
+    costsApiMocks.summary.mockResolvedValue({ spendCents: 200, budgetCents: 1000, pricingComplete: false });
+    costsApiMocks.financeSummary.mockResolvedValue({ netCents: 0, debitCents: 0, creditCents: 0, estimatedDebitCents: 0, eventCount: 0 });
+    budgetOverviewMock.mockResolvedValue({ policies: [], activeIncidents: [{ id: "incident", scopeType: "agent", scopeName: "Codie", status: "open", thresholdType: "hard", amountObserved: 200, amountLimit: 1000 }], pausedAgentCount: 1, pausedProjectCount: 0 });
+    resolveIncidentMock.mockRejectedValue(new Error("private database error"));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    root = createRoot(container);
+    await act(async () => root.render(<MemoryRouter><QueryClientProvider client={queryClient}><Costs {...props} /></QueryClientProvider></MemoryRouter>));
+    await act(async () => { await vi.waitFor(() => expect(container.textContent).toContain("Raise budget & resume")); });
+    await act(async () => [...container.querySelectorAll("button")].find(b => b.textContent === "Raise budget & resume")!.click());
+    await act(async () => { await vi.waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent).toContain("Could not update the budget")); });
+    expect(resolveIncidentMock).toHaveBeenCalledWith("company-1", "incident", { incidentId: "incident", action: "raise_budget_and_resume", amount: 1200 });
+    expect(container.querySelector('[role="tab"][data-state="active"]')?.textContent).toBe("Overview");
+    expect(container.textContent).toContain("Review pending accounting and unpriced usage");
+    expect(container.textContent).not.toContain("private database error");
     queryClient.clear();
   });
 

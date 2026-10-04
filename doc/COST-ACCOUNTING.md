@@ -174,3 +174,10 @@ edits deliver hard-stop cancellation after their transaction commits.
 Status-card update costs retain the ledger's fractional-cent storage precision.
 The mutation gate retains partial results and per-run reports/logs under
 `coverage/accounting/` when its baseline fails or a mutation survives.
+
+Failed native turns persist observed run-delta usage before semantic-result
+finalization. A matching terminal failure, cancellation, or interruption closes
+that receipt; missing terminal evidence and session-only totals remain pending.
+For multiple provider attempts, known prices remain in the exact spend total
+when another attempt is unpriced. The aggregate stays marked unpriced, so the
+configured unknown-price policy still controls whether new work may start.

@@ -152,13 +152,15 @@ export async function createRunUsageRecorder(db: Db, input: { companyId: string;
     if (parts.length > 1) {
       let total = 0n, priced = true;
       for (const part of parts) {
-        const cost = part.cacheAdjustedCostUsd ?? part.costUsdExact ?? part.costUsd;
-        if (cost == null) priced = false; else total += usdToUnits(cost);
+        const subscription = ["subscription", "subscription_included"].includes(part.billingType ?? "");
+        const cost = subscription ? 0 : part.cacheAdjustedCostUsd ?? part.costUsdExact ?? part.costUsd;
+        if (cost == null || (!subscription && part.costStatus === "unpriced")) priced = false;
+        if (cost != null) total += usdToUnits(cost);
       }
       if (new Set(parts.map(part => part.billingType ?? "unknown")).size > 1) receipt.billingType = "unknown";
       const decimal = `${total / 1_000_000_000n}.${String(total % 1_000_000_000n).padStart(9, "0")}`;
-      receipt.costUsdExact = priced ? decimal : null;
-      receipt.costUsd = priced ? Number(decimal) : null;
+      receipt.costUsdExact = decimal;
+      receipt.costUsd = Number(decimal);
       receipt.cacheAdjustedCostUsd = null;
       receipt.usageByModel = undefined;
       receipt.costStatus = priced && parts.some(part => part.costStatus === "estimated") ? "estimated" : priced ? "reported" : "unpriced";
