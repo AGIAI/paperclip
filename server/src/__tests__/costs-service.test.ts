@@ -551,7 +551,9 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
     const [byAgentModelRow] = await costs.byAgentModel(companyId, range);
 
     expect(byAgentRow?.costCents).toBe(4_000_000_000);
-    expect(byAgentRow?.inputTokens).toBe(4_000_000_000);
+    // Historical OpenAI input includes these ten cached tokens.
+    expect(byAgentRow?.inputTokens).toBe(3_999_999_990);
+    expect(byAgentRow!.inputTokens + byAgentRow!.cachedInputTokens).toBe(4_000_000_000);
     expect(byProjectRow?.costCents).toBe(4_000_000_000);
     expect(byAgentModelRow?.costCents).toBe(4_000_000_000);
   });
@@ -701,7 +703,7 @@ describeEmbeddedPostgres("cost and finance aggregate overflow handling", () => {
       includeDescendants: true,
       costCents: 600,
       costCentsExact: "600.0000000",
-      inputTokens: 60,
+      inputTokens: 54,
       cachedInputTokens: 6,
       outputTokens: 12,
       runCount: 0,

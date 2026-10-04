@@ -41,6 +41,49 @@ databaseDescribe("cost accounting reliability (PostgreSQL)", () => {
     return { company, agent, project, issue, goal, run, receipt };
   }
 
+  it("counts cache reads once across mixed historical and receipt-backed reports without changing charges", async () => {
+    const f = await fixture();
+    const costs = costService(db);
+    const scope = { agentId: f.agent.id, issueId: f.issue.id, projectId: f.project.id, heartbeatRunId: f.run.id,
+      provider: "openai", biller: "openai", model: "gpt-test", occurredAt: new Date() };
+    // These two layouts both describe 100 input (80 cached) and 10 output.
+    for (const billingType of ["metered_api", "subscription_included"]) {
+      await db.insert(costEvents).values({ companyId: f.company.id, ...scope, billingType,
+        inputTokens: 100, cachedInputTokens: 80, outputTokens: 10, costCents: 7 });
+      await costs.createEvent(f.company.id, { ...scope, billingType,
+        inputTokens: 20, cachedInputTokens: 80, outputTokens: 10, costCents: 11 });
+    }
+    const [provider, models] = await Promise.all([costs.byProvider(f.company.id), costs.byAgentModel(f.company.id)]);
+    for (const rows of [provider, models]) {
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(row).toMatchObject({ inputTokens: 40, cachedInputTokens: 160, outputTokens: 20, costCents: 18 });
+        expect(row.inputTokens + row.cachedInputTokens + row.outputTokens).toBe(220);
+      }
+    }
+    const [agent] = await costs.byAgent(f.company.id);
+    const [biller] = await costs.byBiller(f.company.id);
+    const [project] = await costs.byProject(f.company.id);
+    const issue = await costs.issueTreeSummary(f.company.id, f.issue.id);
+    const windows = await costs.windowSpend(f.company.id);
+    expect(windows).toHaveLength(3);
+    for (const row of [agent, biller, project, issue, ...windows]) {
+      expect(row).toMatchObject({ inputTokens: 80, cachedInputTokens: 320, outputTokens: 40, costCents: 36 });
+      expect(row.inputTokens + row.cachedInputTokens + row.outputTokens).toBe(440);
+    }
+    for (const row of [agent, biller, provider.find(row => row.billingType === "subscription_included")!]) {
+      expect(row).toMatchObject({ subscriptionInputTokens: 40, subscriptionCachedInputTokens: 160, subscriptionOutputTokens: 20 });
+    }
+    // Reading reports never rewrites historical evidence or retroactively bills.
+    const stored = await db.select().from(costEvents).where(eq(costEvents.companyId, f.company.id));
+    expect(stored.filter(row => row.receiptHash === null).map(row => row.inputTokens)).toEqual([100, 100]);
+    expect((await costs.summary(f.company.id)).spendCents).toBe(36);
+    // Legacy Anthropic input was already exclusive; retain its cache semantics.
+    await db.insert(costEvents).values({ companyId: f.company.id, ...scope, provider: "anthropic", billingType: "metered_api",
+      inputTokens: 100, cachedInputTokens: 80, outputTokens: 10, costCents: 0 });
+    expect((await costs.byProvider(f.company.id)).find(row => row.provider === "anthropic")).toMatchObject({ inputTokens: 100, cachedInputTokens: 80, outputTokens: 10 });
+  });
+
   it.each(["issueId", "projectId", "goalId", "heartbeatRunId"] as const)("rejects a foreign-company %s without writing anything", async (field) => {
     const a = await fixture(); const b = await fixture();
     const foreignIds = { issueId: b.issue.id, projectId: b.project.id, goalId: b.goal.id, heartbeatRunId: b.run.id };
