@@ -303,6 +303,55 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(await fs.readdir(spool)).toHaveLength(unrelated.length + 1);
   });
 
+  it("indexes a recovery backlog once outside company locks and still sees newly published receipts", async () => {
+    const f = await fixture(), other = await fixture(), spool = usageReceiptSpoolPath();
+    const runs = [f.run];
+    for (let i = 0; i < 7; i++) {
+      const [run] = await db.insert(heartbeatRuns).values({ companyId: f.company.id, agentId: f.agent.id, status: "running" }).returning();
+      runs.push(run);
+    }
+    for (const run of runs) {
+      const recorder = await createRunUsageRecorder(db, { companyId: f.company.id, runId: run.id, adapterType: "process" });
+      await recorder.capture({ complete: true, usage: { inputTokens: 50, outputTokens: 5 }, costUsd: 0.05 });
+      await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, run.id));
+    }
+    const [first] = await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id));
+    const envelope: UsageReceiptEnvelope = { schema: "paperclip/accounting-receipt/v1", id: randomUUID(), companyId: other.company.id,
+      runId: other.run.id, sourceId: randomUUID(), sequence: 1, receivedAt: new Date().toISOString(), adapterType: "process", receipt: { complete: false } };
+    const foreignFiles = new Set<string>();
+    for (let i = 0; i < 256; i++) foreignFiles.add(await spoolUsageReceipt({ ...envelope, id: randomUUID(), sequence: i + 1 }));
+    const reads = new Map<string, number>(), read = fs.readFile.bind(fs);
+    let checkedLock = false, lockWasAvailable = false;
+    const spy = vi.spyOn(fs, "readFile").mockImplementation(async (file, options) => {
+      if (typeof file === "string" && foreignFiles.has(file)) {
+        reads.set(file, (reads.get(file) ?? 0) + 1);
+        if (!checkedLock) {
+          checkedLock = true;
+          await db.transaction(async tx => {
+            await tx.execute(sql`set local lock_timeout = '100ms'`);
+            await tx.select().from(companies).where(eq(companies.id, f.company.id)).for("no key update");
+          });
+          lockWasAvailable = true;
+          // Published after the index's directory snapshot: the locked drain
+          // must discover it instead of trusting a stale batch inventory.
+          await spoolUsageReceipt({ ...envelope, id: randomUUID(), companyId: f.company.id, runId: f.run.id,
+            sourceId: String(first.usageJson?.accountingReceiptSourceId), sequence: 2,
+            receipt: { complete: true, usage: { inputTokens: 200, outputTokens: 20 }, costUsd: 0.2 } });
+        }
+      }
+      return read(file, options);
+    });
+    try { await reconcileRunCosts(db); } finally { spy.mockRestore(); }
+    expect(lockWasAvailable).toBe(true);
+    expect(reads.size).toBe(256);
+    expect([...reads.values()]).toEqual(Array(256).fill(1));
+    const charges = await db.select().from(costEvents).where(eq(costEvents.companyId, f.company.id));
+    expect(charges).toHaveLength(8);
+    expect(charges.find(charge => charge.heartbeatRunId === f.run.id)).toMatchObject({ inputTokens: 200, costCents: 20 });
+    expect((await costService(db).summary(f.company.id)).spendCents).toBe(55);
+    await Promise.all([...foreignFiles].map(file => fs.rm(file)));
+  });
+
   it("reports over-limit advisory budgets without blocking, and tolerates legacy active zero limits", async () => {
     const f = await fixture(), budgets = budgetService(db);
     const policy = await budgets.upsertPolicy(f.company.id, { scopeType: "company", scopeId: f.company.id, amount: 1, hardStopEnabled: false }, "board");

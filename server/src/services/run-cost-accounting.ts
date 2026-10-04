@@ -6,7 +6,7 @@ import { createCostEventInTransaction } from "./costs.js";
 import { budgetService, deliverBudgetEnforcement, type BudgetServiceHooks } from "./budgets.js";
 import { logger } from "../middleware/logger.js";
 import { promises as fs } from "node:fs";
-import { recoverPendingRunUsageReceipts } from "./usage-receipts.js";
+import { indexPendingUsageReceipts, recoverPendingRunUsageReceipts, type UsageReceiptIndex } from "./usage-receipts.js";
 
 const terminalStatuses = ["succeeded", "failed", "timed_out", "cancelled", "interrupted"];
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -15,9 +15,10 @@ const amount = (value: unknown) => typeof value === "number" && Number.isFinite(
 
 /** The run's persisted usage is a durable receipt. Ledger, runtime totals, and
  * acknowledgement commit together, including after a restart or failed run. */
-export async function accountRunCost(db: Db, runId: string, hooks: BudgetServiceHooks = {}) {
+export async function accountRunCost(db: Db, runId: string, hooks: BudgetServiceHooks = {}, receiptIndex?: UsageReceiptIndex) {
   const [identity] = await db.select({ companyId: heartbeatRuns.companyId }).from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
   if (!identity) return false;
+  const index = receiptIndex ?? await indexPendingUsageReceipts();
   let recoveredFiles: string[] = [];
   const accounted = await withAccountingTransaction(db, identity.companyId, async (tx, publications) => {
     let [run] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId)).for("update");
@@ -29,7 +30,7 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
     // The bounded global replay can leave a newer receipt behind an older
     // complete snapshot. Drain this run under the accounting lock before
     // deciding completeness, and retain disk evidence until the outer commit.
-    recoveredFiles = await recoverPendingRunUsageReceipts(tx, { ...identity, runId }, undefined, true);
+    recoveredFiles = await recoverPendingRunUsageReceipts(tx, { ...identity, runId }, undefined, { retainFiles: true, index });
     [run] = await tx.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
     const preProviderFailure = object(object(run.resultJson).executionRecovery).providerWorkStarted === false
       || object(run.usageJson).accountingProviderWorkStarted === false;
@@ -145,8 +146,9 @@ export async function reconcileRunCosts(db: Db, hooks: BudgetServiceHooks = {}) 
     sql`(${heartbeatRuns.usageJson}->>'accountingReceiptReady' is distinct from 'false' or ${heartbeatRuns.resultJson}->'executionRecovery'->>'providerWorkStarted' = 'false' or ${heartbeatRuns.usageJson}->>'accountingProviderWorkStarted' = 'false')`,
   )).orderBy(asc(heartbeatRuns.updatedAt), asc(heartbeatRuns.id)).limit(100);
   let accounted = 0;
+  const receiptIndex = pending.length > 0 ? await indexPendingUsageReceipts() : undefined;
   for (const run of pending) {
-    try { if (await accountRunCost(db, run.id, hooks)) accounted++; }
+    try { if (await accountRunCost(db, run.id, hooks, receiptIndex)) accounted++; }
     catch (error) {
       // Move failed attempts behind other pending work so a poisoned receipt
       // cannot monopolize the bounded batch on every recovery tick.

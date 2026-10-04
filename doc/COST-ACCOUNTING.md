@@ -75,6 +75,8 @@ Before replacing a stopped run's recorder, recovery saves every pending spool re
 
 Settlement also drains every pending spool receipt for the run under the company accounting lock before checking completeness or acknowledging usage. A newer partial receipt prevents settlement of an older complete snapshot. Recovered journal writes and ledger settlement share a transaction; spool files are removed only after its commit, so a failed charge or projection write leaves the original evidence available for retry. A concurrent replay rename causes a rescan; repeated file movement defers settlement.
 
+Recovery indexes immutable spool-file identities once per batch, outside company locks. Each settlement skips indexed files belonging to other runs, revalidates its matching receipts, and checks newly published or renamed files. Standalone settlement builds the same index before taking its lock. This avoids repeatedly reading unrelated receipt contents while admissions and ledger writes wait.
+
 The spool survives process death on persistent local storage, including the tested boundary before the first database write. It does not survive destruction of that storage, and cannot recover provider activity that was never emitted as usage. Back up persistent instance storage together with PostgreSQL. No arbitrary provider-log scraping or automatic provider re-execution occurs during accounting recovery.
 
 Board-only routes under `/api/companies/:companyId/accounting` provide:
