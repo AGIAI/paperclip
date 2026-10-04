@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, copyFile, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, copyFile, readFile, writeFile, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -24,6 +24,10 @@ const assertionResults = Object.values(titles).map(title => ({ title, status: fa
 writeFileSync(process.argv.find(arg => arg.startsWith('--outputFile=')).slice(13), JSON.stringify({ testResults: [{ assertionResults }] }));
 process.exit(fail ? 1 : 0);
 `);
+      if (scenario === "missing") {
+        await mkdir(path.join(root, "coverage/accounting/mutations"), { recursive: true });
+        await writeFile(path.join(root, "coverage/accounting/mutations/deduplication.json"), '{"stale":true}');
+      }
       const result = spawnSync(process.execPath, ["scripts/test-accounting-mutations.mjs"], { cwd: root,
         env: { ...process.env, MUTATION_EVIDENCE_TEST_SCENARIO: scenario }, encoding: "utf8" });
       assert.equal(result.status, scenario === "success" ? 0 : 1, result.stderr);
@@ -31,6 +35,7 @@ process.exit(fail ? 1 : 0);
       assert.equal(report.evidence.at(-1).result, { success: "killed", baseline: "baseline_failed", survives: "survived_or_invalid", missing: "error" }[scenario]);
       const last = report.evidence.at(-1).mutation;
       assert.ok((await readFile(path.join(root, `coverage/accounting/mutations/${last}.log`), "utf8")).length);
+      if (scenario === "missing") await assert.rejects(access(path.join(root, `coverage/accounting/mutations/${last}.json`)));
       if (scenario !== "missing") assert.ok(JSON.parse(await readFile(path.join(root, `coverage/accounting/mutations/${last}.json`), "utf8")).testResults.length);
     } finally { await rm(root, { recursive: true, force: true }); }
   });
