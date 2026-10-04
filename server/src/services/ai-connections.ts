@@ -869,7 +869,7 @@ export function aiConnectionService(db: Db) {
       for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
         const value = current as { code?: unknown; cause?: unknown };
         if (value.code === WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE || value.code === "55P03") {
-          throw unprocessable("AI credentials are being updated. This execution will retry automatically.", { code: "ai_connection_busy" });
+          throw unprocessable("AI credentials are being updated. Retry shortly.", { code: "ai_connection_busy" });
         }
         current = value.cause;
       }
