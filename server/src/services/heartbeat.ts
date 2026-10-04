@@ -16361,9 +16361,8 @@ export function heartbeatService(
       .then((rows) => rows[0] ?? null);
   }
 
-  // No code path raises the `ai_connection_busy` error any more. This
-  // function stays because a stored run row can still carry that error code
-  // from an earlier release.
+  // Credential rotation can briefly contend with a fresh runtime read. Keep
+  // the task on its automatic pre-provider retry path while the lock clears.
   async function finalizeAiConnectionBusyDeferral(
     run: typeof heartbeatRuns.$inferSelect,
     error: HttpError,
