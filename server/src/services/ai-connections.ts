@@ -1,3 +1,4 @@
+import { withAccountHomeSecretMutationLock } from "@paperclipai/adapter-codex-local/server";
 import { syncConnectionCredentialBindings } from "./connection-credential-bindings.js";
 import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
@@ -402,6 +403,9 @@ export function aiConnectionService(db: Db) {
     };
   }
   async function credential(row: Pick<Awaited<ReturnType<typeof select>>, "connection" | "grant">) {
+    return withAccountHomeSecretMutationLock(undefined, row.connection.companyId, () => credentialUnlocked(row));
+  }
+  async function credentialUnlocked(row: Pick<Awaited<ReturnType<typeof select>>, "connection" | "grant">) {
     const ref = row.grant.credentialSecretRefs.find(
       (r) => r.configPath === "ai.credential",
     );
@@ -498,7 +502,7 @@ export function aiConnectionService(db: Db) {
       );
     const id = reconnect?.connection.id ?? randomUUID();
     const grantId = reconnect?.grant.id ?? randomUUID();
-    return db.transaction(async (tx) => {
+    return withAccountHomeSecretMutationLock(undefined, companyId, () => db.transaction(async (tx) => {
       const secrets = secretService(tx);
       if (sessionId) {
         const [session] = await tx
@@ -803,7 +807,7 @@ export function aiConnectionService(db: Db) {
         details: { provider: input.provider, method: input.method, grantId },
       });
       return { connectionId: id, grantId };
-    });
+    }));
   }
   /** A late failure must never invalidate credentials that were refreshed or reconnected meanwhile. */
   async function markAuthenticationFailed(input: {
@@ -813,7 +817,7 @@ export function aiConnectionService(db: Db) {
     runStartedAt: Date;
     attribution: AiConnectionAttribution & { identity: string };
   }) {
-    return db.transaction(async (tx) => {
+    return withAccountHomeSecretMutationLock(undefined, input.companyId, () => db.transaction(async (tx) => {
       const { attribution } = input;
       const [grant] = await tx.select().from(connectionGrants).where(and(
         eq(connectionGrants.companyId, input.companyId),
@@ -847,11 +851,11 @@ export function aiConnectionService(db: Db) {
         entityType: "tool_connection", entityId: connection.id,
         details: { provider: attribution.provider, grantId: grant.id },
       });
-    });
+    }));
   }
   /** Refresh only the selected vaulted identity, serializing rotation and reconnect. */
   async function refreshQuotaCredential(row: Parameters<typeof credential>[0], failedValue: string, signal: AbortSignal) {
-    return db.transaction(async (tx) => {
+    return withAccountHomeSecretMutationLock(undefined, row.connection.companyId, () => db.transaction(async (tx) => {
       const companyId = row.connection.companyId;
       const [grant] = await tx.select().from(connectionGrants).where(and(
         eq(connectionGrants.id, row.grant.id), eq(connectionGrants.companyId, companyId),
@@ -904,7 +908,7 @@ export function aiConnectionService(db: Db) {
         action: "ai_connection.credential_refreshed", entityType: "tool_connection", entityId: row.connection.id,
         details: { provider: "openai", grantId: grant.id } });
       return refreshed;
-    });
+    }));
   }
   // A quota read uses the same credential audience as execution. Operator status
   // alone never grants access to another member's personal subscription.

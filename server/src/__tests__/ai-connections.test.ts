@@ -84,6 +84,37 @@ describe("managed AI connections", () => {
     } finally { fetchSpy.mockRestore(); }
   });
 
+  it("serializes quota exchange with a concurrent secret edit and runtime credential read", async () => {
+    const owner = "quota-race-owner";
+    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const original = JSON.stringify({ tokens: { access_token: "old-access", refresh_token: "single-use", id_token: "identity", account_id: "race-account" } });
+    const account = await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Racing refresh", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(companyId, owner);
+    const secretId = row.grant.credentialSecretRefs.find(ref => ref.configPath === "ai.credential")!.secretId;
+    const exchangeStarted = deferredSignal();
+    const releaseExchange = deferredSignal();
+    const request = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      exchangeStarted.resolve(); await releaseExchange.promise;
+      return Response.json({ access_token: "new-access", refresh_token: "new-refresh" });
+    });
+    let runtime: Awaited<ReturnType<typeof prepareManagedAiRuntime>> | undefined;
+    const refreshing = service.refreshQuotaCredential(row, original, new AbortController().signal);
+    try {
+      await exchangeStarted.promise;
+      const edit = secretService(db).update(secretId, { description: "Changed during refresh" });
+      const preparing = prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
+      // Keep the provider exchange pending while both contenders reach their
+      // lock/read paths. Neither may hold a conflicting row lock or vend old auth.
+      await new Promise(resolve => setTimeout(resolve, 50));
+      releaseExchange.resolve();
+      const results = await Promise.all([refreshing, edit, preparing]);
+      runtime = results[2];
+      expect(JSON.parse(await readFile(path.join(String(runtime.config.env.CODEX_HOME), "auth.json"), "utf8"))).toMatchObject({ tokens: { access_token: "new-access", refresh_token: "new-refresh" } });
+      expect(JSON.parse(await service.credential(row))).toMatchObject({ tokens: { access_token: "new-access", refresh_token: "new-refresh" } });
+      expect((await secretService(db).getById(secretId))?.description).toBe("Changed during refresh");
+    } finally { releaseExchange.resolve(); await runtime?.cleanup(); request.mockRestore(); }
+  }, 10_000);
+
   it("serializes quota credential refresh, persists rotation, and defers while the provider is active", async () => {
     const owner = "quota-refresh-owner";
     await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
@@ -1069,3 +1100,9 @@ describe("AI connection recovery delivery", () => {
     }, 30000,
   );
 });
+
+function deferredSignal() {
+  let resolve!: () => void;
+  const promise = new Promise<void>(done => { resolve = done; });
+  return { promise, resolve };
+}
