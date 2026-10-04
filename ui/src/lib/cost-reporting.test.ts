@@ -32,6 +32,16 @@ describe("cost presentation", () => {
     expect(formatCents(123, "EUR")).toBe("€1.23");
   });
 
+  it.each(["openai", "openrouter", "opencode", "xai"])("recognizes saved OpenCode/Pi %s model layouts without changing legacy Codex", (provider) => {
+    const tokens = { inputTokens: 100, cachedInputTokens: 80, outputTokens: 10 };
+    expect(visibleRunTokenTotal({ ...tokens, provider, model: `${provider}/vendor/model` })).toBe(190);
+    expect(visibleRunTokenTotal({ ...tokens, provider: "openai", model: "gpt-5" })).toBe(110);
+    expect(visibleRunTokenTotal({ ...tokens, provider: "openai", model: "different/model" })).toBe(110);
+    expect(visibleRunTokenTotal({ ...tokens, provider: "openai", model: "openai/" })).toBe(110);
+    expect(visibleRunTokenTotal({ ...tokens, provider: "unknown", model: "unknown/model" })).toBe(110);
+    expect(visibleRunTokenTotal({ ...tokens, inputTokens: 20, provider: "openai", model: "gpt-5", accountingReceiptId: "saved" })).toBe(110);
+  });
+
   it("starts month-to-date at the UTC boundary even before local midnight", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {

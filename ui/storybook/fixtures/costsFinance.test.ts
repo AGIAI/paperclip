@@ -92,4 +92,18 @@ describe("Costs story finance actions", () => {
     }
   });
 
+  it("counts only USD events in the headline while retaining every currency in reports and the timeline", async () => {
+    const fixture = createCostsFinanceFixtures("preview");
+    await fixture("accounting/invoices", request("accounting/invoices", { biller: "Example", externalId: "eur-invoice", currency: "EUR",
+      lines: [{ externalId: "fee", kind: "fee", amountCents: "100", occurredAt: charge.occurredAt }] }));
+    expect(await (await fixture("costs/finance-summary", request("costs/finance-summary")))!.json())
+      .toMatchObject({ currency: "USD", debitCents: 0, eventCount: 0, currencies: [{ currency: "EUR", debitCents: 100, eventCount: 1 }] });
+    await fixture("finance-events", request("finance-events", charge));
+    expect(await (await fixture("costs/finance-summary", request("costs/finance-summary")))!.json())
+      .toMatchObject({ currency: "USD", debitCents: 125, eventCount: 1, currencies: [
+        { currency: "EUR", debitCents: 100, eventCount: 1 }, { currency: "USD", debitCents: 125, eventCount: 1 },
+      ] });
+    expect(await (await fixture("costs/finance-events", request("costs/finance-events")))!.json()).toHaveLength(2);
+  });
+
 });

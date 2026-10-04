@@ -180,8 +180,9 @@ function readRunCostUsd(payload: Record<string, unknown> | null): number | null 
 }
 
 /** Receipt-backed runs and legacy Claude/Gemini snapshots store uncached input
- * separately. Older Codex input already includes its cached tokens. Unknown
- * legacy formats retain their original input-plus-output interpretation. */
+ * separately. OpenCode/Pi persist their provider-qualified model IDs and also
+ * separate cache reads. Older Codex input already includes cached tokens.
+ * Unknown legacy formats retain their input-plus-output interpretation. */
 export function visibleRunTokenTotal(usage: Record<string, unknown> | null | undefined): number {
   const count = (...keys: string[]) => {
     for (const key of keys) {
@@ -193,8 +194,15 @@ export function visibleRunTokenTotal(usage: Record<string, unknown> | null | und
   const input = count("inputTokens", "input_tokens");
   const output = count("outputTokens", "output_tokens");
   const cached = count("cachedInputTokens", "cached_input_tokens", "cache_read_input_tokens");
+  const provider = typeof usage?.provider === "string" ? usage.provider : "";
+  const model = typeof usage?.model === "string" ? usage.model : "";
+  // Use the saved model convention, not the agent's current adapter: an agent
+  // can change adapters after a historical run. Codex saves an unqualified ID.
+  const qualifiedModel = provider !== "" && provider !== "unknown"
+    && model.startsWith(`${provider}/`) && model.length > provider.length + 1;
   const inputExcludesCached = usage?.provider === "anthropic"
     || usage?.provider === "google"
+    || qualifiedModel
     || (typeof usage?.accountingReceiptId === "string" && usage.accountingReceiptId.length > 0);
   return input + output + (inputExcludesCached ? cached : 0);
 }
