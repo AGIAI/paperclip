@@ -22,6 +22,7 @@ import { BudgetPolicyCard } from "../components/BudgetPolicyCard";
 import { EmptyState } from "../components/EmptyState";
 import { FinanceBillerCard } from "../components/FinanceBillerCard";
 import { FinanceKindCard } from "../components/FinanceKindCard";
+import { FinancialEventEntry } from "../components/FinancialEventEntry";
 import { FinanceTimelineCard } from "../components/FinanceTimelineCard";
 import { Identity } from "../components/Identity";
 import { PageSkeleton } from "../components/PageSkeleton";
@@ -579,6 +580,7 @@ export function Costs({
   return (
     <div className="space-y-6">
       <AccountingHealthPanel companyId={companyId} />
+      <FinancialEventEntry companyId={companyId} />
       {showSummaryChrome ? (
         <div className="space-y-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -905,7 +907,7 @@ export function Costs({
                     </CardContent>
                   </Card>
 
-                  <FinanceTimelineCard companyId={companyId} rows={topFinanceEvents.slice(0, 6)} emptyMessage={financeLoading ? "Loading financial events…" : financeError && !financeData ? "Financial events could not be loaded. Please try again shortly." : "No financial events recorded in this period. Charges and credits appear after they are imported or recorded; agent runs do not add them automatically."} />
+                  <FinanceTimelineCard rows={topFinanceEvents.slice(0, 6)} emptyMessage={financeLoading ? "Loading financial events…" : financeError && !financeData ? "Financial events could not be loaded. Please try again shortly." : "No financial events recorded in this period. Charges and credits appear after they are imported or recorded; agent runs do not add them automatically."} />
                 </div>
               </div>
             </>
@@ -1177,7 +1179,7 @@ export function Costs({
                       )}
                     </CardContent>
                   </Card>
-                  <FinanceTimelineCard companyId={companyId} rows={topFinanceEvents} />
+                  <FinanceTimelineCard rows={topFinanceEvents} />
                 </div>
 
                 <FinanceKindCard rows={financeData?.byKind ?? []} />

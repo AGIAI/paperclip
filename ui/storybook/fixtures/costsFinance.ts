@@ -40,10 +40,11 @@ export function createCostsFinanceFixtures(companyId: string) {
     if (resource === "costs/finance-events") return Response.json(visible);
     if (resource === "costs/finance-by-biller" || resource === "costs/finance-by-kind") {
       const byBiller = resource.endsWith("biller");
-      const keys = [...new Set(visible.map(row => JSON.stringify([row.currency, byBiller ? row.biller : row.eventKind])))];
+      const charges = visible.filter(row => row.metadataJson?.source !== "provider_cost_report");
+      const keys = [...new Set(charges.map(row => JSON.stringify([row.currency, byBiller ? row.biller : row.eventKind])))];
       return Response.json(keys.map(encoded => {
         const [currency, key] = JSON.parse(encoded) as [string, string];
-        const rows = visible.filter(row => row.currency === currency && (byBiller ? row.biller : row.eventKind) === key);
+        const rows = charges.filter(row => row.currency === currency && (byBiller ? row.biller : row.eventKind) === key);
         return { ...summary(rows, currency), ...(byBiller ? { biller: key, kindCount: new Set(rows.map(row => row.eventKind)).size } : { eventKind: key, billerCount: new Set(rows.map(row => row.biller)).size }) };
       }));
     }

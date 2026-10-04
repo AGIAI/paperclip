@@ -179,6 +179,22 @@ function readRunCostUsd(payload: Record<string, unknown> | null): number | null 
   return null;
 }
 
+/** Receipt-backed runs store uncached input separately. Older run snapshots
+ * retain their original input total (Codex included cached input in it). */
+export function visibleRunTokenTotal(usage: Record<string, unknown> | null | undefined): number {
+  const count = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = usage?.[key];
+      if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
+    }
+    return 0;
+  };
+  const input = count("inputTokens", "input_tokens");
+  const output = count("outputTokens", "output_tokens");
+  const cached = count("cachedInputTokens", "cached_input_tokens", "cache_read_input_tokens");
+  return input + output + (typeof usage?.accountingReceiptId === "string" && usage.accountingReceiptId.length > 0 ? cached : 0);
+}
+
 export function visibleRunCostUsd(
   usage: Record<string, unknown> | null,
   result: Record<string, unknown> | null = null,

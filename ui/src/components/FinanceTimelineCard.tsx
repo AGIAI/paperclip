@@ -1,4 +1,3 @@
-import { FinancialEventEntry } from "./FinancialEventEntry";
 import type { FinanceEvent } from "@paperclipai/shared";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,13 +11,11 @@ import {
 
 interface FinanceTimelineCardProps {
   rows: FinanceEvent[];
-  companyId?: string;
   emptyMessage?: string;
 }
 
 export function FinanceTimelineCard({
   rows,
-  companyId,
   emptyMessage = "No financial events recorded in this period. Charges and credits appear after they are imported or recorded; agent runs do not add them automatically.",
 }: FinanceTimelineCardProps) {
   return (
@@ -26,7 +23,6 @@ export function FinanceTimelineCard({
       <CardHeader className="px-4 pt-4 pb-1">
         <CardTitle className="text-base">Recent financial events</CardTitle>
         <CardDescription>Provider charges, subscriptions, fees, and credits. Reported separately from run-cost estimates.</CardDescription>
-        {companyId && <FinancialEventEntry companyId={companyId} />}
       </CardHeader>
       <CardContent className="space-y-3 px-4 pb-4 pt-3">
         {rows.length === 0 ? (

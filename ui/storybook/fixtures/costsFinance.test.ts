@@ -30,6 +30,20 @@ describe("Costs story finance actions", () => {
     const summary = await (await fixture("costs/finance-summary", request("costs/finance-summary")))!.json();
     expect(summary).toMatchObject({ debitCents: 50, debitCentsExact: "50.0000000", providerReportedCents: 250, providerReportedCentsExact: "250.0000000", eventCount: 2 });
   });
+  it("excludes provider reports from charge groups while keeping them in the timeline and report totals", async () => {
+    const fixture = createCostsFinanceFixtures("preview");
+    await fixture("accounting/provider-costs/import", request("accounting/provider-costs/import", { provider: "openai", accountId: "preview-account", scopeIds: ["preview-project"], secretId: "00000000-0000-4000-8000-000000000999", from: "2026-01-01", to: "2026-01-02" }));
+    for (const endpoint of ["costs/finance-by-biller", "costs/finance-by-kind"]) expect(await (await fixture(endpoint, request(endpoint)))!.json()).toEqual([]);
+    expect(await (await fixture("costs/finance-events", request("costs/finance-events")))!.json()).toHaveLength(1);
+    expect(await (await fixture("costs/finance-summary", request("costs/finance-summary")))!.json()).toMatchObject({ debitCents: 0, providerReportedCents: 250, eventCount: 1 });
+    await fixture("finance-events", request("finance-events", { ...charge, biller: "openai", eventKind: "inference_charge" }));
+    for (const endpoint of ["costs/finance-by-biller", "costs/finance-by-kind"]) {
+      const rows = await (await fixture(endpoint, request(endpoint)))!.json();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ debitCents: 125, providerReportedCents: 0, eventCount: 1 });
+    }
+  });
+
   it("keeps timestamp bounds exact while date-only bounds include the full day", async () => {
     const fixture = createCostsFinanceFixtures("preview");
     for (const [hour, id] of [["12", "at-boundary"], ["18", "after-boundary"]]) {

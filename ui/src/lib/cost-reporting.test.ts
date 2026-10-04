@@ -1,8 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { formatCents, visibleRunCostUsd } from "./utils";
+import { formatCents, visibleRunCostUsd, visibleRunTokenTotal } from "./utils";
 import { computeRange } from "../hooks/useDateRange";
 
 describe("cost presentation", () => {
+  it("keeps historical inclusive input totals and counts receipt-backed cache hits once", () => {
+    expect(visibleRunTokenTotal({ provider: "openai", inputTokens: 100, cachedInputTokens: 80, outputTokens: 10 })).toBe(110);
+    expect(visibleRunTokenTotal({ provider: "openai", inputTokens: 20, cachedInputTokens: 80, outputTokens: 10, accountingReceiptId: "saved-receipt" })).toBe(110);
+    expect(visibleRunTokenTotal({ input_tokens: 100, cached_input_tokens: 80, output_tokens: 10 })).toBe(110);
+    expect(visibleRunTokenTotal({ input_tokens: 20, cache_read_input_tokens: 80, output_tokens: 10, accountingReceiptId: "saved-receipt" })).toBe(110);
+    expect(visibleRunTokenTotal(null)).toBe(0);
+  });
+
   it("shows the adjusted charge and respects an explicit zero", () => {
     expect(visibleRunCostUsd({ costUsd: 3.1, cacheAdjustedCostUsd: 1.5 })).toBe(1.5);
     expect(visibleRunCostUsd({ cacheAdjustedCostUsd: 0 }, { costUsd: 5 })).toBe(0);

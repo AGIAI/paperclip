@@ -11,7 +11,7 @@ const state = vi.hoisted(() => ({ companyId: "company-1", breadcrumbs: vi.fn() }
 const overview = vi.hoisted(() => vi.fn());
 const api = vi.hoisted(() => Object.fromEntries([
   "summary", "byAgent", "byProject", "byAgentModel", "financeSummary", "financeByBiller",
-  "financeByKind", "financeEvents", "byProvider", "byBiller", "windowSpend", "quotaWindows",
+  "financeByKind", "financeEvents", "byProvider", "byBiller", "windowSpend", "quotaWindows", "createFinanceEvent",
 ].map((key) => [key, vi.fn()])));
 vi.mock("../api/costs", () => ({ costsApi: api }));
 vi.mock("../api/budgets", () => ({ budgetsApi: { overview, upsertPolicy: vi.fn(), resolveIncident: vi.fn() } }));
@@ -38,7 +38,7 @@ describe.each([
     await settle();
   }
   async function click(text: string) {
-    const button = [...container.querySelectorAll("button")].find((node) => node.textContent === text);
+    const button = [...document.querySelectorAll("button")].find((node) => node.textContent === text);
     expect(button).toBeDefined();
     await act(async () => {
       if (button!.getAttribute("role") === "tab") {
@@ -80,6 +80,37 @@ describe.each([
     container.remove();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it("confirms the original uncertain charge after report loading, errors, and tab changes", async () => {
+    await render();
+    await click("Finance"); await click("Record or import charges");
+    for (const [label, value] of [["Provider or biller", "Example"], ["Amount (USD)", "1.25"]]) {
+      const input = [...document.querySelectorAll("label")].find(node => node.textContent?.startsWith(label))!.querySelector("input")!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    }
+    api.createFinanceEvent.mockRejectedValueOnce(new Error("lost response"));
+    await act(async () => document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    await settle();
+    const original = api.createFinanceEvent.mock.calls[0][1];
+    expect(original).toMatchObject({ amountCents: "125.0000000", biller: "Example" });
+    await click("Cancel");
+    let rejectReport!: (error: Error) => void;
+    api.financeEvents.mockImplementationOnce(() => new Promise((_, reject) => { rejectReport = reject; }));
+    await click("Last 7 Days");
+    expect(client.getQueryCache().getAll().some(query => query.state.fetchStatus === "fetching")).toBe(true);
+    await act(async () => rejectReport(new Error("report unavailable"))); await settle();
+    expect(container.textContent).toContain("Financial events could not be loaded");
+    await click("Overview"); await click("Finance");
+    await click("Record or import charges");
+    expect(document.body.textContent).toContain("Confirm original charge");
+    api.createFinanceEvent.mockResolvedValueOnce({});
+    await click("Confirm original charge");
+    expect(api.createFinanceEvent).toHaveBeenCalledTimes(2);
+    expect(api.createFinanceEvent.mock.calls[1]).toEqual([state.companyId, original]);
   });
 
   it("keeps loaded rows and expanded models through minute ticks, failed reloads, and recovery", async () => {
