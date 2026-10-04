@@ -532,3 +532,11 @@ A reconnect during credential resolution defers the poll instead of associating
 one account's quota with another revision. Both Costs surfaces retain matching
 successful observations on transient failures and clear them on authentication
 failure or credential rotation.
+
+Managed runtime token write-back retries a company-lock timeout twice (three
+30-second acquisition attempts), so a slow quota exchange does not discard a
+different account's replacement tokens. Any remaining write-back error preserves
+the private runtime home for retry; cleanup deletes it only after a successful
+transaction or an intentional freshness/authorization discard. These retained
+homes are recovery evidence, not a background replay queue; persistent database
+or lock failures still require operator intervention.

@@ -12,6 +12,7 @@ import {
 import { aiConnectionService } from "./ai-connections.js";
 import { secretService } from "./secrets.js";
 import { decideCodexAuthMerge, withAccountHomeSecretMutationLock } from "@paperclipai/adapter-codex-local/server";
+import { WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE } from "@paperclipai/adapter-utils/workspace-restore-merge";
 import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
 import { runAdapterExecutionTargetProcess } from "@paperclipai/adapter-utils/execution-target";
 import { decideGrokAuthMerge } from "@paperclipai/adapter-grok-local/server";
@@ -310,75 +311,86 @@ export async function prepareManagedAiRuntime(
       identity,
       home,
       cleanup: async () => {
-        try {
-          if (subscriptionFile) {
-            const refreshed = await readFile(authFile, "utf8");
-            if (refreshed !== value)
-              await withAccountHomeSecretMutationLock(undefined, input.companyId, () => db.transaction(async (tx) => {
-                const [grant] = await tx
-                  .select()
-                  .from(connectionGrants)
-                  .where(
-                    and(
-                      eq(connectionGrants.id, selection.grant.id),
-                      eq(connectionGrants.companyId, input.companyId),
-                    ),
-                  )
-                  .for("update");
-                // A missing or revoked grant blocks the write-back. Among
-                // active copies, the merge decision below keeps the
-                // credential with the newest provider freshness field.
-                if (!grant || grant.status !== "active") return;
-                const ref = grant.credentialSecretRefs.find(
-                  (r) => r.configPath === "ai.credential",
-                );
-                if (!ref) return;
-                // Lock the referenced secret row for the rest of this
-                // transaction. The grant-row lock above does not cover it,
-                // so an authorized rotation of this secret could otherwise
-                // land between the read and the write below and be
-                // overwritten by this stale write-back.
-                await tx
-                  .select({ id: companySecrets.id })
-                  .from(companySecrets)
-                  .where(
-                    and(
-                      eq(companySecrets.id, ref.secretId),
-                      eq(companySecrets.companyId, input.companyId),
-                    ),
-                  )
-                  .for("update");
-                const current = await aiConnectionService(
-                  tx as unknown as Db,
-                ).credential({ ...selection, grant });
-                const destination = path.join(
-                  providerHome,
-                  "current-auth.json",
-                );
-                await writeFile(destination, current, { mode: 0o600 });
-                const decision =
-                  input.binding.provider === "openai"
-                    ? await decideCodexAuthMerge(authFile, destination, {
-                        errorLabel: "AI account refresh",
-                      })
-                    : await decideGrokAuthMerge(authFile, destination, {
-                        errorLabel: "AI account refresh",
-                      });
-                if (decision !== 10) return;
-                await secretService(tx).rotate(
-                  ref.secretId,
-                  { value: refreshed },
-                  { userId: grant.subjectUserId },
-                );
-                await tx
-                  .update(connectionGrants)
-                  .set({ updatedAt: new Date() })
-                  .where(eq(connectionGrants.id, grant.id));
-              }));
+        if (subscriptionFile) {
+          const refreshed = await readFile(authFile, "utf8");
+          if (refreshed !== value) {
+            // A quota exchange can hold this company lock for 60 seconds.
+            // Retry its 30-second acquisition timeout without discarding the
+            // provider's only copy of a rotated, single-use refresh token.
+            const writeBack = () => withAccountHomeSecretMutationLock(undefined, input.companyId, () => db.transaction(async (tx) => {
+              const [grant] = await tx
+                .select()
+                .from(connectionGrants)
+                .where(
+                  and(
+                    eq(connectionGrants.id, selection.grant.id),
+                    eq(connectionGrants.companyId, input.companyId),
+                  ),
+                )
+                .for("update");
+              // A missing or revoked grant blocks the write-back. Among
+              // active copies, the merge decision below keeps the
+              // credential with the newest provider freshness field.
+              if (!grant || grant.status !== "active") return;
+              const ref = grant.credentialSecretRefs.find(
+                (r) => r.configPath === "ai.credential",
+              );
+              if (!ref) return;
+              // Lock the referenced secret row for the rest of this
+              // transaction. The grant-row lock above does not cover it,
+              // so an authorized rotation of this secret could otherwise
+              // land between the read and the write below and be
+              // overwritten by this stale write-back.
+              await tx
+                .select({ id: companySecrets.id })
+                .from(companySecrets)
+                .where(
+                  and(
+                    eq(companySecrets.id, ref.secretId),
+                    eq(companySecrets.companyId, input.companyId),
+                  ),
+                )
+                .for("update");
+              const current = await aiConnectionService(
+                tx as unknown as Db,
+              ).credential({ ...selection, grant });
+              const destination = path.join(
+                providerHome,
+                "current-auth.json",
+              );
+              await writeFile(destination, current, { mode: 0o600 });
+              const decision =
+                input.binding.provider === "openai"
+                  ? await decideCodexAuthMerge(authFile, destination, {
+                      errorLabel: "AI account refresh",
+                    })
+                  : await decideGrokAuthMerge(authFile, destination, {
+                      errorLabel: "AI account refresh",
+                    });
+              if (decision !== 10) return;
+              await secretService(tx).rotate(
+                ref.secretId,
+                { value: refreshed },
+                { userId: grant.subjectUserId },
+              );
+              await tx
+                .update(connectionGrants)
+                .set({ updatedAt: new Date() })
+                .where(eq(connectionGrants.id, grant.id));
+            }));
+            for (let attempt = 0; ; attempt++) {
+              try { await writeBack(); break; }
+              catch (error) {
+                if (attempt >= 2 || (error as NodeJS.ErrnoException)?.code !== WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE) throw error;
+              }
+            }
           }
-        } finally {
-          if (home) await rm(home, { recursive: true, force: true });
         }
+        // Preserve the private home on any failed write-back, including an
+        // exhausted lock retry or database failure. The caller can retry the
+        // same cleanup; only a committed save or an intentional discard
+        // (revoked grant, older/different identity) permits deletion.
+        if (home) await rm(home, { recursive: true, force: true });
       },
     };
   } catch (error) {
