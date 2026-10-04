@@ -12,6 +12,8 @@ import { createDb, companies, agents, heartbeatRuns, companyMemberships, connect
 import { startEmbeddedPostgresTestDatabase } from "@paperclipai/db/test-embedded-postgres";
 import { fetchCompanyQuotaWindows } from "../services/quota-windows.js";
 import { aiConnectionService } from "../services/ai-connections.js";
+import * as codexAdapter from "@paperclipai/adapter-codex-local/server";
+import { WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE } from "@paperclipai/adapter-utils/workspace-restore-merge";
 import * as executionTarget from "@paperclipai/adapter-utils/execution-target";
 import { prepareManagedAiRuntime, assertManagedAiProjectAuth } from "../services/ai-connection-runtime.js";
 import { toolAccessService } from "../services/tool-access.js";
@@ -129,6 +131,66 @@ describe("managed AI connections", () => {
       await expect(service.refreshQuotaCredential(row, original, quotaDeadline.signal)).rejects.toThrow();
       expect(request).toHaveBeenCalledTimes(1);
     } finally { releaseBody.resolve(); await saving.catch(() => {}); request.mockRestore(); }
+  });
+
+  it("retries another account's token write-back while a slow quota exchange holds the company lock", async () => {
+    const auth = (account: string, marker: string) => JSON.stringify({ tokens: { account_id: account, id_token: `id-${marker}`, access_token: `access-${marker}`, refresh_token: `refresh-${marker}` }, last_refresh: marker === "old" ? "2026-09-10T10:00:00Z" : "2026-09-10T11:00:00Z" });
+    const quotaOwner = "slow-quota-owner", runOwner = "slow-quota-other-run";
+    await db.insert(companyMemberships).values([quotaOwner, runOwner].map(principalId => ({ companyId, principalId, principalType: "user" as const, status: "active" as const, membershipRole: "member" as const })));
+    for (const owner of [quotaOwner, runOwner]) await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth(owner, "old"));
+    const [quotaRow] = await service.quotaAccounts(companyId, quotaOwner);
+    const started = deferredSignal(), release = deferredSignal();
+    const request = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      started.resolve(); await release.promise;
+      return Response.json({ access_token: "quota-fresh", refresh_token: "quota-replacement" });
+    });
+    const refreshing = service.refreshQuotaCredential(quotaRow, auth(quotaOwner, "old"), new AbortController().signal);
+    let run: Awaited<ReturnType<typeof prepareManagedAiRuntime>> | undefined;
+    let cleaning: Promise<void> | undefined;
+    let lock: ReturnType<typeof vi.spyOn> | undefined;
+    try {
+      await started.promise;
+      // This different account starts after the refresh's active-run check.
+      run = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: runOwner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
+      const authFile = path.join(String(run.config.env.CODEX_HOME), "auth.json");
+      await writeFile(authFile, auth(runOwner, "replacement"));
+      // Inject the two 30-second acquisition expirations, then use the real
+      // still-held lock and real Postgres write-back for the final attempt.
+      lock = vi.spyOn(codexAdapter, "withAccountHomeSecretMutationLock")
+        .mockRejectedValueOnce(Object.assign(new Error("lock timeout"), { code: WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE }))
+        .mockRejectedValueOnce(Object.assign(new Error("lock timeout"), { code: WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE }));
+      cleaning = run.cleanup();
+      await vi.waitFor(() => expect(lock).toHaveBeenCalledTimes(3));
+      expect(await readFile(authFile, "utf8")).toBe(auth(runOwner, "replacement"));
+      release.resolve();
+      await Promise.all([refreshing, cleaning]);
+      const [runRow] = await service.quotaAccounts(companyId, runOwner);
+      expect(await service.credential(runRow)).toBe(auth(runOwner, "replacement"));
+      expect(JSON.parse(await service.credential(quotaRow))).toMatchObject({ tokens: { access_token: "quota-fresh", refresh_token: "quota-replacement" } });
+      await expect(access(run.home!)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally { release.resolve(); await Promise.allSettled([refreshing, cleaning]); lock?.mockRestore(); request.mockRestore(); }
+  });
+
+  it.each(["lock", "database"])("preserves replacement tokens after exhausted %s write-back and permits a later retry", async failure => {
+    const owner = `retained-writeback-${failure}`;
+    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const auth = (hour: string) => JSON.stringify({ tokens: { account_id: owner, id_token: "identity", access_token: `access-${hour}`, refresh_token: `refresh-${hour}` }, last_refresh: `2026-09-10T${hour}:00:00Z` });
+    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: owner, loginSessionId: "fixture", agentIds: [], allAgents: true }, auth("10"));
+    const run = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "codex_local", binding: { provider: "openai", method: "subscription", mode: "responsible_user" }, config: {} });
+    const authFile = path.join(String(run.config.env.CODEX_HOME), "auth.json");
+    await writeFile(authFile, auth("11"));
+    const injected = failure === "lock"
+      ? vi.spyOn(codexAdapter, "withAccountHomeSecretMutationLock").mockRejectedValue(Object.assign(new Error("lock timeout"), { code: WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE }))
+      : vi.spyOn(db, "transaction").mockRejectedValue(new Error("database unavailable"));
+    try {
+      await expect(run.cleanup()).rejects.toThrow(failure === "lock" ? "lock timeout" : "database unavailable");
+      expect(injected).toHaveBeenCalledTimes(failure === "lock" ? 3 : 1);
+      expect(await readFile(authFile, "utf8")).toBe(auth("11"));
+    } finally { injected.mockRestore(); }
+    await run.cleanup();
+    const [row] = await service.quotaAccounts(companyId, owner);
+    expect(await service.credential(row)).toBe(auth("11"));
+    await expect(access(run.home!)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("serializes quota exchange with a concurrent secret edit and runtime credential read", async () => {
