@@ -11,7 +11,7 @@ import {
 } from "@paperclipai/shared";
 import { aiConnectionService } from "./ai-connections.js";
 import { secretService } from "./secrets.js";
-import { decideCodexAuthMerge } from "@paperclipai/adapter-codex-local/server";
+import { decideCodexAuthMerge, withAccountHomeSecretMutationLock } from "@paperclipai/adapter-codex-local/server";
 import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
 import { runAdapterExecutionTargetProcess } from "@paperclipai/adapter-utils/execution-target";
 import { decideGrokAuthMerge } from "@paperclipai/adapter-grok-local/server";
@@ -314,7 +314,7 @@ export async function prepareManagedAiRuntime(
           if (subscriptionFile) {
             const refreshed = await readFile(authFile, "utf8");
             if (refreshed !== value)
-              await db.transaction(async (tx) => {
+              await withAccountHomeSecretMutationLock(undefined, input.companyId, () => db.transaction(async (tx) => {
                 const [grant] = await tx
                   .select()
                   .from(connectionGrants)
@@ -374,7 +374,7 @@ export async function prepareManagedAiRuntime(
                   .update(connectionGrants)
                   .set({ updatedAt: new Date() })
                   .where(eq(connectionGrants.id, grant.id));
-              });
+              }));
           }
         } finally {
           if (home) await rm(home, { recursive: true, force: true });

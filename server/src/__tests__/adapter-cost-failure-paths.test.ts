@@ -86,6 +86,39 @@ describe("CLI adapter accounting on timeout", () => {
     onUsage.mockRejectedValue(new Error("Receipt persistence failed"));
     await expect(execute(context)).rejects.toThrow("Receipt persistence failed");
   });
+  it.each(cases.filter(f => ["pi", "opencode"].includes(f.name)))("$name preserves full-stream accounting after stdout truncation", async (fixture) => {
+    const dir = await mkdtemp(join(tmpdir(), "paperclip-accounting-tail-")); directories.push(dir);
+    const command = join(dir, "runtime"); await writeFile(command, "#!/bin/sh\nprintf 'anthropic  test\\n'\n", { mode: 0o755 });
+    const execute = await fixture.execute();
+    for (const checkpoint of [true, false]) for (const timedOut of [false, true]) for (const missingPrice of [false, true]) {
+      const early = structuredClone(fixture.event) as any;
+      if (missingPrice) {
+        if (fixture.name === "pi") delete early.message.usage.cost;
+        else delete early.part.cost;
+      }
+      const end = fixture.name === "pi" && !timedOut ? '\n{"type":"agent_end","messages":[]}' : "";
+      const first = JSON.stringify(early) + "\n";
+      const noise = JSON.stringify({ type: "text", part: { text: "x".repeat(5 * 1024 * 1024) } }) + "\n";
+      const last = JSON.stringify(fixture.event) + end;
+      processResult.mockImplementation(async (_run, _target, _command, _args, options) => {
+        for (const chunk of [first, noise, last]) await options.onLog("stdout", chunk);
+        return { exitCode: timedOut ? null : 0, signal: timedOut ? "SIGTERM" : null, timedOut, stdout: (first + noise + last).slice(-4 * 1024 * 1024), stderr: "", pid: 123, startedAt: new Date().toISOString() };
+      });
+      const onUsage = checkpoint ? vi.fn() : undefined;
+      const result = await execute({
+        runId: "tail-run", agent: { id: "test-agent", companyId: "test-company", name: "Accounting", adapterType: `${fixture.name}_local`, adapterConfig: {} },
+        runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
+        config: { engine: "cli", command, cwd: dir, model: "anthropic/test", paperclipRuntimeSkills: [], env: { ANTHROPIC_API_KEY: "fixture", OPENAI_BASE_URL: "https://unrelated-proxy.example/v1", OPENROUTER_API_KEY: "unrelated-key", OPENCODE_ALLOW_ALL_MODELS: "1" } },
+        context: {}, onLog: async () => {}, onUsage,
+      });
+      expect(result.usage).toMatchObject({ inputTokens: 40, outputTokens: 20, cachedInputTokens: 200 });
+      expect(result.costUsd).toBe(missingPrice ? null : 0.008);
+      expect(result.biller).toBe("anthropic");
+      expect(result.usageComplete).toBe(!timedOut);
+      if (onUsage) expect(onUsage.mock.calls.at(-1)![0]).toMatchObject({ usage: result.usage, costUsd: result.costUsd });
+    }
+  });
+
   it.each(cases)("$name retains observed accounting when the process times out", async (fixture) => {
     const dir = await mkdtemp(join(tmpdir(), "paperclip-accounting-adapter-")); directories.push(dir);
     const command = join(dir, "runtime"); await writeFile(command, "#!/bin/sh\nprintf 'openai  test\\n'\n", { mode: 0o755 });

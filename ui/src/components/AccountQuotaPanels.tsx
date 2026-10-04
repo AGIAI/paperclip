@@ -27,9 +27,12 @@ export function AccountQuotaPanels({
             </p>
           )}
           {account.windows.map((window, index) => window.usedPercent == null ? (
-            <div key={`${window.label}:${index}`} className="flex justify-between gap-3 text-sm">
-              <span>{window.label}</span>
-              <span className="text-muted-foreground">{window.valueLabel ?? "Usage not reported"}</span>
+            <div key={`${window.label}:${index}`} className="space-y-1 text-sm">
+              <div className="flex justify-between gap-3">
+                <span>{window.label}</span>
+                <span className="text-muted-foreground">{window.valueLabel ?? "Usage not reported"}</span>
+              </div>
+              {window.resetsAt && <p className="text-xs text-muted-foreground">Resets {new Date(window.resetsAt).toLocaleString()}</p>}
             </div>
           ) : (
             <QuotaBar
