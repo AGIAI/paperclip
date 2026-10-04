@@ -20,6 +20,17 @@ export async function withAccountingTransaction<T>(db: Db, companyId: string, wo
   return result;
 }
 
+/** Consistent operator reports must not wait for or delay accounting writers.
+ * Reads see one committed snapshot; repairs still revalidate under the lock. */
+export function withAccountingReadSnapshot<T>(db: Db, companyId: string, work: (tx: Db) => Promise<T>): Promise<T> {
+  return db.transaction(async transaction => {
+    const tx = transaction as unknown as Db;
+    const [company] = await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
+    if (!company) throw notFound("Company not found");
+    return work(tx);
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
 /** Database history is durable even when the live subscriber channel fails. */
 export function publishAccountingActivities(companyId: string, publications: ActivityPublication[]) {
   for (const publication of publications) {

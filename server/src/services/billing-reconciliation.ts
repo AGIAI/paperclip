@@ -3,7 +3,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { agentRuntimeState, costEvents, costAdjustments, billingInvoices, billingInvoiceLines, heartbeatRuns, type Db } from "@paperclipai/db";
 import { adjustCostSchema, importBillingInvoiceSchema, normalizeCents, subtractCents, type AdjustCost, type ImportBillingInvoice } from "@paperclipai/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
-import { withAccountingTransaction } from "./accounting-transaction.js";
+import { withAccountingReadSnapshot, withAccountingTransaction } from "./accounting-transaction.js";
 import { receiptFingerprint } from "./receipt-fingerprint.js";
 import { logActivity } from "./activity-log.js";
 import { updateMonthlySpendProjections } from "./costs.js";
@@ -52,7 +52,7 @@ export function billingReconciliationService(db: Db, hooks: BudgetServiceHooks =
       return invoice;
     }),
     list: (companyId: string) => db.select().from(billingInvoices).where(eq(billingInvoices.companyId, companyId)).orderBy(desc(billingInvoices.createdAt)).limit(100),
-    reconcile: (companyId: string, invoiceId: string) => withAccountingTransaction(db, companyId, async tx => {
+    reconcile: (companyId: string, invoiceId: string) => withAccountingReadSnapshot(db, companyId, async tx => {
       const [invoice] = await tx.select().from(billingInvoices).where(and(eq(billingInvoices.companyId, companyId), eq(billingInvoices.id, invoiceId)));
       if (!invoice) throw notFound("Invoice not found");
       const lines = await tx.select().from(billingInvoiceLines).where(and(eq(billingInvoiceLines.companyId, companyId), eq(billingInvoiceLines.invoiceId, invoiceId))).orderBy(billingInvoiceLines.externalId);

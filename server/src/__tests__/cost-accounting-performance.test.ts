@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { agents, budgetPolicies, companies, costEvents, createDb, heartbeatRuns, issues, nativeRunFinalizations, projects, type Db } from "@paperclipai/db";
+import { billingReconciliationService } from "../services/billing-reconciliation.js";
 import { accountingIntegrityService } from "../services/accounting-integrity.js";
 import { budgetService, budgetServiceInTransaction } from "../services/budgets.js";
 import { withAccountingTransaction } from "../services/accounting-transaction.js";
@@ -200,6 +201,26 @@ describe("accounting performance invariants (PostgreSQL)", () => {
     });
     // The next operation uses February and releases the prior month's pause.
     expect(await budgetService(db).getInvocationBlock(f.company.id, f.agent.id)).toBeNull();
+  });
+
+
+  it.each(["inspection", "invoice comparison"])("does not take the company write lock during %s", async kind => {
+    const f = await fixture();
+    const invoice = await billingReconciliationService(db).importInvoice(f.company.id, { biller: "fixture", externalId: "invoice", currency: "USD",
+      lines: [{ externalId: "line", amountCents: "1", occurredAt: new Date().toISOString() }] }, "board");
+    const writer = await db.$client.reserve();
+    await writer`begin`;
+    try {
+      await writer`select id from companies where id = ${f.company.id} for no key update`;
+      const original = db.transaction.bind(db);
+      const transaction = vi.spyOn(db, "transaction").mockImplementation((callback, config) => original(async tx => {
+        await tx.execute(sql`set local lock_timeout = '200ms'`);
+        return callback(tx);
+      }, config));
+      if (kind === "inspection") expect((await accountingIntegrityService(db).inspect(f.company.id)).findings).toEqual([]);
+      else expect((await billingReconciliationService(db).reconcile(f.company.id, invoice.id)).lines).toHaveLength(1);
+      expect(transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "repeatable read", accessMode: "read only" });
+    } finally { await writer`rollback`; writer.release(); }
   });
 
 });
