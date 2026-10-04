@@ -1,3 +1,4 @@
+import { WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE } from "@paperclipai/adapter-utils/workspace-restore-merge";
 import { withAccountHomeSecretMutationLock } from "@paperclipai/adapter-codex-local/server";
 import { syncConnectionCredentialBindings } from "./connection-credential-bindings.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -861,6 +862,18 @@ export function aiConnectionService(db: Db) {
       if (recovered) await quotaCredentialRecovery(row.connection.companyId, row.grant.id).clear()
         .catch(error => logger.warn({ err: error, grantId: row.grant.id }, "Saved runtime credential recovery cleanup pending"));
       return value;
+    }).catch(error => {
+      // Drizzle wraps Postgres errors in `cause`. Contention is a temporary
+      // pre-provider wait, not evidence that this account needs reconnecting.
+      let current: unknown = error;
+      for (let depth = 0; depth < 4 && current && typeof current === "object"; depth += 1) {
+        const value = current as { code?: unknown; cause?: unknown };
+        if (value.code === WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE || value.code === "55P03") {
+          throw unprocessable("AI credentials are being updated. This execution will retry automatically.", { code: "ai_connection_busy" });
+        }
+        current = value.cause;
+      }
+      throw error;
     });
   }
 
