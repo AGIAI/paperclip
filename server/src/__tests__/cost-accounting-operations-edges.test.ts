@@ -96,6 +96,83 @@ const support = await getEmbeddedPostgresTestSupport();
     expect((await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.run.id)))[0]).toMatchObject({ inputTokens: 150, outputTokens: 15, costCents: 15 });
   });
 
+  it.each([false, true])("recovers pending native receipts beyond the startup batch before replacement (save failure: %s)", async (failSave) => {
+    const f = await fixture(), other = await fixture();
+    await db.update(heartbeatRuns).set({ runtimeMode: "native" }).where(eq(heartbeatRuns.id, f.run.id));
+    await reserveRunBudget(db, f.company.id, f.run.id, null);
+    const input = { companyId: f.company.id, runId: f.run.id, adapterType: "paperclip_runner" };
+    const spool = path.join(directory, randomUUID());
+    const recorder = await createRunUsageRecorder(db, input, spool);
+    await recorder.capture({ complete: true, usageBasis: "per_run", usage: { inputTokens: 100, outputTokens: 10 }, costUsd: 0.1 });
+    const before = (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0];
+    const unavailable = vi.spyOn(db, "transaction").mockRejectedValue(new Error("Database unavailable"));
+    try {
+      await recorder.capture({ complete: true, usageBasis: "per_run", usage: { inputTokens: 150, outputTokens: 15 }, costUsd: 0.15 });
+      await recorder.capture({ complete: true, usageBasis: "per_run", usage: { inputTokens: 200, outputTokens: 20 }, costUsd: 0.2 });
+    } finally { unavailable.mockRestore(); }
+    const pending = (await fs.readdir(spool)).filter(name => name.endsWith(".json"));
+    expect(pending).toHaveLength(2);
+    for (const name of pending) await fs.rename(path.join(spool, name), path.join(spool, `zzz-${name}`));
+    const unrelated: UsageReceiptEnvelope = { schema: "paperclip/accounting-receipt/v1", id: randomUUID(),
+      companyId: other.company.id, runId: other.run.id, sourceId: randomUUID(), sequence: 1,
+      receivedAt: new Date().toISOString(), adapterType: "process", receipt: { complete: false } };
+    await Promise.all(Array.from({ length: 101 }, async (_, index) => {
+      await fs.writeFile(path.join(spool, `000-${index}.json`), JSON.stringify({ ...unrelated, id: randomUUID(), sequence: index + 1 }));
+    }));
+    expect(await replayUsageReceipts(db, spool)).toEqual({ replayed: 100, failed: 0 });
+    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].usageJson?.inputTokens).toBe(100);
+    if (failSave) {
+      await db.execute(sql`create function reject_recovered_receipt() returns trigger language plpgsql as $$ begin raise exception 'receipt save failed'; end $$`);
+      await db.execute(sql`create trigger reject_recovered_receipt before insert on run_usage_receipts for each row execute function reject_recovered_receipt()`);
+      try {
+        await expect(createRunUsageRecorder(db, input, spool)).rejects.toThrow();
+        expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].usageJson?.accountingReceiptSourceId)
+          .toBe(before.usageJson?.accountingReceiptSourceId);
+        expect((await fs.readdir(spool)).filter(name => name.startsWith("zzz-"))).toHaveLength(2);
+      } finally {
+        await db.execute(sql`drop trigger reject_recovered_receipt on run_usage_receipts`);
+        await db.execute(sql`drop function reject_recovered_receipt()`);
+      }
+    }
+    const resumed = await createRunUsageRecorder(db, input, spool);
+    expect((await fs.readdir(spool)).filter(name => name.startsWith("zzz-"))).toHaveLength(0);
+    expect(await db.select().from(runUsageReceipts).where(eq(runUsageReceipts.runId, f.run.id))).toHaveLength(3);
+    expect(await resumed.complete({ exitCode: 0, signal: null, timedOut: false }))
+      .toMatchObject({ complete: false, usage: { inputTokens: 200, outputTokens: 20 } });
+    await resumed.capture({ complete: true, usageBasis: "per_run", usage: { inputTokens: 220, outputTokens: 22 }, costUsd: 0.22 });
+    await db.update(heartbeatRuns).set({ status: "failed", finishedAt: new Date() }).where(eq(heartbeatRuns.id, f.run.id));
+    expect(await accountRunCost(db, f.run.id)).toBe(true);
+    expect(await accountRunCost(db, f.run.id)).toBe(false);
+    expect((await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, f.run.id)))[0])
+      .toMatchObject({ inputTokens: 220, outputTokens: 22, costCents: 22 });
+    expect((await db.select().from(budgetReservations).where(eq(budgetReservations.runId, f.run.id)))[0].state).toBe("settled");
+    expect(await replayUsageReceipts(db, spool)).toEqual({ replayed: 1, failed: 0 });
+    expect((await costService(db).summary(f.company.id)).spendCents).toBe(22);
+  });
+
+  it("leaves unrelated corrupt spool evidence alone and aborts handoff on unreadable or invalid matching receipts", async () => {
+    const f = await fixture(), spool = path.join(directory, randomUUID());
+    const input = { companyId: f.company.id, runId: f.run.id, adapterType: "paperclip_runner" };
+    await createRunUsageRecorder(db, input, spool);
+    const source = (await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].usageJson?.accountingReceiptSourceId;
+    const matching = path.join(spool, "matching.json");
+    await fs.writeFile(matching, JSON.stringify({ ...input, receipt: "invalid" }));
+    await expect(createRunUsageRecorder(db, input, spool)).rejects.toThrow();
+    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].usageJson?.accountingReceiptSourceId).toBe(source);
+    const read = vi.spyOn(fs, "readFile").mockRejectedValueOnce(Object.assign(new Error("Unreadable receipt"), { code: "EACCES" }));
+    try { await expect(createRunUsageRecorder(db, input, spool)).rejects.toThrow("Unreadable receipt"); } finally { read.mockRestore(); }
+    expect((await db.select().from(heartbeatRuns).where(eq(heartbeatRuns.id, f.run.id)))[0].usageJson?.accountingReceiptSourceId).toBe(source);
+    await fs.rm(matching);
+    const unrelated = ["invalid", "null", "{}", JSON.stringify({ companyId: f.company.id }),
+      JSON.stringify({ companyId: f.company.id, runId: randomUUID() }), "x".repeat(1024 * 1024 + 1)];
+    for (const [index, value] of unrelated.entries()) await fs.writeFile(path.join(spool, `${index}.json`), value);
+    await fs.mkdir(path.join(spool, "directory.json"));
+    const stat = vi.spyOn(fs, "lstat").mockRejectedValueOnce(Object.assign(new Error("Concurrent replay removed file"), { code: "ENOENT" }));
+    try { await createRunUsageRecorder(db, input, spool); } finally { stat.mockRestore(); }
+    await createRunUsageRecorder(db, input, spool);
+    expect(await fs.readdir(spool)).toHaveLength(unrelated.length + 1);
+  });
+
   it("reports over-limit advisory budgets without blocking, and tolerates legacy active zero limits", async () => {
     const f = await fixture(), budgets = budgetService(db);
     const policy = await budgets.upsertPolicy(f.company.id, { scopeType: "company", scopeId: f.company.id, amount: 1, hardStopEnabled: false }, "board");
