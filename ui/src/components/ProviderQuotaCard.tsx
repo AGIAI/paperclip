@@ -23,6 +23,8 @@ interface ProviderQuotaCardProps {
   rows: CostByProviderModel[];
   /** company monthly budget in cents (0 means unlimited) */
   budgetMonthlyCents: number;
+  /** Only compare a current-month report with the monthly budget. */
+  showBudgetUtilization?: boolean;
   /** total company spend in this period in cents, all providers */
   totalCompanySpendCents: number;
   /** spend in the current calendar week in cents, this provider only */
@@ -37,13 +39,13 @@ interface ProviderQuotaCardProps {
   quotaError?: string | null;
   quotaSource?: string | null;
   quotaLoading?: boolean;
-  quotaAccounts?: ProviderQuotaResult[];
 }
 
 export function ProviderQuotaCard({
   provider,
   rows,
   budgetMonthlyCents,
+  showBudgetUtilization = true,
   totalCompanySpendCents,
   weekSpendCents,
   windowRows,
@@ -54,7 +56,6 @@ export function ProviderQuotaCard({
   quotaError = null,
   quotaSource = null,
   quotaLoading = false,
-  quotaAccounts,
 }: ProviderQuotaCardProps) {
   // single-pass aggregation over rows — memoized so the 8 derived values are not
   // recomputed on every parent render tick (providers tab polls every 30s, and each
@@ -115,7 +116,7 @@ export function ProviderQuotaCard({
   const weekPct =
     weeklyBudgetShare > 0 ? Math.min(100, (weekSpendCents / weeklyBudgetShare) * 100) : 0;
 
-  const hasBudget = budgetMonthlyCents > 0;
+  const hasBudget = showBudgetUtilization && budgetMonthlyCents > 0;
 
   // memoized so the Map and max are not reconstructed on every parent render tick
   const windowMap = useMemo(

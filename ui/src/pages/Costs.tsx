@@ -246,13 +246,6 @@ export function Costs({
       scopeId: summary.scopeId,
       metric: summary.metric,
       windowKind: summary.windowKind,
-      amount: summary.amount,
-      warnPercent: summary.warnPercent,
-      hardStopEnabled: summary.hardStopEnabled,
-      notifyEnabled: summary.notifyEnabled,
-      isActive: summary.isActive,
-      unpricedUsagePolicy: summary.unpricedUsagePolicy,
-      reservationCents: summary.reservationCents,
       ...changes,
     }),
     onSuccess: invalidateBudgetViews,
@@ -651,14 +644,14 @@ export function Costs({
               label="Budget"
               value={activeBudgetIncidents.length > 0 ? String(activeBudgetIncidents.length) : (
                 spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
-                  ? `${spendData.summary.utilizationPercent}%`
+                  ? preset === "mtd" ? `${spendData.summary.utilizationPercent}%` : formatCents(spendData.summary.budgetCents)
                   : "Open"
               )}
               subtitle={
                 activeBudgetIncidents.length > 0
                   ? `${budgetData?.pausedAgentCount ?? 0} agents paused · ${budgetData?.pausedProjectCount ?? 0} projects paused`
                   : spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
-                    ? `${formatCents(spendData.summary.spendCents)} of ${formatCents(spendData.summary.budgetCents)}`
+                    ? preset === "mtd" ? `${formatCents(spendData.summary.spendCents)} of ${formatCents(spendData.summary.budgetCents)} this month` : "Monthly limit"
                     : "No monthly cap configured"
               }
               icon={Coins}
@@ -741,7 +734,7 @@ export function Costs({
                         </div>
                         <div className="mt-1 text-sm text-muted-foreground">
                           {spendData?.summary.budgetCents && spendData.summary.budgetCents > 0
-                            ? `Budget ${formatCents(spendData.summary.budgetCents)}`
+                            ? `Monthly budget ${formatCents(spendData.summary.budgetCents)}`
                             : "Unlimited budget"}
                         </div>
                       </div>
@@ -752,7 +745,7 @@ export function Costs({
                         </div>
                       </div>
                     </div>
-                    {spendData?.summary.budgetCents && spendData.summary.budgetCents > 0 ? (
+                    {preset === "mtd" && spendData?.summary.budgetCents && spendData.summary.budgetCents > 0 ? (
                       <div className="space-y-2">
                         <div className="h-2 overflow-hidden bg-muted">
                           <div
@@ -768,7 +761,7 @@ export function Costs({
                           />
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {spendData.summary.utilizationPercent}% of monthly budget consumed in this range.
+                          {spendData.summary.utilizationPercent}% of monthly budget consumed this month.
                         </div>
                       </div>
                     ) : null}
@@ -1049,13 +1042,14 @@ export function Costs({
                           provider={provider}
                           rows={byProvider.get(provider) ?? []}
                           budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
+                          showBudgetUtilization={preset === "mtd"}
                           totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
                           weekSpendCents={weekSpendByProvider.get(provider) ?? 0}
                           windowRows={windowSpendByProvider.get(provider) ?? []}
                           showDeficitNotch={deficitNotchByProvider.get(provider) ?? false}
                           quotaAccounts={quotaData?.filter(account => account.provider === provider)}
-                          quotaRequestFailed={Boolean(quotaFetchError)}
-                          quotaWindows={quotaWindowsByProvider.get(provider) ?? []}
+                      quotaRequestFailed={Boolean(quotaFetchError)}
+                      quotaWindows={quotaWindowsByProvider.get(provider) ?? []}
                           quotaError={quotaErrorsByProvider.get(provider) ?? null}
                           quotaSource={quotaSourcesByProvider.get(provider) ?? null}
                           quotaLoading={quotaLoading}
@@ -1071,13 +1065,14 @@ export function Costs({
                       provider={provider}
                       rows={byProvider.get(provider) ?? []}
                       budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
+                          showBudgetUtilization={preset === "mtd"}
                       totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
                       weekSpendCents={weekSpendByProvider.get(provider) ?? 0}
                       windowRows={windowSpendByProvider.get(provider) ?? []}
                       showDeficitNotch={deficitNotchByProvider.get(provider) ?? false}
                       quotaAccounts={quotaData?.filter(account => account.provider === provider)}
-                          quotaRequestFailed={Boolean(quotaFetchError)}
-                          quotaWindows={quotaWindowsByProvider.get(provider) ?? []}
+                      quotaRequestFailed={Boolean(quotaFetchError)}
+                      quotaWindows={quotaWindowsByProvider.get(provider) ?? []}
                       quotaError={quotaErrorsByProvider.get(provider) ?? null}
                       quotaSource={quotaSourcesByProvider.get(provider) ?? null}
                       quotaLoading={quotaLoading}
@@ -1112,6 +1107,7 @@ export function Costs({
                             row={row}
                             weekSpendCents={weekSpendByBiller.get(biller) ?? 0}
                             budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
+                          showBudgetUtilization={preset === "mtd"}
                             totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
                             providerRows={providerRows}
                           />
@@ -1131,6 +1127,7 @@ export function Costs({
                         row={row}
                         weekSpendCents={weekSpendByBiller.get(biller) ?? 0}
                         budgetMonthlyCents={spendData?.summary.budgetCents ?? 0}
+                          showBudgetUtilization={preset === "mtd"}
                         totalCompanySpendCents={spendData?.summary.spendCents ?? 0}
                         providerRows={providerRows}
                       />

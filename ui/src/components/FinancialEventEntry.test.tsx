@@ -199,6 +199,25 @@ describe("financial event entry", () => {
     expect(mocks.provider).toHaveBeenCalledWith("company-one", { provider: "anthropic", secretId, accountId: "org_example", scopeIds: ["workspace_one", "workspace_two"], from: "2026-09-01", to: "2026-09-02" });
     expect(document.querySelector("form")).toBeNull();
   });
+  it("defaults provider reports to the previous complete UTC day and explains invalid ranges", async () => {
+    const secretId = "00000000-0000-4000-8000-000000000001";
+    mocks.secrets.mockResolvedValue([{ id: secretId, name: "Admin", scope: "company" }]);
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    await render(); await click("Record or import charges"); await click("Provider report");
+    const dates = [...document.querySelectorAll<HTMLInputElement>('input[type="date"]')].map(input => input.value);
+    expect(dates).toEqual([yesterday, today]);
+    await fill("Company admin credential", secretId);
+    await fill("Provider organization ID", "org_example");
+    await fill("Project IDs", "project_one");
+    await fill("From (UTC)", today);
+    await submit();
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("End date must be after start date (exclusive).");
+    await fill("From (UTC)", yesterday);
+    await submit();
+    expect(mocks.provider).toHaveBeenCalledWith("company-one", expect.objectContaining({ from: yesterday, to: today }));
+  });
   it("clears an open draft when changing company", async () => {
     await render();
     await click("Record or import charges");

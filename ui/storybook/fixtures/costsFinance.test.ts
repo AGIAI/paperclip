@@ -30,4 +30,16 @@ describe("Costs story finance actions", () => {
     const summary = await (await fixture("costs/finance-summary", request("costs/finance-summary")))!.json();
     expect(summary).toMatchObject({ debitCents: 50, debitCentsExact: "50.0000000", providerReportedCents: 250, providerReportedCentsExact: "250.0000000", eventCount: 2 });
   });
+  it("keeps timestamp bounds exact while date-only bounds include the full day", async () => {
+    const fixture = createCostsFinanceFixtures("preview");
+    for (const [hour, id] of [["12", "at-boundary"], ["18", "after-boundary"]]) {
+      await fixture("finance-events", request("finance-events", { ...charge, idempotencyKey: id, occurredAt: `2026-09-01T${hour}:00:00Z` }));
+    }
+    const exact = await (await fixture("costs/finance-events", request("costs/finance-events?to=2026-09-01T12:00:00Z")))!.json();
+    expect(exact).toHaveLength(1);
+    expect(exact[0].occurredAt).toBe("2026-09-01T12:00:00.000Z");
+    const wholeDay = await (await fixture("costs/finance-events", request("costs/finance-events?to=2026-09-01")))!.json();
+    expect(wholeDay).toHaveLength(2);
+  });
+
 });

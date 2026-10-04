@@ -36,7 +36,7 @@ export function registerCostCommands(program: Command): void {
     ["window-spend", "costs/window-spend"],
     ["quota-windows", "costs/quota-windows"],
   ] as const) {
-    addCompanyGet(cost, name, `Get ${name} cost data`, path);
+    addCompanyGet(cost, name, `Get ${name} cost data`, path, name !== "window-spend" && name !== "quota-windows");
   }
 
   addCommonClientOptions(
@@ -80,10 +80,10 @@ export function registerCostCommands(program: Command): void {
 
   const finance = program.command("finance").description("Finance event and summary operations");
   addCompanyPostJson(finance, "event:create", "Record a finance event", "finance-events");
-  addCompanyGet(finance, "events", "List finance events", "costs/finance-events");
-  addCompanyGet(finance, "summary", "Get finance summary", "costs/finance-summary");
-  addCompanyGet(finance, "by-biller", "Get finance summary by biller", "costs/finance-by-biller");
-  addCompanyGet(finance, "by-kind", "Get finance summary by kind", "costs/finance-by-kind");
+  addCompanyGet(finance, "events", "List finance events", "costs/finance-events", true);
+  addCompanyGet(finance, "summary", "Get finance summary", "costs/finance-summary", true);
+  addCompanyGet(finance, "by-biller", "Get finance summary by biller", "costs/finance-by-biller", true);
+  addCompanyGet(finance, "by-kind", "Get finance summary by kind", "costs/finance-by-kind", true);
 
   const budget = program.command("budget").description("Budget policy and incident operations");
   addCompanyGet(budget, "overview", "Get budget overview", "budgets/overview");
@@ -147,16 +147,16 @@ export function registerCostCommands(program: Command): void {
   );
 }
 
-function addCompanyGet(parent: Command, name: string, description: string, path: string): void {
-  addCommonClientOptions(
-    parent
-      .command(name)
-      .description(description)
-      .option("-C, --company-id <id>", "Company ID")
+function addCompanyGet(parent: Command, name: string, description: string, path: string, dateRange = false): void {
+  const command = parent.command(name).description(description).option("-C, --company-id <id>", "Company ID");
+  if (dateRange) {
+    command
       .option("--from <iso-date>", "Inclusive start date (default: current UTC month)")
       .option("--to <iso-date>", "Inclusive end date")
-      .option("--all-time", "Report all recorded history")
-      .action(async (opts: CompanyOptions) => {
+      .option("--all-time", "Report all recorded history");
+  }
+  addCommonClientOptions(
+    command.action(async (opts: CompanyOptions) => {
         try {
           const ctx = resolveCommandContext(opts, { requireCompany: true });
           const params = new URLSearchParams();
