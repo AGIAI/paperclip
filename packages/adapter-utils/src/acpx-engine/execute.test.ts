@@ -1471,7 +1471,7 @@ describe("shared ACPX engine runtime behavior", () => {
               cost: { amount: 0.31, currency: "USD" },
               breakdown: { inputTokens: 40, outputTokens: 700, cachedReadTokens: 60 },
             };
-            
+
           })(),
           result: Promise.resolve({ status, error: { code: "INTERNAL", message: "fixture failure" } }),
           cancel: async () => {},
