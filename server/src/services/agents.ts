@@ -1,4 +1,4 @@
-import { budgetServiceInTransaction } from "./budgets.js";
+import { budgetServiceInTransaction, deliverBudgetEnforcement, type BudgetServiceHooks } from "./budgets.js";
 import { withAccountingTransaction } from "./accounting-transaction.js";
 import type { ActivityPublication } from "./activity-log.js";
 import { agentAppearanceSchema, randomAgentAppearance, resolveAgentAppearance, agentAvatarUrl } from "@paperclipai/shared";
@@ -341,7 +341,7 @@ export function deduplicateAgentName(
   return `${candidateName} ${Date.now()}`;
 }
 
-export function agentService(db: Db) {
+export function agentService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
   const secretsSvc = secretService(db);
 
   function currentUtcMonthWindow(now = new Date()) {
@@ -860,7 +860,11 @@ export function agentService(db: Db) {
       return normalizedUpdated;
     };
 
-    if (normalizedPatch.budgetMonthlyCents !== undefined) return withAccountingTransaction(db, existing.companyId, applyUpdate);
+    if (normalizedPatch.budgetMonthlyCents !== undefined) {
+      const result = await withAccountingTransaction(db, existing.companyId, applyUpdate);
+      await deliverBudgetEnforcement(db, budgetHooks, existing.companyId);
+      return result;
+    }
 
     const transaction = (db as unknown as {
       transaction?: (callback: (tx: unknown) => Promise<AgentUpdateResult>) => Promise<AgentUpdateResult>;

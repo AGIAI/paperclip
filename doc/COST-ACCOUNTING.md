@@ -155,3 +155,20 @@ Responses carry an opaque account identity and successful capture timestamp. The
 Both Costs page variants retain loaded reports and expanded rows during background refresh failures, with a small stale-data notice. Initial failures remain visible. Company/date changes isolate cached reports. The run-count label is `runs: 0 api · 11 sub`: distinct recorded runs, not tasks or individual model requests. Input totals include cache reads, with the cached portion shown explicitly.
 
 Receipt identity and supplemental charges: `heartbeat:` idempotency keys are reserved for internally generated run receipts. Additional API-reported charges may link to the same run with their own keys. They contribute to monthly and acknowledged-run lifetime totals, while receipt-integrity checks compare only the original provider receipt. Recovery isolates each budget scope so a deleted target or failed scope does not prevent recovery elsewhere.
+
+### Review hardening
+
+Native restart recovery reuses a held reservation only when the coordinator's
+current, unexpired lease owns the same run and project. Ordinary duplicate
+provider dispatch remains rejected. A process adapter with no tokens, provider,
+price, or explicit unknown-price marker does not create an unpriced charge;
+provider adapters with missing prices still do.
+
+Budget policy updates may omit unchanged settings, including the amount for an
+existing policy. Omitted settings are read under the accounting transaction lock.
+Creating a policy still requires an amount. Generic agent and company budget
+edits deliver hard-stop cancellation after their transaction commits.
+
+Status-card update costs retain the ledger's fractional-cent storage precision.
+The mutation gate retains partial results and per-run reports/logs under
+`coverage/accounting/` when its baseline fails or a mutation survives.

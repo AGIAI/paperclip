@@ -1,5 +1,5 @@
 import { publishAccountingActivities } from "./accounting-transaction.js";
-import { budgetServiceInTransaction } from "./budgets.js";
+import { budgetServiceInTransaction, deliverBudgetEnforcement, type BudgetServiceHooks } from "./budgets.js";
 import { and, count, eq, gte, inArray, isNull, lt, notInArray, sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import {
@@ -68,7 +68,7 @@ const SYSTEM_COMPANY_ACTOR: CompanyActivityActor = {
   runId: null,
 };
 
-export function companyService(db: Db) {
+export function companyService(db: Db, budgetHooks: BudgetServiceHooks = {}) {
   const environmentsSvc = environmentService(db);
   const heartbeat = heartbeatService(db);
   const builtInAgents = builtInAgentService(db);
@@ -462,6 +462,7 @@ export function companyService(db: Db) {
       });
       if (!result) return null;
       publishAccountingActivities(id, budgetPublications);
+      if (data.budgetMonthlyCents !== undefined) await deliverBudgetEnforcement(db, budgetHooks, id);
       // Post-commit, fire-and-forget, and BEFORE any finalization that
       // could throw: a Cloud-pinned primary company that crossed the
       // archived boundary (either direction) rings the harness so the

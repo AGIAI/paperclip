@@ -24657,7 +24657,7 @@ export function heartbeatService(
             const guardedDispatch =
               await dispatchResolvedInteractionContinuationWithAtomicGate(
                 async (markDispatchStarted) => {
-                  await reserveRunBudget(db, run.companyId, run.id, readNonEmptyString(runLedgerScope.projectId), runLedgerScope);
+                  await reserveRunBudget(db, run.companyId, run.id, readNonEmptyString(runLedgerScope.projectId), runLedgerScope, runOptions.nativeLeaseOwner);
                   return executePaperclipNativeSession({
                     db,
                     execution: nativeExecution,

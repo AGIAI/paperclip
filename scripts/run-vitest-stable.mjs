@@ -320,6 +320,8 @@ function runVitest(args, label, testShard = null) {
   const env = {
     ...process.env,
     NODE_ENV: "test",
+    PAPERCLIP_TEST_HOST_HOME: process.env.PAPERCLIP_TEST_HOST_HOME
+      ?? (process.env.PAPERCLIP_HOME?.trim() || path.join(os.homedir(), ".paperclip")),
     PAPERCLIP_HOME: path.join(testRoot, "h"),
     // Config discovery otherwise prefers the checkout's .paperclip/config.json
     // over PAPERCLIP_HOME, importing preview scheduling policy into unit tests.

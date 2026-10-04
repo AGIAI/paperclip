@@ -50,6 +50,10 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
     const billingType = text(usage.billingType) ?? "unknown";
     const costUnits = billingType === "subscription_included" ? 0n : usdToUnits(costUsd ?? 0);
     const costCents = unitsToCents(costUnits);
+    const [agent] = await tx.select({ adapterType: agents.adapterType }).from(agents).where(eq(agents.id, run.agentId));
+    const hasBillableEvidence = agent?.adapterType !== "process" || costUsd !== null || usage.costStatus === "unpriced"
+      || ["inputTokens", "cachedInputTokens", "outputTokens"].some(key => (amount(usage[key]) ?? 0) > 0)
+      || (text(usage.provider) !== null && usage.provider !== "unknown");
     const receipt = {
       idempotencyKey: `heartbeat:${run.id}:final`,
       agentId: run.agentId, heartbeatRunId: run.id,
@@ -58,7 +62,7 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
       providerRequestId: text(usage.providerRequestId),
       pricingProvenance: object(usage.pricingProvenance),
       model: text(usage.model) ?? "unknown", billingType,
-      costStatus: costUsd === null && billingType !== "subscription_included" ? "unpriced" : usage.costStatus === "estimated" ? "estimated" : "reported",
+      costStatus: costUsd === null && billingType !== "subscription_included" && hasBillableEvidence ? "unpriced" : usage.costStatus === "estimated" ? "estimated" : "reported",
       inputTokens: amount(usage.inputTokens) ?? 0, cachedInputTokens: amount(usage.cachedInputTokens) ?? 0, outputTokens: amount(usage.outputTokens) ?? 0,
       costCents, occurredAt: run.finishedAt ?? run.createdAt,
     };
@@ -93,7 +97,6 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
       outputTokens: sql<string>`coalesce(sum(${costEvents.outputTokens}),0)::text`,
       costCents: sql<string>`coalesce(sum(${costEvents.costCents}),0)::text`,
     }).from(costEvents).where(and(eq(costEvents.companyId, run.companyId), eq(costEvents.heartbeatRunId, run.id)));
-    const [agent] = await tx.select({ adapterType: agents.adapterType }).from(agents).where(eq(agents.id, run.agentId));
     await tx.insert(agentRuntimeState).values({ agentId: run.agentId, companyId: run.companyId, adapterType: agent.adapterType }).onConflictDoNothing();
     await tx.execute(sql`insert into accounting_runtime_baselines (agent_id,company_id,cost_cents,input_tokens,cached_input_tokens,output_tokens)
       select agent_id,company_id,total_cost_cents,total_input_tokens,total_cached_input_tokens,total_output_tokens

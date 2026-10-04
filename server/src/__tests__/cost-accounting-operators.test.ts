@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
-import { agents, agentRuntimeState, budgetReservations, companies, costEvents, costAdjustments, createDb, heartbeatRuns, runUsageReceipts } from "@paperclipai/db";
+import { agents, agentRuntimeState, budgetReservations, companies, costEvents, costAdjustments, createDb, heartbeatRuns, runUsageReceipts, issues, nativeRunFinalizations } from "@paperclipai/db";
 import { accountingIntegrityService } from "../services/accounting-integrity.js";
 import { billingReconciliationService } from "../services/billing-reconciliation.js";
 import { budgetService } from "../services/budgets.js";
@@ -63,6 +63,37 @@ const support = await getEmbeddedPostgresTestSupport();
     expect((await accountingIntegrityService(db).health(f.company.id)).heldReservationCents).toBe("0.0000000");
     await reserveRunBudget(db, f.company.id, denied.id, null);
     expect((await accountingIntegrityService(db).inspect(f.company.id)).findings).toEqual([]);
+  });
+
+  it("reuses a held native reservation only for its current recovery lease", async () => {
+    const f = await fixture(); const run = await runFor(f);
+    const [issue] = await db.insert(issues).values({ companyId: f.company.id, title: "Recover" }).returning();
+    await db.update(heartbeatRuns).set({ runtimeMode: "native", nativeIssueId: issue.id }).where(eq(heartbeatRuns.id, run.id));
+    await db.insert(nativeRunFinalizations).values({ companyId: f.company.id, runId: run.id, issueId: issue.id,
+      phase: "running", leaseOwner: "successor", leaseExpiresAt: new Date(Date.now() + 60_000) });
+    await budgetService(db).upsertPolicy(f.company.id, { scopeType: "company", scopeId: f.company.id, amount: 10, reservationCents: "6" }, "board");
+    const original = await reserveRunBudget(db, f.company.id, run.id, null);
+    await expect(reserveRunBudget(db, f.company.id, run.id, null)).rejects.toThrow("already reserved");
+    await expect(reserveRunBudget(db, f.company.id, run.id, null, {}, "stale-owner")).rejects.toThrow("already reserved");
+    expect(await reserveRunBudget(db, f.company.id, run.id, null, {}, "successor")).toEqual(original);
+    expect((await accountingIntegrityService(db).health(f.company.id)).heldReservationCents).toBe("6.0000000");
+    await db.update(nativeRunFinalizations).set({ leaseExpiresAt: new Date(0) }).where(eq(nativeRunFinalizations.runId, run.id));
+    await expect(reserveRunBudget(db, f.company.id, run.id, null, {}, "successor")).rejects.toThrow("already reserved");
+  });
+
+  it.each([false, true])("settles absent usage without hiding explicit unknown pricing (%s)", async (unpriced) => {
+    const f = await fixture(); const run = await runFor(f);
+    await budgetService(db).upsertPolicy(f.company.id, { scopeType: "agent", scopeId: f.agent.id, amount: 100, reservationCents: "10" }, "board");
+    await reserveRunBudget(db, f.company.id, run.id, null);
+    const recorder = await createRunUsageRecorder(db, { companyId: f.company.id, runId: run.id, adapterType: "process" }, directory);
+    await recorder.complete({ exitCode: 0, signal: null, timedOut: false, ...(unpriced ? { provider: "moonshot", costStatus: "unpriced" as const, costUsd: null } : {}) });
+    await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date() }).where(eq(heartbeatRuns.id, run.id));
+    expect(await accountRunCost(db, run.id)).toBe(true);
+    expect((await accountingIntegrityService(db).health(f.company.id)).heldReservationCents).toBe("0.0000000");
+    const summary = await costService(db).summary(f.company.id);
+    expect(summary.unpricedEventCount).toBe(unpriced ? 1 : 0);
+    const block = await budgetService(db).getInvocationBlock(f.company.id, f.agent.id);
+    if (unpriced) expect(block).not.toBeNull(); else expect(block).toBeNull();
   });
 
   it("keeps an interrupted partial receipt pending and settles its reservation when evidence becomes complete", async () => {
