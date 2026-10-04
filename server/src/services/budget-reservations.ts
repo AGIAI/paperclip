@@ -12,6 +12,7 @@ export async function reserveRunBudget(db: Db, companyId: string, runId: string,
   return withAccountingTransaction(db, companyId, async (tx, publications) => {
     const [run] = await tx.select().from(heartbeatRuns).where(and(eq(heartbeatRuns.id, runId), eq(heartbeatRuns.companyId, companyId))).for("update");
     if (!run) throw notFound("Run not found");
+    if (run.resultJson?.cancellation || run.resultJson?.startupCancellation) throw conflict("Run cancellation already requested");
     if (run.costAccountedAt || !["queued", "running"].includes(run.status)) throw conflict("Run can no longer start provider work");
     const [existing] = await tx.select().from(budgetReservations).where(and(eq(budgetReservations.companyId, companyId), eq(budgetReservations.runId, runId)));
     if (existing) {
@@ -22,7 +23,7 @@ export async function reserveRunBudget(db: Db, companyId: string, runId: string,
           .from(nativeRunFinalizations).where(and(eq(nativeRunFinalizations.companyId, companyId),
             eq(nativeRunFinalizations.runId, runId), eq(nativeRunFinalizations.leaseOwner, recoveryLeaseOwner),
             sql`${nativeRunFinalizations.leaseExpiresAt} > now()`)).for("update") : [];
-      if (owner) return existing;
+      if (owner) return { ...existing, reused: true };
       throw conflict("Provider dispatch has already reserved this run");
     }
     const block = await budgetServiceInTransaction(tx, publications).getInvocationBlock(companyId, run.agentId, { projectId });
@@ -50,6 +51,6 @@ export async function reserveRunBudget(db: Db, companyId: string, runId: string,
     await tx.update(heartbeatRuns).set({ costAccountingPending: true,
       usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || ${JSON.stringify({ accountingReceiptReady: false, ledgerScope: { ...(run.usageJson?.ledgerScope as object ?? {}), ...ledgerScope, projectId } })}::jsonb`,
     }).where(eq(heartbeatRuns.id, runId));
-    return reservation;
+    return { ...reservation, reused: false };
   });
 }

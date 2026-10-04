@@ -75,7 +75,7 @@ const support = await getEmbeddedPostgresTestSupport();
     const original = await reserveRunBudget(db, f.company.id, run.id, null);
     await expect(reserveRunBudget(db, f.company.id, run.id, null)).rejects.toThrow("already reserved");
     await expect(reserveRunBudget(db, f.company.id, run.id, null, {}, "stale-owner")).rejects.toThrow("already reserved");
-    expect(await reserveRunBudget(db, f.company.id, run.id, null, {}, "successor")).toEqual(original);
+    expect(await reserveRunBudget(db, f.company.id, run.id, null, {}, "successor")).toEqual({ ...original, reused: true });
     expect((await accountingIntegrityService(db).health(f.company.id)).heldReservationCents).toBe("6.0000000");
     await db.update(nativeRunFinalizations).set({ leaseExpiresAt: new Date(0) }).where(eq(nativeRunFinalizations.runId, run.id));
     await expect(reserveRunBudget(db, f.company.id, run.id, null, {}, "successor")).rejects.toThrow("already reserved");

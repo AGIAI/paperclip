@@ -7553,6 +7553,19 @@ describeEmbeddedPostgres("heartbeat orphaned process recovery", () => {
     },
   );
 
+  it.each([{}, { command: "/nonexistent-paperclip-bootstrap-command" }])("releases holds for real process bootstrap failures: %j", async (config) => {
+    const { execute } = await import("../adapters/process/execute.js");
+    mockAdapterExecute.mockImplementationOnce(execute);
+    const { runId, agentId } = await seedRunFixture({ runtimeMode: "legacy", agentStatus: "idle", runStatus: "queued", includeIssue: false });
+    await db.update(agents).set({ adapterType: "process", adapterConfig: config }).where(eq(agents.id, agentId));
+    const heartbeat = heartbeatService(db);
+    await heartbeat.resumeQueuedRuns();
+    await heartbeat.drainActiveRunExecutions();
+    expect(await heartbeat.getRun(runId)).toMatchObject({ status: "failed", costAccountingPending: false, costAccountedAt: expect.any(Date) });
+    expect((await db.select().from(budgetReservations).where(eq(budgetReservations.runId, runId)))[0]?.state).toBe("released");
+    expect(await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, runId))).toEqual([]);
+  });
+
   it("releases the dispatch reservation after a proven pre-provider adapter failure", async () => {
     mockAdapterExecute.mockResolvedValueOnce({
       exitCode: 1, signal: null, timedOut: false,

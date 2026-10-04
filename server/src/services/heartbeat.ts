@@ -340,7 +340,7 @@ import {
 import { reportRunFailure } from "./run-failure-report.js";
 import { collectRunFailureSecretValues, type RunFailureReportOptions } from "./run-failure-diagnostics.js";
 import { companySkillService } from "./company-skills.js";
-import { budgetService, type BudgetEnforcementScope } from "./budgets.js";
+import { budgetService, withCurrentBudgetEnforcement, type BudgetEnforcementScope } from "./budgets.js";
 import { secretService, type MissingRuntimeBinding } from "./secrets.js";
 import {
   resolveDefaultAgentWorkspaceDir,
@@ -22688,7 +22688,7 @@ export function heartbeatService(
           },
         );
       }
-      const dispatchResolvedInteractionContinuationWithAtomicGate = async <T>(
+      const dispatchResolvedInteractionContinuationAfterAdmission = async <T>(
         dispatch: (markDispatchStarted: () => void) => Promise<T>,
       ): Promise<
         { dispatched: true; resultPromise: Promise<T> } | { dispatched: false }
@@ -22753,6 +22753,30 @@ export function heartbeatService(
           );
         }
         return { dispatched: false };
+      };
+      const dispatchResolvedInteractionContinuationWithAtomicGate = async <T>(
+        dispatch: (markDispatchStarted: () => void) => Promise<T>,
+      ) => {
+        // Admission can wait for accounting locks. Finish that wait before the
+        // final ownership gate, whose callback must enter the adapter directly.
+        const reservation = await reserveRunBudget(db, run.companyId, run.id,
+          readNonEmptyString(runLedgerScope.projectId), runLedgerScope, runOptions.nativeLeaseOwner);
+        let entered = false;
+        try {
+          return await dispatchResolvedInteractionContinuationAfterAdmission((markDispatchStarted) => {
+            entered = true;
+            return dispatch(markDispatchStarted);
+          });
+        } finally {
+          if (!entered && !reservation.reused) {
+            await db.update(heartbeatRuns).set({ costAccountingPending: true,
+              usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || '{"accountingProviderWorkStarted":false}'::jsonb`,
+            }).where(and(eq(heartbeatRuns.id, run.id), isNull(heartbeatRuns.costAccountedAt)));
+            await accountRunCost(db, run.id, budgetHooks).catch((err) => {
+              logger.warn({ err, runId: run.id }, "Undispatched reservation release remains pending");
+            });
+          }
+        }
       };
       if (!executionTarget || executionTarget.kind === "local") {
         try {
@@ -24656,8 +24680,7 @@ export function heartbeatService(
             );
             const guardedDispatch =
               await dispatchResolvedInteractionContinuationWithAtomicGate(
-                async (markDispatchStarted) => {
-                  await reserveRunBudget(db, run.companyId, run.id, readNonEmptyString(runLedgerScope.projectId), runLedgerScope, runOptions.nativeLeaseOwner);
+                (markDispatchStarted) => {
                   return executePaperclipNativeSession({
                     db,
                     execution: nativeExecution,
@@ -24884,8 +24907,7 @@ export function heartbeatService(
             }
             const guardedDispatch =
               await dispatchResolvedInteractionContinuationWithAtomicGate(
-                async (markDispatchStarted) => {
-                  await reserveRunBudget(db, run.companyId, run.id, readNonEmptyString(runLedgerScope.projectId), runLedgerScope);
+                (markDispatchStarted) => {
                   legacyAdapterEntered = true;
                   return adapter.execute({
                     getFreshSessionHandoff,
@@ -29331,6 +29353,7 @@ export function heartbeatService(
   async function listProjectScopedWakeupIds(
     companyId: string,
     projectId: string,
+    database: Db = db,
   ) {
     const wakeIssueId = sql<
       string | null
@@ -29339,7 +29362,7 @@ export function heartbeatService(
       string | null
     >`coalesce(${agentWakeupRequests.payload} ->> 'projectId', ${issues.projectId}::text)`;
 
-    const rows = await db
+    const rows = await database
       .selectDistinctOn([agentWakeupRequests.id], {
         id: agentWakeupRequests.id,
       })
@@ -29369,68 +29392,72 @@ export function heartbeatService(
   async function cancelPendingWakeupsForBudgetScope(
     scope: BudgetEnforcementScope,
   ) {
-    const now = new Date();
-    let wakeupIds: string[] = [];
+    return withCurrentBudgetEnforcement(db, scope, async (tx) => {
+      const now = new Date();
+      let wakeupIds: string[] = [];
 
-    if (scope.scopeType === "company") {
-      wakeupIds = await db
-        .select({ id: agentWakeupRequests.id })
-        .from(agentWakeupRequests)
-        .where(
-          and(
-            eq(agentWakeupRequests.companyId, scope.companyId),
-            inArray(agentWakeupRequests.status, [
-              "queued",
-              "deferred_issue_execution",
-            ]),
-            sql`${agentWakeupRequests.runId} is null`,
-          ),
-        )
-        .then((rows) => rows.map((row) => row.id));
-    } else if (scope.scopeType === "agent") {
-      wakeupIds = await db
-        .select({ id: agentWakeupRequests.id })
-        .from(agentWakeupRequests)
-        .where(
-          and(
-            eq(agentWakeupRequests.companyId, scope.companyId),
-            eq(agentWakeupRequests.agentId, scope.scopeId),
-            inArray(agentWakeupRequests.status, [
-              "queued",
-              "deferred_issue_execution",
-            ]),
-            sql`${agentWakeupRequests.runId} is null`,
-          ),
-        )
-        .then((rows) => rows.map((row) => row.id));
-    } else {
-      wakeupIds = await listProjectScopedWakeupIds(
-        scope.companyId,
-        scope.scopeId,
-      );
-    }
+      if (scope.scopeType === "company") {
+        wakeupIds = await tx
+          .select({ id: agentWakeupRequests.id })
+          .from(agentWakeupRequests)
+          .where(
+            and(
+              eq(agentWakeupRequests.companyId, scope.companyId),
+              inArray(agentWakeupRequests.status, [
+                "queued",
+                "deferred_issue_execution",
+              ]),
+              sql`${agentWakeupRequests.runId} is null`,
+            ),
+          )
+          .then((rows) => rows.map((row) => row.id));
+      } else if (scope.scopeType === "agent") {
+        wakeupIds = await tx
+          .select({ id: agentWakeupRequests.id })
+          .from(agentWakeupRequests)
+          .where(
+            and(
+              eq(agentWakeupRequests.companyId, scope.companyId),
+              eq(agentWakeupRequests.agentId, scope.scopeId),
+              inArray(agentWakeupRequests.status, [
+                "queued",
+                "deferred_issue_execution",
+              ]),
+              sql`${agentWakeupRequests.runId} is null`,
+            ),
+          )
+          .then((rows) => rows.map((row) => row.id));
+      } else {
+        wakeupIds = await listProjectScopedWakeupIds(
+          scope.companyId,
+          scope.scopeId,
+          tx,
+        );
+      }
 
-    if (wakeupIds.length === 0) return 0;
+      if (wakeupIds.length === 0) return 0;
 
-    await db
-      .update(agentWakeupRequests)
-      .set({
-        status: "cancelled",
-        finishedAt: now,
-        error: "Cancelled due to budget pause",
-        updatedAt: now,
-      })
-      .where(and(
-        inArray(agentWakeupRequests.id, wakeupIds),
-        inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution"]),
-        isNull(agentWakeupRequests.runId),
-        scope.createdBefore ? lt(agentWakeupRequests.createdAt, scope.createdBefore) : undefined,
-      ));
+      await tx
+        .update(agentWakeupRequests)
+        .set({
+          status: "cancelled",
+          finishedAt: now,
+          error: "Cancelled due to budget pause",
+          updatedAt: now,
+        })
+        .where(and(
+          inArray(agentWakeupRequests.id, wakeupIds),
+          inArray(agentWakeupRequests.status, ["queued", "deferred_issue_execution"]),
+          isNull(agentWakeupRequests.runId),
+          scope.createdBefore ? lt(agentWakeupRequests.createdAt, scope.createdBefore) : undefined,
+        ));
 
-    return wakeupIds.length;
+      return wakeupIds.length;
+    });
   }
 
   type CancelRunOptions = {
+    budgetEnforcement?: BudgetEnforcementScope;
     errorCode?: string;
     resultJson?: Record<string, unknown>;
     eventMessage?: string;
@@ -29505,25 +29532,40 @@ export function heartbeatService(
     // Established legacy processes must still be stopped if the database is
     // unavailable. Only native or not-yet-dispatched preparation needs this
     // additional durable fence before its existing cancellation path.
-    if (run.runtimeMode === "native" || (!run.runtimeModeResolvedAt && !running && !control)) {
-      const [fenced] = await db.update(heartbeatRuns).set({
-        // Record handoff intent before native cancellation can finalize and release
-        // the run. Only its audited stop acknowledgement suppresses recovery.
-        resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) ||
-          ${JSON.stringify(options.errorCode === "issue_reassigned" && options.resultJson?.reassignmentStopConfirmed === true
-            ? { reassignmentStopRequested: true } : {})}::jsonb ||
-          ${JSON.stringify({ cancellation })}::jsonb ||
-          jsonb_build_object('startupCancellation', jsonb_build_object(
-            'requestedAt', ${new Date().toISOString()}::text,
-            'beforeNativeSelection', ${heartbeatRuns.runtimeMode} = 'legacy'
-              and ${heartbeatRuns.runtimeModeResolvedAt} is null
-              and ${heartbeatRuns.executionStage} = 'preparing'
-              and coalesce(${heartbeatRuns.runnerProfileJson}->'adapterDispatch'->>'adapterType' = 'paperclip_runner', false)
-          ))`,
-      }).where(and(eq(heartbeatRuns.id, runId), inArray(heartbeatRuns.status,
-        pendingNativeRetry ? [...CANCELLABLE_HEARTBEAT_RUN_STATUSES, "failed"] : [...CANCELLABLE_HEARTBEAT_RUN_STATUSES],
-      ))).returning();
-      if (!fenced) return getRun(runId);
+    if (options.budgetEnforcement || run.runtimeMode === "native" || (!run.runtimeModeResolvedAt && !running && !control)) {
+      const fence = async (tx: Db) => {
+        const [fenced] = await tx.update(heartbeatRuns).set({
+          // Record handoff intent before native cancellation can finalize and release
+          // the run. Only its audited stop acknowledgement suppresses recovery.
+          resultJson: sql`coalesce(${heartbeatRuns.resultJson}, '{}'::jsonb) ||
+            ${JSON.stringify(options.errorCode === "issue_reassigned" && options.resultJson?.reassignmentStopConfirmed === true
+              ? { reassignmentStopRequested: true } : {})}::jsonb ||
+            ${JSON.stringify({ cancellation })}::jsonb ||
+            jsonb_build_object('startupCancellation', jsonb_build_object(
+              'requestedAt', ${new Date().toISOString()}::text,
+              'beforeNativeSelection', ${heartbeatRuns.runtimeMode} = 'legacy'
+                and ${heartbeatRuns.runtimeModeResolvedAt} is null
+                and ${heartbeatRuns.executionStage} = 'preparing'
+                and coalesce(${heartbeatRuns.runnerProfileJson}->'adapterDispatch'->>'adapterType' = 'paperclip_runner', false)
+            ))`,
+        }).where(and(eq(heartbeatRuns.id, runId), inArray(heartbeatRuns.status,
+          pendingNativeRetry ? [...CANCELLABLE_HEARTBEAT_RUN_STATUSES, "failed"] : [...CANCELLABLE_HEARTBEAT_RUN_STATUSES],
+        ))).returning();
+        return fenced ?? null;
+      };
+      let fenced: typeof run | null;
+      try {
+        fenced = options.budgetEnforcement
+          ? await withCurrentBudgetEnforcement(db, options.budgetEnforcement, fence)
+          : await fence(db);
+      } catch (error) {
+        stopOwnership?.release();
+        throw error;
+      }
+      if (!fenced) {
+        stopOwnership?.release();
+        return getRun(runId);
+      }
       run = fenced;
     }
     const resultJson = { ...(agent
@@ -29903,7 +29945,7 @@ export function heartbeatService(
         scope.createdBefore ? lt(heartbeatRuns.createdAt, scope.createdBefore) : undefined,
         inArray(heartbeatRuns.status, [...CANCELLABLE_HEARTBEAT_RUN_STATUSES]),
       )).then((rows) => rows.map((row) => row.id));
-    for (const runId of runIds) await cancelRunInternal(runId, "Cancelled due to budget pause");
+    for (const runId of runIds) await cancelRunInternal(runId, "Cancelled due to budget pause", { budgetEnforcement: scope });
     await cancelPendingWakeupsForBudgetScope(scope);
   }
 

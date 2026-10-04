@@ -188,7 +188,7 @@ describeEmbeddedPostgres("budgetService release gate enforcement", () => {
     expect(agentAfterHardStop).toMatchObject({ status: "paused", pauseReason: "budget" });
     expect(agentAfterHardStop?.pausedAt).toBeInstanceOf(Date);
     expect(cancelWorkForScope).toHaveBeenCalledTimes(2);
-    expect(cancelWorkForScope).toHaveBeenCalledWith({ companyId, scopeType: "agent", scopeId: agentId, createdBefore: expect.any(Date) });
+    expect(cancelWorkForScope).toHaveBeenCalledWith({ companyId, scopeType: "agent", scopeId: agentId, createdBefore: expect.any(Date), enforcement: { policyId: expect.any(String), version: expect.any(Number) } });
 
     const block = await service.getInvocationBlock(companyId, agentId);
     expect(block).toEqual({
@@ -273,7 +273,7 @@ describeEmbeddedPostgres("budgetService release gate enforcement", () => {
       .from(projects);
     expect(projectAfterHardStop?.pauseReason).toBe("budget");
     expect(projectAfterHardStop?.pausedAt).toBeInstanceOf(Date);
-    expect(cancelWorkForScope).toHaveBeenCalledWith({ companyId, scopeType: "project", scopeId: projectId, createdBefore: expect.any(Date) });
+    expect(cancelWorkForScope).toHaveBeenCalledWith({ companyId, scopeType: "project", scopeId: projectId, createdBefore: expect.any(Date), enforcement: { policyId: expect.any(String), version: expect.any(Number) } });
 
     const overviewWhileBlocked = await service.overview(companyId);
     expect(overviewWhileBlocked.pausedProjectCount).toBe(1);

@@ -45,6 +45,8 @@ export type BudgetEnforcementScope = {
   scopeId: string;
   /** Snapshot taken under the company lock, before a later budget grant can admit new work. */
   createdBefore?: Date;
+  /** Revalidated at the durable cancellation write, under the admission lock. */
+  enforcement?: { policyId: string; version: number };
 };
 
 export type BudgetServiceHooks = {
@@ -939,6 +941,22 @@ export function budgetServiceInTransaction(db: Db, publications: ActivityPublica
   };
 }
 
+/** Fence the durable stop intent against policy edits and admission. External
+ * process shutdown must happen after this transaction, without holding locks
+ * that the executor needs to persist its final usage receipt. */
+export async function withCurrentBudgetEnforcement<T>(db: Db, scope: BudgetEnforcementScope, work: (tx: Db) => Promise<T>): Promise<T | null> {
+  return withAccountingTransaction(db, scope.companyId, async (tx) => {
+    if (scope.enforcement) {
+      const [policy] = await tx.select().from(budgetPolicies).where(and(
+        eq(budgetPolicies.id, scope.enforcement.policyId), eq(budgetPolicies.companyId, scope.companyId),
+      ));
+      if (!policy || policy.scopeType !== scope.scopeType || policy.scopeId !== scope.scopeId
+        || policy.enforcementVersion !== scope.enforcement.version || !(await policyBlocks(tx, policy))) return null;
+    }
+    return work(tx);
+  });
+}
+
 /** Cancellation is an at-least-once external effect. A failed delivery never
  * rolls back committed spend, and its version remains pending for recovery. */
 export async function deliverBudgetEnforcement(db: Db, hooks: BudgetServiceHooks, companyId?: string) {
@@ -952,7 +970,7 @@ export async function deliverBudgetEnforcement(db: Db, hooks: BudgetServiceHooks
       const cancellation = await withAccountingTransaction(db, policy.companyId, async (tx) => {
         const [current] = await tx.select().from(budgetPolicies).where(eq(budgetPolicies.id, policy.id));
         if (!current || current.enforcementVersion !== policy.enforcementVersion || !(await policyBlocks(tx, current))) return null;
-        return { companyId: policy.companyId, scopeType: policy.scopeType as BudgetScopeType, scopeId: policy.scopeId, createdBefore: new Date() };
+        return { companyId: policy.companyId, scopeType: policy.scopeType as BudgetScopeType, scopeId: policy.scopeId, createdBefore: new Date(), enforcement: { policyId: policy.id, version: policy.enforcementVersion } };
       });
       if (cancellation) await hooks.cancelWorkForScope(cancellation);
       await db.update(budgetPolicies).set({ enforcementDeliveredVersion: policy.enforcementVersion })
