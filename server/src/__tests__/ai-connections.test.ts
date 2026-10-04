@@ -84,6 +84,53 @@ describe("managed AI connections", () => {
     } finally { fetchSpy.mockRestore(); }
   });
 
+  it("caches refreshed quota under the saved grant and secret revision", async () => {
+    const owner = "quota-refreshed-cache-owner";
+    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const original = JSON.stringify({ tokens: { access_token: "expired-cache", refresh_token: "single-use", account_id: "cache-account" } });
+    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Refreshed cache", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const request = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+      if (String(url).endsWith("/oauth/token")) return Response.json({ access_token: "fresh-cache", refresh_token: "replacement" });
+      if (new Headers(options?.headers).get("authorization") === "Bearer expired-cache") return new Response("Expired", { status: 401 });
+      return Response.json({ rate_limit: { primary_window: { used_percent: 42 } } });
+    });
+    try {
+      const first = await fetchCompanyQuotaWindows(db, companyId, owner);
+      expect(first[0]).toMatchObject({ ok: true, windows: [{ usedPercent: 42 }] });
+      expect(await fetchCompanyQuotaWindows(db, companyId, owner)).toEqual(first);
+      expect(request).toHaveBeenCalledTimes(3); // rejected quota, OAuth, refreshed quota
+    } finally { request.mockRestore(); }
+  });
+
+  it("saves exchanged tokens when the quota deadline expires during response-body reading", async () => {
+    const owner = "quota-body-deadline-owner";
+    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const original = JSON.stringify({ tokens: { access_token: "expired", refresh_token: "single-use", account_id: "deadline-account" } });
+    await service.save(companyId, owner, { provider: "openai", method: "subscription", ownership: "personal", name: "Slow token body", loginSessionId: "fixture", agentIds: [], allAgents: true }, original);
+    const [row] = await service.quotaAccounts(companyId, owner);
+    const reading = deferredSignal(), releaseBody = deferredSignal(), quotaDeadline = new AbortController();
+    let refreshSignal: AbortSignal | null | undefined;
+    const request = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, options) => {
+      refreshSignal = options?.signal;
+      return { ok: true, json: async () => {
+        reading.resolve(); await releaseBody.promise;
+        refreshSignal?.throwIfAborted();
+        return { access_token: "fresh-after-deadline", refresh_token: "replacement" };
+      } } as Response;
+    });
+    const saving = service.refreshQuotaCredential(row, original, quotaDeadline.signal);
+    try {
+      await reading.promise;
+      quotaDeadline.abort();
+      expect(refreshSignal?.aborted).toBe(false);
+      releaseBody.resolve();
+      await saving;
+      expect(JSON.parse(await service.credential(row))).toMatchObject({ tokens: { access_token: "fresh-after-deadline", refresh_token: "replacement" } });
+      await expect(service.refreshQuotaCredential(row, original, quotaDeadline.signal)).rejects.toThrow();
+      expect(request).toHaveBeenCalledTimes(1);
+    } finally { releaseBody.resolve(); await saving.catch(() => {}); request.mockRestore(); }
+  });
+
   it("serializes quota exchange with a concurrent secret edit and runtime credential read", async () => {
     const owner = "quota-race-owner";
     await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });

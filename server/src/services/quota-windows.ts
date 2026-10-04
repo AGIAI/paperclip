@@ -25,14 +25,20 @@ export async function fetchCompanyQuotaWindows(db: Db, companyId: string, userId
   // Resolve revision metadata before consulting the cache, so rotation and
   // revocation cannot serve windows associated with an old credential.
   const secretIds = accounts.flatMap(row => row.grant.credentialSecretRefs.map(ref => ref.secretId));
-  const revisions = secretIds.length ? await db.select({ id: companySecrets.id, latestVersion: companySecrets.latestVersion, status: companySecrets.status, versionStatus: companySecretVersions.status, revokedAt: companySecretVersions.revokedAt, definitionId: companySecrets.userSecretDefinitionId, definitionStatus: userSecretDefinitions.status, definitionDeletedAt: userSecretDefinitions.deletedAt })
-    .from(companySecrets).leftJoin(companySecretVersions, and(eq(companySecretVersions.secretId, companySecrets.id), eq(companySecretVersions.version, companySecrets.latestVersion))).leftJoin(userSecretDefinitions, and(eq(userSecretDefinitions.id, companySecrets.userSecretDefinitionId), eq(userSecretDefinitions.companyId, companyId))).where(and(eq(companySecrets.companyId, companyId), inArray(companySecrets.id, secretIds))) : [];
-  async function readAccount(row: (typeof accounts)[number]): Promise<ProviderQuotaResult> {
-    const accountKey = createHash("sha256").update(JSON.stringify([companyId, row.connection.id, row.grant.id,
+  const readRevisions = async (ids: string[]) => ids.length ? await db.select({ id: companySecrets.id, latestVersion: companySecrets.latestVersion, status: companySecrets.status, versionStatus: companySecretVersions.status, revokedAt: companySecretVersions.revokedAt, definitionId: companySecrets.userSecretDefinitionId, definitionStatus: userSecretDefinitions.status, definitionDeletedAt: userSecretDefinitions.deletedAt })
+    .from(companySecrets).leftJoin(companySecretVersions, and(eq(companySecretVersions.secretId, companySecrets.id), eq(companySecretVersions.version, companySecrets.latestVersion))).leftJoin(userSecretDefinitions, and(eq(userSecretDefinitions.id, companySecrets.userSecretDefinitionId), eq(userSecretDefinitions.companyId, companyId))).where(and(eq(companySecrets.companyId, companyId), inArray(companySecrets.id, ids))) : [];
+  const revisions = await readRevisions(secretIds);
+  const identity = (row: (typeof accounts)[number], metadata: typeof revisions) => ({
+    provider: row.summary.provider,
+    accountKey: createHash("sha256").update(JSON.stringify([companyId, row.connection.id, row.grant.id,
       row.connection.updatedAt, row.grant.updatedAt,
-      row.grant.credentialSecretRefs.map(ref => [ref.secretId, revisions.find(r => r.id === ref.secretId)]),
-    ])).digest("hex");
-    const base = { provider: row.summary.provider, accountKey, accountLabel: row.summary.name, source: "managed-connection" };
+      row.grant.credentialSecretRefs.map(ref => [ref.secretId, metadata.find(r => r.id === ref.secretId)]),
+    ])).digest("hex"),
+    accountLabel: row.summary.name, source: "managed-connection",
+  });
+  async function readAccount(row: (typeof accounts)[number]): Promise<ProviderQuotaResult> {
+    let base = identity(row, revisions);
+    const { accountKey } = base;
     const definitionUnavailable = row.grant.credentialSecretRefs.some(ref => {
       const revision = revisions.find(value => value.id === ref.secretId);
       return revision && (revision.status !== "active" || revision.versionStatus === "disabled" || revision.revokedAt != null
@@ -65,6 +71,22 @@ export async function fetchCompanyQuotaWindows(db: Db, companyId: string, userId
             catch (error) {
               if (!(error instanceof Error) || !/\b401\b/.test(error.message)) throw error;
               auth = JSON.parse(await service.refreshQuotaCredential(row, value, controller.signal));
+              // Rotation changes both the grant and secret revision. Return and
+              // cache the observation under the identity the next poll will see.
+              const refreshed = (await service.quotaAccounts(companyId, userId)).find(candidate =>
+                candidate.connection.id === row.connection.id && candidate.grant.id === row.grant.id);
+              if (!refreshed || refreshed.summary.status !== "connected") throw new Error("credentials_unavailable");
+              base = identity(refreshed, await readRevisions(refreshed.grant.credentialSecretRefs.map(ref => ref.secretId)));
+              // A reconnect can race the completed refresh. Bind the value and
+              // cache identity to one revision, rather than label old quota with
+              // a newer account's key. A concurrent change defers this poll.
+              const refreshedValue = await service.credential(refreshed);
+              const verified = (await service.quotaAccounts(companyId, userId)).find(candidate =>
+                candidate.connection.id === row.connection.id && candidate.grant.id === row.grant.id);
+              if (!verified || verified.summary.status !== "connected") throw new Error("credentials_unavailable");
+              const verifiedIdentity = identity(verified, await readRevisions(verified.grant.credentialSecretRefs.map(ref => ref.secretId)));
+              if (verifiedIdentity.accountKey !== base.accountKey) throw new Error("provider_unavailable");
+              auth = JSON.parse(refreshedValue);
               controller.signal.throwIfAborted();
               windows = await read(auth);
             }
@@ -83,7 +105,15 @@ export async function fetchCompanyQuotaWindows(db: Db, companyId: string, userId
             errorFamily };
         }
       })();
-      const bounded = withQuotaTimeout(base.provider, result, () => controller.abort()).then(quota => ({ ...base, ...quota, ...(quota.ok ? {} : { error: publicError }) }));
+      const bounded: Promise<ProviderQuotaResult> = withQuotaTimeout(base.provider, result, () => controller.abort()).then(quota => {
+        const observation = { ...base, ...quota, ...(quota.ok ? {} : { error: publicError }) };
+        if (observation.ok && observation.accountKey !== accountKey) {
+          if (accountRequests.get(key)?.result === bounded) accountRequests.delete(key);
+          if (accountRequests.size >= 500) accountRequests.delete(accountRequests.keys().next().value!);
+          accountRequests.set(`${userId}:${observation.accountKey}`, { result: Promise.resolve(observation), expires: Date.now() + 30_000 });
+        }
+        return observation;
+      });
       pending = { result: bounded, expires: Date.now() + 30_000 };
       if (accountRequests.size >= 500) accountRequests.delete(accountRequests.keys().next().value!);
       accountRequests.set(key, pending);

@@ -9,6 +9,7 @@ import type {
   CostWindowSpendRow,
   FinanceEvent,
   QuotaWindow,
+  ProviderQuotaResult,
 } from "@paperclipai/shared";
 import { ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronRight, Coins, DollarSign, ReceiptText } from "lucide-react";
 import { budgetsApi } from "../api/budgets";
@@ -28,6 +29,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { useCompany } from "../context/CompanyContext";
 import { useDateRange, PRESET_KEYS, PRESET_LABELS } from "../hooks/useDateRange";
+import { retainQuotaWindows } from "../lib/quota-refresh";
 import { queryKeys } from "../lib/queryKeys";
 import { billingTypeDisplayName, cn, formatCents, formatTokens, providerDisplayName } from "../lib/utils";
 import { Button } from "@/components/ui/button";
@@ -354,6 +356,10 @@ export function Costs({
   const { data: quotaData, isLoading: quotaLoading } = useQuery({
     queryKey: queryKeys.usageQuotaWindows(companyId),
     queryFn: () => costsApi.quotaWindows(companyId),
+    structuralSharing: (previous, incoming) => retainQuotaWindows(
+      previous as ProviderQuotaResult[] | undefined,
+      incoming as ProviderQuotaResult[],
+    ),
     enabled: !!selectedCompanyId && mainTab === "providers",
     refetchInterval: 300_000,
     staleTime: 60_000,
