@@ -455,9 +455,17 @@ describe.each(["legacy", "native"] as const)("%s task history readiness", (runti
         container.querySelector('[data-testid="task-chat-history-loading"]'),
       ).not.toBeNull();
       expect(container.textContent).toContain("Thread message 1");
-
+      expect(container.querySelector('[data-thread-anchor="comment-1"]')?.closest('[inert]')).not.toBeNull();
       transcriptState.hydratedRunIds = new Set(["started-run"]);
       nativeTranscriptState.hydratedRunIds = new Set(["started-run"]);
+      transcriptState.transcriptByRun.set("started-run", [{
+        kind: "assistant", text: "Reasoning before the reply", channel: "analysis",
+        ts: "2026-08-25T18:00:01.000Z",
+      }]);
+      nativeTranscriptState.transcriptByRun.set("started-run", [{
+        kind: "assistant", text: "Reasoning before the reply", channel: "analysis",
+        ts: "2026-08-25T18:00:01.000Z",
+      }]);
       render(<TaskChatThread {...props} />);
       await act(async () => {
         await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -467,6 +475,8 @@ describe.each(["legacy", "native"] as const)("%s task history readiness", (runti
       expect(
         container.querySelector('[data-testid="task-chat-history-loading"]'),
       ).toBeNull();
+      expect(container.querySelector('[data-thread-anchor="comment-1"]')?.closest('[inert]')).toBeNull();
+      expect(container.textContent).toContain("Thread message 1");
     },
   );
 });
