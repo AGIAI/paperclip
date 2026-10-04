@@ -10,6 +10,51 @@ async function json(response: APIResponse) {
 
 test.use({ trace: "retain-on-failure" });
 
+test("provider quotas keep accounts separate, preserve unknown usage, and retain readings through refresh failures", async ({ page, request }, info) => {
+  const company = await json(await request.post("/api/companies", { data: { name: `Quota review ${Date.now()}` } }));
+  const api = `/api/companies/${company.id}`;
+  const capturedAt = new Date().toISOString();
+  const accounts = [
+    { provider: "openai", accountKey: "personal", accountLabel: "Personal subscription", ok: true, capturedAt,
+      windows: [{ label: "5h", usedPercent: 42, resetsAt: null, valueLabel: null }] },
+    { provider: "openai", accountKey: "team", accountLabel: "Team subscription", ok: true, capturedAt,
+      windows: [{ label: "7d", usedPercent: null, resetsAt: null, valueLabel: null }] },
+  ];
+  let refreshFails = false;
+  try {
+    const agent = await json(await request.post(`${api}/agents`, { data: { name: "Quota fixture", role: "engineer", adapterType: "process" } }));
+    await json(await request.post(`${api}/cost-events`, { data: { agentId: agent.id, provider: "openai", model: "gpt-5",
+      billingType: "metered_api", costCents: 125, inputTokens: 100, outputTokens: 10, occurredAt: capturedAt } }));
+    // Exercise the actual page with deterministic provider responses; no live
+    // account credential or quota service is involved in screenshot evidence.
+    await page.route(`**${api}/costs/quota-windows`, route => route.fulfill({ json: refreshFails
+      ? accounts.map(account => ({ ...account, ok: false, windows: [], errorFamily: "provider_unavailable", error: "raw provider command failed: secret diagnostic" }))
+      : accounts }));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.clock.install();
+    await page.goto(`/${company.issuePrefix}/activity/costs`);
+    await page.getByRole("tab", { name: "Providers", exact: true }).click();
+    const personal = page.locator("section").filter({ has: page.getByText("Personal subscription", { exact: true }) });
+    const team = page.locator("section").filter({ has: page.getByText("Team subscription", { exact: true }) });
+    await expect(personal.getByRole("progressbar", { name: "5h: 42%" })).toBeVisible();
+    await expect(team.getByText("Usage not reported", { exact: true })).toBeVisible();
+    await expect(team.getByRole("progressbar")).toHaveCount(0);
+    await info.attach("provider-quota-multiple-accounts-and-unknown-usage", { body: await page.screenshot(), contentType: "image/png" });
+
+    refreshFails = true;
+    const refresh = page.waitForResponse(response => response.url().endsWith("/costs/quota-windows"));
+    await page.clock.fastForward(300_001);
+    await refresh;
+    await expect(personal.getByRole("progressbar", { name: "5h: 42%" })).toBeVisible();
+    await expect(team.getByText("Usage not reported", { exact: true })).toBeVisible();
+    await expect(personal.getByText("Showing the last available quota. Updates will resume automatically.", { exact: true })).toBeVisible();
+    await expect(page.getByText("raw provider command failed", { exact: false })).toHaveCount(0);
+    await info.attach("provider-quota-refresh-failure-retains-readings", { body: await page.screenshot(), contentType: "image/png" });
+  } finally {
+    await request.delete(api);
+  }
+});
+
 test("financial entry reaches the server and invoice replay does not duplicate charges", async ({ page, request }, info) => {
   const company = await json(await request.post("/api/companies", { data: { name: `Finance entry ${Date.now()}` } }));
   const api = `/api/companies/${company.id}`;
