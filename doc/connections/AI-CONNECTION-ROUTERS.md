@@ -12,7 +12,11 @@ fleet or per-stack managed feature configuration. Installing a plugin does not
 enable routing; enabling routing does not enable individual pools.
 
 The host authorizes members using the ordinary company, user, sharing, install,
-health and harness checks. It sends authorized metadata and sanitized usage
+health and harness checks. Saving a binding or changing its harness requires
+at least one usable member for that agent. New-agent creation installs only
+members authorized by the ordinary personal-owner or shared-install policy,
+in the same transaction as the agent. Pool membership cannot install a
+restricted shared connection. It sends authorized metadata and sanitized usage
 observations to `onRouteAiConnection`. The plugin proposes an opaque member ID;
 it cannot receive credentials or expand authorization. Pure round robin does
 not probe usage. Usage-aware selection has a shared 15-second probe budget,
@@ -39,7 +43,9 @@ eligible member; otherwise the operator must explicitly reset the session.
 
 Credential `ai_session_epoch` changes on reconnect or manual rotation. Only
 verified runtime refresh write-back preserves it. Session fingerprints use the
-epoch while authentication failure attribution still uses the token generation.
+secret ID and epoch while authentication failure attribution still uses the
+token generation. A reconnect that replaces an indexed legacy secret changes
+the session identity even when both secret epochs are zero.
 Adopting a valid account preserves a session only when the complete effective
 configuration matches a prior fingerprint. Core can bridge binding-only agent
 revisions (up to 20) and unchanged legacy token identities at epoch zero. Changes

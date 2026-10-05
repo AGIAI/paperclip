@@ -171,7 +171,7 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     if (!grant) return null;
     const ref = grant.credentialSecretRefs.find((r) => r.configPath === "ai.credential");
     const [secret] = ref ? await db.select({ version: companySecrets.latestVersion }).from(companySecrets).where(and(eq(companySecrets.companyId, companyId), eq(companySecrets.id, ref.secretId))) : [];
-    return `${companyId}:${grant.id}:${secret?.version}:${grant.updatedAt.toISOString()}`;
+    return `${companyId}:${grant.id}:${ref?.secretId}:${secret?.version}:${grant.updatedAt.toISOString()}`;
   }
   async function probe(member: AiConnectionPoolMember, companyId: string, userId: string, deadline: number) {
     const key = await usageCacheKey(member, companyId);

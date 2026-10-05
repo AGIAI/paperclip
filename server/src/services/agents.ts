@@ -126,7 +126,7 @@ interface UpdateAgentOptions {
 }
 
 interface CreateAgentOptions {
-  aiConnectionInstall?: { connectionId: string; createdByUserId: string | null };
+  aiConnectionInstall?: { connectionId: string; memberConnectionIds?: string[]; createdByUserId: string | null };
   allowBuiltInAgentMetadata?: boolean;
   claudeLogin?: ClaudeLoginContext;
 }
@@ -931,11 +931,13 @@ export function agentService(db: Db) {
           .returning()
           .then((rows) => rows[0]);
         if (options?.aiConnectionInstall) {
-          await tx.insert(toolConnectionInstalls).values({
-            companyId, connectionId: options.aiConnectionInstall.connectionId,
-            targetType: "agent", targetId: created.id,
-            createdByUserId: options.aiConnectionInstall.createdByUserId,
-          }).onConflictDoNothing();
+          const install = options.aiConnectionInstall;
+          const connectionIds = [...new Set([install.connectionId, ...(install.memberConnectionIds ?? [])])];
+          await tx.insert(toolConnectionInstalls).values(connectionIds.map(connectionId => ({
+            companyId, connectionId,
+            targetType: "agent" as const, targetId: created.id,
+            createdByUserId: install.createdByUserId,
+          }))).onConflictDoNothing();
         }
         await syncAgentSecretBindings(created, txDb);
         const normalizedCreated = await agentService(txDb).getById(created.id);

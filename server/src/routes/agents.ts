@@ -3397,13 +3397,30 @@ export function agentRoutes(
 
   async function validateManagedAgentBinding(req: Request, companyId: string, agentId: string, adapterType: string, config: Record<string, unknown>, binding: AiRuntimeConnectionBinding, environmentId: string | null | undefined, test: boolean, newAgent = false) {
     if (binding.mode === "router") {
-
       const settings = await import("../services/instance-settings.js");
       if (!(await settings.instanceSettingsService(db).getExperimental()).enableAiConnectionRouters) throw unprocessable("Ask your instance operator to enable AI connection routing.");
       const pool = (await aiConnectionRouterService(db).selectable(companyId, responsibleUserForAiRequest(req) ?? "")).find((p) => p.id === binding.connectionId && p.enabled);
       if (!pool) throw unprocessable("Enable the selected connection pool");
-      if (!pool.members.some((m) => { try { poolMemberRuntimeConfig(m, adapterType); return true; } catch { return false; } })) throw unprocessable("This pool has no compatible harness");
-      return pool.id;
+      const userId = responsibleUserForAiRequest(req);
+      const memberConnectionIds = new Set<string>();
+      let compatible = false;
+      for (const member of pool.members) {
+        let runtime: ReturnType<typeof poolMemberRuntimeConfig>;
+        try { runtime = poolMemberRuntimeConfig(member, adapterType); } catch { continue; }
+        compatible = true;
+        const allowUninstalledShared = newAgent && await canInstallSharedAiConnectionForNewAgent(db, req, companyId, member.binding);
+        try {
+          const selection = await aiConnectionService(db).select({ companyId, agentId, userId, adapterType, binding: member.binding,
+            model: runtime.config.model, runnerProvider: runtime.config.provider, acpxAgent: runtime.config.acpxAgent,
+            allowUninstalledPersonal: newAgent, allowUninstalledShared });
+          memberConnectionIds.add(selection.connection.id);
+        } catch (error) {
+          if (!(error instanceof HttpError && [403, 422].includes(error.status))) throw error;
+        }
+      }
+      if (!compatible) throw unprocessable("This pool has no compatible harness");
+      if (!memberConnectionIds.size) throw unprocessable("Install or repair a compatible pool member for this agent.", { code: "ai_connection_pool_no_eligible_member" });
+      return { connectionId: pool.id, ...(newAgent ? { memberConnectionIds: [...memberConnectionIds] } : {}) };
     }
     const userId = responsibleUserForAiRequest(req);
     const allowUninstalledShared = newAgent && await canInstallSharedAiConnectionForNewAgent(db, req, companyId, binding);
@@ -3434,7 +3451,7 @@ export function agentRoutes(
         if (selection.connection.config.aiLegacyAdoption === true) await db.update(toolConnections).set({ healthStatus: "ok", config: { ...selection.connection.config, aiLegacyAdoption: false }, updatedAt: new Date() }).where(eq(toolConnections.id, selection.connection.id));
       } finally { try { await managed?.cleanup(); } finally { await target.release("released"); } }
     }
-    return selection.connection.id;
+    return { connectionId: selection.connection.id };
   }
 
   router.post(
@@ -3462,7 +3479,7 @@ export function agentRoutes(
       }
       const poolBinding = requestedBinding ?? (savedAgent?.runtimeConfig?.aiConnection ? aiRuntimeConnectionBindingSchema.parse(savedAgent.runtimeConfig.aiConnection) : undefined);
       if (poolBinding?.mode === "router") {
-        await validateManagedAgentBinding(req, companyId, savedAgentId ?? "", type, req.body.adapterConfig ?? {}, poolBinding, req.body.environmentId, false);
+        await validateManagedAgentBinding(req, companyId, savedAgentId ?? "", type, req.body.adapterConfig ?? {}, poolBinding, req.body.environmentId, false, !savedAgentId);
         res.json({ adapterType: type, status: "warn", testedAt: new Date().toISOString(), checks: [{ code: "ai_connection_pool_task_test_required", level: "warn", message: "Pool configuration is available. Run a task to verify the selected account and harness; this preview does not allocate a task or contact a provider." }] });
         return;
       }
@@ -4665,7 +4682,7 @@ export function agentRoutes(
       const requiresApproval = company.requireBoardApprovalForNewAgents;
       const status = requiresApproval ? "pending_approval" : "idle";
       const managedHireBinding = normalizedHireInput.runtimeConfig?.aiConnection ? aiRuntimeConnectionBindingSchema.parse(normalizedHireInput.runtimeConfig.aiConnection) : undefined;
-      const managedHireConnectionId = managedHireBinding ? await validateManagedAgentBinding(req, companyId, hiredAgentId, normalizedHireInput.adapterType, normalizedHireInput.adapterConfig, managedHireBinding, normalizedHireInput.defaultEnvironmentId, false, true) : undefined;
+      const managedHireConnection = managedHireBinding ? await validateManagedAgentBinding(req, companyId, hiredAgentId, normalizedHireInput.adapterType, normalizedHireInput.adapterConfig, managedHireBinding, normalizedHireInput.defaultEnvironmentId, false, true) : undefined;
       const createdAgent = await svc.create(
         companyId,
         {
@@ -4676,7 +4693,7 @@ export function agentRoutes(
           lastHeartbeatAt: null,
         },
         {
-          aiConnectionInstall: managedHireConnectionId ? { connectionId: managedHireConnectionId, createdByUserId: responsibleUserForAiRequest(req) } : undefined,
+          aiConnectionInstall: managedHireConnection ? { ...managedHireConnection, createdByUserId: responsibleUserForAiRequest(req) } : undefined,
           claudeLogin: {
             storedSessionId: hireStoredSessionId ?? null,
             ownerUserId: req.actor.type === "agent" ? null : (req.actor.userId ?? null),
@@ -4787,6 +4804,7 @@ export function agentRoutes(
           issueIds: sourceIssueIds,
           desiredSkills: desiredSkillAssignment.desiredSkills,
           hireFingerprint: requestFingerprint,
+          ...(managedHireConnection?.memberConnectionIds ? { aiConnectionPoolId: managedHireConnection.connectionId, aiConnectionMemberInstallIds: managedHireConnection.memberConnectionIds } : {}),
         },
       });
       const telemetryClient = getTelemetryClient();
@@ -4914,7 +4932,7 @@ export function agentRoutes(
     });
 
     const managedBinding = normalizedRuntimeConfig.aiConnection ? aiRuntimeConnectionBindingSchema.parse(normalizedRuntimeConfig.aiConnection) : undefined;
-    const managedConnectionId = managedBinding ? await validateManagedAgentBinding(req, companyId, agentId, createInput.adapterType, normalizedAdapterConfig, managedBinding, createInput.defaultEnvironmentId, false, true) : undefined;
+    const managedConnection = managedBinding ? await validateManagedAgentBinding(req, companyId, agentId, createInput.adapterType, normalizedAdapterConfig, managedBinding, createInput.defaultEnvironmentId, false, true) : undefined;
     const createdAgent = await svc.create(
       companyId,
       {
@@ -4927,7 +4945,7 @@ export function agentRoutes(
         lastHeartbeatAt: null,
       },
       {
-        aiConnectionInstall: managedConnectionId ? { connectionId: managedConnectionId, createdByUserId: responsibleUserForAiRequest(req) } : undefined,
+        aiConnectionInstall: managedConnection ? { ...managedConnection, createdByUserId: responsibleUserForAiRequest(req) } : undefined,
         claudeLogin: {
           storedSessionId: createStoredSessionId ?? null,
           ownerUserId: req.actor.type === "agent" ? null : (req.actor.userId ?? null),
@@ -4964,6 +4982,7 @@ export function agentRoutes(
         name: agent.name,
         role: agent.role,
         desiredSkills: desiredSkillAssignment.desiredSkills,
+        ...(managedConnection?.memberConnectionIds ? { aiConnectionPoolId: managedConnection.connectionId, aiConnectionMemberInstallIds: managedConnection.memberConnectionIds } : {}),
       },
     });
     const telemetryClient = getTelemetryClient();
@@ -5442,8 +5461,8 @@ export function agentRoutes(
     if (!setup.aiConnectionRequiresAdoption || !setup.aiConnection) throw conflict("The agent’s AI configuration changed. Reload the task and try again.");
     // Probe in the agent's execution environment without installing access.
     // The binding, install, audit, and card resolution commit together below.
-    const validatedConnectionId = await validateManagedAgentBinding(req, agent.companyId, agent.id, agent.adapterType, agent.adapterConfig, setup.aiConnection, agent.defaultEnvironmentId, true, true);
-    if (validatedConnectionId !== connectionId) throw conflict("This is no longer the selected account. Reload the task and try again.");
+    const validatedConnection = await validateManagedAgentBinding(req, agent.companyId, agent.id, agent.adapterType, agent.adapterConfig, setup.aiConnection, agent.defaultEnvironmentId, true, true);
+    if (validatedConnection?.connectionId !== connectionId) throw conflict("This is no longer the selected account. Reload the task and try again.");
     res.json(await intents.complete(interactionId, connectionId, userId, {
       validatedAdoption: { agentUpdatedAt: agent.updatedAt, binding: setup.aiConnection },
     }));
@@ -5598,7 +5617,7 @@ export function agentRoutes(
       const changed = JSON.stringify(nextAiBinding) !== JSON.stringify(existing.runtimeConfig.aiConnection);
       const aiConfig = (patchData.adapterConfig ?? existing.adapterConfig) as Record<string, unknown>;
       if (nextAiBinding.mode !== "router" && !isAiConnectionCompatible(nextAiBinding, requestedAdapterType, aiConfig.model, aiConfig.provider, aiConfig.acpxAgent)) throw unprocessable("Select an AI connection compatible with the new harness and model");
-      if (changed) await validateManagedAgentBinding(req, existing.companyId, existing.id, requestedAdapterType, aiConfig, nextAiBinding, (patchData.defaultEnvironmentId !== undefined ? patchData.defaultEnvironmentId : existing.defaultEnvironmentId) as string | null, true);
+      if (changed || (nextAiBinding.mode === "router" && requestedAdapterType !== existing.adapterType)) await validateManagedAgentBinding(req, existing.companyId, existing.id, requestedAdapterType, aiConfig, nextAiBinding, (patchData.defaultEnvironmentId !== undefined ? patchData.defaultEnvironmentId : existing.defaultEnvironmentId) as string | null, true);
     }
     if (requestedRuntimeConfig) patchData.runtimeConfig = requestedRuntimeConfig;
     if (touchesAdapterConfiguration || Object.prototype.hasOwnProperty.call(patchData, "defaultEnvironmentId")) {

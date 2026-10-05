@@ -311,7 +311,7 @@ export async function prepareManagedAiRuntime(
       .digest("hex")
       .slice(0, 16);
     const identity = `${selection.grant.id}:${input.responsibleUserId ?? "shared"}:${generation}`;
-    const sessionIdentity = `${selection.grant.id}:${input.responsibleUserId ?? "shared"}:${freshness.epoch}`;
+    const sessionIdentity = `${selection.grant.id}:${input.responsibleUserId ?? "shared"}:${credentialRef.secretId}:${freshness.epoch}`;
     return {
       sessionIdentity,
       config: {
