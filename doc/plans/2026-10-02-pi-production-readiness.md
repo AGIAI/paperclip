@@ -46,8 +46,8 @@ prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 ## Accepted corrections — 2026-10-04
 
 The operator accepts the scoped Product E2E fixture corrections and authorizes
-necessary corrected attempts within the existing $100 total campaign limit.
-The dedicated Pi key retains its $5 lifetime cap. Automatic paid retries,
+necessary corrected attempts within the existing approved campaign limit.
+The dedicated Pi key retains its existing lifetime cap. Automatic paid retries,
 fallback keys, new models, GitHub Actions edits and lockfile commits remain
 excluded. The previously rejected SDK-corrected attempt remains undispatched
 and preserved; the new authorization applies to a separate explicit phase.
@@ -77,11 +77,9 @@ unchanged file-watch completeness gate. Local Product typecheck is blocked by
 stale dependency declarations in the existing linked build. Fresh CI must verify
 the committed head. Live proof on the new definitions is still required.
 
-The dedicated key's latest observed usage is $0.2144 with $4.7856 remaining and
-zero BYOK usage. These are provisional key observations. The browser account
-session has expired, so paid dispatch awaits a fresh all-provider BYOK settings
-check after sign-in. Budget approval is already sufficient. No paid provider
-attempt occurs during this resumed preparation.
+Private receipts retain credential and provisional spend checks. Paid dispatch
+requires fresh checks under the approved bounded execution phase. No paid
+provider attempt occurs during this resumed preparation.
 
 ## Qualification snapshot — 2026-10-03
 
