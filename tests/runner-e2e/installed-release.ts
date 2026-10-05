@@ -15,9 +15,10 @@ export function installedReleaseLaunch(cliPath: string) {
 }
 
 /** Install the public plugin from the same consumer, without a workspace loader. */
-export function installedReleaseDaytonaPlugin(cliPath: string): string {
+export function installedReleaseDaytonaPlugin(cliPath: string, installedPluginPath?: string): string {
   const cli = installedReleaseLaunch(cliPath);
-  const plugin = realpathSync(path.join(path.dirname(cli.cwd), "@paperclipai/plugin-daytona"));
+  if (installedPluginPath && !path.isAbsolute(installedPluginPath)) throw new Error("Installed Daytona plugin path must be absolute");
+  const plugin = realpathSync(installedPluginPath ?? path.join(path.dirname(cli.cwd), "@paperclipai/plugin-daytona"));
   const manifest = JSON.parse(readFileSync(path.join(plugin, "package.json"), "utf8"));
   if (manifest.name !== "@paperclipai/plugin-daytona" ||
       manifest.paperclipPlugin?.manifest !== "./dist/manifest.js" ||

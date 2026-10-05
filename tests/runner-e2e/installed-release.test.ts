@@ -27,6 +27,8 @@ describe("ordinary installed release smoke", () => {
     for (const file of ["manifest.js", "worker.js"]) writeFileSync(path.join(plugin, "dist", file), "");
     writeFileSync(path.join(plugin, "package.json"), JSON.stringify(manifest));
     expect(installedReleaseDaytonaPlugin(cli)).toBe(plugin);
+    expect(installedReleaseDaytonaPlugin(cli, plugin)).toBe(plugin);
+    expect(() => installedReleaseDaytonaPlugin(cli, "relative/plugin")).toThrow("absolute");
     writeFileSync(path.join(plugin, "package.json"), JSON.stringify({ ...manifest, exports: { ".": "./src/index.ts" } }));
     expect(() => installedReleaseDaytonaPlugin(cli)).toThrow("public compiled Daytona");
     writeFileSync(path.join(plugin, "package.json"), JSON.stringify(manifest));

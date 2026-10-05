@@ -117,7 +117,7 @@ export async function setupLiveFixtures(input: {
       async setup() {
         return api.post<PluginRecord>("/api/plugins/install", {
           packageName: process.env.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI
-            ? installedReleaseDaytonaPlugin(process.env.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI)
+            ? installedReleaseDaytonaPlugin(process.env.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI, process.env.PAPERCLIP_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN)
             : path.resolve(
             import.meta.dirname,
             "../../packages/plugins/sandbox-providers/daytona",
