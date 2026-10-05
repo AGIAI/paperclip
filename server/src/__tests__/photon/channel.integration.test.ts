@@ -60,6 +60,7 @@ import { resolveChatRunPresentationAuthorizationReason } from "../../services/ch
 import { PhotonChatAdapter } from "../../services/photon/adapter.js";
 import { PhotonCloudClient, PhotonError } from "../../services/photon/cloud.js";
 import { photonFixture, photonEvent, photonChat, stream } from "./fixture.js";
+import { sequentialDescribe } from "../helpers/sequential-describe.js";
 
 function idleStream<T>(): TypedEventStream<T> {
   let close!: () => void;
@@ -73,7 +74,7 @@ function idleStream<T>(): TypedEventStream<T> {
     async () => close(),
   );
 }
-describe.sequential("iMessage Photon channel control plane", () => {
+sequentialDescribe("iMessage Photon channel control plane", () => {
   let database: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>>;
   let db: ReturnType<typeof createDb>;
   let secrets: string;

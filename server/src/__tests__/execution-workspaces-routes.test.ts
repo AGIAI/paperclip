@@ -3,6 +3,7 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../middleware/index.js";
 import { executionWorkspaceRoutes } from "../routes/execution-workspaces.js";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockExecutionWorkspaceService = vi.hoisted(() => ({
   list: vi.fn(),
@@ -88,7 +89,7 @@ function createApp(actor: Record<string, unknown> = {
   return app;
 }
 
-describe.sequential("execution workspace routes", () => {
+sequentialDescribe("execution workspace routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAccessService.decide.mockResolvedValue({

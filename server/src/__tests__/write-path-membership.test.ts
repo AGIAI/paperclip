@@ -1,6 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 vi.unmock("http");
 vi.unmock("node:http");
@@ -116,7 +117,7 @@ function resetMocks() {
   mockGetTelemetryClient.mockReturnValue({ track: vi.fn() });
 }
 
-describe.sequential("write-path membership checks (viewer / inactive)", () => {
+sequentialDescribe("write-path membership checks (viewer / inactive)", () => {
   beforeEach(() => {
     resetMocks();
   });

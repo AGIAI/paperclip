@@ -1,6 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 vi.unmock("http");
 vi.unmock("node:http");
@@ -343,7 +344,7 @@ function resetMockDefaults() {
   mockLogActivity.mockImplementation(async () => undefined);
 }
 
-describe.sequential("agent cross-tenant route authorization", () => {
+sequentialDescribe("agent cross-tenant route authorization", () => {
   beforeEach(() => {
     resetMockDefaults();
   });

@@ -27,12 +27,13 @@ import {
   reconcileStoredDiscordCommandRegistration,
   type StoredDiscordCommandRegistrationOptions,
 } from "./chat-discord-command-registration-store.js";
+import { sequentialDescribe } from "../__tests__/helpers/sequential-describe.js";
 
 const external = process.env.PAPERCLIP_TEST_DATABASE_URL;
 const support = external
   ? { supported: true }
   : await getEmbeddedPostgresTestSupport();
-const suite = support.supported ? describe.sequential : describe.skip;
+const suite = support.supported ? sequentialDescribe : describe.skip;
 const token = "PRIVATE-DISCORD-REGISTRATION-TOKEN";
 let serial = 0n;
 const appId = () =>

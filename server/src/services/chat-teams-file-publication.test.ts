@@ -24,12 +24,13 @@ import {
 import type { ChatFileTransferPhase } from "@paperclipai/shared";
 import type { TeamsFileTransferSummary } from "./chat-teams-file-transfers.js";
 import { projectTeamsFilePublication } from "./chat-teams-file-publication.js";
+import { sequentialDescribe } from "../__tests__/helpers/sequential-describe.js";
 
 const external = process.env.PAPERCLIP_TEST_DATABASE_URL;
 const support = external
   ? { supported: true }
   : await getEmbeddedPostgresTestSupport();
-const suite = support.supported ? describe.sequential : describe.skip;
+const suite = support.supported ? sequentialDescribe : describe.skip;
 suite("Teams same-transaction publication projection (real PostgreSQL)", () => {
   let db: ReturnType<typeof createDb>;
   let temporary:

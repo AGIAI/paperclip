@@ -35,9 +35,10 @@ import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { buildCasePatchUpdateValues, caseRoutes } from "../routes/cases.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
 import type { StorageService } from "../storage/types.js";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
-const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe.sequential : describe.skip;
+const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? sequentialDescribe : describe.skip;
 
 if (!embeddedPostgresSupport.supported) {
   console.warn(

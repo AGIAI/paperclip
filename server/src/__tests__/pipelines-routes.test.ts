@@ -44,9 +44,10 @@ import {
   PIPELINE_CONTEXT_PACK_EVENT_LIMIT,
 } from "../services/pipelines.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
-const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe.sequential : describe.skip;
+const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? sequentialDescribe : describe.skip;
 
 if (!embeddedPostgresSupport.supported) {
   console.warn(

@@ -12,6 +12,7 @@ import {
 } from "./helpers/embedded-postgres.js";
 import { companyTransferRunService } from "../services/company-transfer-runs.js";
 import { sweepAbandonedImportTransferSpools } from "../services/company-import-transfers.js";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockCompanyService = vi.hoisted(() => ({
   list: vi.fn(),
@@ -89,7 +90,7 @@ vi.mock("../services/company-import-transfers.js", async (importOriginal) => {
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported
-  ? describe.sequential
+  ? sequentialDescribe
   : describe.skip;
 
 const companyId = "11111111-1111-4111-8111-111111111111";

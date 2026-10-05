@@ -1,6 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const companyAId = "11111111-1111-4111-8111-111111111111";
 const companyBId = "22222222-2222-4222-8222-222222222222";
@@ -215,7 +216,7 @@ function boardActor(input: {
   };
 }
 
-describe.sequential("company route cross-company authorization", () => {
+sequentialDescribe("company route cross-company authorization", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.doUnmock("../routes/authz.js");

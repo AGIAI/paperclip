@@ -1,6 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockRegistry = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -144,7 +145,7 @@ function readyPlugin() {
   });
 }
 
-describe.sequential("plugin install and upgrade authz", () => {
+sequentialDescribe("plugin install and upgrade authz", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -410,7 +411,7 @@ describe.sequential("plugin install and upgrade authz", () => {
   }, 20_000);
 });
 
-describe.sequential("scoped plugin API routes", () => {
+sequentialDescribe("scoped plugin API routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -476,7 +477,7 @@ describe.sequential("scoped plugin API routes", () => {
   }, 20_000);
 });
 
-describe.sequential("plugin local folder routes", () => {
+sequentialDescribe("plugin local folder routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRegistry.getCompanySettings.mockResolvedValue(null);
@@ -531,7 +532,7 @@ describe.sequential("plugin local folder routes", () => {
   });
 });
 
-describe.sequential("plugin tool and bridge authz", () => {
+sequentialDescribe("plugin tool and bridge authz", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -1104,7 +1105,7 @@ describe.sequential("plugin tool and bridge authz", () => {
   });
 });
 
-describe.sequential("operator-hidden plugin management floor", () => {
+sequentialDescribe("operator-hidden plugin management floor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.PAPERCLIP_HIDDEN_SETTINGS = "instance.plugins";

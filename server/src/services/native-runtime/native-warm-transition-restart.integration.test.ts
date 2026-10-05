@@ -44,7 +44,7 @@ const managedFixtureDirectory =
   process.env.PAPERCLIP_WARM_TRANSITION_MANAGED_FIXTURE_DIRECTORY;
 const databaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL;
 const generated =
-  fixtureDirectory && databaseUrl ? describe.sequential : describe.skip;
+  fixtureDirectory && databaseUrl ? sequentialDescribe : describe.skip;
 
 type Identity = {
   runnerInstanceId: string;
@@ -128,6 +128,7 @@ vi.mock("./current-wake-comments.js", () => ({
 }));
 import { createRunnerdBackend } from "./native-session-executor.js";
 import { readRunnerdArtifactBinding } from "../../vendor/paperclip-runner/index.js";
+import { sequentialDescribe } from "../../__tests__/helpers/sequential-describe.js";
 
 function executionFor(
   fixture: Fixture,

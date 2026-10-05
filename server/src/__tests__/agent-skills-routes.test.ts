@@ -2,6 +2,7 @@ import express from "express";
 import { readFile } from "node:fs/promises";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockAgentService = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -249,7 +250,7 @@ function makeAgent(adapterType: string) {
   };
 }
 
-describe.sequential("agent skill routes", () => {
+sequentialDescribe("agent skill routes", () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.doUnmock("../routes/agents.js");

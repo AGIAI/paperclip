@@ -10,9 +10,10 @@ import {
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
 import { teamsCatalogService } from "../services/teams-catalog.js";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
-const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe.sequential : describe.skip;
+const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? sequentialDescribe : describe.skip;
 
 if (!embeddedPostgresSupport.supported) {
   console.warn(

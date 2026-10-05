@@ -6,6 +6,7 @@ import { PassThrough } from "node:stream";
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockExecutionWorkspaceService = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -236,7 +237,7 @@ function mockVerifiedReseed(
  * stable 409 while a control is genuinely live, and a start that fails must leave the workspace
  * stopped and retryable instead of "desired running" with residue.
  */
-describe.sequential("execution workspace runtime control conflict and failure reconciliation", () => {
+sequentialDescribe("execution workspace runtime control conflict and failure reconciliation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSpawn.mockReset();

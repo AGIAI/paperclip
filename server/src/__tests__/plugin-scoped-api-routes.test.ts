@@ -2,6 +2,7 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { pluginManifestV1Schema, type PaperclipPluginManifestV1 } from "@paperclipai/shared";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockRegistry = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -94,7 +95,7 @@ async function createApp(input: {
   return { app, workerManager };
 }
 
-describe.sequential("plugin scoped API routes", () => {
+sequentialDescribe("plugin scoped API routes", () => {
   const pluginId = "11111111-1111-4111-8111-111111111111";
   const companyId = "22222222-2222-4222-8222-222222222222";
   const agentId = "33333333-3333-4333-8333-333333333333";

@@ -3,6 +3,7 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../middleware/index.js";
 import { accessRoutes } from "../routes/access.js";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const mockAccessService = vi.hoisted(() => ({
   hasPermission: vi.fn(),
@@ -126,7 +127,7 @@ function createApp(actor: Record<string, unknown>, db: Record<string, unknown>) 
   return app;
 }
 
-describe.sequential("POST /companies/:companyId/openclaw/invite-prompt", () => {
+sequentialDescribe("POST /companies/:companyId/openclaw/invite-prompt", () => {
   const companyBranding = {
     name: "Acme AI",
     logoAssetId: "logo-1",

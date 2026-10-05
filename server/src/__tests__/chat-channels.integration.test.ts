@@ -192,13 +192,14 @@ import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const externalTestDatabaseUrl = process.env.PAPERCLIP_TEST_DATABASE_URL;
 const embeddedPostgresSupport = externalTestDatabaseUrl
   ? { supported: true }
   : await getEmbeddedPostgresTestSupport();
 const describeEmbeddedPostgres = embeddedPostgresSupport.supported
-  ? describe.sequential
+  ? sequentialDescribe
   : describe.skip;
 
 if (!embeddedPostgresSupport.supported) {

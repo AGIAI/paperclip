@@ -35,6 +35,7 @@ import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const steerNativeSessionMock = vi.hoisted(() => vi.fn());
 vi.mock("../services/native-runtime/native-session-executor.js", async (importOriginal) => {
@@ -45,7 +46,7 @@ vi.mock("../services/native-runtime/native-session-executor.js", async (importOr
 const { NativeSessionSteeringError } = await import("../services/native-runtime/native-session-executor.js");
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
-const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe.sequential : describe.skip;
+const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? sequentialDescribe : describe.skip;
 
 if (!embeddedPostgresSupport.supported) {
   console.warn(

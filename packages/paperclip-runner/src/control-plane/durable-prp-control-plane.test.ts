@@ -1434,7 +1434,9 @@ it("refuses a processing-drain absence claim while local or remote ingress remai
   }
 });
 
-describe.sequential("DurablePrpControlPlane", () => {
+// Vitest 5 removes the deprecated `sequential` suite option; `concurrent: false`
+// is the vitest-4-and-5-compatible replacement.
+describe("DurablePrpControlPlane", { concurrent: false }, () => {
   it.each(["pending_first", "all_pending", "completed_first"] as const)(
     "retains unanswered semantic input across the bounded event window (%s)",
     async (mode) => {

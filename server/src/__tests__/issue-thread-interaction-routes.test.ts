@@ -1,6 +1,7 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const ASSIGNEE_AGENT_ID = "11111111-1111-4111-8111-111111111111";
 const UNRELATED_AGENT_ID = "33333333-3333-4333-8333-333333333333";
@@ -308,7 +309,7 @@ async function resolveMockInteraction(
   return interaction;
 }
 
-describe.sequential("issue thread interaction routes", () => {
+sequentialDescribe("issue thread interaction routes", () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.doUnmock("../routes/issues.js");
