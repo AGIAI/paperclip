@@ -39,7 +39,7 @@ interface AgentRecord {
 interface ManagedAccountFixture {
   connectionId: string;
   binding: {
-    provider: "openai" | "anthropic";
+    provider: "openai" | "anthropic" | "openrouter";
     method: "api_key";
     mode: "responsible_user";
   };
@@ -245,10 +245,11 @@ export async function setupLiveFixtures(input: {
       dependencies: ["company"],
       async setup(resolved) {
         const company = value<CompanyRecord>(resolved, "company");
-        const provider =
-          execution.profile.provider === "acpx" ? "anthropic" : "openai";
-        const key =
-          provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY";
+        const key = execution.profile.credential;
+        const provider = key === "ANTHROPIC_API_KEY" ? "anthropic"
+          : key === "OPENROUTER_API_KEY" ? "openrouter"
+          : key === "OPENAI_API_KEY" ? "openai" : null;
+        if (!provider) throw new Error(`Unsupported managed hiring credential ${key}`);
         const apiKey = input.credentials[key];
         if (!apiKey) throw new Error(`Missing credential ${key}`);
         const account = await api.postSensitive<{ connectionId: string }>(
@@ -291,7 +292,10 @@ export async function setupLiveFixtures(input: {
         secretRefs,
         executionId: input.executionNonce,
       });
-      if (execution.suite.id === "stock-harness") agent.budgetMonthlyCents = 1_000;
+      if (execution.suite.id === "stock-harness"
+        || (execution.suite.id === "everyday-workflows" && ["hire-reuse", "delegate-feedback"].includes(execution.task.id))) {
+        agent.budgetMonthlyCents = 1_000;
+      }
       if (managedHiring) {
         const account = value<ManagedAccountFixture>(resolved, "ai-connection");
         const config = agent.adapterConfig as Record<string, unknown>;
