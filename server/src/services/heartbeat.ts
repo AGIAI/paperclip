@@ -22431,6 +22431,15 @@ export function heartbeatService(
       >;
       try {
         await controllerLease.assertOwned();
+        const remoteRecovery = runOptions.nativeRestartRecovery?.kind === "reattach_remote_runner"
+          ? runOptions.nativeRestartRecovery : null;
+        const recoveryWorkspace = remoteRecovery
+          ? readNativeWorkspaceSyncReference(parseObject(run.runnerProfileJson).nativeWorkspaceSync) : null;
+        if (remoteRecovery && (!recoveryWorkspace || remoteRecovery.runId !== run.id ||
+            recoveryWorkspace.providerLeaseId !== remoteRecovery.remote.providerLeaseId ||
+            recoveryWorkspace.remoteCwd !== remoteRecovery.remote.remoteCwd)) {
+          throw new Error("native_remote_recovery_lease_mismatch");
+        }
         acquiredEnvironment = await envOrchestrator.acquireForRun({
           companyId: agent.companyId,
           selectedEnvironmentId,
@@ -22443,6 +22452,11 @@ export function heartbeatService(
           agentId: agent.id,
           persistedExecutionWorkspace,
           executionWorkspaceSettings: environmentExecutionWorkspaceSettings,
+          ...(remoteRecovery && recoveryWorkspace ? { reattachRemoteLease: {
+            leaseId: recoveryWorkspace.leaseId,
+            providerLeaseId: remoteRecovery.remote.providerLeaseId,
+            remoteCwd: remoteRecovery.remote.remoteCwd,
+          } } : {}),
         });
         await controllerLease.assertOwned();
         nativeRunnerPreparationSpans.push({
