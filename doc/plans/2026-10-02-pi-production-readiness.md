@@ -67,11 +67,21 @@ prompt, accepts this correction, and still requires publication of a separate
 requested report. This failed attempt stays failed. All five remaining cells
 and qualification of the new shipping artifacts remain outstanding.
 
+The first new Linux image build fails closed at the unchanged profile-14
+closure pin because the question extension changed. The profile-15 declaration
+now binds that exact extension and all three regenerated platform closure pins.
+Each regeneration verifies the retained manifest against its independent
+profile-14 source pin and changes only the extension entry; actual new normal
+installation on all three platforms remains required. The historical profile
+fixtures remain intact. Profile 14 results cannot qualify profile 15. Pi 1.0.0,
+pi-acp 0.0.33, ACPX 0.13.1, Node 24.21.0, the model and native low do not change.
+
 ## Frozen target
 
 - Pi: `@earendil-works/pi-coding-agent@1.0.0`.
 - Wrapper: `pi-acp@0.0.33`; ACPX: `0.13.1`; Node: `24.21.0`.
-- Pi profile: 14. Model: `openrouter/deepseek/deepseek-v4-flash-0731`.
+- New candidate Pi profile: 15. Historical paid runtime profile: 14.
+  Model: `openrouter/deepseek/deepseek-v4-flash-0731`.
 - Profile 14 binds the corrected outbound ACPX client patch. Profile 13 remains
   historical evidence. Cursor 11 and Copilot 15 also bind that shared patch;
   both remain pending and receive no new paid qualification in this work.

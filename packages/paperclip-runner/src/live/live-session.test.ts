@@ -43,8 +43,8 @@ it("admits Pi live sessions without candidate opt-in while preserving the exact 
   const session = await service.create({ provider: "acpx", acpxAgent: "pi", piThinkingLevel: "low", requestedModel: "openrouter/deepseek/deepseek-v4-flash-0731" });
   try {
     expect(session.snapshot().config.acpxProfile).toMatchObject({
-      agent: "pi", agentProfileVersion: 14,
-      commandDigest: "sha256:f35145437eeb355ed37bc5a4fa93d7ede561d9c45daf311979b46890b808ddd4",
+      agent: "pi", agentProfileVersion: 15,
+      commandDigest: "sha256:790f8b954be995ef63aef0ebdb0e06215e4c0d1416d40d605b33966a3d6ba053",
     });
     await expect(service.create({ provider: "acpx", acpxAgent: "pi", piThinkingLevel: "low", requestedModel: "another-model" }))
       .rejects.toThrow("requires exact model");
