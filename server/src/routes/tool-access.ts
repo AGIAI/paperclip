@@ -2129,17 +2129,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
     const existing = await getAccessibleResource(req, res, svc.getConnection(req.params.connectionId as string), "Tool connection not found");
     if (!existing) return;
     await assertToolConnectionConfigureAccess(req, existing);
-    if (aiConnectionRouterPluginKey(existing)) {
-      assertBoard(req);
-      if (!await isToolConnectionManager(req, existing.companyId)) throw forbidden("A connection manager must remove this pool");
-      const router = aiConnectionRouterService(db);
-      const pool = (await router.list(existing.companyId)).find(pool => pool.id === existing.id);
-      if (!pool) throw notFound("Connection pool not found");
-      await router.remove(existing.companyId, existing.id, pool.revision, getActorInfo(req).actorId);
-      res.json({ ...existing, status: "archived", enabled: false });
-      return;
-    }
-
+    if (aiConnectionRouterPluginKey(existing)) throw badRequest("Remove this connection pool through its revision-checked pool settings.");
     const applicationBefore = await svc.getApplication(existing.applicationId);
     const { connection, removal } = await svc.archiveConnection(
       existing.id,

@@ -84,9 +84,9 @@ export function aiConnectionRouterSlug(pluginKey: string): string {
 export function aiConnectionRouterAppDefinition(pluginKey: string, descriptor: { name: string; description: string }, availability = { available: true } as { available: boolean; reason?: string }): import("./types/app-definition.js").AppDefinition {
   return {
     schemaVersion: 1, slug: aiConnectionRouterSlug(pluginKey), ...descriptor,
-    categories: ["ai"], branding: { logoUrl: "/brands/connection-pool.svg" }, urlPatterns: [],
+    categories: ["ai"], branding: { logoUrl: "/brands/apps/connection-pool.svg" }, urlPatterns: [],
     aiConnectionRouter: { pluginKey }, availability,
-    methods: [{ key: "pool", purpose: "ai", transport: "runtime_auth", auth: "none", ownershipModes: ["customer"], whenToUse: "Use existing AI connections", guidanceMd: "", riskTier: "S1" }],
+    methods: [],
   };
 }
 

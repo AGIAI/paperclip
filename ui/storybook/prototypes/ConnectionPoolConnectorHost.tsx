@@ -44,6 +44,7 @@ export function ConnectionPoolConnectorHost({ pluginKey = "example.pool-router",
       if (path === `/api/companies/${companyId}/tools/connections`) return reply({ connections: connections() });
       if (path === `/api/companies/${companyId}/ai-connections`) return reply({ currentUserId: "dotta", canManageConnections: scenario !== "permission", connections: accounts });
       if (path === `/api/companies/${companyId}/ai-connection-pools`) {
+        if (scenario === "permission") return Response.json({ error: "A connection manager is required" }, { status: 403 });
         if (method === "GET") return reply(pools);
         if (scenario === "conflict") return Response.json({ error: "Pool changed; reload before saving" }, { status: 409 });
         const previousPool = pools.find(pool => pool.id === body.id);

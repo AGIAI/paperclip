@@ -85,9 +85,11 @@ describe("durable, authorized connection routing", () => {
     const pool = await makePool(); const selected = await resolve(pool.id, "catalog-removal");
     const app = express(); app.use(express.json());
     app.use((req, _res, next) => { req.actor = { type: "board", userId: "alice", source: "local_implicit", companyIds: [companyId], memberships: [{ companyId, status: "active", membershipRole: "owner" }] } as typeof req.actor; next(); });
-    app.use("/api", toolAccessRoutes(db)); app.use(errorHandler);
+    app.use("/api", toolAccessRoutes(db)); app.use("/api", aiConnectionRoutes(db)); app.use(errorHandler);
     expect((await request(app).patch(`/api/tool-connections/${pool.id}`).send({ name: "Bypass" })).status).toBe(400);
-    expect((await request(app).delete(`/api/tool-connections/${pool.id}`)).status).toBe(200);
+    expect((await request(app).delete(`/api/tool-connections/${pool.id}`)).status).toBe(400);
+    expect((await request(app).delete(`/api/companies/${companyId}/ai-connection-pools/${pool.id}`).send({ expectedRevision: pool.revision + 1 })).status).toBe(409);
+    expect((await request(app).delete(`/api/companies/${companyId}/ai-connection-pools/${pool.id}`).send({ expectedRevision: pool.revision })).status).toBe(200);
     expect((await service().list(companyId)).some(row => row.id === pool.id)).toBe(false);
     expect(await db.select().from(aiConnectionTaskPins).where(eq(aiConnectionTaskPins.poolId, pool.id))).toHaveLength(1);
     expect(await resolve(pool.id, "catalog-removal", { persisted: selected })).toEqual(selected);

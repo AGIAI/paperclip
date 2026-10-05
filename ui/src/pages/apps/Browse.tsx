@@ -38,6 +38,7 @@ import { useCompany } from "@/context/CompanyContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useToast } from "@/context/ToastContext";
 import { queryKeys } from "@/lib/queryKeys";
+import { aiConnectionPoolsApi } from "@/api/ai-connection-pools";
 import { toolsApi } from "@/api/tools";
 import { emailApi } from "@/api/email";
 import {
@@ -116,6 +117,7 @@ type ConnectionRemovalTarget = {
   providerName: string;
   remainingConnectionCount: number;
   pool?: boolean;
+  poolRevision?: number;
 } & ({ kind: "chat"; provider: ChatProvider } | { kind?: undefined });
 
 // Temporary, page-only hold until Google OAuth verification is approved.
@@ -351,6 +353,9 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
         } else {
           await chatEndpointsApi.setup(target.id, { action: "remove" });
         }
+      } else if (target.pool) {
+        if (!target.poolRevision) throw new Error("Open the confirmation again before removing this pool.");
+        await aiConnectionPoolsApi.remove(selectedCompanyId!, target.id, target.poolRevision);
       } else {
         await toolsApi.archiveConnection(target.id);
       }
@@ -388,6 +393,19 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
         tone: "error",
       }),
   });
+
+  async function requestRemoval(target: ConnectionRemovalTarget) {
+    if (!target.pool) { setConnectionToRemove(target); return; }
+    try {
+      const pool = (await aiConnectionPoolsApi.list(selectedCompanyId!)).find(pool => pool.id === target.id);
+      if (!pool) throw new Error("This connection pool is no longer available.");
+      // Capture the revision when presenting the confirmation. Never replace
+      // it at submission time: concurrent edits must invalidate this consent.
+      setConnectionToRemove({ ...target, accountName: pool.name, poolRevision: pool.revision });
+    } catch (error) {
+      pushToast({ title: "Couldn't open the connection pool", body: error instanceof Error ? error.message : "Please try again.", tone: "error" });
+    }
+  }
 
   const gallery = (
     (galleryQuery.data?.apps ?? []) as AppGalleryDisplayEntry[]
@@ -731,7 +749,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
               row={row}
               userProfileById={userProfileById}
               onNavigate={navigate}
-              onRequestRemove={setConnectionToRemove}
+              onRequestRemove={target => void requestRemoval(target)}
               preselectedAgentId={preselectedChatAgentId}
               chatConnectorsEnabled={chatConnectorsEnabled}
             />

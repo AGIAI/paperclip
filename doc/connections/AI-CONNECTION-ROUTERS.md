@@ -64,9 +64,10 @@ Deletion uses
 `expectedRevision`. Core disables and archives the virtual connection, retaining
 its task pins, cursor and run records. It rejects stale edits and new allocations;
 already admitted runs keep their concrete recovery evidence. Cleanup remains
-available when experimental routing or the plugin is disabled. The ordinary
-connector removal endpoint uses the same pool archive transaction. Ordinary
-connection updates cannot bypass pool config revisions.
+available when experimental routing or the plugin is disabled. The catalog captures the reviewed pool revision before showing its removal
+confirmation and uses the pool endpoint. Ordinary connection update and removal
+endpoints reject pools so they cannot bypass configuration revisions. Non-managers
+see the permission requirement without making a denied management request.
 
 Configuration and committed selection are recorded in activity records. Runs
 record the selected member/profile and override notes in the local run log and

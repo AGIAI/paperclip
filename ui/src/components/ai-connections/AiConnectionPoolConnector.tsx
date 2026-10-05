@@ -43,7 +43,7 @@ function PoolConnector({ companyId, pluginKey, connection }: { companyId: string
   const { pushToast } = useToast();
   const { setBreadcrumbs } = useBreadcrumbs();
   const accountsQuery = useQuery({ queryKey: ["pool-accounts", companyId], queryFn: () => aiConnectionsApi.list(companyId) });
-  const poolsQuery = useQuery({ queryKey: ["ai-connection-pools", companyId], queryFn: () => aiConnectionPoolsApi.list(companyId) });
+  const poolsQuery = useQuery({ queryKey: ["ai-connection-pools", companyId], queryFn: () => aiConnectionPoolsApi.list(companyId), enabled: accountsQuery.data?.canManageConnections === true });
   const galleryQuery = useQuery({ queryKey: queryKeys.apps.gallery(companyId), queryFn: () => toolsApi.listGallery(companyId) });
   const [editing, setEditing] = useState<AiConnectionPool>();
   const [draft, setDraft] = useState(emptyConfig);
@@ -63,21 +63,21 @@ function PoolConnector({ companyId, pluginKey, connection }: { companyId: string
   const canManage = Boolean(accountsQuery.data?.canManageConnections);
   const disabled = busy || !canManage || unavailable;
   useEffect(() => {
-    if (connection && !editing) {
+    if (connection && !editing && canManage) {
       const pool = poolsQuery.data?.find(pool => pool.id === connection.id && pool.pluginKey === pluginKey);
       if (pool) { setEditing(pool); setDraft(configOf(pool)); }
     }
-  }, [poolsQuery.data, connection, editing, pluginKey]);
+  }, [poolsQuery.data, connection, editing, pluginKey, canManage]);
   useEffect(() => {
     setBreadcrumbs([{ label: "Connectors", href: "/apps" }, { label: connection ? draft.name : "Add a connection pool" }]);
     return () => setBreadcrumbs([]);
   }, [connection, draft.name, setBreadcrumbs]);
   useEffect(() => {
-    if (!editing) return;
+    if (!editing || !canManage) return;
     let alive = true;
     void aiConnectionPoolsApi.inspect(companyId, editing.id).then(value => { if (alive) setInspection(value); }).catch(() => { if (alive) setInspectionError("Usage unavailable."); });
     return () => { alive = false; };
-  }, [companyId, editing]);
+  }, [companyId, editing, canManage]);
   async function invalidate() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ["ai-connection-pools", companyId] }),
@@ -108,11 +108,12 @@ function PoolConnector({ companyId, pluginKey, connection }: { companyId: string
     setDraft(value => { const members = [...value.members]; [members[index], members[index + offset]] = [members[index + offset]!, members[index]!]; return { ...value, members }; });
   }
   const loadError = accountsQuery.error ?? poolsQuery.error ?? galleryQuery.error;
+  if (accountsQuery.isSuccess && !canManage) return <p role="alert" className="text-sm text-muted-foreground">A connection manager can view and edit connection pools.</p>;
   if (loadError) return <div className="space-y-4"><p role="alert" className="text-sm text-destructive">{loadError.message}</p><Button variant="outline" onClick={() => { void accountsQuery.refetch(); void poolsQuery.refetch(); void galleryQuery.refetch(); }}>Try again</Button></div>;
   if (accountsQuery.isPending || poolsQuery.isPending || galleryQuery.isPending || (connection && !editing && poolsQuery.data?.some(pool => pool.id === connection.id))) return <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />Loading connections…</p>;
   if (connection && !editing) return <p role="alert">This connection pool is no longer available.</p>;
   const name = entry?.name ?? "AI connection pool";
-  const logoEntry = entry ?? aiConnectionRouterAppDefinition(pluginKey, { name, description: "" });
+  const logoEntry = entry ?? aiConnectionRouterAppDefinition(pluginKey, { name, description: "Use existing AI connections." });
   const orderedMembers = <ol aria-label="Connection order" className="divide-y divide-border rounded-lg border border-border">
     {draft.members.map((member, index) => {
       const account = accounts.find(account => account.id === member.binding.connectionId && account.grantId === member.binding.grantId);
@@ -132,7 +133,7 @@ function PoolConnector({ companyId, pluginKey, connection }: { companyId: string
   </ol>;
   return <div className={connection ? "space-y-6" : "mx-auto max-w-2xl"}>
     {connection ? <div className="flex items-start justify-between gap-4">
-      <AppDetailHeader appName={draft.name} connection={connection} logoEntry={logoEntry} brandKey={logoEntry.slug} allowRemoteLogo status={editing?.enabled ? { label: "Connected", tone: "connected" } : { label: "Paused", tone: "paused" }} actionCount={null} renaming={renaming} nameDraft={nameDraft} renamePending={disabled} onNameDraftChange={setNameDraft} onRenameStart={() => { if (!disabled) { setNameDraft(draft.name); setRenaming(true); } }} onRenameCancel={() => setRenaming(false)} onRenameSubmit={value => void save({ ...draft, name: value })} />
+      <AppDetailHeader appName={draft.name} connection={connection} logoEntry={logoEntry} brandKey={logoEntry.slug} allowRemoteLogo canRename={!disabled} status={editing?.enabled ? { label: "Connected", tone: "connected" } : { label: "Paused", tone: "paused" }} actionCount={null} renaming={renaming} nameDraft={nameDraft} renamePending={disabled} onNameDraftChange={setNameDraft} onRenameStart={() => { if (!disabled) { setNameDraft(draft.name); setRenaming(true); } }} onRenameCancel={() => setRenaming(false)} onRenameSubmit={value => void save({ ...draft, name: value })} />
       <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="Manage connection pool"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem variant="destructive" disabled={busy || !canManage} onSelect={() => { setError(""); setRemoving(true); }}><Trash2 />Remove connection</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
     </div> : <StepHeader title="Add a connection pool" subtitle={step === 0 ? "Choose connections you already use." : "New tasks rotate in this order."} step="connect" activeIndex={step} labels={["Connections", "Order"]} appIdentity={{ name, logoUrl: logoEntry.branding.logoUrl }} />}
     {unavailable && <p role="alert" className="text-sm text-destructive">{entry?.availability?.reason ?? "Enable the connection pool plugin in Plugins."}</p>}
@@ -165,7 +166,7 @@ function ConnectionPicker({ accounts, selected, disabled, onChange, onRefresh }:
   return <div className="space-y-4">
     <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" /><Input aria-label="Search connections" placeholder="Search connections…" value={search} onChange={event => setSearch(event.target.value)} className="pl-9" /></div>
     <div className="max-h-80 overflow-y-auto rounded-lg border border-border divide-y divide-border">
-      {filtered.map(account => { const checked = selected.some(member => member.binding.connectionId === account.id); return <label key={account.grantId} className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent/50"><Checkbox checked={checked} disabled={disabled || (!checked && account.status !== "connected")} onCheckedChange={value => onChange(value ? [...selected, memberOf(account)] : selected.filter(member => member.binding.connectionId !== account.id))} aria-label={account.name} /><AppLogo name={AI_PROVIDERS[account.provider].name} logoUrl={AI_PROVIDERS[account.provider].logo} size={32} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{account.name}</span><span className="block text-xs text-muted-foreground">{aiMethodLabel(account.provider, account.method)} · {account.ownership === "shared" ? "Shared" : "Personal"}</span></span>{account.status !== "connected" && <span className="text-xs text-muted-foreground">Needs attention</span>}</label>; })}
+      {filtered.map(account => { const existing = selected.find(member => member.binding.connectionId === account.id); const checked = existing?.binding.grantId === account.grantId; return <label key={account.grantId} className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-accent/50"><Checkbox checked={checked} disabled={disabled || (!checked && (account.status !== "connected" || Boolean(existing)))} onCheckedChange={value => onChange(value ? [...selected, memberOf(account)] : selected.filter(member => member.binding.connectionId !== account.id))} aria-label={account.name} /><AppLogo name={AI_PROVIDERS[account.provider].name} logoUrl={AI_PROVIDERS[account.provider].logo} size={32} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{account.name}</span><span className="block text-xs text-muted-foreground">{aiMethodLabel(account.provider, account.method)} · {account.ownership === "shared" ? "Shared" : "Personal"}</span></span>{account.status !== "connected" && <span className="text-xs text-muted-foreground">Needs attention</span>}</label>; })}
       {filtered.length === 0 && <p className="px-4 py-6 text-sm text-muted-foreground">{accounts.length ? "No matching connections." : "No AI connections yet."}</p>}
     </div>
     <div className="flex items-center justify-between gap-3 text-sm"><Link to="/apps" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">Connect a new account<ExternalLink className="size-3.5" /></Link><Button variant="ghost" size="sm" onClick={onRefresh}>Refresh</Button></div>
