@@ -11336,8 +11336,8 @@ registerCurrentRoute({
 
 registerCurrentRoute({
   method: "get", path: "/api/mcp/setup", tags: ["tool-gateway"],
-  summary: "Read assistant connection setup for a signed-in person",
-  description: "Returns the live experimental setting and canonical MCP server URL. Requires a human browser session; agent and board API keys are not accepted. Remains available while the experiment is disabled and grants no access.",
+  summary: "Read assistant connection setup using a human browser session",
+  // Available while disabled; returns metadata only and never grants access.
   responses: {
     200: r.ok(z.object({ enabled: z.boolean(), serverUrl: z.string().url() })),
     401: r.unauthorized, 403: r.forbidden, 404: r.notFound,
