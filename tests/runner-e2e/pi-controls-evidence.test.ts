@@ -190,7 +190,8 @@ describe("Pi controls catalog admission", () => {
     const pi = runnerMatrix.find(c => c.profile.qualificationCandidate === "pi")!.profile;
     expect(pi.modelQualification?.qualificationId).toBe("pi:0.0.33:1.0.0:openrouter");
     expect(runnerSuites.find(s => s.id === "pi-native")!.definitionMetadata).toMatchObject({ version: 5, profileVersion: 14 });
-    expect(runnerSuites.find(s => s.id === "pi-controls")!.definitionMetadata).toMatchObject({ version: 7, profileVersion: 14,
+    expect(runnerSuites.find(s => s.id === "pi-controls")!.definitionMetadata).toMatchObject({ version: 8, profileVersion: 14,
+      remoteProcessIdentity: "observer-pid-startTicks-bootId",
       controlPlaneSettlement: "required-scoped-result-and-terminal-after-runner" });
     expect(runnerSuites.find(s => s.id === "extended-harnesses")!.definitionMetadata).toMatchObject({ version: 2 });
     for (const cell of runnerMatrix.filter(cell => cell.profile.qualificationCandidate === "pi")) {
