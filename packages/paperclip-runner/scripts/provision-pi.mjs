@@ -9,6 +9,14 @@ import { verifyPiInstallation } from "../src/drivers/acpx/pi-installation.ts";
 import { QUALIFIED_ACPX_PROFILES } from "../src/drivers/acpx/qualified-profiles.ts";
 import { PI_DISTRIBUTION_CLOSURE_SHA256 } from "../src/drivers/acpx/pi-closure-pins.ts";
 
+export function provisionEnvironment(source = process.env) {
+  const environment = { PATH: source.PATH ?? "/usr/bin:/bin", LANG: "C.UTF-8" };
+  for (const key of ["LC_ALL", "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"]) {
+    if (typeof source[key] === "string") environment[key] = source[key];
+  }
+  return environment;
+}
+
 export async function provisionPackageRoot(entrypoint) {
   const canonical = await realpath(entrypoint);
   if (canonical !== resolve(entrypoint)) throw new Error("Pi setup entrypoint must not be linked");
@@ -116,9 +124,9 @@ export async function provisionPi(entrypoint, checkCancelled = () => {}) {
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   const args = process.argv.slice(2);
   if (args.length) throw new Error("Usage: paperclipai runtime setup pi (explicit host-platform installation; no model calls)");
-  // Setup uses only public, source-pinned downloads. Never forward credentials,
-  // HOME config, proxy configuration, NODE_OPTIONS or npm configuration.
-  const environment = { PATH: process.env.PATH ?? "/usr/bin:/bin", LANG: "C.UTF-8" };
+  // Preserve the same closed network allowlist as the explicit CLI command.
+  // Never forward provider keys, HOME config, NODE_OPTIONS or npm configuration.
+  const environment = provisionEnvironment();
   for (const key of Object.keys(process.env)) delete process.env[key]; Object.assign(process.env, environment);
   let cancelled = false;
   const cancel = () => { cancelled = true; };

@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -10,6 +11,7 @@ import { buildPaperclipServerEnvironment } from "./harness-env.js";
 import { setupLiveFixtures } from "./live-fixtures.js";
 import type { RunnerApi } from "./api.js";
 const cell = runnerMatrix.find(e => e.id === "extended-harnesses.runner-acpx-pi.daytona.hello-complete")!;
+const sdkVersion: string = JSON.parse(readFileSync(new URL("../../packages/plugins/sdk/package.json", import.meta.url), "utf8")).version;
 const roots: string[] = [];
 const hash = (v: string) => createHash("sha256").update(v).digest("hex");
 afterEach(async () => { vi.unstubAllEnvs(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
@@ -21,9 +23,9 @@ async function fixture() {
     await writeFile(join(dir, "package.json"), content); await writeFile(join(dir, entry), "// compiled");
     return { root: dir, packageSha256: hash(content), entry, entrySha256: hash("// compiled") };
   }
-  const plugin = await pkg("@paperclipai/plugin-daytona", "0.1.1", { "@paperclipai/plugin-sdk": "0.3.1", "@daytonaio/sdk": "0.203.0" }, { paperclipPlugin: { manifest: "./dist/manifest.js", worker: "./dist/worker.js" } });
+  const plugin = await pkg("@paperclipai/plugin-daytona", "0.1.1", { "@paperclipai/plugin-sdk": sdkVersion, "@daytonaio/sdk": "0.203.0" }, { paperclipPlugin: { manifest: "./dist/manifest.js", worker: "./dist/worker.js" } });
   await writeFile(join(plugin.root, "dist/manifest.js"), "// manifest"); await writeFile(join(plugin.root, "dist/worker.js"), "// worker");
-  const authority: InstalledDaytonaPluginAuthority = { schema: "paperclip.e2e.installed-daytona-plugin/v1", graphRoot: root, plugin: { ...plugin, manifestSha256: hash("// manifest"), workerSha256: hash("// worker") }, sdk: await pkg("@paperclipai/plugin-sdk", "0.3.1", { "@paperclipai/shared": "0.3.1" }), shared: await pkg("@paperclipai/shared", "0.3.1"), daytona: await pkg("@daytonaio/sdk", "0.203.0") };
+  const authority: InstalledDaytonaPluginAuthority = { schema: "paperclip.e2e.installed-daytona-plugin/v1", graphRoot: root, plugin: { ...plugin, manifestSha256: hash("// manifest"), workerSha256: hash("// worker") }, sdk: await pkg("@paperclipai/plugin-sdk", sdkVersion, { "@paperclipai/shared": "0.3.1" }), shared: await pkg("@paperclipai/shared", "0.3.1"), daytona: await pkg("@daytonaio/sdk", "0.203.0") };
   const authorityPath = join(root, "authority.json");
   const env: NodeJS.ProcessEnv = { PAPERCLIP_RUNNER_E2E_INSTALLED_CLI: "/reviewed/cli", PAPERCLIP_RUNNER_E2E_INSTALLED_CLI_SHA256: "reviewed-separately", PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_ROOT: "/reviewed/server", PAPERCLIP_RUNNER_E2E_INSTALLED_SERVER_SHA256: "reviewed-separately", PAPERCLIP_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN: plugin.root, PAPERCLIP_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN_AUTHORITY: authorityPath };
   async function seal() { const bytes = JSON.stringify(authority); await writeFile(authorityPath, bytes); env.PAPERCLIP_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN_AUTHORITY_SHA256 = hash(bytes); }
@@ -51,7 +53,7 @@ it("rejects stale authority, worker, manifest and dependency entry bytes", async
 });
 it("rejects source exports and workspace dependency versions even with refreshed pins", async () => {
   const f = await fixture(); const p = join(f.authority.plugin.root,"package.json");
-  const original = { name:"@paperclipai/plugin-daytona",version:"0.1.1",exports:{".":{import:"./dist/index.js"}},paperclipPlugin:{manifest:"./dist/manifest.js",worker:"./dist/worker.js"},dependencies:{"@paperclipai/plugin-sdk":"0.3.1","@daytonaio/sdk":"0.203.0"} };
+  const original = { name:"@paperclipai/plugin-daytona",version:"0.1.1",exports:{".":{import:"./dist/index.js"}},paperclipPlugin:{manifest:"./dist/manifest.js",worker:"./dist/worker.js"},dependencies:{"@paperclipai/plugin-sdk":sdkVersion,"@daytonaio/sdk":"0.203.0"} };
   for (const manifest of [{ ...original, exports:{".":{import:"./src/index.ts"}} }, { ...original, dependencies:{ ...original.dependencies,"@paperclipai/plugin-sdk":"workspace:*" } }]) {
     const bytes=JSON.stringify(manifest);await writeFile(p,bytes);f.authority.plugin.packageSha256=hash(bytes);await f.seal();await expect(verifyInstalledDaytonaPlugin(f.env,[cell])).rejects.toThrow(/compiled package exports|dependency identity/);
   }
