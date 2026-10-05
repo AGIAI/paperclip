@@ -1162,7 +1162,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     groups: ["native"], profiles: extendedHarnessProfiles, environments: runnerEnvironments,
     tasks: [...openRouterBreadthTasks, localIntegrityTasks[1]!, extendedHarnessFileTask],
     expectedMatrixSize: 30,
-    definitionMetadata: { version: 2, qualification: "pending", scheduling: "explicit-only", admission: "host-exact-candidate-and-model", authenticatedDiscoveryDate: "2026-09-28", piFileEvidence: "seed-edit-execute-public-download-v1" },
+    definitionMetadata: { version: 3, qualification: "pending", scheduling: "explicit-only", admission: "host-exact-candidate-and-model", authenticatedDiscoveryDate: "2026-09-28", piFileEvidence: "seed-edit-single-execute-public-download-v2" },
   },
   {
     id: "instruction-persistence", label: "Instruction Persistence",

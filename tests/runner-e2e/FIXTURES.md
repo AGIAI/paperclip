@@ -337,11 +337,15 @@ identities still fail.
 ### Pi file editing and registered artifacts
 
 Pi's `extended-harnesses/file-edit-validate` seeds exact bytes before startup and
-requires one native edit lifecycle followed by a successful native bash execution
-with the exact nonce-bound byte-validation command as its projected title and a
-validation marker. A marker-only echo cannot pass. Independent final bytes must
-match the fixture. The
-real `register_deliverable` receipt, attachment metadata, publication activity,
+requires one native edit lifecycle followed by exactly one successful native
+bash execution with the exact nonce-bound byte-validation command as its
+projected title and a validation marker. A marker-only echo cannot pass. Final bytes must
+match the fixture. The Pi task prompt explicitly forbids additional shell calls,
+including metadata commands, and supplies the expected post-edit byte size and
+hash for registration. Extra Bash calls fail the unchanged oracle even when the
+edited file and downloadable artifact are correct. Extended definitions 3 retain
+older attempts under their original definitions and grades. The real
+`register_deliverable` receipt, attachment metadata, publication activity,
 visible task attachment and authenticated public download must all agree on the
 file's bytes, hash, company, issue, agent and originating run. A file on disk or a
 model completion claim cannot substitute for publication. Daytona additionally

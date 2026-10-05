@@ -27,7 +27,7 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases are attempted at `0bd040093`: five pass; context-before-action retains its 120-second terminal timeout, and finish-task retains use of the advisory report without the required task mutation. One context/document workflow retry passes only after verified protection against the recorded host sleep; its original failure stays unchanged. The seven `b148b73ea` passes remain historical. |
 | Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Exact-source public CLI/server installation and normal Pi setup pass on all three platforms. Public immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47` imports into native Linux Daytona and passes closed admission. Temporary sandbox cleanup passes. Image jobs 37102904889, 37106313185 and 37110683910 are terminal/cancelled. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Last verified PR head `4f2300d5b` has 53 successful CI checks, two skips, Greptile 5/5 and no unresolved root threads, including full Linux build and typecheck. This provider-fault fixture follow-up requires its own completed latest-head checks and review. All 116 targeted native Linux fixture tests and 13 browser-case collections pass at `04f639eeb`; the new descriptor correction separately passes all 17 free native Linux fault tests. Full typecheck, complete test and build evidence remains recorded below; original failed commands remain failed. Shipping inputs stay equivalent to `0bd040093`. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held for nine failed gates and prerequisite disposition. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Last verified PR head `b224e4338` has 53 successful CI checks, two skips, Greptile 5/5 and no unresolved root threads, including full Linux build and typecheck. This file-prompt fixture follow-up requires its own completed latest-head checks and review. All 116 targeted native Linux fixture tests and 13 browser-case collections pass at `04f639eeb`; the new descriptor correction separately passes all 17 free native Linux fault tests. Full typecheck, complete test and build evidence remains recorded below; original failed commands remain failed. Shipping inputs stay equivalent to `0bd040093`. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held for nine failed gates and prerequisite disposition. No merge or release. |
 
 ## Bounded execution
 
@@ -166,6 +166,48 @@ internal rejection stage, so complete live qualification remains unproven.
 The retained production matrix stays 24 passes and nine failures. All six
 earlier resumed attempts and their phases are terminal. Their controller and
 child sandboxes are deleted with canonical evidence retained.
+
+## Free fault calibration and file-prompt correction — 2026-10-05
+
+Head `b224e4338` completes 53 successful checks and two skips, including the
+full Linux build and typecheck, with Greptile 5/5 and no unresolved root review
+threads. The separately guarded descriptor-corrected provider-death attempt is
+terminal and failed: its unchanged native question appears, but the observer
+returns incomplete evidence without a fault-signal receipt. Cleanup separately
+fails on a closed observer socket. The third failed attempt, both prior failures
+and their source fingerprints are retained. Its owned child and controller are
+deleted after collection. The matrix remains **24 passes and nine failures**;
+none are running or unattempted. Production remains held.
+
+Four subsequent network-blocked Linux calibrations use no provider credentials
+or model prompts. Both actual Pi-wrapper launches pass inspection: direct
+held-FD launch and production lifetime fences. The real Rust Runner then admits
+the frozen native model/low profile and passes exact child inspection. Finally,
+the unchanged observer successfully performs its one-shot pidfd-bound Pi-child
+fault and seals complete retirement. Every owned calibration sandbox is deleted.
+These calibrations use a synthetic controller/lease caller and an idle provider;
+they do not prove the paid pending-input journey, regrade that failure, establish
+its missing rejection stage, or authorize an unchanged paid retry.
+
+Both original file-edit attempts complete the exact edit, validation and public
+artifact, then fail the required single-Bash-execution oracle after an additional
+metadata command. The old prompt specifies an exact validation command but does
+not explicitly forbid other Bash calls. The correction states exactly one Bash
+call for the whole task and directs registration to use the supplied byte size
+and hash after exact-byte validation. The grader remains unchanged. Negative
+calibration rejects extra metadata executions both before and after validation,
+even when file and download bytes are correct. Extended definitions advance
+from 2 to 3; original paid attempts retain their definitions and failed grades.
+Free fixture verification, exact-source Linux preparation and fresh spend guards
+must complete before separately bounded corrected file-edit attempts. No paid
+attempt occurs during this correction, and its live outcome is unproven.
+Both focused file/catalog files pass all 103 local tests. The broader name
+selection also includes an unchanged report-catalog test that fails on a missing
+generated result; its failed command remains retained. Local Product typecheck
+still fails on six stale linked Runner/adapter declarations. Fresh latest-head
+CI must verify typecheck, tests and build before a PR-ready handoff. The new
+extended-suite fingerprint is
+`121f4cf75267bcdb003e5ed59e165755b2ac0c3d31c82dc217a62c8abe3d1b4d`.
 
 ## Qualification snapshot — 2026-10-03
 

@@ -85,6 +85,23 @@ describe("Pi edit, validation and public artifact oracle", () => {
     expect(fixture().events.slice(3).every(e => e.payload.prpEvent.payload.name === "bash")).toBe(true);
     expect(result.verification.nativeFileAttribution).toBe("workspace_relative_display_target");
   });
+  it.each(["before", "after"])("rejects an extra metadata bash call %s validation despite correct file and download bytes", placement => {
+    const f = fixture();
+    const metadata = structuredClone(f.events.slice(3));
+    for (const row of metadata) row.payload.prpEvent.payload.executionId = "metadata";
+    metadata[1]!.payload.prpEvent.payload.progress = "wc -c extended-fixture.txt (in_progress): wc -c extended-fixture.txt";
+    metadata[2]!.payload.prpEvent.payload.output = JSON.stringify({
+      content: [{ type: "text", text: "17 extended-fixture.txt\n" }],
+      structuredContent: { output: "17 extended-fixture.txt\n", truncated: false, exit_code: 0 },
+    });
+    if (placement === "before") f.events.splice(3, 0, ...metadata);
+    else f.events.push(...metadata);
+    for (const [index, row] of f.events.entries()) {
+      row.seq = row.sourceSeq = row.payload.prpEvent.sourceSeq = index + 1;
+      row.sourceEventId = row.payload.prpEvent.sourceEventId = `runner:run:${index + 1}`;
+    }
+    expect(() => gradePiFileEvidence(f)).toThrow("one observed provider validation execution");
+  });
   const mutations: Array<[string, (f: ReturnType<typeof fixture>) => void]> = [
     ["absent seed", f => { f.seed = {} as any; }],
     ["wrong final bytes", f => { f.workspaceBytes = Buffer.from("wrong\n"); }],
