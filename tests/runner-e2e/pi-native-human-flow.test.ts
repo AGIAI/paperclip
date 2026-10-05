@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { piNativeTasks } from "./pi-native-cases.js";
 import { runPiNativeFlow } from "./pi-native-flow.js";
+vi.mock("./pi-bootstrap-permission.js", async importOriginal => ({ ...await importOriginal<typeof import("./pi-bootstrap-permission.js")>(), approvePiBootstrapRead: async () => undefined }));
+
 const proof = vi.hoisted(() => ({ mutation: false, incomplete: false, live: false, target: "pi-human-denied.txt", prompt: "" }));
 vi.mock("./user-actions.js", () => ({ createTaskThroughUi: vi.fn(async (input: { prompt: string }) => { proof.prompt = input.prompt; }) }));
 vi.mock("./copilot-local-fixtures.js", async importOriginal => {

@@ -8,6 +8,7 @@ import { createDeniedTargetFixture, exists, observeRunProcesses } from "./copilo
 import { assertCopilotRemoteRetirement, copilotRemoteDeniedSample, prepareCopilotRemoteAction, type CopilotRemoteBootstrap, type CopilotRemoteFixture, type CopilotRemoteSnapshot } from "./copilot-protection-evidence.js";
 import { assertActiveStopRetirement, readActiveStopRemoteRetirement, readActiveStopCaller, type ActiveStopCaller, type ActiveStopRemoteObservation } from "./native-active-stop-evidence.js";
 import { assertSamePiPending, observePiControlPending, readPiStopSettlement, readPiSteeringAcknowledgement, readPiSteeringSettlement, type PiControlPending, type PiControlScope, type PiControlState } from "./pi-controls-evidence.js";
+import { approvePiBootstrapRead, type PiBootstrapApproval } from "./pi-bootstrap-permission.js";
 import { piNativeFinish } from "./pi-native-cases.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
@@ -51,6 +52,7 @@ export async function runPiControlsFlow(input: {
     || !["pending-permission-stop", "same-turn-steering"].includes(execution.task.id)) throw new Error("Unknown Pi control case");
   const stopCase = execution.task.id === "pending-permission-stop", remote = execution.environment.id === "daytona";
   if ((!remote && execution.environment.id !== "local") || (remote && !input.remoteBootstrap)) throw new Error("Pi controls require an isolated admitted environment");
+  let bootstrapApproval: PiBootstrapApproval | undefined;
   const checks: Check[] = []; let issue: Row = {}, runs: Row[] = [], events: Row[] = [];
   const check = (id: string, passed: boolean, detail: string) => { checks.push({ id, passed, detail }); expect(passed, detail).toBe(true); };
   const name = `pi-control-${nonce}.txt`, local = remote ? undefined : await createDeniedTargetFixture(input.workspacePath, name), target = local?.targetRelativePath ?? name;
@@ -72,7 +74,7 @@ export async function runPiControlsFlow(input: {
     runs = await Promise.all(list.map(run => api.get<Row>(`/api/heartbeat-runs/${run.id}`)));
     if (runs.length > 1) throw new Error("Stopped waiting for Pi controls: extra provider run");
     events = runs[0] ? await collectRunEvents<Row>((afterSeq, limit) => api.get(`/api/heartbeat-runs/${runs[0]!.id}/events?afterSeq=${afterSeq}&limit=${limit}`)) : [];
-    observeProcesses(); input.observe(issue, runs); return { run: runs[0] ?? {}, issue, events };
+    observeProcesses(); input.observe(issue, runs); return { run: runs[0] ?? {}, issue, events, bootstrapApproval };
   };
   const scope = (): PiControlScope => ({ companyId: fixtures.company.id, issueId: issue.id, runId: runs[0]!.id, target });
   const readPresentation = async (state: PiControlState) => {
@@ -151,6 +153,8 @@ export async function runPiControlsFlow(input: {
         await input.evidence("pi-control-before-request-remote.json", baseline); return prepared.prompt;
       } });
       if (bound !== fixture) throw new Error("Pi remote action identity changed");
+      bootstrapApproval = await approvePiBootstrapRead({ api, fixture: bound, companyId: fixtures.company.id, issueId: issue.id, runId: runs[0]!.id,
+        deadlineAt: input.deadlineAt, load, evidence: input.evidence });
     }
     await pollUntil({ label: "Pi unanswered native write", deadlineAt: input.deadlineAt, intervalMs: 200,
       load: async () => { const state = await load(); if (["failed", "timed_out", "cancelled", "succeeded"].includes(state.run.status)) throw new Error("Stopped waiting for Pi unanswered native write: no active pending permission"); return state; },

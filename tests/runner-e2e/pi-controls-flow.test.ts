@@ -8,6 +8,8 @@ import { runPiControlsFlow } from "./pi-controls-flow.js";
 import { persistedFinalRunMessage } from "./matchers.js";
 import { readPiSteeringSettlement } from "./pi-controls-evidence.js";
 
+vi.mock("./pi-bootstrap-permission.js", async importOriginal => ({ ...await importOriginal<typeof import("./pi-bootstrap-permission.js")>(), approvePiBootstrapRead: async () => undefined }));
+
 const harness = vi.hoisted(() => ({ target: "", prompt: "", message: "", mutation: false, incomplete: false }));
 vi.mock("./user-actions.js", () => ({
   createTaskThroughUi: async (input: { prompt: string }) => { harness.prompt = input.prompt; },

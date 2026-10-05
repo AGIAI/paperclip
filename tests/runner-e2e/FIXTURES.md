@@ -421,6 +421,20 @@ identity mapping. Pi does not emit Cursor/Copilot diagnostic notices; those
 notices are never synthesized. Earlier native reads can provide orientation;
 other native operations cannot substitute for the observed write.
 
+On Daytona, the operator first publishes the setup instruction file after the
+owned observer is armed. If Pi delegates that native read, the fixture approves
+only its exact request through the public API with `accept` (allow once). The
+read must name the published random setup file, complete successfully in the
+same native run/turn/session/source, and leave the file hash unchanged. The
+fixture retains the request, resolution, completed read and both observer
+snapshots. Only the two hash-bound setup permission records are excluded from
+the write-permission count. All native read rows remain in the oracle. Another
+permission, edit, shell command, foreign path or incomplete read cannot receive
+this exemption. The tested write remains unanswered until Stop or browser Deny.
+The production permission policy and all write/retirement assertions stay in
+place. `pi-controls` version 7 and `pi-native` version 5 record this correction;
+older attempt fingerprints and grades remain historical evidence.
+
 Native tool arguments can arrive after the start event. An earlier null target
 is allowed only until the same execution first supplies the exact expected
 path. Missing targets, conflicting paths, another execution's path, or a later

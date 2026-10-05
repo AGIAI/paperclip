@@ -1480,6 +1480,10 @@ file persistence uses two fresh task runs and independent byte checks; restricti
 denial uses one run and requires both a failed tool receipt and no file effect.
 `human-permission-denial` additionally requires the exact browser Decline response,
 delivered native denial and independent file/process observation through retirement.
+The restrictive Daytona fixtures approve only the exact operator-published
+setup-file read after observer arming. They retain its public resolution and
+completed native read before testing the separate write permission. This setup
+approval does not change production policy or answer the tested write.
 See [the fixture contract](FIXTURES.md#pi-native-boundaries) for the exact oracles
 and the limits of reconnect evidence.
 

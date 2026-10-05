@@ -2,14 +2,15 @@ import { createHash } from "node:crypto";
 import { canonicalJson } from "../../packages/shared/src/portability-hash.js";
 import { hasAcpxNativeOrigin } from "./acpx-native-origin.js";
 import { bootstrapReadExecutionId } from "./native-bootstrap-read-proof.js";
+import { withoutApprovedPiBootstrapRequests, type PiBootstrapApproval } from "./pi-bootstrap-permission.js";
 import { isValidNativePrpEnvelope } from "./native-event-envelope.js";
 import type { ActiveStopCaller } from "./native-active-stop-evidence.js";
 
 type Row = Record<string, any>;
 export interface PiControlScope { companyId: string; issueId: string; runId: string; target: string }
-export interface PiControlState { run: Row; issue: Row; events: readonly unknown[] }
+export interface PiControlState { run: Row; issue: Row; events: readonly unknown[]; bootstrapApproval?: PiBootstrapApproval }
 export interface PiControlPending {
-  schema: "paperclip.e2e.pi-control-pending.v1"; scope: PiControlScope; requestId: string; toolCallId: string; executionId: string;
+  schema: "paperclip.e2e.pi-control-pending.v1"; bootstrapApproval?: PiBootstrapApproval; scope: PiControlScope; requestId: string; toolCallId: string; executionId: string;
   turnId: string; normalizedSessionId: string; sourceInstanceId: string; itemId: string;
   requestSourceSeq: number; startedSourceSeq: number; requestRowSha256: string; startedRowSha256: string; observedMonotonicNs: string;
 }
@@ -23,7 +24,9 @@ const controlSettlementTypes = new Set(["run.result.accepted", "run.terminal"]);
 
 /** Consume the actual Product projection. Pi does not emit Cursor/Copilot native
  * diagnostic notices; never manufacture those to reuse another provider's oracle. */
-function origin(events: readonly unknown[], scope: PiControlScope) {
+function origin(events: readonly unknown[], scope: PiControlScope, bootstrapApproval?: PiBootstrapApproval) {
+  if (bootstrapApproval) requireProof(bootstrapApproval.companyId === scope.companyId && bootstrapApproval.issueId === scope.issueId && bootstrapApproval.runId === scope.runId, "foreign bootstrap approval");
+  const gradingRows = new Set(withoutApprovedPiBootstrapRequests(events, bootstrapApproval));
   requireProof(Object.values(scope).every(id) && events.length > 0 && events.length <= 20_000, "bounded exact scope required");
   const projected = events.map(rec).filter(row => rec(row.payload).prpEvent !== undefined).map(row => ({ row, event: rec(rec(row.payload).prpEvent) })).sort((a, b) => a.row.seq - b.row.seq);
   const seqs = new Set<number>(), sourceIds = new Set<string>(), last = new Map<string, number>();
@@ -35,7 +38,7 @@ function origin(events: readonly unknown[], scope: PiControlScope) {
       && e.sourceEventId === `${e.sourceInstanceId}:${e.runId}:${e.sourceSeq}` && !sourceIds.has(e.sourceEventId), "foreign, duplicate or reordered event");
     seqs.add(row.seq); sourceIds.add(e.sourceEventId); last.set(e.sourceInstanceId, e.sourceSeq);
   }
-  const rows = projected.filter(x => x.event.sourceKind === "runner");
+  const rows = projected.filter(x => x.event.sourceKind === "runner" && gradingRows.has(x.row));
   const control = projected.filter(x => x.event.sourceKind === "control_plane");
   const created = rows.filter(x => x.event.eventType === "runtime_request.created");
   requireProof(created.length === 1, "one native permission required");
@@ -80,20 +83,20 @@ function origin(events: readonly unknown[], scope: PiControlScope) {
   return { rows, control, card, request, started: started[0]!, executionId, stream };
 }
 export function observePiControlPending(input: PiControlState & { scope: PiControlScope }): PiControlPending {
-  const { run, issue, scope } = input, p = origin(input.events, scope);
+  const { run, issue, scope } = input, p = origin(input.events, scope, input.bootstrapApproval);
   requireProof(run.id === scope.runId && run.companyId === scope.companyId && run.nativeIssueId === scope.issueId && run.status === "running" && run.runtimeMode === "native"
     && issue.id === scope.issueId && issue.companyId === scope.companyId && issue.status === "in_progress"
     && run.resultJson?.startupCancellation == null && run.resultJson?.nativeCancellation == null, "run is not fresh active work");
   requireProof(!p.rows.some(x => terminalTypes.has(x.event.eventType) || closureTypes.has(x.event.eventType)
     || (x.event.eventType === "tool.execution.completed" && x.event.payload.executionId === p.executionId)), "permission already answered or provider settled");
-  return { schema: "paperclip.e2e.pi-control-pending.v1", scope, requestId: p.request.requestId, toolCallId: p.request.details.toolCallId, executionId: p.executionId,
+  return { schema: "paperclip.e2e.pi-control-pending.v1", ...(input.bootstrapApproval ? { bootstrapApproval: input.bootstrapApproval } : {}), scope, requestId: p.request.requestId, toolCallId: p.request.details.toolCallId, executionId: p.executionId,
     turnId: p.card.event.turnId, normalizedSessionId: p.card.event.normalizedSessionId, sourceInstanceId: p.card.event.sourceInstanceId, itemId: p.request.itemId,
     requestSourceSeq: p.card.event.sourceSeq, startedSourceSeq: p.started.event.sourceSeq, requestRowSha256: hash(p.card.row), startedRowSha256: hash(p.started.row), observedMonotonicNs: process.hrtime.bigint().toString() };
 }
 function retained(input: PiControlState & { pending: PiControlPending }) {
   const b = input.pending;
   requireProof(b.schema === "paperclip.e2e.pi-control-pending.v1", "pending receipt missing");
-  const p = origin(input.events, b.scope);
+  const p = origin(input.events, b.scope, b.bootstrapApproval);
   requireProof(hash(p.card.row) === b.requestRowSha256 && hash(p.started.row) === b.startedRowSha256 && p.card.event.sourceSeq === b.requestSourceSeq && p.started.event.sourceSeq === b.startedSourceSeq
     && p.request.requestId === b.requestId && p.request.details.toolCallId === b.toolCallId && p.executionId === b.executionId && p.request.itemId === b.itemId
     && p.card.event.turnId === b.turnId && p.card.event.normalizedSessionId === b.normalizedSessionId && p.card.event.sourceInstanceId === b.sourceInstanceId, "retained pending identity changed");

@@ -189,8 +189,8 @@ describe("Pi controls catalog admission", () => {
     // provider death, pending restart and the strict file oracle; no runtime admission is promoted.
     const pi = runnerMatrix.find(c => c.profile.qualificationCandidate === "pi")!.profile;
     expect(pi.modelQualification?.qualificationId).toBe("pi:0.0.33:1.0.0:openrouter");
-    expect(runnerSuites.find(s => s.id === "pi-native")!.definitionMetadata).toMatchObject({ version: 4, profileVersion: 14 });
-    expect(runnerSuites.find(s => s.id === "pi-controls")!.definitionMetadata).toMatchObject({ version: 6, profileVersion: 14,
+    expect(runnerSuites.find(s => s.id === "pi-native")!.definitionMetadata).toMatchObject({ version: 5, profileVersion: 14 });
+    expect(runnerSuites.find(s => s.id === "pi-controls")!.definitionMetadata).toMatchObject({ version: 7, profileVersion: 14,
       controlPlaneSettlement: "required-scoped-result-and-terminal-after-runner" });
     expect(runnerSuites.find(s => s.id === "extended-harnesses")!.definitionMetadata).toMatchObject({ version: 2 });
     for (const cell of runnerMatrix.filter(cell => cell.profile.qualificationCandidate === "pi")) {
@@ -199,7 +199,7 @@ describe("Pi controls catalog admission", () => {
     }
     const hashes = Object.fromEntries(runnerSuites.filter(s => ["pi-native", "native-active-stop", "extended-harnesses", "rich-acp-warm-continuity"].includes(s.id)).map(s => [s.id, suiteDefinitionHash(s)]));
     expect(hashes).toEqual({
-      "pi-native": "00f1ec9adc5980c6d147fbc8a4992ff76fb2327ad8d8dc1fc8516a69d4131bd1",
+      "pi-native": "bbfcb15e83082b11046ab72ed31acf40bae268a4f13897f88214b1d42f7f23f2",
       "native-active-stop": "99682b2b106d816a011834fae5a944ed7729958893709d5b83a19b6f595e7e4d",
       "rich-acp-warm-continuity": "036c0faebc2f6eee5cd22ea38887c9c22650a83561fd08ee83473a565b11bb00",
       "extended-harnesses": "9814841e571cb8bb1dc5188a8577245896e0ce8c851294ac5dea9e3d42689db6",

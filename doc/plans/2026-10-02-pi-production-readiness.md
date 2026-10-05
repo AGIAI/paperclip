@@ -43,6 +43,46 @@ Check remaining credit and that BYOK usage stays zero before and after each
 attempt. API key deltas are provisional billing observations. Pi model-catalog
 prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
 
+## Accepted corrections — 2026-10-04
+
+The operator accepts the scoped Product E2E fixture corrections and authorizes
+necessary corrected attempts within the existing $100 total campaign limit.
+The dedicated Pi key retains its $5 lifetime cap. Automatic paid retries,
+fallback keys, new models, GitHub Actions edits and lockfile commits remain
+excluded. The previously rejected SDK-corrected attempt remains undispatched
+and preserved; the new authorization applies to a separate explicit phase.
+
+The canonical-closure fixture correction is committed at `585b43d3a`. All 14
+native Linux fault tests pass, including ownership/pidfd and malformed metadata
+calibration. That head has 53 successful CI checks, two expected skips and no
+unresolved root review findings. These free checks do not qualify provider death.
+
+A fresh owned Linux controller passes normal public installation, normal Pi
+setup and admission in 7.207 seconds. Installed startup passes health/UI with
+zero companies and cleanup. Complete audits pass 101,226 consumer files and
+16,356 plugin files. All 13 Daytona browser cases collect, and the pinned SDK
+constructor passes without credentials or provider calls. The two expired
+controllers remain absent. The rejected 30 GiB allocation created no sandbox;
+the prepared controller uses the account's 10 GiB limit and a finite lifetime.
+
+The restrictive fixture correction approves only the exact published setup-file
+read through the public operator API after observer arming. It retains the
+completed read, resolution and unchanged file hash. All tested write permissions,
+Stop/steering/denial assertions and retirement/no-effect proofs remain required.
+Controls definitions advance to 7 and native definitions to 5. Prior attempt
+fingerprints and grades remain unchanged. All 110 targeted native Linux tests
+pass, including positive Stop/steering settlement and negative setup approvals.
+The local pure oracle tests pass; the local ownership flows still fail their
+unchanged file-watch completeness gate. Local Product typecheck is blocked by
+stale dependency declarations in the existing linked build. Fresh CI must verify
+the committed head. Live proof on the new definitions is still required.
+
+The dedicated key's latest observed usage is $0.2144 with $4.7856 remaining and
+zero BYOK usage. These are provisional key observations. The browser account
+session has expired, so paid dispatch awaits a fresh all-provider BYOK settings
+check after sign-in. Budget approval is already sufficient. No paid provider
+attempt occurs during this resumed preparation.
+
 ## Qualification snapshot — 2026-10-03
 
 The current ledger has 21 passes, ten failed cells, two unattempted cells and
@@ -146,8 +186,9 @@ Remaining corrections and evidence:
   All 13 unchanged Daytona cases collect, and the SDK constructor passes without
   credentials or provider calls. Automatic approval review rejects a further
   agent-files attempt because the proposed retry guard exceeds the bounded
-  correction authorization. That attempt is held pending human approval; no
-  key is read or remote work dispatched by the rejected action.
+  correction authorization. That rejected attempt stays held and unchanged; no
+  key was read or remote work dispatched by that action. The October 4 human
+  authorization now permits a separate corrected attempt after fresh guards.
 - Daytona provider-death reaches a real unanswered native question, then fails
   its exact-child fault observer receipt. Canonical independent retirement and
   cleanup pass; provider-loss and stale-answer assertions are not reached.
@@ -162,10 +203,10 @@ Remaining corrections and evidence:
   The image's closure is valid; the fixture's hash representation needs repair.
   The original observer error masks its
   specific internal cause; this diagnosis does not regrade that failure.
-  An unapplied private correction passes 14 free Linux tests: nine exact-child
+  The accepted canonical-closure correction passes 14 free Linux tests: nine exact-child
   ownership/pidfd calibrations and five actual-metadata, formatting and negative
-  pin regressions. A fixture correction remains held for workflow-scope
-  clarification; those free tests do not qualify the failed paid case.
+  pin regressions. The operator accepts the scoped fixture correction on October 4; those free
+  tests do not qualify the failed paid case.
 - The unrestricted Daytona file-edit first attempt edits and publishes the
   correct file and passes cleanup, but performs extra native shell executions.
   It fails the unchanged exactly-one validation-execution gate. Both platform
@@ -188,9 +229,9 @@ Remaining corrections and evidence:
   the store. Installed graph identities and all original evidence are preserved.
 - A free counterexample with the unchanged controls oracle proves that an
   approved bootstrap read followed by the pending write creates two permissions
-  and is rejected. An external approval alone cannot repair the gate. Scoped
-  Product E2E fixture/oracle changes require clarifying the user prohibition on
-  workflow edits; GitHub Actions and production permissions need no change.
+  and is rejected. An external approval alone cannot repair the gate. The operator
+  now accepts scoped Product E2E fixture/oracle corrections. GitHub Actions and
+  production permissions need no change.
 - The previously unexecuted workspace-A group passes 7,176 tests and fails one
   save-navigation assertion. The API update is already observed, but navigation
   follows asynchronous query invalidation. Waiting for the same form-close

@@ -13,6 +13,7 @@ import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
 
 import type { RemoteNativeFixture, RemoteNativeSnapshot } from "./remote-native-fixtures.js";
+import { approvePiBootstrapRead, withoutApprovedPiBootstrapRequests, type PiBootstrapApproval } from "./pi-bootstrap-permission.js";
 import { runPiPendingProviderDeath, PI_DEATH_MARKER } from "./pi-native-provider-death-flow.js";
 import { runPiPendingControllerRestart } from "./pi-native-restart-flow.js";
 
@@ -38,6 +39,7 @@ export async function runPiNativeFlow(input: {
   if (!["local", "daytona"].includes(execution.environment.id) || execution.profile.qualificationCandidate !== "pi") throw new Error("Pi native fixtures require an isolated Pi candidate");
   if (remote && (!input.remoteBootstrap || !input.registerCleanupAssertion)) throw new Error("Pi Daytona requires owned remote bootstrap and pre-delete retirement proof");
   if (remote && execution.task.id === "restrictive-denial") throw new Error("Pi deny-all cannot read the native action-file bootstrap; remote auto-denial remains unsupported");
+  let bootstrapApproval: PiBootstrapApproval | undefined;
   let currentRemote: RemoteNativeFixture | undefined, currentBaseline: RemoteNativeSnapshot | undefined;
   let remoteSequence = 0;
   async function finishRemote(label: string) {
@@ -202,10 +204,12 @@ export async function runPiNativeFlow(input: {
       });
       if (!remote) check("human-target-initially-absent", await absent(path), "Independent target is absent before provider work");
       await create(execution.task.buildTitle(nonce), localTarget ? bindDeniedTargetPrompt(execution.task.buildPrompt(nonce), "pi-human-denied.txt", target) : execution.task.buildPrompt(nonce), { targets: [target] });
+      if (remote) bootstrapApproval = await approvePiBootstrapRead({ api, fixture: currentRemote!, companyId: fixtures.company.id, issueId: issue.id, runId: runs[0]!.id,
+        deadlineAt: input.deadlineAt, load: async () => { await load(); return { run: runs[0]!, issue, events: await events(runs[0]!.id) }; }, evidence: input.evidence });
       if (remote) check("human-target-initially-absent", currentBaseline?.targets[target]?.absent === true && currentBaseline.targets[target]!.complete, "Remote watcher was armed before action publication with an absent target");
       const pending = await pollUntil({ label: "Pi native browser permission", deadlineAt: input.deadlineAt, load: async () => { const state = await load(); processes = observe(); return { ...state, events: state.runs.length === 1 ? await events(state.runs[0]!.id) : [] }; }, reject: rejectFailure,
-        accept: state => state.runs.length === 1 && piPermissionRequests(state.events, state.runs[0]!.id).length === 1 });
-      const native = piPermissionRequests(pending.events, pending.runs[0]!.id)[0]!;
+        accept: state => state.runs.length === 1 && piPermissionRequests(withoutApprovedPiBootstrapRequests(state.events, bootstrapApproval), state.runs[0]!.id).length === 1 });
+      const native = piPermissionRequests(withoutApprovedPiBootstrapRequests(pending.events, bootstrapApproval), pending.runs[0]!.id)[0]!;
       const identity = { runId: pending.runs[0]!.id, turnId: native.event.turnId, requestId: native.request.requestId, toolCallId: native.request.details.toolCallId, target };
       check("human-target-pending-absent", remote ? (await currentRemote!.snapshot("permission-pending")).targets[target]?.absent === true : await absent(path), "Pending native write has no file effect");
       await page.reload();
