@@ -62,6 +62,7 @@ test("native catalog setup, account edits, conflicts and removal persist through
     await expect(page.getByRole("link", { name: "Settings", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Review", exact: true })).toHaveCount(0);
     await expect(page.getByRole("checkbox", { name: "Enable this pool", exact: true })).not.toBeChecked();
+    await expect(page.getByRole("region", { name: "Used by", exact: true })).toContainText("No agents yet.");
 
     const name = `Pool E2E ${Date.now()}`;
     await page.getByRole("button", { name: "Rename app", exact: true }).click();
@@ -126,4 +127,22 @@ test("an unavailable dynamic router stays on an actionable setup page", async ({
   await page.goto(`/${prefix}/apps/connect?${new URLSearchParams({ source: "ai-router-0000" })}`);
   await expect(page.getByRole("alert")).toContainText("This connection pool plugin is unavailable. Enable it in Plugins.");
   await expect(page).toHaveURL(/\/apps\/connect\?/);
+});
+
+test("a saved pool shows its configured agents with avatars and profile links", async ({ page, request }) => {
+  const pools = await listPools(request);
+  const response = await request.get(`/api/companies/${companyId}/agents`);
+  expect(response.ok()).toBe(true);
+  const agents = await response.json() as Array<{ id: string; name: string; status: string; runtimeConfig: { aiConnection?: { mode: string; connectionId?: string } } }>;
+  const pool = pools.find(candidate => agents.some(agent => agent.status !== "terminated" && agent.runtimeConfig.aiConnection?.mode === "router" && agent.runtimeConfig.aiConnection.connectionId === candidate.id));
+  test.skip(!pool, "Bind a test agent to a saved pool to verify populated usage");
+  const expected = agents.filter(agent => agent.status !== "terminated" && agent.runtimeConfig.aiConnection?.mode === "router" && agent.runtimeConfig.aiConnection.connectionId === pool!.id).sort((a, b) => a.name.localeCompare(b.name));
+  await page.goto(`/${prefix}/apps/${pool!.id}/permissions`);
+  const usedBy = page.getByRole("region", { name: "Used by", exact: true });
+  await expect(usedBy.getByRole("link")).toHaveCount(expected.length);
+  for (const agent of expected) {
+    const link = usedBy.getByRole("link", { name: agent.name, exact: true });
+    await expect(link).toHaveAttribute("href", `/${prefix}/agents/${agent.id}`);
+    await expect(link.locator('[data-slot="agent-avatar"]')).toBeVisible();
+  }
 });

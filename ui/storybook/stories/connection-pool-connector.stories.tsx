@@ -6,7 +6,12 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const Catalog: Story = {};
 export const Setup: Story = { args: { scenario: "setup" } };
-export const Manage: Story = { args: { scenario: "manage" } };
+export const Manage: Story = { args: { scenario: "manage" }, play: async ({ canvasElement }) => {
+  const usedBy = within(await within(canvasElement).findByRole("region", { name: "Used by" }));
+  await expect(await usedBy.findByRole("link", { name: "Researcher" })).toBeVisible();
+  await expect(usedBy.getByRole("link", { name: "Writer" })).toBeVisible();
+  await expect(usedBy.getAllByRole("link")).toHaveLength(2);
+} };
 export const CreateFromConnectors: Story = { play: async ({ canvasElement }) => {
   const c = within(canvasElement);
   await userEvent.click(await c.findByRole("button", { name: "Add connection pool AI connection pool" }));
@@ -18,4 +23,5 @@ export const CreateFromConnectors: Story = { play: async ({ canvasElement }) => 
   await userEvent.click(c.getByRole("button", { name: "Create pool" }));
   await expect(await c.findByRole("checkbox", { name: "Enable this pool" })).not.toBeChecked();
   await expect(c.getByRole("heading", { level: 1, name: "AI connection pool" })).toBeVisible();
+  await expect(await within(c.getByRole("region", { name: "Used by" })).findByText("No agents yet.")).toBeVisible();
 } };

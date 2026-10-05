@@ -5,6 +5,7 @@ import { aiConnectionRouterAppDefinition, type AiConnectionPool, type AiConnecti
 import { aiConnectionsApi } from "@/api/ai-connections";
 import { aiConnectionPoolsApi, type PoolInspection } from "@/api/ai-connection-pools";
 import { toolsApi } from "@/api/tools";
+import { agentsApi } from "@/api/agents";
 import { useCompany } from "@/context/CompanyContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { useToast } from "@/context/ToastContext";
@@ -14,6 +15,7 @@ import { AppLogo } from "@/pages/apps/AppLogo";
 import { AppDetailHeader } from "@/pages/apps/AppDetail";
 import { StepHeader } from "@/features/connections/ConnectionSetupHeader";
 import { Button } from "@/components/ui/button";
+import { AgentIdentity } from "@/components/AgentIdentity";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -62,6 +64,8 @@ function PoolConnector({ companyId, pluginKey, connection }: { companyId: string
   const unavailable = galleryQuery.isSuccess && (!entry || entry.availability?.available === false);
   const canManage = Boolean(accountsQuery.data?.canManageConnections);
   const disabled = busy || !canManage || unavailable;
+  const agentsQuery = useQuery({ queryKey: queryKeys.agents.list(companyId), queryFn: () => agentsApi.list(companyId), enabled: Boolean(connection) && canManage });
+  const usingAgents = (agentsQuery.data ?? []).filter(agent => agent.status !== "terminated" && agent.runtimeConfig?.aiConnection?.mode === "router" && agent.runtimeConfig.aiConnection.connectionId === connection?.id).sort((a, b) => a.name.localeCompare(b.name));
   useEffect(() => {
     if (connection && !editing && canManage) {
       const pool = poolsQuery.data?.find(pool => pool.id === connection.id && pool.pluginKey === pluginKey);
@@ -150,6 +154,13 @@ function PoolConnector({ companyId, pluginKey, connection }: { companyId: string
           {draft.mode === "usage_aware" && <label className="flex items-center gap-3 text-sm">Skip at<Input className="w-20" aria-label="Usage threshold" type="number" min={1} max={100} step={1} value={draft.thresholdPercent} onChange={event => setDraft({ ...draft, thresholdPercent: Number(event.target.value) })} />% usage</label>}
           {draft.members.map((member, index) => <div key={member.id} className="space-y-2"><p className="text-sm font-medium">{accounts.find(account => account.id === member.binding.connectionId)?.name ?? "Connection unavailable"}</p><div className="grid gap-3 sm:grid-cols-2"><label className="space-y-1 text-xs text-muted-foreground">Model<Input aria-label={`Model for connection ${index + 1}`} value={member.profile.model} onChange={event => setDraft({ ...draft, members: draft.members.map(row => row.id === member.id ? { ...row, profile: { ...row.profile, model: event.target.value } } : row) })} /></label><label className="space-y-1 text-xs text-muted-foreground">Effort (optional)<Input aria-label={`Effort for connection ${index + 1}`} value={member.profile.effort ?? ""} onChange={event => { const { effort: _old, ...profile } = member.profile; setDraft({ ...draft, members: draft.members.map(row => row.id === member.id ? { ...row, profile: { ...profile, ...(event.target.value.trim() ? { effort: event.target.value.trim() } : {}) } } : row) }); }} /></label></div></div>)}
         </fieldset></details>
+        <section aria-labelledby="pool-used-by" className="space-y-3">
+          <h2 id="pool-used-by" className="text-sm font-semibold">Used by</h2>
+          {agentsQuery.isPending ? <p role="status" className="text-sm text-muted-foreground">Loading agents…</p>
+            : agentsQuery.isError ? <div className="flex items-center gap-2"><p role="alert" className="text-sm text-muted-foreground">Couldn’t load agents.</p><Button variant="ghost" size="sm" onClick={() => void agentsQuery.refetch()}>Retry</Button></div>
+            : usingAgents.length ? <ul className="flex flex-wrap gap-x-6 gap-y-3">{usingAgents.map(agent => <li key={agent.id} className="min-w-0 max-w-full"><Link to={`/agents/${agent.id}`} className="inline-flex max-w-full rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><AgentIdentity agent={agent} /></Link></li>)}</ul>
+            : <p className="text-sm text-muted-foreground">No agents yet.</p>}
+        </section>
       </>}
     </div>}
     <div className="mt-6 flex items-center justify-between gap-3 border-t border-border pt-4">

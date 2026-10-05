@@ -55,6 +55,8 @@ budget, and the UI labels that retry as **Pool exhausted**.
 Operators choose **Connectors → AI connection pool → Add connection pool**,
 select existing accounts, arrange their order, and create a paused connection.
 The normal account page supports rename, member changes, enabling, and removal.
+**Used by** lists the company’s non-terminated agents configured to use the pool,
+with their avatars and links to their profiles. Paused agents remain listed.
 Optional usage and runtime defaults live under **Advanced**. Creating another
 account opens the normal catalog in a new tab so the pool draft stays intact.
 The catalog marks experimental-disabled or unavailable plugins as unavailable.
@@ -111,6 +113,7 @@ pnpm exec playwright test --config tests/ai-connections-app/playwright.config.ts
 These opt-in tests exercise the shipped app, installed plugin and database without
 mocking browser routes or pool APIs. They cover catalog navigation, setup, ordering,
 paused defaults, rename, member changes, refresh persistence, stale edits and
-removal. Cleanup archives only the test's own pool and verifies that existing
+removal. With a test agent already bound to a saved pool, they also verify
+the **Used by** list, avatars and profile links. Cleanup archives only the test's own pool and verifies that existing
 accounts and pools remain intact. This suite does not execute agents or probe
 live usage; provider and restart acceptance remain separate gated test drives.

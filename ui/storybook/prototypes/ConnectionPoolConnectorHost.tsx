@@ -37,6 +37,12 @@ export function ConnectionPoolConnectorHost({ pluginKey = "example.pool-router",
       const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
       const reply = (value: unknown) => Response.json(value);
       if (path === `/api/companies/${companyId}/chat-endpoints`) return reply([]);
+      if (path === `/api/companies/${companyId}/agents`) return reply(["setup", "empty", "catalog", "unavailable"].includes(scenario) ? [] : [
+        { id: "50000000-0000-4000-8000-000000000001", companyId, name: "Researcher", status: "idle", runtimeConfig: { aiConnection: { mode: "router", connectionId: poolId } } },
+        { id: "50000000-0000-4000-8000-000000000002", companyId, name: "Writer", status: "paused", runtimeConfig: { aiConnection: { mode: "router", connectionId: poolId } } },
+        { id: "50000000-0000-4000-8000-000000000003", companyId, name: "Other pool agent", status: "idle", runtimeConfig: { aiConnection: { mode: "router", connectionId: "another-pool" } } },
+        { id: "50000000-0000-4000-8000-000000000004", companyId, name: "Former researcher", status: "terminated", runtimeConfig: { aiConnection: { mode: "router", connectionId: poolId } } },
+      ]);
       if (path === `/api/companies/${companyId}/user-directory`) return reply({ users: [{ principalId: "dotta", status: "active", user: { name: "Dotta", email: "dotta@example.test" } }] });
       if (path === `/api/companies/${companyId}/tools/apps/attention`) return reply({ apps: [] });
       if (path === `/api/companies/${companyId}/tools/gallery`) return reply({ apps: catalog, capabilities: { canCreateOrganizationGrant: true, canSetCompanyInstall: true } });
