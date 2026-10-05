@@ -8,6 +8,8 @@ import { Browse } from "./Browse";
 import { getAppStoreDefinition } from "@paperclipai/shared";
 import { queryKeys } from "@/lib/queryKeys";
 
+vi.mock("@/api/publicMcp", () => ({ publicMcpApi: { connections: async () => [] } }));
+
 const listGalleryMock = vi.hoisted(() => vi.fn());
 const listApplicationsMock = vi.hoisted(() => vi.fn());
 const listConnectionsMock = vi.hoisted(() => vi.fn());
@@ -193,6 +195,15 @@ describe("Connectors landing page", () => {
     await flushReact();
     return client;
   }
+
+  it("offers assistant setup from Connections without choosing an agent", async () => {
+    await renderBrowse();
+    const button = container.querySelector<HTMLButtonElement>('[aria-label="Set up Assistant Connection (MCP)"]');
+    expect(button).not.toBeNull();
+    await act(() => button!.click());
+    expect(navigateMock).toHaveBeenCalledWith("/apps/assistant-connection");
+    expect(chatSetupMock).not.toHaveBeenCalled();
+  });
 
   it("shows retirement guidance before paused state for an obsolete Composio account", async () => {
     listApplicationsMock.mockResolvedValue({ applications: [application({ id: "old-app", name: "Composio", metadata: { sourceTemplateKey: "composio" } })] });
@@ -466,6 +477,7 @@ describe("Connectors landing page", () => {
         ),
       ).map((row) => row.dataset.appSlug),
     ).toEqual([
+      "assistant-connection",
       "agentmail",
       "discord",
       "github-code-review-bot",
@@ -546,8 +558,9 @@ describe("Connectors landing page", () => {
         '[aria-label="Connector list"] > [data-app-slug]',
       ),
     );
-    expect(rows[0]?.dataset.appSlug).toBe("notion");
-    const notion = rows[0]!;
+    const providers = rows.filter(row => row.dataset.appSlug !== "assistant-connection");
+    expect(providers[0]?.dataset.appSlug).toBe("notion");
+    const notion = providers[0]!;
     expect(notion.textContent).toContain("devinfoley@gmail.com");
     expect(notion.textContent).toContain("ops@example.com");
     expect(notion.textContent).toContain("Connected by");

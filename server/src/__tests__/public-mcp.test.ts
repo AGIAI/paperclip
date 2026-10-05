@@ -168,12 +168,37 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
       await expect(oauth.token({ grant_type: "refresh_token", client_id: f.client.client_id, resource: config.resource, refresh_token: f.tokens.refresh_token })).rejects.toMatchObject({ status: 503 });
       await expect(execute(f.tokens.access_token, "paperclip_list_agents", { companyId: f.company.id })).rejects.toMatchObject({ status: 503 });
       expect(dispatch).not.toHaveBeenCalled();
+      const setup = await request(app).get("/api/mcp/setup").set("X-Forwarded-Host", "attacker.example");
+      expect(setup.status).toBe(200);
+      expect(setup.headers["cache-control"]).toBe("no-store");
+      expect(setup.body).toEqual({ enabled: false, serverUrl: config.resource });
       expect((await request(app).get("/api/mcp/connections")).status).toBe(200);
       expect((await request(app).post("/mcp/oauth/revoke").send({ token: revocable.tokens.access_token, client_id: revocable.client.client_id })).status).toBe(200);
     } finally { await settings.updateExperimental({ enablePublicMcp: true }); }
+    expect((await request(app).get("/api/mcp/setup")).body).toEqual({ enabled: true, serverUrl: config.resource });
     expect((await request(app).get("/.well-known/oauth-authorization-server")).status).toBe(200);
     await expect(oauth.authenticate(f.tokens.access_token)).resolves.toMatchObject({ grant: { userId: f.actor.userId } });
     await expect(oauth.authenticate(revocable.tokens.access_token)).rejects.toThrow();
+  });
+
+  it("limits assistant setup metadata to signed-in humans", async () => {
+    const app = express();
+    let actor: Request["actor"] = { type: "none" };
+    app.use((req, _res, next) => { req.actor = actor; next(); });
+    app.use("/api", publicMcpManagementRoutes(oauth));
+    for (const candidate of [
+      { type: "none" },
+      { type: "agent", agentId: randomUUID(), companyId: randomUUID() },
+      { type: "board", source: "local_implicit", userId: "board" },
+      { type: "board", source: "mcp_oauth", userId: randomUUID() },
+    ] as Request["actor"][]) {
+      actor = candidate;
+      expect((await request(app).get("/api/mcp/setup")).status).toBe(401);
+    }
+    for (const source of ["session", "cloud_tenant"] as const) {
+      actor = { type: "board", source, userId: randomUUID() };
+      expect((await request(app).get("/api/mcp/setup")).body).toEqual({ enabled: true, serverUrl: config.resource });
+    }
   });
 
   it("rotates refresh tokens and persists revocation on replay", async () => {

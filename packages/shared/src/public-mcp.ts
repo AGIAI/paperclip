@@ -21,6 +21,11 @@ export interface McpConnectionRequest {
   setupUrl: string | null;
 }
 
+export interface McpConnectionSetup {
+  enabled: boolean;
+  serverUrl: string;
+}
+
 export interface McpConnection {
   id: string;
   companyId: string;

@@ -3,6 +3,7 @@ import {
   isRetiredComposioConnection,
   RETIRED_COMPOSIO_MESSAGE,
 } from "@paperclipai/shared";
+import { AssistantConnectionCard } from "./AssistantConnection";
 import { ManagedAiConnectionRow } from "@/components/ai-connections/ManagedAiConnectionDetails";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -642,6 +643,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
         ),
     );
   }, [rows, trimmed]);
+  const showAssistantConnection = !trimmed || "assistant connection (mcp) paperclip codex claude opencode".includes(trimmed);
   const showCustomConnector =
     !trimmed || "connect your own tool custom mcp server".includes(trimmed);
 
@@ -663,7 +665,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
     applicationsQuery.isError ||
     connectionsQuery.isError ||
     chatEndpointsQuery.isError;
-  const nothingMatches = visibleRows.length === 0 && !showCustomConnector;
+  const nothingMatches = visibleRows.length === 0 && !showCustomConnector && !showAssistantConnection;
 
   return (
     <div className="max-w-5xl space-y-5 pb-12">
@@ -720,6 +722,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
         </p>
       ) : (
         <div className="space-y-3" role="list" aria-label="Connector list">
+          {showAssistantConnection && <AssistantConnectionCard onNavigate={navigate} />}
           {visibleRows.map((row) => (
             <ConnectorCard
               renderAccountDetails={renderAccountDetails}

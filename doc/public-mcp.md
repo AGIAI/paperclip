@@ -38,6 +38,35 @@ token again; normal API endpoints do not accept these OAuth tokens. Public
 installation requires a reachable HTTPS deployment. Private self-hosted
 instances require a directly reachable endpoint; no managed relay is included.
 
+## Start from Connections
+
+Inside your organization, open **Connectors → Assistant Connection (MCP) → Set up**.
+This connects an outside assistant to Paperclip using your human account; no agent
+is selected or impersonated. The entry is discoverable while disabled, but its
+setup instructions require the experimental setting. Follow **Open Experimental
+settings**, enable **Assistant connections (MCP)**, then return to setup.
+
+Choose Codex, Claude Code, OpenCode, or Other. The page supplies the canonical
+instance URL and the client’s setup and sign-in commands. Run the sign-in action
+in that client to open Paperclip’s browser consent page. A consent URL is generated
+for that OAuth attempt; there is no reusable consent link to copy from Paperclip.
+
+For OpenCode, merge the displayed `mcp.paperclip` entry into your project’s
+`opencode.json`, run `opencode mcp auth paperclip` there, approve the organization,
+then start `opencode web`. Restart an already-running OpenCode after authentication.
+Never add upstream model keys to the MCP URL or config; the assistant’s model
+connection is configured separately.
+
+Return to the same Connections entry to see your connected assistants, their
+read/write access, and revoke access. The list refreshes after consent and only
+shows your grants for the selected organization. The legacy
+`/assistant-connections` URL remains available for account-wide management.
+
+`GET /api/mcp/setup` returns the live experimental gate and canonical endpoint to
+authenticated browser/Cloud users, including while disabled. It cannot grant
+access, accepts no destination URL, never reflects forwarded hosts, and is not
+available to agent keys, MCP bearer tokens, or implicit local authority.
+
 ## Connect an assistant directly
 
 After the instance is enabled and reachable, an existing team member can connect

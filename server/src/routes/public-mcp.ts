@@ -51,7 +51,7 @@ export function publicMcpIngressRoutes(oauth: PublicMcpOAuth, execute: ReturnTyp
   });
   router.get(["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource" + PUBLIC_MCP_PATH], (_req, res) => res.json({
     resource, authorization_servers: [origin], scopes_supported: PUBLIC_MCP_SCOPES, bearer_methods_supported: ["header"],
-    resource_name: "Paperclip team",
+    resource_name: "Paperclip",
   }));
   router.get("/.well-known/oauth-authorization-server", (_req, res) => res.json({
     issuer: origin, authorization_endpoint: prefix + "/authorize", token_endpoint: prefix + "/token",
@@ -183,6 +183,9 @@ export function publicMcpManagementRoutes(oauth: PublicMcpOAuth) {
     if (!parsed.success) throw new McpOAuthError("invalid_request", "Choose a company and the requested access.");
     res.json(await oauth.consent(String(req.params.id), req.actor, parsed.data));
   });
+  router.get("/mcp/setup", realUser, async (_req, res) => res.json({
+    enabled: await oauth.isEnabled(), serverUrl: oauth.config.resource,
+  }));
   router.get("/mcp/connections", realUser, async (req, res) => res.json(await oauth.listConnections(req.actor.userId!)));
   router.delete("/mcp/connections/:id", realUser, sameOrigin, async (req, res) => {
     if (!z.uuid().safeParse(req.params.id).success) throw new McpOAuthError("invalid_request", "Invalid connection ID.");

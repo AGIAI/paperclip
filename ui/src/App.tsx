@@ -97,6 +97,7 @@ import { PluginPage } from "./pages/PluginPage";
 import { NewAgent } from "./pages/NewAgent";
 import { AuthPage } from "./pages/Auth";
 import { BoardClaimPage } from "./pages/BoardClaim";
+import { AssistantConnection } from "./pages/apps/AssistantConnection";
 import { McpConnectPage, AssistantConnectionsPage } from "./pages/McpConnect";
 import { CliAuthPage } from "./pages/CliAuth";
 import { InviteLandingPage } from "./pages/InviteLanding";
@@ -196,6 +197,7 @@ function boardRoutes(streamlinedUiEnabled: boolean) {
       <Route path="tools" element={<LegacyToolsRedirect />} />
       <Route path="tools/:tab" element={<LegacyToolsRedirect />} />
       <Route path="apps" element={<Browse />} />
+      <Route path="apps/assistant-connection" element={<AssistantConnection />} />
       <Route path="apps/browse" element={<Navigate to="/apps" replace />} />
       <Route path="apps/connections" element={<Navigate to="/apps" replace />} />
       <Route path="apps/byo" element={<AppsConnect byoOnly />} />

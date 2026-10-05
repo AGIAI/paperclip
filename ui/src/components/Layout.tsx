@@ -69,6 +69,7 @@ function getCompanyRouteSegment(pathname: string, companyPrefix: string | undefi
 const RESERVED_APP_SUBPATHS = new Set([
   "browse",
   "connections",
+  "assistant-connection",
   "connect",
   "chat",
   "vercel-connect",
