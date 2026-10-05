@@ -67,7 +67,7 @@ function PoolSurfaces({ scenario = "overview" }: { scenario?: Scenario }) {
   const [enabled, setEnabled] = useState(scenario === "flag-on");
   const overview = scenario === "overview";
   return <QueryClientProvider client={client}><main className="mx-auto max-w-3xl space-y-6 p-6">
-    <header className="space-y-2"><h1 className="text-xl font-semibold">Experimental connection pools</h1><p className="text-sm text-muted-foreground">Core integration · production components with fixture accounts. Configure the pool itself in Cloud’s plugin Storybook.</p></header>
+    {scenario !== "adoption" && <header className="space-y-2"><h1 className="text-xl font-semibold">Experimental connection pools</h1><a className="text-sm text-primary underline" href="http://127.0.0.1:6010/?path=/story/plugins-connection-pools--pool-list">Create and manage pools in Cloud Storybook</a></header>}
     {(overview || scenario.startsWith("flag")) && <AiConnectionRoutersSetting checked={enabled} onCheckedChange={setEnabled} managed={scenario === "flag-managed" ? { managed: true, managedBy: "paperclip-cloud" } : undefined} />}
     {(overview || ["selector", "legacy", "adoption", "unavailable", "read-only"].includes(scenario)) && <section className="space-y-2"><h2 className="text-sm font-semibold">Agent connection</h2><AiConnectionField companyId={companyId} agentId={agentId} agentName={agent.name}
       adapterType={scenario === "legacy" ? "claude_local" : "codex_local"} routerAdapterType={scenario === "legacy" ? "claude_local" : "paperclip_runner"}
@@ -83,7 +83,7 @@ type Story = StoryObj<typeof meta>;
 export const AllCoreSurfaces: Story = { args: { scenario: "overview" } };
 export const ConnectionSelector: Story = { args: { scenario: "selector" }, play: async ({ canvasElement }) => { const c = within(canvasElement); await userEvent.selectOptions(c.getByRole("combobox", { name: /^AI connection/ }), ""); await expect(c.getByText("Responsible user’s connection", { exact: false })).toBeVisible(); await userEvent.selectOptions(c.getByRole("combobox", { name: /^AI connection/ }), poolId); await expect(c.getByText(/New tasks rotate/)).toBeVisible(); } };
 export const CompatibleLegacyHarness: Story = { args: { scenario: "legacy" } };
-export const ExistingSessionAdoption: Story = { args: { scenario: "adoption" }, play: async ({ canvasElement }) => { const c = within(canvasElement); await userEvent.click(c.getByRole("button", { name: "Choose a managed connection" })); await userEvent.selectOptions(c.getByRole("combobox", { name: /^AI connection/ }), poolId); await expect(await within(canvasElement.ownerDocument.body).findByRole("dialog")).toHaveTextContent("Task-pinned connection pool"); } };
+export const ExistingSessionAdoption: Story = { args: { scenario: "adoption" }, play: async ({ canvasElement }) => { const c = within(canvasElement); await userEvent.click(c.getByRole("button", { name: "Choose a managed connection" })); await userEvent.selectOptions(c.getByRole("combobox", { name: /^AI connection/ }), poolId); await expect(await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Use Research accounts?" })).toHaveTextContent("Reset existing sessions that use an account outside this pool."); } };
 export const PoolUnavailable: Story = { args: { scenario: "unavailable" } };
 export const ReadOnlySelection: Story = { args: { scenario: "read-only" } };
 export const ComposerModelsFromBothProviders: Story = { args: { scenario: "models" } };

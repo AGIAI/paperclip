@@ -74,12 +74,47 @@ describe("durable, authorized connection routing", () => {
     const pool = await makePool(); const url = `/api/companies/${companyId}/ai-connection-pools`;
     expect((await request(app).get(url)).status).toBe(200);
     expect((await request(app).get(`/api/companies/${otherCompanyId}/ai-connection-pools`)).status).toBe(403);
+    expect((await request(app).delete(`/api/companies/${otherCompanyId}/ai-connection-pools/${pool.id}`).send({ expectedRevision: pool.revision })).status).toBe(403);
     actor = { ...actor, memberships: [{ companyId, status: "active", membershipRole: "viewer" }] };
     expect((await request(app).get(url)).status).toBe(403);
     expect((await request(app).post(url).send({ pluginKey, config: pool })).status).toBe(403);
     expect((await request(app).get(`${url}/${pool.id}/inspection`)).status).toBe(403);
+    expect((await request(app).delete(`${url}/${pool.id}`).send({ expectedRevision: pool.revision })).status).toBe(403);
     actor = { type: "agent", agentId, companyId, source: "agent_jwt" } as unknown as typeof actor;
     expect((await request(app).get(url)).status).toBe(403);
+    expect((await request(app).delete(`${url}/${pool.id}`).send({ expectedRevision: pool.revision })).status).toBe(403);
+    actor = { type: "board", userId: "alice", source: "session", companyIds: [companyId], memberships: [{ companyId, status: "active", membershipRole: "owner" }] };
+    expect((await request(app).delete(`${url}/${pool.id}`).send({ expectedRevision: pool.revision + 1 })).status).toBe(409);
+    expect((await request(app).delete(`${url}/${pool.id}`).send({ expectedRevision: pool.revision })).status).toBe(200);
+    expect((await request(app).get(url)).body.some((entry: { id: string }) => entry.id === pool.id)).toBe(false);
+  });
+  it("deletes pools without erasing pins, cursors, or admitted recovery evidence", async () => {
+    const pool = await makePool(); const selected = await resolve(pool.id, "retained");
+    await expect(service().remove(otherCompanyId, pool.id, pool.revision, "alice")).rejects.toThrow("not found");
+    await expect(service().remove(companyId, pool.id, pool.revision + 1, "alice")).rejects.toThrow("reload before deleting");
+    await service().remove(companyId, pool.id, pool.revision, "alice");
+    expect((await service().list(companyId)).some(entry => entry.id === pool.id)).toBe(false);
+    expect((await service().selectable(companyId, "alice")).some(entry => entry.id === pool.id)).toBe(false);
+    expect(await db.select().from(aiConnectionTaskPins).where(eq(aiConnectionTaskPins.poolId, pool.id))).toHaveLength(1);
+    const [cursor] = await db.select().from(aiConnectionRouterCursors).where(eq(aiConnectionRouterCursors.poolId, pool.id)); expect(cursor?.version).toBe(1);
+    await expect(resolve(pool.id, "new")).rejects.toThrow("choose another AI connection");
+    expect(await resolve(pool.id, "retained", { persisted: selected })).toEqual(selected);
+    const { name, enabled, mode, thresholdPercent, members: savedMembers } = pool;
+    await expect(service().save(pluginKey, { companyId, id: pool.id, expectedRevision: pool.revision + 1, config: { name, enabled, mode, thresholdPercent, members: savedMembers } }, "alice")).rejects.toThrow("not found");
+  });
+  it("does not commit a selection when its pool is deleted during a proposal", async () => {
+    const pool = await makePool();
+    proposal.mockImplementationOnce(async () => { await service().remove(companyId, pool.id, pool.revision, "alice"); return { kind: "selected", memberId: members[0]!.id }; });
+    await expect(resolve(pool.id, "deleted-during-selection")).rejects.toThrow("choose another AI connection");
+    expect(await db.select().from(aiConnectionTaskPins).where(eq(aiConnectionTaskPins.poolId, pool.id))).toHaveLength(0);
+    const [cursor] = await db.select().from(aiConnectionRouterCursors).where(eq(aiConnectionRouterCursors.poolId, pool.id)); expect(cursor?.version).toBe(0);
+  });
+  it("allows cleanup while experimental routing and its plugin are disabled", async () => {
+    const pool = await makePool();
+    await instanceSettingsService(db).updateExperimental({ enableAiConnectionRouters: false });
+    await db.update(plugins).set({ status: "disabled" }).where(eq(plugins.id, pluginId));
+    try { await expect(service().remove(companyId, pool.id, pool.revision, "alice")).resolves.toEqual({ ok: true }); }
+    finally { await instanceSettingsService(db).updateExperimental({ enableAiConnectionRouters: true }); await db.update(plugins).set({ status: "ready" }).where(eq(plugins.id, pluginId)); }
   });
   it("rotates new tasks across qualified backends and retains pins on turns, resets and service restart", async () => {
     const pool = await makePool();

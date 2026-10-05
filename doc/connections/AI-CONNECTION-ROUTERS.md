@@ -49,6 +49,13 @@ the chosen threshold wait; known exhaustion defers pinned turns. The deferred
 run schedules `ai_connection_pool_wait` without spending the failure retry
 budget, and the UI labels that retry as **Pool exhausted**.
 
+Operators create, list, edit and delete pools in that plugin page. Deletion uses
+`DELETE /api/companies/:companyId/ai-connection-pools/:poolId` with the current
+`expectedRevision`. Core disables and archives the virtual connection, retaining
+its task pins, cursor and run records. It rejects stale edits and new allocations;
+already admitted runs keep their concrete recovery evidence. Cleanup remains
+available when experimental routing or the plugin is disabled.
+
 Configuration and committed selection are recorded in activity records. Runs
 record the selected member/profile and override notes in the local run log and
 recovery context. These records stay in the instance database.
@@ -70,3 +77,5 @@ to build the preview.
 Pool configuration stories belong to the private Cloud plugin's own Storybook
 in `extensions/plugin-connection-pool/storybook/`. Both previews use fictional
 accounts; they do not call live providers or mutate a Paperclip instance.
+The Core overview links to Cloud's pool list preview on port 6010; from there,
+use **New pool** or select an existing pool to edit, inspect or delete it.

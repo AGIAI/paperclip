@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { aiConnectionPools, aiConnectionRouterCursors, aiConnectionTaskPins, companySecrets, connectionGrants, instanceSettings, plugins, toolApplications, toolConnections, toolConnectionInstalls, type Db } from "@paperclipai/db";
 import { aiConnectionPoolConfigSchema, isAiConnectionCompatible, type AiConnectionPool, type AiConnectionPoolMember, type AiConnectionRouterRequest, type AiConnectionRouterSelection, type AiConnectionPoolSaveInput, type AiConnectionUsage } from "@paperclipai/shared";
 import { isCodexLocalKnownModel, codexLocalReasoningEffortsForModel } from "@paperclipai/adapter-codex-local";
@@ -77,8 +77,10 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     if (!(await instanceSettingsService(db).getExperimental()).enableAiConnectionRouters) throw unprocessable("Enable AI connection routers in Experimental settings", { code: "ai_connection_router_disabled" });
   }
   async function list(companyId: string) {
-    const rows = await db.select().from(aiConnectionPools).where(eq(aiConnectionPools.companyId, companyId));
-    return rows.map((row): AiConnectionPool => ({ ...row.config, id: row.id, companyId, pluginKey: row.pluginKey, revision: row.revision }));
+    const rows = await db.select({ pool: aiConnectionPools }).from(aiConnectionPools)
+      .innerJoin(toolConnections, and(eq(toolConnections.id, aiConnectionPools.id), eq(toolConnections.companyId, aiConnectionPools.companyId)))
+      .where(and(eq(aiConnectionPools.companyId, companyId), ne(toolConnections.status, "archived")));
+    return rows.map(({ pool: row }): AiConnectionPool => ({ ...row.config, id: row.id, companyId, pluginKey: row.pluginKey, revision: row.revision }));
   }
   async function selectable(companyId: string, userId: string) {
     if (!(await instanceSettingsService(db).getExperimental()).enableAiConnectionRouters) return [];
@@ -120,6 +122,8 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
       if (input.id) {
         const [row] = await tx.select().from(aiConnectionPools).where(and(eq(aiConnectionPools.id, id), eq(aiConnectionPools.companyId, input.companyId), eq(aiConnectionPools.pluginKey, pluginKey))).for("update");
         if (!row) throw notFound("Connection pool not found");
+        const [connection] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, id), eq(toolConnections.companyId, input.companyId)));
+        if (!connection || connection.status === "archived") throw notFound("Connection pool not found");
         if (input.expectedRevision !== row.revision) throw conflict("Pool changed; reload before saving");
         await tx.update(aiConnectionPools).set({ config, revision: row.revision + 1, updatedAt: new Date() }).where(eq(aiConnectionPools.id, id));
         await tx.update(toolConnections).set({ name: config.name, enabled: config.enabled, updatedAt: new Date() }).where(and(eq(toolConnections.id, id), eq(toolConnections.companyId, input.companyId)));
@@ -136,6 +140,21 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
       await logActivity(tx as unknown as Db, { companyId: input.companyId, actorType: "user", actorId: userId, action: "ai_connection.pool_saved", entityType: "tool_connection", entityId: id, details: { enabled: config.enabled, memberCount: config.members.length, mode: config.mode } });
     });
     return (await list(input.companyId)).find((p) => p.id === id)!;
+  }
+  async function remove(companyId: string, poolId: string, expectedRevision: number, userId: string) {
+    // Archive the virtual connection; cascading deletion would erase task pins.
+    // Cleanup remains available when the experimental flag or plugin is off.
+    await db.transaction(async tx => {
+      const [row] = await tx.select().from(aiConnectionPools).where(and(eq(aiConnectionPools.id, poolId), eq(aiConnectionPools.companyId, companyId))).for("update");
+      if (!row) throw notFound("Connection pool not found");
+      const [connection] = await tx.select().from(toolConnections).where(and(eq(toolConnections.id, poolId), eq(toolConnections.companyId, companyId)));
+      if (!connection || connection.status === "archived") throw notFound("Connection pool not found");
+      if (row.revision !== expectedRevision) throw conflict("Pool changed; reload before deleting");
+      await tx.update(aiConnectionPools).set({ config: { ...row.config, enabled: false }, revision: row.revision + 1, updatedAt: new Date() }).where(eq(aiConnectionPools.id, poolId));
+      await tx.update(toolConnections).set({ status: "archived", enabled: false, updatedAt: new Date() }).where(and(eq(toolConnections.id, poolId), eq(toolConnections.companyId, companyId)));
+      await logActivity(tx as unknown as Db, { companyId, actorType: "user", actorId: userId, action: "ai_connection.pool_deleted", entityType: "tool_connection", entityId: poolId, details: { retainedTaskPins: true } });
+    });
+    return { ok: true };
   }
   async function usageCacheKey(member: AiConnectionPoolMember, companyId: string) {
     const [grant] = await db.select().from(connectionGrants).where(and(eq(connectionGrants.companyId, companyId), eq(connectionGrants.id, member.binding.grantId)));
@@ -188,8 +207,12 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     }
     await enabled();
     for (let attempt = 0; attempt < 20; attempt++) {
-      const [row] = await db.select().from(aiConnectionPools).where(and(eq(aiConnectionPools.id, input.poolId), eq(aiConnectionPools.companyId, input.companyId)));
-      if (!row || !row.config.enabled) throw unprocessable("Enable the selected connection pool");
+      const [record] = await db.select({ pool: aiConnectionPools, connectionStatus: toolConnections.status }).from(aiConnectionPools)
+        .innerJoin(toolConnections, and(eq(toolConnections.id, aiConnectionPools.id), eq(toolConnections.companyId, aiConnectionPools.companyId)))
+        .where(and(eq(aiConnectionPools.id, input.poolId), eq(aiConnectionPools.companyId, input.companyId)));
+      if (!record || record.connectionStatus === "archived") throw unprocessable("This connection pool is unavailable; choose another AI connection");
+      const row = record.pool;
+      if (!row.config.enabled) throw unprocessable("Enable the selected connection pool");
       const plugin = await owner(row.pluginKey);
       if (!workerManager?.isRunning(plugin.id)) throw unprocessable("The connection router worker is unavailable; retry when it is ready");
       const [pin] = await db.select().from(aiConnectionTaskPins).where(pinWhere);
@@ -246,5 +269,5 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     }
     throw conflict("Concurrent pool selections changed the cursor; retry this task");
   }
-  return { list, selectable, inspect, save, resolve };
+  return { list, selectable, inspect, save, remove, resolve };
 }

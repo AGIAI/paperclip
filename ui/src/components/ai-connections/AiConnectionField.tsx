@@ -132,7 +132,7 @@ export function AiConnectionField({
           {compatiblePools.map(pool => <option key={pool.id} value={pool.id}>{pool.name} · Experimental pool</option>)}
           {value?.mode === "router" && !compatiblePools.some(pool => pool.id === value.connectionId) && <option value={value.connectionId}>Pool unavailable — enable routing and the pool</option>}
         </select>
-        {value?.mode === "router" && <span className="text-muted-foreground">New tasks rotate. Existing tasks keep their account and harness. Reset any incompatible existing session before adoption.</span>}
+        {value?.mode === "router" && <span className="text-muted-foreground">New tasks rotate. Existing tasks keep their account.</span>}
       </label>}
       {value?.mode !== "router" && <AiConnectionPicker
         requirement={{ companyId, provider }}
@@ -159,22 +159,22 @@ export function AiConnectionField({
       >
         <DialogContent className="max-h-(--sz-85vh) overflow-y-auto sm:max-w-2xl" onCloseAutoFocus={restoreFocus}>
           <DialogHeader>
-            <DialogTitle>Adopt Connections for {agentName}</DialogTitle>
+            <DialogTitle>{pendingAdoption?.mode === "router" ? `Use ${accounts.data?.pools?.find(pool => pool.id === pendingAdoption.connectionId)?.name ?? "this pool"}?` : `Adopt Connections for ${agentName}`}</DialogTitle>
             <DialogDescription>
-              Saving validates access to the selected connection. Existing sessions keep their account or require an explicit reset before adoption.
+              {pendingAdoption?.mode === "router" ? "Reset existing sessions that use an account outside this pool." : "Saving validates access to the selected connection. Existing sessions keep their account or require an explicit reset before adoption."}
             </DialogDescription>
           </DialogHeader>
-          <p className="text-sm">
+          {pendingAdoption?.mode !== "router" && <p className="text-sm">
             {pendingAdoption?.mode === "responsible_user"
               ? `Responsible user’s default. For you: ${accounts.data?.connections.find((account) => account.isDefault && account.provider === provider)?.name ?? "Not connected"}. Other users use their own default.`
-              : pendingAdoption?.mode === "router" ? `Task-pinned connection pool. Existing sessions must use a pool member or be reset.` : accounts.data?.connections.find(
+              : accounts.data?.connections.find(
                   (account) => account.id === pendingAdoption?.connectionId,
                 )?.name}
-          </p>
-          <p className="text-xs text-muted-foreground">
+          </p>}
+          {pendingAdoption?.mode !== "router" && <p className="text-xs text-muted-foreground">
             After adoption, missing credentials block execution. Previous
             authentication will not be used as a fallback.
-          </p>
+          </p>}
           <DialogFooter>
             <Button
               variant="ghost"
@@ -188,7 +188,7 @@ export function AiConnectionField({
                 setPendingAdoption(undefined);
               }}
             >
-              Use this binding when saved
+              {pendingAdoption?.mode === "router" ? "Use pool" : "Use this binding when saved"}
             </Button>
           </DialogFooter>
         </DialogContent>
