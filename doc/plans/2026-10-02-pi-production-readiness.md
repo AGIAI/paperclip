@@ -82,12 +82,16 @@ success label is corrected by its strict verdict. All three owned sandboxes are
 deleted. The original paid rejection stage remains unproven.
 
 Prerequisite fixes preserve every previous commit. The latest heads are
-#14921 `32b5e275d`, #14922 `0a3f265c3`, #14923 `30410cf2b`, and #14924
-`26802337c`. They carry the scoped UI/profile assertions and notice-display
+#14921 `89f444850`, #14922 `ec67ba1e0`, #14923 `3250c3f68`, and #14924
+`9753f0716`. They carry the scoped UI/profile assertions and notice-display
 corrections. The first prerequisite also receives the existing package-local
 Runner probe import repair and remaining admission assertions already present
-downstream. Each latest prerequisite passes all 91 affected server tests and
-75 sidecar tests against its own source, with no provider calls. The earlier
+downstream. The complete repair includes both public probe export surfaces.
+At `89f444850`, all 91 affected server tests and 75 sidecar tests pass, and
+the complete Runner TypeScript package typechecks. A real, unmocked shim import
+verifies all three probe function identities without invoking any probes.
+The later ancestry merges retain identical tracked source trees to the
+`0a3f265c3`/`30410cf2b`/`26802337c` 166-test proofs. No provider calls occur. The earlier
 `f8bbeeb4c`/`c057c5746`/`78b02e6ba` heads pass 42 focused UI/live tests each;
 `cee5c3fc6` passes 92. Their previous source-bound UI token checks pass. Retain
 those source labels. Earlier commands with stale linked builds, incomplete
@@ -97,13 +101,18 @@ exact source aliases and the pinned Node directory; no repository configuration
 changes occur.
 
 The additive readiness integration has an identical tracked tree to
-`aef3b84ce` before this plan update. That preceding head completes 53 successful
+`337ca6bd1` before this plan update. The preceding `aef3b84ce` completes 53 successful
 CI checks and two skips after one bounded rerun of the serialized sidebar job.
 All six sidebar tests also pass locally. The original HTTP 500 cause remains
 unproven; the failed log is retained. The earliest prerequisite's original
 signoff-policy browser failure is separate: its issue-bound heartbeat run does
-not become available. New-head CI and review require their own terminal results;
-old passes do not qualify a new head. No repeated unchanged rerun is authorized.
+not become available. The intervening `337ca6bd1` CI retains a hosted-runner shutdown/cancellation
+and a ten-second timeout in an unchanged Cursor fixture. All five current-source
+Cursor tests pass locally; the original timeout cause remains unproven. The
+partial import repair at `32b5e275d` also retains its three missing-export build
+errors; the complete repair above supplies those exports. New-head CI and review
+require their own terminal results. Old passes do not qualify a new head.
+No repeated unchanged rerun is authorized.
 
 Runtime artifacts, profile 14, model/low and suite fingerprints are unchanged.
 The source still declares Pi qualified: the production hold is the draft/release
