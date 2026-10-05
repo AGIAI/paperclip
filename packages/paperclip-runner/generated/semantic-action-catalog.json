@@ -1823,6 +1823,16 @@
           "additionalProperties": false,
           "description": "Readiness when this update was applied. A replay retains that snapshot; task state can change afterward.",
           "properties": {
+            "cancelledTaskIds": {
+              "description": "Unresolved dependencies that are cancelled and cannot produce a completion wake.",
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 200,
+              "type": "array",
+              "uniqueItems": true
+            },
             "isReady": {
               "type": "boolean"
             },

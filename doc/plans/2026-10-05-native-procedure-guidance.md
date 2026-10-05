@@ -27,6 +27,10 @@ is already ready, the receipt directs the parent to review and continue instead
 of blocking for an event that already happened. Additional teammate work needs
 an assigned revision task; a comment on a completed task does not substitute for
 that assignment. Idempotent replay preserves the original readiness snapshot.
+Cancelled dependencies remain unresolved and appear separately in
+`cancelledTaskIds`. Their guidance requires removing an obsolete edge or assigning
+a replacement while preserving other required blockers. Cancellation does not
+count as success and cannot be awaited as a future completion wake.
 
 This is a new combined instruction and receipt correction, not a regrade of the
 failed experiment. The original results above remain unchanged. A new matched

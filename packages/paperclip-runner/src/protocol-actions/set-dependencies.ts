@@ -146,6 +146,13 @@ export const setDependenciesAction = {
                 "items": { "type": "string", "minLength": 1 },
                 "maxItems": 200,
                 "uniqueItems": true
+              },
+              "cancelledTaskIds": {
+                "type": "array",
+                "description": "Unresolved dependencies that are cancelled and cannot produce a completion wake.",
+                "items": { "type": "string", "minLength": 1 },
+                "maxItems": 200,
+                "uniqueItems": true
               }
             },
             "required": ["isReady", "unresolvedTaskIds"],

@@ -38,7 +38,7 @@ import { badRequest, forbidden, notFound, HttpError } from "../../errors.js";
 import { searchRunnerApi } from "./runner-api-catalog.js";
 import { executeRunnerApi, validateRunnerApiCall, RUNNER_API_MAX_BYTES, type RunnerApiFile } from "./runner-api-client.js";
 import { acquireRunnerApiResponseSlot, runnerApiCompanyCaptureMaxBytes, RUNNER_API_RESPONSE_MAX_BYTES, RUNNER_API_RESPONSE_RUN_MAX_BYTES, RunnerApiResponseLimitError } from "./runner-api-response-limits.js";
-import { and, desc, eq, isNull, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import {
   activityLog,
@@ -1334,6 +1334,13 @@ export class PaperclipRunnerToolAuthority {
       }, tx);
       if (!updated) throw new Error("paperclip_runner_task_not_found");
       const readiness = await issueService(tx).getDependencyReadiness(updated.id, tx);
+      const cancelledBlockers = readiness.unresolvedBlockerIssueIds.length > 0
+        ? await tx.select({ id: issues.id }).from(issues).where(and(
+          eq(issues.companyId, this.binding.companyId),
+          inArray(issues.id, readiness.unresolvedBlockerIssueIds),
+          eq(issues.status, "cancelled"),
+        )).orderBy(issues.id)
+        : [];
       return {
         commandId: `set-dependencies:${updated.id}:${updated.statusVersion}`,
         disposition: "applied",
@@ -1343,11 +1350,14 @@ export class PaperclipRunnerToolAuthority {
         dependencyReadiness: {
           isReady: readiness.isDependencyReady,
           unresolvedTaskIds: readiness.unresolvedBlockerIssueIds,
+          cancelledTaskIds: cancelledBlockers.map((blocker) => blocker.id),
         },
         ...(blockedByIssueIds.length > 0 ? {
           guidance: readiness.isDependencyReady
             ? "All recorded dependencies are complete and their workspaces are finalized at this update. Review the latest results and continue; do not block waiting for these completed tasks. If more teammate work is required, create a revision task with create_task and record its dependency. A comment on a completed task is not a replacement for assigning new work."
-            : "Recorded dependencies are unfinished at this update. Complete independent work, then call paperclip_block with the child agent as owner and child completion as the unblock action. End the turn to release the workspace; do not sleep or poll. Check current task state before blocking if a result has arrived. Paperclip resumes the parent when dependencies complete; review the latest results and pending feedback before finishing.",
+            : cancelledBlockers.length > 0
+              ? "The cancelledTaskIds dependencies are cancelled and will not produce a completion wake. Do not wait for those tasks. Review whether their work is still required, then use set_dependencies to remove obsolete dependencies or replace them with newly assigned tasks while preserving every other required blocker. Do not treat cancellation as successful completion. If a human decision is required, request it explicitly."
+              : "Recorded dependencies are unfinished at this update. Complete independent work, then call paperclip_block with the child agent as owner and child completion as the unblock action. End the turn to release the workspace; do not sleep or poll. Check current task state before blocking if a result has arrived. Paperclip resumes the parent when dependencies complete; review the latest results and pending feedback before finishing.",
         } : {}),
       };
     });
