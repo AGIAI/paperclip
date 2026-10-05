@@ -81,19 +81,35 @@ fail to reach the question and remain failed. The first wrapper's premature
 success label is corrected by its strict verdict. All three owned sandboxes are
 deleted. The original paid rejection stage remains unproven.
 
-Prerequisite fixes preserve every previous commit. PR #14921 at `a7b49fc14`
-corrects profile-12/UI assertions and duplicate failure display. PR #14922 at
-`a23e607ec` and #14923 at `8b0911bdd` carry the corrected ancestry. Each passes
-33 source-bound focused checks. PR #14924 at `b8a59b259` also corrects notice
-severity and compact activity categories; all 82 affected UI checks and required
-token gates pass. Earlier local commands using stale linked builds or incomplete
-verification aliases remain failed or insufficient evidence. Full current-head
-CI and review remain separate gates. The readiness integration has an identical
-tracked tree to `baaf444ed` before this plan update. Runtime artifacts, profile
-14, model/low and suite fingerprints are unchanged. The source still declares
-Pi qualified: the production hold is the draft/release gate, not a closed code
-admission gate. That admission review remains open. No merge, release, automatic
-paid retry, fallback key or model change occurs.
+Prerequisite fixes preserve every previous commit. The latest heads are
+#14921 `32b5e275d`, #14922 `0a3f265c3`, #14923 `30410cf2b`, and #14924
+`26802337c`. They carry the scoped UI/profile assertions and notice-display
+corrections. The first prerequisite also receives the existing package-local
+Runner probe import repair and remaining admission assertions already present
+downstream. Each latest prerequisite passes all 91 affected server tests and
+75 sidecar tests against its own source, with no provider calls. The earlier
+`f8bbeeb4c`/`c057c5746`/`78b02e6ba` heads pass 42 focused UI/live tests each;
+`cee5c3fc6` passes 92. Their previous source-bound UI token checks pass. Retain
+those source labels. Earlier commands with stale linked builds, incomplete
+verification aliases, an incorrect config path, or a missing child Node path
+remain failed or insufficient evidence. The corrected private verification uses
+exact source aliases and the pinned Node directory; no repository configuration
+changes occur.
+
+The additive readiness integration has an identical tracked tree to
+`aef3b84ce` before this plan update. That preceding head completes 53 successful
+CI checks and two skips after one bounded rerun of the serialized sidebar job.
+All six sidebar tests also pass locally. The original HTTP 500 cause remains
+unproven; the failed log is retained. The earliest prerequisite's original
+signoff-policy browser failure is separate: its issue-bound heartbeat run does
+not become available. New-head CI and review require their own terminal results;
+old passes do not qualify a new head. No repeated unchanged rerun is authorized.
+
+Runtime artifacts, profile 14, model/low and suite fingerprints are unchanged.
+The source still declares Pi qualified: the production hold is the draft/release
+gate, not a closed code admission gate. That admission review remains open.
+No GitHub PR merge, release, automatic paid retry, fallback key or model change
+occurs.
 
 ## Accepted corrections — 2026-10-04
 
