@@ -64,9 +64,13 @@ export async function runPiControlsFlow(input: {
   let steered: { pending: PiControlPending; commentId: string; queueId: string; marker: string } | undefined;
   let completed = false;
   const observeProcesses = () => {
+    // Controller timestamps describe remote launch annotations, not Linux
+    // process birth. Daytona identity is checked in the bound remote snapshots
+    // through PID, start ticks and boot ID, including the retirement seal.
+    if (!observer) return;
     const run = runs[0], authority = run?.processPid ? { pid: run.processPid, groupId: run.processGroupId, startedAt: run.processStartedAt, runId: run.id } : undefined;
     if (authority) { const key = JSON.stringify(authority); if (processIdentity && processIdentity !== key) processError = true; processIdentity ??= key; }
-    if (observer) processes = observer.sample(authority);
+    processes = observer.sample(authority);
   };
   const load = async (): Promise<PiControlState> => {
     if (issue.id) issue = await api.get<Row>(`/api/issues/${issue.id}`);

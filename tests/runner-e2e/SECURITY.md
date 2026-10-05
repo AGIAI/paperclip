@@ -300,3 +300,10 @@ native client command is supplied by the fixture, while production notices retai
 only its SHA-256. The fixture keeps private process identities local, closes its
 owned socket/child in cleanup, and never signals API-reported PIDs. Directory
 watch loss makes the denial oracle incomplete; it must not become a no-effect pass.
+
+Pi Daytona controls bind process identity to the independent Linux observer's
+PID, start ticks and boot ID within the exact admitted run/lease/sandbox. The
+controller's `processStartedAt` annotations may change as launch metadata settles
+and do not identify a remote process birth. Every remote snapshot and retirement
+seal must retain the original birth identity and complete no-effect journal.
+Local controls retain their separate public process-authority comparison.

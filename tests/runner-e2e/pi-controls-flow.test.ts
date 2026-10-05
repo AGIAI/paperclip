@@ -28,7 +28,7 @@ vi.mock("@playwright/test", () => ({ expect: (actual: any, message?: string) => 
   toHaveCount: async (value: number) => { if (typeof actual.count === "function") expect(actual.count()).toBe(value); },
 }) }));
 
-async function exercise(taskId: string, remote: boolean, failure?: "mutation" | "incomplete" | "missing-ack" | "missing-comment" | "foreign-comment" | "foreign-queued-body" | "steer-rejected" | "duplicate-permission") {
+async function exercise(taskId: string, remote: boolean, failure?: "mutation" | "incomplete" | "missing-ack" | "missing-comment" | "foreign-comment" | "foreign-queued-body" | "steer-rejected" | "duplicate-permission" | "annotation-drift" | "root-rotation") {
   harness.target = ""; harness.prompt = ""; harness.message = ""; harness.mutation = failure === "mutation"; harness.incomplete = failure === "incomplete";
   const task = piControlTasks.find(t => t.id === taskId)!, stopCase = taskId === "pending-permission-stop";
   const workspacePath = await mkdtemp(join(tmpdir(), "pi-controls-fixture-"));
@@ -57,7 +57,10 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
       if (path.endsWith("/issues?limit=100")) return [f.issue];
       if (path === "/api/issues/issue") return f.issue;
       if (path.endsWith("/heartbeat-runs?limit=100")) return [f.run];
-      if (path === "/api/heartbeat-runs/run") return f.run;
+      if (path === "/api/heartbeat-runs/run") {
+        if (failure === "annotation-drift") f.run.processStartedAt = f.run.status === "running" ? "2026-10-01T00:00:11Z" : "2026-10-01T00:00:00Z";
+        return f.run;
+      }
       if (path.includes("/events?")) return f.events;
       if (path.endsWith("/queued-comments")) return queue();
       if (path.endsWith("/comments")) {
@@ -130,7 +133,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
     binding, observedAtMs: ++remoteSequence, receivedAtMs: remoteSequence + 1, observedMonotonicNs: String(remoteSequence), complete: true, workspace: {},
     targets: { "pi-control-fixture.txt": { absent: true, sha256: null, complete: true, mutationCount: retired && harness.mutation ? 1 : 0, parent: { dev: "1", ino: "2" } } },
     watcher: { complete: !(retired && harness.incomplete), targetMutationCount: retired && harness.mutation ? 1 : 0, workspaceMutationCount: 0 },
-    processes: { captured: true, root, journal: [root], live: retired ? [] : [50] },
+    processes: { captured: true, root: retired && failure === "root-rotation" ? { ...root, startTicks: "201" } : root, journal: [root], live: retired ? [] : [50] },
     setup: { path: ".paperclip-eval-action-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.txt", sha256: published ? `sha256:${"b".repeat(64)}` : null, published }, attached: null,
   });
   let seal: ReturnType<typeof snapshot> | undefined;
@@ -148,7 +151,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
     else if (failure === "missing-ack") { await expect(call).rejects.toThrow("acknowledgement"); expect(browserDeclines).toBe(0); }
     else if (failure === "steer-rejected") { await expect(call).rejects.toThrow("steering rejected: HTTP 409"); expect(browserDeclines).toBe(0); }
     else if (failure === "foreign-queued-body") { await expect(call).rejects.toThrow("browser comment queued"); expect(browserSteers).toBe(0); expect(browserDeclines).toBe(0); }
-    else if (remote && (failure === "mutation" || failure === "incomplete")) await expect(call).rejects.toThrow();
+    else if (remote && (failure === "mutation" || failure === "incomplete" || failure === "root-rotation")) await expect(call).rejects.toThrow();
     else {
       const result = await call; expect(result.checks.every(c => c.passed)).toBe(true); expect(saved.has("api-state.json")).toBe(true);
       expect(stops).toBe(stopCase ? 1 : 0); expect(staleDeclines).toBe(stopCase ? 1 : 0);
@@ -166,8 +169,9 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
     expect(remote ? localCleanup : remoteCleanup).toHaveLength(0);
     const cleanups = remote ? remoteCleanup : localCleanup; expect(cleanups).toHaveLength(1);
     cleaningUp = true;
-    if (failure) await expect(cleanups[0]!()).rejects.toThrow();
+    if (failure && !(remote && failure === "annotation-drift")) await expect(cleanups[0]!()).rejects.toThrow();
     else expect((await cleanups[0]!())[0].passed).toBe(true);
+    if (failure === "annotation-drift") expect(saved.get("pi-control-cleanup.json").processError).toBe(!remote);
     if (!stopCase && (!failure || failure === "missing-comment" || failure === "foreign-comment")) {
       const receipt = saved.get("pi-steering-presentation-after-cleanup.json");
       expect(receipt.phase).toBe("after-cleanup"); expect(receipt.comments).toEqual(publicComments.at(-1));
@@ -190,3 +194,6 @@ it("rejects a queued body that differs from the exact browser submission", () =>
 it("stops before denial when the real steering API rejects the request", () => exercise("same-turn-steering", false, "steer-rejected"));
 it.each(["missing-comment", "foreign-comment"] as const)("retains and rejects %s during cleanup without fabricating persisted output", failure => exercise("same-turn-steering", false, failure));
 it("refuses control when two actionable permission cards remain beside resolved setup history", () => exercise("pending-permission-stop", true, "duplicate-permission"));
+it.each(["pending-permission-stop", "same-turn-steering"])("%s retains exact remote birth identity when public timestamp annotations change", task => exercise(task, true, "annotation-drift"));
+it("rejects actual remote process birth rotation despite unchanged public annotations", () => exercise("pending-permission-stop", true, "root-rotation"));
+it("still rejects local process authority timestamp changes", () => exercise("pending-permission-stop", false, "annotation-drift"));

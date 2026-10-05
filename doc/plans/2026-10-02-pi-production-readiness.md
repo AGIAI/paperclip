@@ -92,6 +92,51 @@ Private receipts retain credential and provisional spend checks. Paid dispatch
 requires fresh checks under the approved bounded execution phase. No paid
 provider attempt occurs during this resumed preparation.
 
+## Corrected live attempts — 2026-10-05
+
+The resumed matrix has **22 passed cells, ten failed cells and one unattempted
+cell**. Four separately bounded live attempts retain frozen shipping source
+`0bd040093`, exact harness source `14c48ff40`, profile 14/model/low and zero
+automatic retries. The original campaign, grades and receipts remain unchanged.
+Human permission denial passes all nine canonical matchers and cleanup. Its
+independent journal proves no target effect through exact provider retirement;
+public native identity confirms the frozen model and low thinking.
+
+Agent-files reaches successful native work and a durable managed-file save, but
+the saved content lacks the required final newline. The exact-byte assertion
+fails before fresh-task readback. Its cleanup separately fails on an expired
+lease; the owned child sandbox is subsequently verified absent. Provider-death
+reaches the unchanged unanswered native input but its one-shot fault returns an
+incomplete observer response. Independent retirement and canonical cleanup
+pass, while the case remains failed and expiry/stale-answer proof is unreached.
+Neither case has an unchanged retry.
+
+The corrected Stop attempt closes the exact permission under the operator's
+Stop and rejects a stale response, but its cleanup oracle reports a process
+identity change. Retained public responses show `processStartedAt` changing
+between launch annotations for the same PID. All three independent Linux
+snapshots instead retain the same PID, boot ID and start ticks; the final seal
+has no live processes and a complete zero-mutation journal. The owned child
+sandbox is deleted after evidence collection, without regrading failed cleanup.
+
+The fixture correction uses the bound independent remote birth identity already
+required by the remote oracle. Local process-authority checks remain intact.
+Controls definitions advance to 8 and explicitly name PID/start-ticks/boot-ID
+identity. Two timestamp-drift regressions fail before the correction and pass
+afterward; actual remote birth rotation and local authority changes still fail.
+All four new local regressions and nine selected remote flow tests pass without
+provider calls. Fresh native Linux validation and live Stop/steering qualification
+on definitions 8 remain required. Steering is still unattempted.
+
+The owned Linux controller passes normal public installation, Pi admission in
+6.949 seconds, complete 101,226-file consumer and 16,356-file plugin audits,
+all 13 browser-case collections and 112 targeted free native Linux tests.
+These preparation checks do not qualify a live behavior. Last verified root
+head `14c48ff40` has 53 successful checks, two skips, Greptile 5/5 and no open
+root review threads; this fixture follow-up requires its own completed checks.
+Prerequisite reviews/standalone CI and the remaining failed production gates
+stay open. Rollout remains held; no merge or release occurs.
+
 ## Qualification snapshot — 2026-10-03
 
 The current ledger has 21 passes, ten failed cells, two unattempted cells and
