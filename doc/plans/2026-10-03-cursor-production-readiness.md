@@ -9,7 +9,7 @@ Paperclip questions remain the supported question path. Unknown usage is unknown
 The proposed release supports authenticated Paperclip tools, semantic questions,
 native plan decisions, permission control, rich activity, file delivery, durable
 responses, cancellation and warm continuation. The matrix below records the
-current proof for those capabilities; it does not certify pending remote cells.
+completed local and fresh Daytona proof for those capabilities.
 Accepted planning succeeds while the task waits for explicit user direction.
 Acceptance does not start implementation.
 
@@ -28,28 +28,36 @@ defensively but is not advertised or certified. See the
 ## Current release checkpoint
 
 The integration is in draft PR [#15075](https://github.com/paperclipai/paperclip/pull/15075).
-Production admission remains disabled. The frozen runtime is
+Cursor production admission is enabled in this draft candidate after all ten
+local and ten fresh Daytona cases passed with cleanup. Pi and Copilot remain
+gated. Final installed-package qualification and final CI are still in progress;
+this PR is not authorized for production merge or deployment. The frozen runtime is
 `d0b90756e3abe9e7516caded784036f01e76ad25`; the latest controller and fixture
-repairs are `473206cd9d5c7e4399b03869b42a9e9f6ba96c09`. Cursor profile v11,
+repairs are `afe305b505edd2744ead6d0dda312400d0b9be66`. The promotion and
+ordinary remote package path are `630ed8613191b6875ad448ecdfe067089f3696d9`. Cursor profile v11,
 patch `paperclip-cursor-usage-v4`, CLI version and explicit Luna model remain fixed.
 
 | Required case | Current local proof | Fresh Daytona proof |
 | --- | --- | --- |
-| Completion through authenticated tools | `hello-complete-01`: passed, cleanup passed | Pending |
-| File edit, validation and registered download | `file-edit-validate-02`: passed, cleanup passed | Pending |
-| Semantic question after controller restart | `structured-question-restart-resume-01`: passed, cleanup passed | Pending |
-| Semantic plan approval and completion | `plan-approve-complete-01`: passed, cleanup passed | Pending |
-| Native reject, revise and accept | `native-plan-reject-revise-accept-01`: passed, cleanup passed | Pending |
-| Native plan cancellation | `native-plan-cancel-01`: passed, cleanup passed | Pending |
-| Denied write after reconnect | `native-write-deny-reconnect-01`: passed, cleanup passed | Pending |
-| Stop during pending permission | `pending-permission-stop-01`: passed, cleanup passed | Pending |
-| Three warm turns | `warm-three-turn-01`: passed, cleanup passed | Pending |
-| Pending permission followed by provider loss | `pending-permission-provider-loss-01`: passed, cleanup passed | Pending |
+| Completion through authenticated tools | `hello-complete-01`: passed, cleanup passed | `hello-complete-01`: passed, cleanup passed |
+| File edit, validation and registered download | `file-edit-validate-02`: passed, cleanup passed | `file-edit-validate-01`: passed, cleanup passed |
+| Semantic question after controller restart | `structured-question-restart-resume-01`: passed, cleanup passed | `structured-question-restart-resume-01`: passed, cleanup passed |
+| Semantic plan approval and completion | `plan-approve-complete-01`: passed, cleanup passed | `plan-approve-complete-02`: passed, cleanup passed |
+| Native reject, revise and accept | `native-plan-reject-revise-accept-01`: passed, cleanup passed | `native-plan-reject-revise-accept-01`: passed, cleanup passed |
+| Native plan cancellation | `native-plan-cancel-01`: passed, cleanup passed | `native-plan-cancel-02`: passed, cleanup passed |
+| Denied write after reconnect | `native-write-deny-reconnect-01`: passed, cleanup passed | `native-write-deny-reconnect-01`: passed, cleanup passed |
+| Stop during pending permission | `pending-permission-stop-01`: passed, cleanup passed | `pending-permission-stop-01`: passed, cleanup passed |
+| Three warm turns | `warm-three-turn-01`: passed, cleanup passed | `warm-three-turn-01`: passed, cleanup passed |
+| `pending-permission-provider-loss-01`: passed, cleanup passed permission followed by provider loss | `pending-permission-provider-loss-01`: passed, cleanup passed | `pending-permission-provider-loss-01`: passed, cleanup passed |
 
 Each local identity has prefix `cursor-v11-d0b907-local-`. Results live under
 `tests/runner-e2e/results/<identity>/<suite>/runner-acpx-cursor/local/<case>/attempt-1/result.json`.
 The file repeat uses controller/fixture 473206; the other cases use 5e6c16.
-All ten cases use runtime d0b907. Automatic retries are zero.
+All ten local cases use runtime d0b907. Fresh remote identities have prefix
+`cursor-v11-d0b907-daytona-` and the same result layout with `daytona` in place
+of `local`. The semantic plan repeat and native decision case use controller
+473206; the remaining remote cases use AFE diagnostics. All ten remote cases
+use the exact frozen image and runtime. Automatic retries are zero.
 
 All seven Runner semantic cases passed on this frozen runtime with owned
 processes retired. Their campaign identities have prefix `cursor-v11-d0b907-`
@@ -69,12 +77,21 @@ included in the semantic pass count.
 The qualification image is published at
 `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:16c7be3610f45e409f67873dd4bd829f9a1e0e5f017c8826d01db4bb05720f97`.
 The user approved publication and all remaining qualification on 2026-10-04
-within the existing $100 total ceiling. The fresh remote matrix is in progress.
+within the existing $100 total ceiling. The registry push returned the digest
+above; `docker buildx imagetools inspect` independently confirms that OCI index
+at GHCR, with Linux amd64 manifest `sha256:c70f25e76503ce2d9cc1f87ed5a221f8e423f4a45f5519e8aa0581b033be353e`.
+Docker's local containerd store uses the same OCI index identity here. All ten
+remote cases pulled this published immutable image and passed with cleanup.
 The first plan attempt failed before a provider call because seven empty directories
 were missing from the controller extraction. All file bytes matched the immutable
 image; restoring its exact directory inventory passed the unchanged manifest.
 The failed attempt and successful cleanup remain recorded; the affected repeat
-uses the same image and runtime. Infrastructure reserves total $29 within the
+uses the same image and runtime. Native cancellation attempt 01 lacked a complete
+terminal observer receipt and failed its cleanup gate. Independent deletion of its
+owned sandbox was confirmed. Its failed result remains failed; diagnostic-only AFE
+fixture changes did not relax any proof requirement, and attempt 02 passed with
+cleanup. This does not establish a product bug fix or erase the first failure.
+Infrastructure reserves total $29 within the
 $52.919619376 remaining envelope; unknown per-run Cursor costs stay null.
 
 The isolated public package verifier passed at source 473206: 18 public packages,
@@ -97,8 +114,7 @@ the complete default command was not repeated.
 Recursive typecheck, full build, token gates, four native launch/selection tests,
 1,568 Vitest harness checks and 128 Node harness checks passed. The combined
 harness wrapper exits nonzero because it includes three Node suites as Vitest
-files; their separate Node execution passed. The final installed task smoke,
-production promotion and final certification remain required.
+files; their separate Node execution passed. The final installed task smoke and final certification remain required.
 
 ## Source-to-port map
 
@@ -130,15 +146,15 @@ preserved; semantic behavior is assessed separately.
 - [x] Show unavailable accounting explicitly and keep partial counters diagnostic-only.
 - [x] Freeze candidate source/profile/patch/pack/image identities and build all three platforms.
 - [x] Reconcile the remaining campaign budget; run paid cells serially within the existing account cap.
-- [ ] Qualify normal setup/completion locally and on Daytona.
-- [ ] Qualify file editing, independently checked bytes/validation and accessible artifacts on both targets.
-- [ ] Qualify semantic questions/restart with exactly-once answer consumption on both targets.
-- [ ] Qualify native plan reject/revise/accept/cancel and correct task/run states on both targets.
-- [ ] Qualify denied writes and Stop during pending approval, including owned process retirement, on both targets.
-- [ ] Qualify three warm turns with stable session/workspace/agent-files ownership and no duplicate output on both targets.
-- [ ] Qualify provider loss, input expiry and actionable errors without mutation replay or false success.
+- [x] Qualify normal setup/completion locally and on Daytona.
+- [x] Qualify file editing, independently checked bytes/validation and accessible artifacts on both targets.
+- [x] Qualify semantic questions/restart with exactly-once answer consumption on both targets.
+- [x] Qualify native plan reject/revise/accept/cancel and correct task/run states on both targets.
+- [x] Qualify denied writes and Stop during pending approval, including owned process retirement, on both targets.
+- [x] Qualify three warm turns with stable session/workspace/agent-files ownership and no duplicate output on both targets.
+- [x] Qualify provider loss, input expiry and actionable errors without mutation replay or false success.
 - [x] Run seven semantic Runner cases; retain strict accounting results separately.
-- [ ] Promote Cursor consistently only after the candidate passes; leave other pending providers gated.
+- [x] Promote Cursor after the complete local and Daytona matrix; leave other pending providers gated.
 - [x] Run contracts/replay, token gates, recursive typecheck, full tests and build; retain failed local attempts and verify affected repeats separately.
 - [ ] Repeat a clean normal-install smoke with qualification overrides absent.
 - [ ] Deliver exact identities, capability limits and completed acceptance matrix; prepare focused template-based PR.
@@ -220,13 +236,13 @@ manifest identity; the remotely pulled digest must be recorded before a live cel
 | --- | --- | --- |
 | Ordinary installation and completion | Public setup/closure verified; final full verifier and normal product smoke pending | Pending |
 | File editing, validation, accessible artifacts | Earlier `9ba53f` preflight passed; assembled-candidate repeat pending | Pending |
-| Semantic question with controller restart | Passed `structured-question-restart-resume-01` on `ccae835` | Pending |
-| Semantic plan acceptance | Passed `plan-approve-complete-01` on `ccae835` | Pending |
-| Native reject, revise, accept | Passed `native-plan-reject-revise-accept-01` on `ccae835` | Pending |
+| Semantic question with controller restart | Passed `structured-question-restart-resume-01` on `ccae835` | `structured-question-restart-resume-01`: passed, cleanup passed |
+| Semantic plan acceptance | Passed `plan-approve-complete-01` on `ccae835` | `plan-approve-complete-02`: passed, cleanup passed |
+| Native reject, revise, accept | Passed `native-plan-reject-revise-accept-01` on `ccae835` | `native-plan-reject-revise-accept-01`: passed, cleanup passed |
 | Native plan cancellation | First attempt failed during fixture migration/startup before Cursor ran; affected repeat pending | Pending |
 | Denied write and pending-permission Stop | Pending | Pending |
 | Three warm turns | Pending | Pending |
-| Owned provider loss with pending permission | Passed `pending-permission-provider-loss-03` with clean retirement, stale-answer refusal, blocked open task, failed run, and no mutation | Pending |
+| Owned provider loss with pending permission | Passed `pending-permission-provider-loss-03` with clean retirement, stale-answer refusal, blocked open task, failed run, and no mutation | `pending-permission-provider-loss-01`: passed, cleanup passed |
 
 All attempts are serial and have zero automatic retries. The original campaign
 envelope has $52.919619376 remaining after its prior committed upper bound.

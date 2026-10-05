@@ -1,10 +1,12 @@
 # Cursor ACP capability inventory
 
-Current assembled candidate (2026-10-03): **Cursor profile v11 is unqualified**.
+Current release candidate (2026-10-04): **Cursor profile v11 passed local and Daytona qualification**.
 It ports snapshot `22c78242a4e0c2369fecf0c2dc4e7600fbad6706` onto mainline
 `dd868ed125cd709506dd9b29fca640a44d580501`, preserving newer recovery and owned
 warm agent-file handoff. The [readiness checklist](../plans/2026-10-03-cursor-production-readiness.md)
-tracks current qualification; the historical results below retain their own identities.
+records all ten local and all ten remote gates, including cleanup. The final
+public installed-package smoke is recorded separately there. The historical
+results below retain their own identities and limits.
 
 The public installation path is `paperclipai runtime setup cursor`. It explicitly
 downloads the pinned CLI `2026.09.26-dd393fe`, applies the source-owned patch, and
@@ -87,7 +89,9 @@ The reference is the runner's Codex app-server integration and its closed thread
 
 ## Capability matrix against Codex app-server
 
-“Implemented” below means a tested Cursor implementation wired through the shared runtime, canonical activity channel and durable interaction path. It is not a claim of authenticated end-to-end qualification.
+This historical field inventory distinguishes implemented transport behavior from
+its original qualification gaps. The current release proof and exclusions are in
+the readiness report linked above; native AskQuestion remains uncertified.
 
 | Capability | Cursor harness/ACP evidence | Paperclip treatment | Remaining gap or qualification |
 |---|---|---|---|

@@ -79,13 +79,29 @@ synchronous trace scan for each pending event: it blocks event delivery and can
 leave the board showing an active run after the provider turn has already ended.
 
 The package also builds `paperclip-runner-acpx-sidecar`. This bounded v2
-stdin/stdout bridge admits the pinned Claude and Codex ACPX profiles. It
-validates the exact model, session identity, tool catalog, structured input,
-and terminal settlement at the process boundary. Cursor, Copilot and Pi have
-separate candidate branches and remain unavailable in production until local
-and Daytona qualification passes. Their verified distributions are build-owned;
-no candidate accepts an arbitrary executable. See
-[the rich ACP capability report](../../doc/architecture/runner-rich-acp-capabilities.md).
+stdin/stdout bridge admits the pinned Claude, Codex, Grok and Cursor ACPX profiles.
+It validates the exact model, session identity, tool catalog, structured input,
+and terminal settlement at the process boundary. Copilot and Pi remain gated.
+Verified distributions are build-owned; no provider accepts an arbitrary executable.
+See [the rich ACP capability report](../../doc/architecture/runner-rich-acp-capabilities.md).
+
+Install Cursor explicitly with `paperclipai runtime setup cursor`; npm installation
+does not download it. Configure a company secret binding for `CURSOR_API_KEY` or
+`CURSOR_AUTH_TOKEN`, select Cursor in the Runner configuration, and select an exact
+model ID. Agent is the default; Plan and Ask are explicit modes. Paperclip semantic
+questions are supported. Native AskQuestion and authoritative per-run dollar usage
+are unavailable. Accepting a native plan ends the planning run successfully while
+the task waits for the next instruction. See the
+[Cursor release report](../../doc/plans/2026-10-03-cursor-production-readiness.md).
+
+A release includes all three platform daemons and the Linux provider-pack identity
+from its matching Daytona image. Run `stage:release-binaries` with a manifest that
+binds each daemon path and SHA-256, plus `remoteProviderPack: {path, sha256}` for
+the actual image's `provider-pack.json`. Assemble these assets after the normal
+build and include them in the server's vendored Runner output before npm packing.
+Ordinary remote Cursor startup uses the packaged Linux daemon and verifies every
+image asset against that manifest. A mismatched image fails before the provider
+starts; install the matching package and image together.
 
 Remote Codex sessions relay assigned app tools through the server's configured
 gateway. Small catalogs are sent directly. When a catalog would exceed the
