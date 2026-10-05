@@ -1461,6 +1461,10 @@ death is excluded because this exact ownership mechanism requires Linux pidfd.
 The Python helper calibration uses a synthetic transport and a real title-changing
 Node child; it proves fault ownership only, never paid Pi lifecycle behavior. Run
 it on native Linux with pinned Node on PATH: `python3 tests/runner-e2e/pi-provider-fault.test.py`.
+The fault helper validates the profile pin against canonical normalized closure
+entries, matching production admission. JSON formatting is not part of that pin.
+The same free suite checks canonical hash admission, malformed metadata and
+changed entries before any signal is sent.
 This adds one cell to the pending Pi Product matrix (26: 13 local, 13 Daytona);
 no qualification or live success is implied by discovery or oracle tests.
 

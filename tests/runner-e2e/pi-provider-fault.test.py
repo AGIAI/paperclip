@@ -32,14 +32,68 @@ def check_cancelled():
 NAMES = [fault.NODE, fault.ENTRY, fault.EXTENSION, 'pi-entry.cjs', 'node_modules/pi-acp/dist/index.js', 'node_modules/pi-acp/dist/paperclip-runtime.js']
 
 
+class ClosureMetadataTests(unittest.TestCase):
+    def setUp(self):
+        self.entries = [
+            {'path': name, 'sha256': fault.digest(name.encode()), 'size': len(name), 'executable': name == fault.NODE}
+            for name in sorted(NAMES)
+        ]
+        self.canonical = json.dumps(self.entries, separators=(',', ':'), ensure_ascii=False).encode()
+        self.pin = fault.digest(self.canonical)
+        self.manifest = {'entries': self.entries}
+
+    def test_canonical_entries_pin_admits_metadata(self):
+        raw = json.dumps(self.manifest, indent=2).encode()
+        self.assertNotEqual(fault.digest(raw), self.pin)
+        self.assertEqual(fault.parse_closure_metadata(raw, self.pin), self.entries)
+
+    def test_metadata_formatting_and_property_order_preserve_pin(self):
+        reordered = {'entries': [dict(reversed(list(entry.items()))) for entry in self.entries]}
+        for manifest in [self.manifest, reordered]:
+            for indent in [None, 2, 4]:
+                with self.subTest(indent=indent):
+                    self.assertEqual(fault.parse_closure_metadata(json.dumps(manifest, indent=indent).encode(), self.pin), self.entries)
+
+    def test_raw_metadata_hash_is_not_a_closure_pin(self):
+        raw = json.dumps(self.manifest, indent=2).encode()
+        with self.assertRaisesRegex(RuntimeError, 'closure_pin'):
+            fault.parse_closure_metadata(raw, fault.digest(raw))
+
+    def test_changed_entry_is_rejected_by_the_pinned_digest(self):
+        changed = json.loads(json.dumps(self.manifest))
+        changed['entries'][0]['sha256'] = '0' * 64
+        with self.assertRaisesRegex(RuntimeError, 'closure_pin'):
+            fault.parse_closure_metadata(json.dumps(changed).encode(), self.pin)
+
+    def test_unsafe_duplicate_unsorted_and_invalid_metadata_fail_closed(self):
+        mutations = [
+            lambda m: m['entries'][0].update(path='../escape'),
+            lambda m: m['entries'][0].update(path='.paperclip-native-entry.cjs'),
+            lambda m: m['entries'].insert(1, m['entries'][0].copy()),
+            lambda m: m['entries'].reverse(),
+            lambda m: m['entries'][0].update(size=True),
+            lambda m: m['entries'][0].update(executable=1),
+            lambda m: m['entries'][0].update(extra='foreign'),
+        ]
+        for index, mutate in enumerate(mutations):
+            changed = json.loads(json.dumps(self.manifest))
+            mutate(changed)
+            with self.subTest(index=index), self.assertRaises(RuntimeError):
+                fault.parse_closure_metadata(json.dumps(changed).encode(), self.pin)
+        for invalid in [None, [], {}, {'entries': []}]:
+            with self.subTest(invalid=invalid), self.assertRaises(RuntimeError):
+                fault.parse_closure_metadata(json.dumps(invalid).encode(), self.pin)
+
+
 class IdentityTests(unittest.TestCase):
     def setUp(self):
         self.files = {DIST + '/' + n: (n.encode(), (1, 100 + i)) for i, n in enumerate(NAMES)}
         self.files[RUNTIME + '/bin/paperclip-runnerd'] = (b'runner', (1, 90))
-        closure = json.dumps({'entries': [{'path': n, 'sha256': fault.digest(n.encode()), 'size': len(n)} for n in NAMES]}).encode()
+        entries = [{'path': n, 'sha256': fault.digest(n.encode()), 'size': len(n), 'executable': n == fault.NODE} for n in sorted(NAMES)]
+        closure = json.dumps({'entries': entries}, indent=2).encode()
         self.files[fault.PACK + '/provider-assets/pi/linux-x64/native-closure.json'] = (closure, (1, 80))
         self.config = {'root': ROOT, 'binding': {'remoteCwd': '/workspace', 'runId': 'run'}, 'runtimeEnvironmentLeaseId': 'workspace-id',
-                       'runnerdSha256': 'sha256:' + fault.digest(b'runner'), 'closureSha256': fault.digest(closure)}
+                       'runnerdSha256': 'sha256:' + fault.digest(b'runner'), 'closureSha256': fault.digest(json.dumps(entries, separators=(',', ':'), ensure_ascii=False).encode())}
         self.table = {21: ROOT, 22: PARENT, 23: TARGET}
         self.args = {21: [RUNTIME + '/bin/paperclip-runnerd', '--run-id', 'run', '--environment-lease-id', 'workspace-id', '--lifecycle-mode', 'per_turn', '--state-dir', RUNTIME + '/sessions/' + 'a' * 64 + '/runner'],
                      22: [DIST + '/' + fault.NODE, '--require', DIST + '/' + fault.GUARD, DIST + '/pi-entry.cjs'], 23: ['pi']}
@@ -120,8 +174,8 @@ class PidfdTests(unittest.TestCase):
             (distribution / fault.ENTRY).write_text('process.title="pi"; require("node:fs").writeFileSync(' + json.dumps(str(ready)) + ',JSON.stringify({pid:process.pid}));setInterval(()=>{},1000);')
             (distribution / 'pi-entry.cjs').write_text('const p=require("node:child_process").spawn(process.execPath,["--require",' + json.dumps(str(distribution / fault.GUARD)) + ',' + json.dumps(str(distribution / fault.ENTRY)) + '],{stdio:"ignore"});p.on("exit",(code,signal)=>require("node:fs").writeFileSync(' + json.dumps(str(exited)) + ',JSON.stringify({code,signal})));process.on("SIGTERM",()=>{if(p.exitCode!==null||p.signalCode!==null)process.exit(0);p.once("exit",()=>process.exit(0));p.kill("SIGTERM")});setInterval(()=>{},1000);')
             entries = []
-            for name in NAMES:
-                p = distribution / name; content = p.read_bytes(); entries.append({'path': name, 'sha256': fault.digest(content), 'size': len(content)})
+            for name in sorted(NAMES):
+                p = distribution / name; content = p.read_bytes(); entries.append({'path': name, 'sha256': fault.digest(content), 'size': len(content), 'executable': name == fault.NODE})
             closure = json.dumps({'entries': entries}).encode(); (pack / 'provider-assets/pi/linux-x64/native-closure.json').write_bytes(closure)
             for directory, dirs, files in os.walk(snapshot):
                 for f in files:
@@ -143,7 +197,7 @@ class PidfdTests(unittest.TestCase):
             self.assertTrue(ready.exists()); target = json.loads(ready.read_text())['pid']
             self.assertEqual(fault.argv(target), ['pi'], 'real Node process.title must overwrite argv')
             boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
-            config = {'root': fault.proc(root_child.pid, boot), 'binding': {'remoteCwd': str(workspace), 'runId': 'fixture'}, 'runtimeEnvironmentLeaseId': 'workspace-id', 'runnerdSha256': 'sha256:' + fault.digest((runtime / 'bin/paperclip-runnerd').read_bytes()), 'closureSha256': fault.digest(closure)}
+            config = {'root': fault.proc(root_child.pid, boot), 'binding': {'remoteCwd': str(workspace), 'runId': 'fixture'}, 'runtimeEnvironmentLeaseId': 'workspace-id', 'runnerdSha256': 'sha256:' + fault.digest((runtime / 'bin/paperclip-runnerd').read_bytes()), 'closureSha256': fault.digest(json.dumps(entries, separators=(',', ':'), ensure_ascii=False).encode())}
             with patch.object(fault, 'PACK', str(pack)):
                 admitted = fault.inspect(config)
                 self.assertEqual(admitted['target']['pid'], target)

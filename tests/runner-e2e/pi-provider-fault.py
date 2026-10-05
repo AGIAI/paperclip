@@ -72,6 +72,31 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def parse_closure_metadata(content, expected_pin):
+    # Match production parseNativeAcpxDistributionEntries: the profile pins
+    # canonical entries, not the formatting or outer JSON file bytes.
+    manifest = json.loads(content)
+    entries = manifest.get('entries') if isinstance(manifest, dict) else None
+    require(isinstance(entries, list) and 0 < len(entries) <= 30000, 'closure_inventory')
+    normalized, previous, total = [], '', 0
+    for entry in entries:
+        require(isinstance(entry, dict) and set(entry) == {'path', 'sha256', 'size', 'executable'}, 'closure_entry_shape')
+        path = entry['path']
+        require(isinstance(path, str) and 0 < len(path) <= 4096 and not os.path.isabs(path)
+                and not re.search(r'[\x00-\x1f\x7f\\]', path)
+                and all(part not in ('', '.', '..') for part in path.split('/'))
+                and path > previous and path != 'manifest.json' and not path.startswith('.paperclip-'), 'closure_entry_path')
+        require(isinstance(entry['sha256'], str) and re.fullmatch(r'[a-f0-9]{64}', entry['sha256'])
+                and type(entry['size']) is int and 0 <= entry['size'] <= 384 * 1024 * 1024
+                and type(entry['executable']) is bool, 'closure_entry_metadata')
+        total += entry['size']; require(total <= 1024 * 1024 * 1024, 'closure_tree_bound')
+        previous = path
+        normalized.append({key: entry[key] for key in ('path', 'sha256', 'size', 'executable')})
+    canonical = json.dumps(normalized, separators=(',', ':'), ensure_ascii=False).encode('utf8')
+    require(re.fullmatch(r'[a-f0-9]{64}', expected_pin) and digest(canonical) == expected_pin, 'closure_pin')
+    return normalized
+
+
 def inspect(config):
     require(set(config) == {'root', 'binding', 'runtimeEnvironmentLeaseId', 'runnerdSha256', 'closureSha256'}, 'config_keys')
     binding, expected = config['binding'], config['root']
@@ -90,10 +115,8 @@ def inspect(config):
     executable = os.stat(f'/proc/{root["pid"]}/exe')
     require((executable.st_dev, executable.st_ino) == runner_inode and 'sha256:' + digest(runner_bytes) == config['runnerdSha256'], 'runner_executable')
     closure_bytes, _ = checked_file(PACK + '/provider-assets/pi/linux-x64/native-closure.json', 4 * 1024 * 1024)
-    require(digest(closure_bytes) == config['closureSha256'], 'closure_pin')
-    manifest = json.loads(closure_bytes)
-    entries = {e['path']: e for e in manifest['entries']}
-    require(len(entries) == len(manifest['entries']), 'closure_duplicate')
+    admitted_entries = parse_closure_metadata(closure_bytes, config['closureSha256'])
+    entries = {e['path']: e for e in admitted_entries}
     for name in (NODE, ENTRY, EXTENSION, 'pi-entry.cjs', 'node_modules/pi-acp/dist/index.js', 'node_modules/pi-acp/dist/paperclip-runtime.js'):
         require(name in entries and re.fullmatch(r'[a-f0-9]{64}', entries[name]['sha256']), 'closure_entry')
     pids = [int(p) for p in os.listdir('/proc') if p.isdigit() and int(p) > 1]
