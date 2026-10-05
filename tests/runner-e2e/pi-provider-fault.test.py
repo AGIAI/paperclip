@@ -98,6 +98,7 @@ class IdentityTests(unittest.TestCase):
         self.args = {21: [RUNTIME + '/bin/paperclip-runnerd', '--run-id', 'run', '--environment-lease-id', 'workspace-id', '--lifecycle-mode', 'per_turn', '--state-dir', RUNTIME + '/sessions/' + 'a' * 64 + '/runner'],
                      22: [DIST + '/' + fault.NODE, '--require', DIST + '/' + fault.GUARD, DIST + '/pi-entry.cjs'], 23: ['pi']}
         self.patches = [patch.object(fault, 'proc', side_effect=lambda pid, boot: self.table[pid]), patch.object(fault, 'argv', side_effect=lambda pid: self.args[pid]),
+                        patch.object(fault, 'checked_runner_executable', side_effect=lambda p: self.files[p]),
                         patch.object(fault, 'checked_file', side_effect=lambda p, *a: self.files[p]), patch.object(Path, 'read_text', return_value=BOOT),
                         patch.object(os, 'listdir', return_value=['21', '22', '23']), patch.object(os, 'getpgid', return_value=21),
                         patch.object(os, 'lstat', return_value=SimpleNamespace(st_mode=0o40500)), patch.object(os.path, 'realpath', side_effect=lambda p: p),
@@ -158,6 +159,43 @@ class IdentityTests(unittest.TestCase):
         with patch.object(os, 'listdir', return_value=['21', '22', '23', '24']), self.assertRaisesRegex(RuntimeError, 'unique_pi_child'): fault.inspect(self.config)
 
 
+class RunnerExecutableTests(unittest.TestCase):
+    def test_regular_and_preinstalled_link_resolve_to_the_same_inode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            executable = Path(tmp).resolve() / 'installed-runner'
+            executable.write_bytes(b'pinned runner')
+            link = executable.with_name('runtime-runner')
+            link.symlink_to(executable)
+            content, inode = fault.checked_runner_executable(str(link))
+            self.assertEqual(content, b'pinned runner')
+            self.assertEqual((content, inode), fault.checked_runner_executable(str(executable)))
+
+    def test_retargeted_link_is_rejected_after_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            executable = Path(tmp).resolve() / 'installed-runner'
+            executable.write_bytes(b'pinned runner')
+            foreign = executable.with_name('foreign-runner')
+            foreign.write_bytes(b'foreign')
+            link = executable.with_name('runtime-runner')
+            link.symlink_to(executable)
+            original = fault.checked_file
+            def replace_during_read(*args):
+                result = original(*args)
+                link.unlink()
+                link.symlink_to(foreign)
+                return result
+            with patch.object(fault, 'checked_file', side_effect=replace_during_read), self.assertRaisesRegex(RuntimeError, 'runner_link_changed'):
+                fault.checked_runner_executable(str(link))
+
+    def test_missing_link_and_directory_never_admit_an_executable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            link = root / 'runtime-runner'
+            link.symlink_to(root / 'missing')
+            with self.assertRaises(FileNotFoundError): fault.checked_runner_executable(str(link))
+            with self.assertRaisesRegex(RuntimeError, 'runner_file_shape'): fault.checked_runner_executable(str(root))
+
+
 class PidfdTests(unittest.TestCase):
     def test_changed_or_retired_pidfd_never_signals_and_always_closes(self):
         before = {'target': TARGET}
@@ -186,7 +224,11 @@ class PidfdTests(unittest.TestCase):
         for descriptor in [3, 7]:
             with self.subTest(descriptor=descriptor): self.calibrate_real_child(descriptor)
 
-    def calibrate_real_child(self, descriptor=None):
+    @unittest.skipUnless(sys.platform == 'linux' and hasattr(os, 'pidfd_open'), 'Hosted native Linux preinstalled-link calibration required')
+    def test_real_preinstalled_runner_link_then_exact_child_pidfd(self):
+        self.calibrate_real_child(7, runner_link=True)
+
+    def calibrate_real_child(self, descriptor=None, runner_link=False):
         node = shutil.which('node'); self.assertIsNotNone(node)
         base = Path(tempfile.mkdtemp(prefix='pi-fault-calibration-', dir='/tmp'))
         snapshot = Path(tempfile.mkdtemp(prefix='paperclip-acpx-native-', dir='/tmp'))
@@ -199,7 +241,13 @@ class PidfdTests(unittest.TestCase):
             for name in NAMES + [fault.GUARD]:
                 p = distribution / name; p.parent.mkdir(parents=True, exist_ok=True); p.write_text('// fixture\n')
             shutil.copyfile(node, distribution / fault.NODE); (distribution / fault.NODE).chmod(0o500)
-            shutil.copyfile(node, runtime / 'bin/paperclip-runnerd'); (runtime / 'bin/paperclip-runnerd').chmod(0o500)
+            runner = runtime / 'bin/paperclip-runnerd'
+            if runner_link:
+                installed = base / 'preinstalled-runner'
+                shutil.copyfile(node, installed); installed.chmod(0o500)
+                runner.symlink_to(installed)
+            else:
+                shutil.copyfile(node, runner); runner.chmod(0o500)
             ready = workspace / 'child.json'; exited = workspace / 'exit.json'
             (distribution / fault.ENTRY).write_text('process.title="pi"; require("node:fs").writeFileSync(' + json.dumps(str(ready)) + ',JSON.stringify({pid:process.pid}));setInterval(()=>{},1000);')
             (distribution / 'pi-entry.cjs').write_text('const p=require("node:child_process").spawn(process.execPath,["--require",' + json.dumps(str(distribution / fault.GUARD)) + ',' + json.dumps(str(distribution / fault.ENTRY)) + '],{stdio:"ignore"});p.on("exit",(code,signal)=>require("node:fs").writeFileSync(' + json.dumps(str(exited)) + ',JSON.stringify({code,signal})));process.on("SIGTERM",()=>{if(p.exitCode!==null||p.signalCode!==null)process.exit(0);p.once("exit",()=>process.exit(0));p.kill("SIGTERM")});setInterval(()=>{},1000);')

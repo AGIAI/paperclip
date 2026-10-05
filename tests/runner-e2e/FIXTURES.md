@@ -386,6 +386,17 @@ or `/proc/self/fd/7` in the wrapper argv. That form is admitted only when the
 wrapper's corresponding descriptor and executable both have the exact sealed
 snapshot Node inode. The guard and wrapper entrypoint paths remain exact.
 Missing, foreign or other descriptor numbers fail before signalling.
+Production may also stage the runner executable as a link to the image's
+verified installation. The fault helper reads the resolved regular file, checks
+that the named link remained unchanged, and still requires its pinned hash and
+exact `/proc/<runner-pid>/exe` inode. Link replacement, missing targets and a
+different executable fail admission. Linux calibration covers this installation
+form as well as a copied runner.
+
+The agent-memory fixture treats its quoted JSON string as UTF-8 file content,
+including a final line-feed byte (`0x0A`). Native readback and the managed-file
+API must retain those exact bytes across a new task and controller restart.
+The prompt makes that decoding explicit; the byte graders remain unchanged.
 
 The runtime itself must emit `runtime_request.expired` for the original callback
 with `provider_process_lost` and `replayAllowed:false`, followed by native turn

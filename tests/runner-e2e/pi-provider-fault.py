@@ -72,6 +72,20 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def checked_runner_executable(path):
+    # Production stages a verified preinstalled runner with ln -sfn. Admit
+    # that named link only while its identity and resolved regular file remain
+    # stable; inspect still requires both the pinned hash and /proc/exe inode.
+    before = os.lstat(path)
+    require(stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode), 'runner_file_shape')
+    resolved = os.path.realpath(path)
+    content, inode = checked_file(resolved, 256 * 1024 * 1024)
+    after = os.lstat(path)
+    identity = lambda s: (s.st_dev, s.st_ino, s.st_mode, s.st_mtime_ns, s.st_ctime_ns)
+    require(identity(before) == identity(after) and os.path.realpath(path) == resolved, 'runner_link_changed')
+    return content, inode
+
+
 def parse_closure_metadata(content, expected_pin):
     # Match production parseNativeAcpxDistributionEntries: the profile pins
     # canonical entries, not the formatting or outer JSON file bytes.
@@ -111,7 +125,7 @@ def inspect(config):
             and flag(root_args, '--environment-lease-id') == config['runtimeEnvironmentLeaseId']
             and flag(root_args, '--lifecycle-mode') == 'per_turn', 'root_binding')
     require(re.fullmatch(re.escape(runtime_root) + r'/sessions/[a-f0-9]{64}/runner', flag(root_args, '--state-dir')), 'root_session')
-    runner_bytes, runner_inode = checked_file(runner, 256 * 1024 * 1024)
+    runner_bytes, runner_inode = checked_runner_executable(runner)
     executable = os.stat(f'/proc/{root["pid"]}/exe')
     require((executable.st_dev, executable.st_ino) == runner_inode and 'sha256:' + digest(runner_bytes) == config['runnerdSha256'], 'runner_executable')
     closure_bytes, _ = checked_file(PACK + '/provider-assets/pi/linux-x64/native-closure.json', 4 * 1024 * 1024)
