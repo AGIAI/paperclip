@@ -1,3 +1,4 @@
+import { listProjectsDescription, listProjectsInputSchema } from "../protocol-actions/list-projects.js";
 import { setTaskTitleAction } from "../protocol-actions/set-task-title.js";
 import { reassignTaskAction } from "../protocol-actions/reassign-task.js";
 import { hireAgentAction } from "../protocol-actions/hire-agent.js";
@@ -475,9 +476,9 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
     operationId: "list_projects",
     title: "List projects",
     requiredClaims: ["discovery:projects:read"],
-    description: "Inspect available company projects before selecting a project for new work.",
+    description: listProjectsDescription,
     placement: "optional",
-    inputSchema: object({}),
+    inputSchema: listProjectsInputSchema,
   }),
   descriptor({
     operationId: "list_project_repositories",
