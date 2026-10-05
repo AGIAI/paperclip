@@ -838,11 +838,13 @@ describe("live remote runner lease reattachment", () => {
     mockGetLease.mockResolvedValue(originalLease());
   });
   it("reattaches the original active ephemeral lease without acquiring or resuming a sandbox", async () => {
+    const savedLease = originalLease();
+    mockGetLease.mockResolvedValue(savedLease);
     const runtime = makeMockRuntime();
     const result = await environmentRunOrchestrator({} as never, { environmentRuntime: runtime }).acquireForRun(input);
     expect(mockGetLease).toHaveBeenCalledWith("lease-1");
     expect(runtime.acquireRunLease).not.toHaveBeenCalled();
-    expect(result.lease).toEqual(originalLease());
+    expect(result.lease).toEqual(savedLease);
     expect(result.leaseContext.executionWorkspaceId).toBe("ew-1");
     expect(result.environment.config.reuseLease).toBe(false);
   });

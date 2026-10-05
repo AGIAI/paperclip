@@ -86,6 +86,28 @@ now parses the fenced JSON and independently checks all 33 bytes. Full build
 and recursive typecheck pass at the prior source; new artifacts and all live
 qualification remain required after this binding correction.
 
+The source-bound `b012b3aeb` artifacts now pass normal public profile-15
+admission on ARM Mac (8.618 seconds) and native Linux (8.498 seconds). The new
+immutable image is
+`ghcr.io/paperclipai/paperclip-daytona-runner@sha256:3279d92405a59b4654cb6af5de27bfacffee73a2c57311bf5f2d5ff9272b9b67`.
+Anonymous pull, source identity, normal companion import, and Linux installed
+server health/browser startup pass with zero provider calls. The temporary
+image-admission sandbox is deleted. The Linux qualification controller remains
+owned and bounded. Mac installed server startup fails before a model call;
+its stderr-free database failure is still unexplained, and a fresh direct
+initdb probe succeeds. Intel admission and fresh live qualification remain
+outstanding.
+
+Current-head CI exposes two fixture races. The lease test constructs a second
+timestamped fixture instead of comparing with the saved lease; all 37 tests
+pass after retaining that fixture. A GitHub callback fixture reproduces its
+failure when the root finishes before callback replay. Waiting for durable
+admission and draining the subsequently scheduled work makes both orderings
+pass without changing production worker code, assertions, or timeouts. These
+test-only changes do not relabel the frozen runtime artifacts. Their new head
+requires fresh CI. The prior full local test command remains failed; complete
+local tests and release review are still required.
+
 ## Frozen target
 
 - Pi: `@earendil-works/pi-coding-agent@1.0.0`.

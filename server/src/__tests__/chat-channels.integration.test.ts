@@ -61865,7 +61865,7 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     },
   );
 
-  it("orders reversed GitHub edit and delete callbacks behind their durable root", async () => {
+  it.each([false, true])("orders reversed GitHub edit and delete callbacks behind their durable root (root processed before replay: %s)", async (rootProcessedFirst) => {
     const fixture = await seedCompany();
     const deferred: Array<() => void | Promise<void>> = [];
     const { callbacks, endpoint, service, wakeup, webhookSecret } =
@@ -61968,8 +61968,28 @@ describeEmbeddedPostgres("chat channel control-plane integration", () => {
     // One root-conversation drain plus one durable-ingress callback per HTTP
     // request is queued. The duplicate delivery callback becomes a no-op.
     expect(deferred).toHaveLength(4);
+    if (rootProcessedFirst) {
+      await deferred.shift()?.();
+      await vi.waitFor(async () => {
+        const [root] = await db
+          .select({ state: chatDeliveries.state })
+          .from(chatDeliveries)
+          .where(eq(chatDeliveries.endpointId, endpoint.id));
+        expect(root.state).toBe("processed");
+      });
+    }
     await drainDeferred();
+    // The scheduler callbacks start background promises. Wait for durable
+    // replay admission before draining the conversation work it schedules.
     await vi.waitFor(async () => {
+      const deliveries = await db
+        .select({ id: chatDeliveries.id })
+        .from(chatDeliveries)
+        .where(eq(chatDeliveries.endpointId, endpoint.id));
+      expect(deliveries).toHaveLength(3);
+    });
+    await vi.waitFor(async () => {
+      await drainDeferred();
       const deliveries = await db
         .select({
           eventKind: chatDeliveries.eventKind,
