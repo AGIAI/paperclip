@@ -22,12 +22,12 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Gate | Acceptance evidence | Current result |
 | --- | --- | --- |
 | Runtime identity and admission | Exact runtime/profile/model; verified effective thinking; startup below the 60-second admission limit; unsupported configuration fails before a prompt | Frozen shipping source `0bd040093` passes normal public CLI/server installation, Pi setup and credential-free profile-14 admission on ARM Mac (7.921 s), Intel Mac (31.692 s), and native Linux in Daytona (8.699 s). No prompt, credentials or binary override is used. The local Rosetta handshake failures remain failed evidence. |
-| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Frozen shipping source `0bd040093` passes local Stop, steering, controller restart, native questions and three-turn continuity. Daytona lifecycle qualification remains open; its Stop cell retains both the missing-companion setup failure and the later unanswered-bootstrap-read failure. |
-| Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | At frozen shipping source `0bd040093`, all 13 local cells are attempted: 11 pass; agent-files and file-edit remain failed. Eleven Daytona cells are attempted: hello-complete, question-resume, plan-approve, structured-question restart/resume and corrected warm continuity pass; Stop, native-questions, native controller-restart, agent-files, provider-death and file-edit remain failed. The corrected warm attempt passes nine matchers, all stable native identities and cleanup in 298 seconds; its original Mac setup failure stays failed. Steering and human-denial remain unattempted, held for the restrictive bootstrap/oracle gap. Original grades and exact-source evidence are preserved. |
+| Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Frozen shipping source `0bd040093` passes local Stop, steering, controller restart, native questions and warm continuity. Daytona warm continuity, human denial, corrected Stop and first steering pass. Native questions, native controller-restart and provider-death remain failed. Prior failed attempts remain unchanged. |
+| Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | All 26 cells are attempted at frozen shipping source `0bd040093`: 19 pass and seven remain failed. Local has 11 passes and two failures: agent-files and file-edit. Daytona has eight passes and five failures: native-questions, native controller-restart, agent-files, provider-death and file-edit. Human denial passes nine matchers and cleanup on native definitions 5. Corrected Stop passes five matchers; first steering passes eight; both pass cleanup on controls definitions 8. No cells remain unattempted or running. Original grades and source fingerprints are preserved. |
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases are attempted at `0bd040093`: five pass; context-before-action retains its 120-second terminal timeout, and finish-task retains use of the advisory report without the required task mutation. One context/document workflow retry passes only after verified protection against the recorded host sleep; its original failure stays unchanged. The seven `b148b73ea` passes remain historical. |
 | Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Exact-source public CLI/server installation and normal Pi setup pass on all three platforms. Public immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47` imports into native Linux Daytona and passes closed admission. Temporary sandbox cleanup passes. Image jobs 37102904889, 37106313185 and 37110683910 are terminal/cancelled. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Verified head `e90143a5c` has 53 successful CI checks, two skips, a completed Greptile 5/5 and no unresolved root review threads. Each subsequent head requires its own completed CI and review. Predecessor `82ee4ec91` has the same CI count and no unresolved root review thread after one permitted rerun; its original browser failure stays retained and its nondeterministic cause is unproven. Shipping inputs remain equivalent to `0bd040093`. The earlier complete native Linux command fails six suites after normal npm is restored after disk drops below the unchanged 256 MiB workspace reserve. Reclaiming only the unused owned pnpm store restores 2.75 GiB free; all six failed suites (75 tests) then pass unchanged. The next full repeat passes typecheck and the complete test command: 29,447 tests pass with 69 skips, including all 149 serialized suites. The command still fails when build lacks the Node headers required for SO_PEERCRED. A checksum-verified complete Node 24.21.0 distribution with identical executable bytes repairs headers in the owned tools. That corrected build retains exit 137 and the sandbox OOM counter at its 8 GiB limit; the resize endpoint returns 404. Full native Linux CI job 111317358779 independently passes the same `pnpm build` across all 35 build projects, with Node 24.21.0 and Rust 1.97.1. Its checkout tree exactly equals `e90143a5c`. Typecheck, the complete tests and the full CI build now pass on proven equivalent executable inputs. The failed Daytona wrapper and both failed builds stay failed. Every original failed command stays failed. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held until all 33 cases pass. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Last verified fixture head `04f639eeb` has 53 successful CI checks and two skips, including full Linux build and typecheck. Its documentation consistency finding is addressed in this follow-up; verify the latest PR head and review before handoff. All 116 targeted native Linux fixture tests and 13 browser-case collections pass at `04f639eeb`. Full typecheck, complete test and build evidence remains recorded below; original failed commands remain failed. Shipping inputs stay equivalent to `0bd040093`. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held for nine failed gates and prerequisite disposition. No merge or release. |
 
 ## Bounded execution
 
@@ -94,8 +94,9 @@ provider attempt occurs during this resumed preparation.
 
 ## Corrected live attempts — 2026-10-05
 
-The resumed matrix has **22 passed cells, ten failed cells and one unattempted
-cell**. Four separately bounded live attempts retain frozen shipping source
+The latest retained matrix has **24 passed cells and nine failed cells**, with
+all 33 cells attempted and none running. The first four separately bounded live
+attempts retain frozen shipping source
 `0bd040093`, exact harness source `14c48ff40`, profile 14/model/low and zero
 automatic retries. The original campaign, grades and receipts remain unchanged.
 Human permission denial passes all nine canonical matchers and cleanup. Its
@@ -125,8 +126,13 @@ Controls definitions advance to 8 and explicitly name PID/start-ticks/boot-ID
 identity. Two timestamp-drift regressions fail before the correction and pass
 afterward; actual remote birth rotation and local authority changes still fail.
 All four new local regressions and nine selected remote flow tests pass without
-provider calls. Fresh native Linux validation and live Stop/steering qualification
-on definitions 8 remain required. Steering is still unattempted.
+provider calls. The synchronized fixture head `04f639eeb` passes all 116 targeted
+native Linux tests and all 13 browser-case collections. One corrected Stop
+attempt passes all five matchers and cleanup; the first steering attempt passes
+all eight matchers and cleanup on controls definitions 8. Both retain the frozen
+model, native-confirmed low thinking and original failure evidence. All six
+resumed attempts are terminal, and their phases are retired. No further first
+attempt remains. Every failed paid case still requires a concrete correction.
 
 The owned Linux controller passes normal public installation, Pi admission in
 6.949 seconds, complete 101,226-file consumer and 16,356-file plugin audits,
@@ -139,7 +145,7 @@ stay open. Rollout remains held; no merge or release occurs.
 
 ## Qualification snapshot — 2026-10-03
 
-The current ledger has 21 passes, ten failed cells, two unattempted cells and
+The October 3 ledger has 21 passes, ten failed cells, two unattempted cells and
 zero running cases across the required 26 Product and seven Runner gates.
 The original failed warm attempt remains preserved. No production admission
 is claimed. No automatic paid retry, fallback key, model change, workflow edit,
@@ -156,7 +162,7 @@ import and selection make no provider calls. This qualification copy is not
 release publication: retain the companion and trusted manifest digest with the
 release as described in `doc/architecture/runner-pi-capabilities.md`.
 
-Remaining corrections and evidence:
+Historical corrections and evidence as of October 3:
 
 - Local agent-files and Runner context-before-action reach successful tools,
   then exceed the unchanged 120-second terminal bound. No supported product
@@ -307,17 +313,12 @@ Remaining corrections and evidence:
   stderr prevents proving the original cause. Do not regrade the full command,
   change host limits, or stop unrelated servers as part of that inference.
 
-The next work is to finish fresh CI/review for this documentation update;
-correct the diagnosed remote fault fixture and restrictive
-bootstrap only within clarified workflow scope; and find concrete corrections
-for the remaining failed behavior and observer cases. CI at `e90143a5c` passes
-53 checks with two skips. Its completed Greptile review scores 5/5 and all root
-review threads are resolved. Each subsequent head requires its own completed CI
-and review before handoff.
-The two restrictive Daytona first attempts
-remain held for the identified bootstrap/oracle constraint. All failed paid cases
-require a concrete correction before retry. Keep
-rollout held until every original release gate is proven.
+The October 3 snapshot above is historical. The current release-gate table and
+October 5 results record 24 passes, nine failures and no unattempted cells.
+Corrected Stop, steering and human denial are complete; do not dispatch them
+as new first attempts. Failed paid cases require a concrete correction before
+retry. Latest-head CI/review and prerequisite dispositions remain required.
+Keep rollout held until every release gate is proven.
 
 ## Evidence so far
 
@@ -772,16 +773,20 @@ rollout held until every original release gate is proven.
    a passing combined Daytona wrapper.
    Normal ARM/Intel/native-Linux installation and immutable Daytona import now
    pass; retain their exact-source receipts and original failures.
-2. Complete all seven Runner cases and all 26 Product cells on the frozen
-   shipping artifacts. Product has 16 passing and eight failed cells, with two
-   restrictive Daytona cells unattempted. Runner has five passing and two failed
-   cases; none are unattempted. Thus 21 of 33 required gates pass, ten remain
-   failed, two need a first attempt and none are running.
-   Run each explicitly with zero automatic retries.
+2. Correct the nine remaining failed gates on the frozen shipping artifacts.
+   All 26 Product cells and seven Runner cases have been attempted. Product has
+   19 passes and seven failures; Runner has five passes and two failures. The
+   total is 24 passes, nine failures, zero unattempted and zero running cells.
+   Local agent-files and file-edit remain failed. Daytona native-questions,
+   native controller-restart, agent-files, provider-death and file-edit remain
+   failed. Runner context-before-action and finish-task remain failed.
+   Stop, steering and human denial are complete. Preserve their original
+   failed attempts; do not redispatch them as first attempts.
    Every failed paid case remains held until a concrete correction addresses
-   its observed failure. Neither a documentation change nor the unrelated
-   fixture correction permits retry.
-   Reuse only evidence whose executable inputs and recorded source match.
+   its observed failure. A documentation change or unrelated fixture correction
+   does not permit retry. Keep zero automatic retries and reuse only evidence
+   whose executable inputs, definitions and recorded source match.
+
 3. Finish prerequisite dispositions and latest-head CI/review. Four findings
    have downstream corrections; premature production admission remains held
    until all 33 cases pass. Preserve the original Codex interruption failures
