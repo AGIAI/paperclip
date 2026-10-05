@@ -147,6 +147,14 @@ describe("accepted Cursor plan passive-wait authority", () => {
     expect(changed.source.authoritySha256).not.toBe(original.source.authoritySha256);
     expect(changed.source.toolLifecycleSha256).not.toBe(original.source.toolLifecycleSha256);
   });
+  it("preserves a valid v11 plan wait saved before production promotion", () => {
+    const facts = fixture();
+    (facts.run.runnerProfileJson as any).nativeExecutionInput.provider.profile.qualificationStatus = "pending";
+    const saved = nativeCursorPlanWaitFromFacts(facts);
+    expect(saved).not.toBeNull();
+    expect(saved!.result.reportedWorkDisposition).toBe("yielded");
+    expect(saved!.result.completionClaim.objectiveSatisfied).toBe(false);
+  });
   it("does not create a new wait from an earlier profile after the catalog advances", () => {
     const facts = fixture();
     expect(nativeCursorPlanWaitFromFacts(facts)).not.toBeNull();

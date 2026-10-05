@@ -25,96 +25,151 @@ spend or enforceable per-run dollar accounting. Native AskQuestion is implemente
 defensively but is not advertised or certified. See the
 [Cursor capability contract](../architecture/runner-cursor-capabilities.md).
 
-## Current release checkpoint
+## Qualified release candidate
 
-The integration is in draft PR [#15075](https://github.com/paperclipai/paperclip/pull/15075).
-Cursor production admission is enabled in this draft candidate after all ten
-local and ten fresh Daytona cases passed with cleanup. Pi and Copilot remain
-gated. Final installed-package qualification and final CI are still in progress;
-this PR is not authorized for production merge or deployment. The frozen runtime is
-`d0b90756e3abe9e7516caded784036f01e76ad25`; the latest controller and fixture
-repairs are `afe305b505edd2744ead6d0dda312400d0b9be66`. The promotion and
-ordinary remote package path are `630ed8613191b6875ad448ecdfe067089f3696d9`. Cursor profile v11,
-patch `paperclip-cursor-usage-v4`, CLI version and explicit Luna model remain fixed.
+Cursor admission is enabled in [PR #15075](https://github.com/paperclipai/paperclip/pull/15075).
+All ten local and ten fresh Daytona gates passed, including cleanup. The final
+ordinary installed-product local and Daytona smokes also passed. Pi and Copilot
+remain gated. Production merge and deployment are separate actions; the PR must
+have green final-head checks before merge.
 
-| Required case | Current local proof | Fresh Daytona proof |
+The frozen native runtime is `d0b90756e3abe9e7516caded784036f01e76ad25`. Cursor
+profile v11, patch `paperclip-cursor-usage-v4`, CLI and exact Luna model remain
+fixed. The native command digest is
+`sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e`;
+the ACPX patch SHA-256 is `bd5393058a218040d217fa85449d59a6f30507de54cd645bf0ef21422823f85e`.
+Promotion and matching provider packs use source
+`630ed8613191b6875ad448ecdfe067089f3696d9`. The public controller includes the
+installed-readiness repair at `2684979803dee739563eb6db9e6137c3755dd320`.
+All three source daemons and all three Cursor native closures match the qualified
+artifacts byte for byte. Release assembly re-signs copied macOS daemon inodes;
+the table below records the resulting packaged hashes. These source roles do not replace historical identities.
+
+| Required case | Local proof | Fresh Daytona proof |
 | --- | --- | --- |
-| Completion through authenticated tools | `hello-complete-01`: passed, cleanup passed | `hello-complete-01`: passed, cleanup passed |
-| File edit, validation and registered download | `file-edit-validate-02`: passed, cleanup passed | `file-edit-validate-01`: passed, cleanup passed |
-| Semantic question after controller restart | `structured-question-restart-resume-01`: passed, cleanup passed | `structured-question-restart-resume-01`: passed, cleanup passed |
-| Semantic plan approval and completion | `plan-approve-complete-01`: passed, cleanup passed | `plan-approve-complete-02`: passed, cleanup passed |
-| Native reject, revise and accept | `native-plan-reject-revise-accept-01`: passed, cleanup passed | `native-plan-reject-revise-accept-01`: passed, cleanup passed |
-| Native plan cancellation | `native-plan-cancel-01`: passed, cleanup passed | `native-plan-cancel-02`: passed, cleanup passed |
-| Denied write after reconnect | `native-write-deny-reconnect-01`: passed, cleanup passed | `native-write-deny-reconnect-01`: passed, cleanup passed |
-| Stop during pending permission | `pending-permission-stop-01`: passed, cleanup passed | `pending-permission-stop-01`: passed, cleanup passed |
-| Three warm turns | `warm-three-turn-01`: passed, cleanup passed | `warm-three-turn-01`: passed, cleanup passed |
-| `pending-permission-provider-loss-01`: passed, cleanup passed permission followed by provider loss | `pending-permission-provider-loss-01`: passed, cleanup passed | `pending-permission-provider-loss-01`: passed, cleanup passed |
+| Completion through authenticated tools | `hello-complete-01`: pass, cleanup pass | `hello-complete-01`: pass, cleanup pass |
+| File edit, validation and registered download | `file-edit-validate-02`: pass, cleanup pass | `file-edit-validate-01`: pass, cleanup pass |
+| Semantic question after controller restart | `structured-question-restart-resume-01`: pass, cleanup pass | `structured-question-restart-resume-01`: pass, cleanup pass |
+| Semantic plan approval and completion | `plan-approve-complete-01`: pass, cleanup pass | `plan-approve-complete-02`: pass, cleanup pass |
+| Native reject, revise and accept | `native-plan-reject-revise-accept-01`: pass, cleanup pass | `native-plan-reject-revise-accept-01`: pass, cleanup pass |
+| Native plan cancellation | `native-plan-cancel-01`: pass, cleanup pass | `native-plan-cancel-02`: pass, cleanup pass |
+| Denied write after reconnect | `native-write-deny-reconnect-01`: pass, cleanup pass | `native-write-deny-reconnect-01`: pass, cleanup pass |
+| Stop during pending permission | `pending-permission-stop-01`: pass, cleanup pass | `pending-permission-stop-01`: pass, cleanup pass |
+| Three warm turns | `warm-three-turn-01`: pass, cleanup pass | `warm-three-turn-01`: pass, cleanup pass |
+| Pending permission followed by provider loss | `pending-permission-provider-loss-01`: pass, cleanup pass | `pending-permission-provider-loss-01`: pass, cleanup pass |
 
-Each local identity has prefix `cursor-v11-d0b907-local-`. Results live under
-`tests/runner-e2e/results/<identity>/<suite>/runner-acpx-cursor/local/<case>/attempt-1/result.json`.
-The file repeat uses controller/fixture 473206; the other cases use 5e6c16.
-All ten local cases use runtime d0b907. Fresh remote identities have prefix
-`cursor-v11-d0b907-daytona-` and the same result layout with `daytona` in place
-of `local`. The semantic plan repeat and native decision case use controller
-473206; the remaining remote cases use AFE diagnostics. All ten remote cases
-use the exact frozen image and runtime. Automatic retries are zero.
+Local identities start `cursor-v11-d0b907-local-`; remote identities start
+`cursor-v11-d0b907-daytona-`. Results are under
+`tests/runner-e2e/results/<identity>/<suite>/runner-acpx-cursor/<environment>/<case>/attempt-1/result.json`.
+The local file repeat uses controller/fixture 473206; the other local cases use
+5e6c16. The remote semantic plan repeat and native decision case use 473206;
+remaining remote cases use AFE diagnostics. All use the frozen native runtime.
+Automatic retries are zero. The file gates independently download the registered,
+run-attributed attachment and verify its bytes, size and SHA-256.
 
-All seven Runner semantic cases passed on this frozen runtime with owned
-processes retired. Their campaign identities have prefix `cursor-v11-d0b907-`
-and suffix `-01`: `get-task-context`, `context-before-action`,
-`create-task-document`, `finish-task`, `request-human-confirmation`,
-`workflow-context-document-progress`, and `workflow-governed-wait`.
-Every strict score remains `accounting_failure` for
-`provider_budget_coverage_unknown`; per-run USD is null. These failures are not
-included in the semantic pass count.
+All seven Runner semantic cases passed with owned processes retired:
+`get-task-context`, `context-before-action`, `create-task-document`, `finish-task`,
+`request-human-confirmation`, `workflow-context-document-progress`, and
+`workflow-governed-wait`. Their identities start `cursor-v11-d0b907-` and end `-01`.
+All seven strict scores remain `accounting_failure` for
+`provider_budget_coverage_unknown`; per-run USD is null. They are semantic passes
+and accounting failures. Native AskQuestion and complete accounting are excluded
+from certification.
 
-| Platform | Provider-pack manifest digest | Daemon SHA-256 |
+### Exact final artifacts and ordinary installation
+
+| Platform | Final provider-pack manifest digest | Packaged daemon SHA-256 |
 | --- | --- | --- |
-| macOS ARM64 | `9e3312c292a5cf9705c75cf2ae6d7435222547e749bf210330be0e7f5d09b822` | `70174bb6f293bb5348ea638e3052abbdc69689b5b4635827c3b7d50e23a2b8e0` |
-| macOS x64 | `51a146a4013fcf4de05254509cb6056356e60c9f825feec648a347310953899e` | `0efe9ca359b961d429a475354473c462c31b95c6670a1d9ce50be601568c80c8` |
-| Linux x64 | `7c7bdec69c69e890c5ae3da7d8f80026412c397436adec8aa074f3653ff852c2` | `34d1b96550669613e91b3df75752164609ddfbeec70ea821e540558f8a96ddb6` |
+| macOS ARM64 | `40377a1641a434785109a12895af74dbde4ff978a510b126059039306fdd2e6a` | `33bb9276b4d79be33f77c89a76ab71946808583500c6200a144b324479fbd9d8` |
+| macOS x64 | `a7ba83592a05546ca0aa327b188d8c6991b32d764dc02565b78a8102e7ea76d1` | `1bcd1bdc015f15a8321c9564d008284fd105da4f019632ff81ba0c9f75ae28d7` |
+| Linux x64 | `6a32a7955c56f7eec26272cde996faa20e678146480ffb95bc909abe25fd0adb` | `34d1b96550669613e91b3df75752164609ddfbeec70ea821e540558f8a96ddb6` |
 
-The qualification image is published at
+The final image is
+`ghcr.io/paperclipai/paperclip-daytona-runner@sha256:681b56d2e2fcbde12f6677fbd54c617bfcc66df43a02c267bb355d46e16e7caf`.
+Its source is 630ed. Publication returned this registry OCI index digest;
+independent registry inspection confirmed it. The image's provider-pack file
+SHA-256 is `723451cf01d4538693884bc37ece71ff31e64dfc2254e4b8fd5386bf23fb81da`.
+The complete extracted tree passed manifest verification before publication.
+The public server ships that exact manifest as its expected Linux image identity.
+A macOS controller uses its packaged Linux daemon. A mismatched image fails before
+provider launch; it does not stage borrowed assets or download a replacement.
+
+The tested public package version is `0.0.0-cursor-verify.2684979803de`.
+CLI tarball SHA-256: `e67396bf8baa9d4e2d2298d1064a24f495730e84ac428016ab32554906ca25ad`.
+Server tarball SHA-256: `f3dbc5dd00a45bbd668fd23b36bebd069feaa54b2e6209d87618a7037f8583cc`.
+The separately installed public Daytona plugin uses the same test version;
+its tarball SHA-256 is `e991dfc10804c2ec08c9f0a7ed99b0b59761c2edc4d6fa4e1c8540e23b21ca61`.
+Its dependencies are isolated as in the product plugin installer.
+The complete resolved build lock SHA-256 is
+`70af8ab3d7051c85fc1a55c11e9afe8887d9711232e3c6e97666006562217e5f`.
+Repository policy leaves lockfile commits to Actions.
+
+The public verifier passed for 18 packages on the isolated consumer image
+`node:24-trixie@sha256:be40f6a87b9b22215ddb20da0a2320a5c6d583fe3ee3b0024d9fa4f05b40c8fd`.
+It enabled npm lifecycle hooks, verified the lifecycle sentinel, proved Cursor
+was absent after npm installation, ran public pinned setup, verified all three
+daemon targets, launched the installed Linux daemon, and passed the installed
+Cursor configuration probe. Provider calls were zero. A fresh macOS consumer
+installed the same tarballs with normal lifecycle hooks and public setup; its
+installed configuration probe also passed without credentials.
+
+| Final ordinary installed smoke | Fixture source | Outcome | Result SHA-256 |
+| --- | --- | --- | --- |
+| `cursor-v11-268497-installed-local-file-edit-validate-01` | `b9a0180c1a96cf0fd0448cc69d6f47a5de8d258e` | 8/8 matchers, cleanup pass | `26cdd34a8b7c3dc19f0afd3cf94c22e1700bad217d2af92877aeb10dbe1f58bc` |
+| `cursor-v11-268497-installed-daytona-hello-complete-02` | `327f6df095d38f0e2213cb4572376e01d4629946` | 6/6 matchers, cleanup pass | `7f2f23d1c5dec8e030866781cc09e06990d5149758c0d467df49e63366b29dd1` |
+
+These launch the actual installed `paperclipai/dist/index.js` from its consumer
+root. The server removes qualification admission, native binary paths, provider
+pack overrides, repository executables and TypeScript loader injection. Credentials
+use company secret bindings. The Daytona plugin is a compiled public npm package
+installed through the normal plugin API. Image selection uses the normal
+environment configuration surface. Task results were reloaded and inspected.
+The local gate verified the registered download independently. Remote cleanup
+confirmed destruction of the owned environment lease.
+
+### Retained failures, validation and budget
+
+The qualification image was
 `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:16c7be3610f45e409f67873dd4bd829f9a1e0e5f017c8826d01db4bb05720f97`.
-The user approved publication and all remaining qualification on 2026-10-04
-within the existing $100 total ceiling. The registry push returned the digest
-above; `docker buildx imagetools inspect` independently confirms that OCI index
-at GHCR, with Linux amd64 manifest `sha256:c70f25e76503ce2d9cc1f87ed5a221f8e423f4a45f5519e8aa0581b033be353e`.
-Docker's local containerd store uses the same OCI index identity here. All ten
-remote cases pulled this published immutable image and passed with cleanup.
-The first plan attempt failed before a provider call because seven empty directories
-were missing from the controller extraction. All file bytes matched the immutable
-image; restoring its exact directory inventory passed the unchanged manifest.
-The failed attempt and successful cleanup remain recorded; the affected repeat
-uses the same image and runtime. Native cancellation attempt 01 lacked a complete
-terminal observer receipt and failed its cleanup gate. Independent deletion of its
-owned sandbox was confirmed. Its failed result remains failed; diagnostic-only AFE
-fixture changes did not relax any proof requirement, and attempt 02 passed with
-cleanup. This does not establish a product bug fix or erase the first failure.
-Infrastructure reserves total $29 within the
-$52.919619376 remaining envelope; unknown per-run Cursor costs stay null.
+Its registry push and independent inspection confirmed that OCI index, with Linux
+amd64 manifest `sha256:c70f25e76503ce2d9cc1f87ed5a221f8e423f4a45f5519e8aa0581b033be353e`.
+Docker's local containerd store uses the same index identity; it is not an inferred
+registry digest. All twenty matrix cells retain the frozen artifact identities.
 
-The isolated public package verifier passed at source 473206: 18 public packages,
-enabled lifecycle hooks, no implicit Cursor provisioning, explicit pinned setup,
-all three packaged daemon targets, and an ordinary installed Linux daemon launch.
-The consumer image is `node:24-trixie@sha256:be40f6a87b9b22215ddb20da0a2320a5c6d583fe3ee3b0024d9fa4f05b40c8fd`.
-Package version is `0.0.0-cursor-verify.473206cd9d5c`; provider calls were zero.
+Remote semantic-plan attempt 01 failed before a provider call because seven empty
+directories were absent from the controller extraction. Every file byte matched
+the image; restoring its exact directory inventory passed the unchanged manifest.
+The failed result and successful cleanup remain recorded. Native cancellation
+attempt 01 lacked a complete terminal observer receipt and failed its cleanup
+gate. Independent deletion of its owned sandbox was confirmed. Diagnostic-only
+AFE fixture changes retained all proof requirements; attempt 02 passed with
+cleanup. This does not establish a product bug fix or erase the original failure.
 
-MacOS release assembly re-signs copied daemon inodes. The exact packaged hashes
-are ARM64 `33bb9276b4d79be33f77c89a76ab71946808583500c6200a144b324479fbd9d8`,
-x64 `1bcd1bdc015f15a8321c9564d008284fd105da4f019632ff81ba0c9f75ae28d7`,
-and Linux x64 `34d1b96550669613e91b3df75752164609ddfbeec70ea821e540558f8a96ddb6`.
-The source daemon hashes remain as listed above.
+The first installed remote smoke used the workspace plugin and failed before a
+run or sandbox allocation, with cleanup passed. The fixture now validates a public
+compiled plugin in its own installed dependency directory; the affected repeat
+passed. A separate credential-free public probe exposed a development-only Runner
+import in the installed configuration check. The production fix uses the vendored
+boundary, and the stronger public verifier and both installed smokes pass.
 
-All 53 applicable CI checks passed at 473206, with four skipped. Greptile reported
-5/5 with no new blocker. Local default-suite coverage is complete through the
-original general-server run, its affected repeats, the remaining workspace groups
-and the serialized route files. Original failed attempts keep their failed status;
-the complete default command was not repeated.
-Recursive typecheck, full build, token gates, four native launch/selection tests,
-1,568 Vitest harness checks and 128 Node harness checks passed. The combined
-harness wrapper exits nonzero because it includes three Node suites as Vitest
-files; their separate Node execution passed. The final installed task smoke and final certification remain required.
+Promotion checks passed: recursive typecheck, full build, token gates (1,129 files),
+Runner contract/replay checks, 164 focused Runner tests, executor/profile/runtime-mode coverage,
+56 readiness-probe tests, 5 vendored dependency tests, 29 installed/admission fixture
+tests, 56 plan-wait tests, fixture typecheck and 9 UI option tests. The new plan-wait
+case preserves valid v11 waits saved with pre-promotion admission metadata;
+incompatible profile identities remain fenced. Original failed test attempts are
+retained separately from their affected successful repeats. The full default local
+test command and final GitHub checks are required before handoff; the PR's live
+checks show the final-head CI state. Historical verification below retains its
+original source and outcomes.
+
+The user reconfirmed all remaining work on 2026-10-04 within the original $100 total
+ceiling. Prior committed upper bounds total $47.080380624; the remaining envelope
+is $52.919619376. Infrastructure reserves total $29, including diagnosed repeats,
+normal installed qualification and uncertain allocation. There are 26 recorded
+remote attempts and no active paid cells at this checkpoint. The existing $25
+Cursor account-cycle cap is counted once, not added again. Reservations are not
+measured spend. Per-run Cursor USD remains null.
 
 ## Source-to-port map
 
@@ -156,8 +211,8 @@ preserved; semantic behavior is assessed separately.
 - [x] Run seven semantic Runner cases; retain strict accounting results separately.
 - [x] Promote Cursor after the complete local and Daytona matrix; leave other pending providers gated.
 - [x] Run contracts/replay, token gates, recursive typecheck, full tests and build; retain failed local attempts and verify affected repeats separately.
-- [ ] Repeat a clean normal-install smoke with qualification overrides absent.
-- [ ] Deliver exact identities, capability limits and completed acceptance matrix; prepare focused template-based PR.
+- [x] Repeat clean normal-install local and Daytona smokes with qualification and runtime overrides absent.
+- [x] Deliver exact identities, capability limits and completed acceptance matrix; prepare focused template-based PR.
 
 Production merge/deployment is a separate final action. Rollback disables new
 Cursor admission while preserving records, valid committed plan waits and recovery
@@ -236,13 +291,13 @@ manifest identity; the remotely pulled digest must be recorded before a live cel
 | --- | --- | --- |
 | Ordinary installation and completion | Public setup/closure verified; final full verifier and normal product smoke pending | Pending |
 | File editing, validation, accessible artifacts | Earlier `9ba53f` preflight passed; assembled-candidate repeat pending | Pending |
-| Semantic question with controller restart | Passed `structured-question-restart-resume-01` on `ccae835` | `structured-question-restart-resume-01`: passed, cleanup passed |
-| Semantic plan acceptance | Passed `plan-approve-complete-01` on `ccae835` | `plan-approve-complete-02`: passed, cleanup passed |
-| Native reject, revise, accept | Passed `native-plan-reject-revise-accept-01` on `ccae835` | `native-plan-reject-revise-accept-01`: passed, cleanup passed |
+| Semantic question with controller restart | Passed `structured-question-restart-resume-01` on `ccae835` | Pending |
+| Semantic plan acceptance | Passed `plan-approve-complete-01` on `ccae835` | Pending |
+| Native reject, revise, accept | Passed `native-plan-reject-revise-accept-01` on `ccae835` | Pending |
 | Native plan cancellation | First attempt failed during fixture migration/startup before Cursor ran; affected repeat pending | Pending |
 | Denied write and pending-permission Stop | Pending | Pending |
 | Three warm turns | Pending | Pending |
-| Owned provider loss with pending permission | Passed `pending-permission-provider-loss-03` with clean retirement, stale-answer refusal, blocked open task, failed run, and no mutation | `pending-permission-provider-loss-01`: passed, cleanup passed |
+| Owned provider loss with pending permission | Passed `pending-permission-provider-loss-03` with clean retirement, stale-answer refusal, blocked open task, failed run, and no mutation | Pending |
 
 All attempts are serial and have zero automatic retries. The original campaign
 envelope has $52.919619376 remaining after its prior committed upper bound.
