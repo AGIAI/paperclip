@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AssistantConnection } from "./AssistantConnection";
+import { AssistantConnection, AssistantConnectionCard } from "./AssistantConnection";
 const mocks = vi.hoisted(() => ({ setup: vi.fn(), connections: vi.fn(), revoke: vi.fn(), breadcrumbs: vi.fn() }));
 vi.mock("@/api/publicMcp", () => ({ publicMcpApi: mocks }));
 vi.mock("@/context/CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: "butter", selectedCompany: { id: "butter", name: "Butter", logoUrl: null } }) }));
@@ -13,8 +13,8 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const grant = { id: "grant", companyId: "butter", companyName: "Butter", clientName: "OpenCode", scopes: ["paperclip:read", "paperclip:write"], createdAt: "2026-10-05T00:00:00Z", revokedAt: null };
 let root: Root, container: HTMLDivElement, client: QueryClient;
 async function flush() { await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); }); }
-async function render() {
-  await act(async () => root.render(<QueryClientProvider client={client}><AssistantConnection initialAssistant="opencode" /></QueryClientProvider>));
+async function render(element: React.ReactNode = <AssistantConnection initialAssistant="opencode" />) {
+  await act(async () => root.render(<QueryClientProvider client={client}>{element}</QueryClientProvider>));
   await flush();
 }
 beforeEach(() => {
@@ -26,6 +26,18 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => root.unmount()); client.clear(); container.remove(); vi.clearAllMocks(); });
 describe("assistant setup from Connections", () => {
+  it("surfaces catalog status failures and recovers without claiming there are no connections", async () => {
+    mocks.connections.mockRejectedValue(new Error("offline"));
+    await render(<AssistantConnectionCard onNavigate={vi.fn()} />);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Couldn’t load your connection status");
+    expect(container.querySelector('[aria-label="Set up Assistant Connection (MCP)"]')).toBeNull();
+    expect(container.querySelector('[data-connected]')).toBeNull();
+    mocks.connections.mockResolvedValue([grant]);
+    await act(async () => Array.from(container.querySelectorAll('button')).find(b => b.textContent === "Try again")!.click());
+    await flush();
+    expect(container.querySelector('[aria-label="Manage Assistant Connection (MCP)"]')).not.toBeNull();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
   it("uses the canonical URL and explains how OpenCode opens consent without granting access", async () => {
     await render();
     const config = Array.from(container.querySelectorAll("pre")).map(p => p.textContent!).find(p => p.startsWith("{"))!;

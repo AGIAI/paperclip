@@ -26,18 +26,24 @@ function useConnections(poll = false) {
 
 /** Inbound assistant access belongs beside the existing outbound connectors. */
 export function AssistantConnectionCard({ onNavigate }: { onNavigate: (href: string) => void }) {
-  const { rows } = useConnections();
-  const active = rows.filter(row => !row.revokedAt);
-  return <div role="listitem" data-app-slug="assistant-connection" data-connected={active.length ? "true" : "false"} className="overflow-hidden rounded-xl border border-border">
+  const connections = useConnections();
+  const active = connections.rows.filter(row => !row.revokedAt);
+  const action = !connections.isSuccess ? "Open" : active.length ? "Manage" : "Set up";
+  return <div role="listitem" data-app-slug="assistant-connection" data-connected={connections.isSuccess ? String(active.length > 0) : undefined} className="overflow-hidden rounded-xl border border-border">
     <div className="flex flex-wrap items-center gap-3 px-4 py-4">
       <Paperclip className="size-9 shrink-0 p-1 text-foreground" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <h2 className="text-sm font-semibold text-foreground">Assistant Connection (MCP)</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">Use your Paperclip organization from Codex, Claude, OpenCode, or another assistant.</p>
       </div>
-      <Button type="button" size="sm" variant="outline" onClick={() => onNavigate(ASSISTANT_CONNECTION_PATH)} aria-label={`${active.length ? "Manage" : "Set up"} Assistant Connection (MCP)`}>{active.length ? "Manage" : "Set up"}</Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => onNavigate(ASSISTANT_CONNECTION_PATH)} aria-label={`${action} Assistant Connection (MCP)`}>{action}</Button>
     </div>
-    {active.length > 0 && <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3 text-sm">
+    {connections.isPending && <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Checking your connection status…</p>}
+    {connections.isError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
+      <p className="text-xs text-destructive">Couldn’t load your connection status.</p>
+      <Button size="sm" variant="ghost" disabled={connections.isFetching} onClick={() => void connections.refetch()}>Try again</Button>
+    </div>}
+    {connections.isSuccess && active.length > 0 && <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3 text-sm">
       <Check className="size-4 text-muted-foreground" aria-hidden="true" />
       <span>{active.map(row => row.clientName).join(", ")}</span>
       <span className="text-xs text-muted-foreground">Connected as you</span>

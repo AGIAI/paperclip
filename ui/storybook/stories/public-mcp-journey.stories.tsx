@@ -6,6 +6,7 @@ import { Link, Route, Routes } from "@/lib/router";
 import { Browse } from "@/pages/apps/Browse";
 import { AssistantConnection } from "@/pages/apps/AssistantConnection";
 import { InstanceExperimentalSettings } from "@/pages/InstanceExperimentalSettings";
+import { PublicMcpPresenter } from "./public-mcp-presenter";
 import { installPublicMcpFixture } from "../fixtures/publicMcp";
 
 function ConnectionJourney({ assistant = "opencode" }: { assistant?: "codex" | "claude" | "opencode" | "other" }) {
@@ -30,7 +31,10 @@ const meta = {
 } satisfies Meta<typeof ConnectionJourney>;
 export default meta;
 type Story = StoryObj<typeof meta>;
-export const GuidedWalkthrough: Story = {};
+export const GuidedWalkthrough: Story = { render: () => <PublicMcpPresenter /> };
+export const Connections: Story = {};
+export const EnableSetup: Story = { parameters: { initialEntries: ["/PAP/apps/assistant-connection"] } };
+export const ConnectionStatusUnavailable: Story = { parameters: { fixture: { enabled: true, connectionsUnavailable: true } } };
 export const OpenCodeSetup: Story = { parameters: { initialEntries: ["/PAP/apps/assistant-connection"], fixture: { enabled: true, empty: true } } };
 export const CodexSetup: Story = { ...OpenCodeSetup, args: { assistant: "codex" } };
 export const ClaudeSetup: Story = { ...OpenCodeSetup, args: { assistant: "claude" } };

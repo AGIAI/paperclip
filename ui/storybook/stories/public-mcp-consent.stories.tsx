@@ -18,6 +18,7 @@ const chooseOrganization: NonNullable<Story["play"]> = async ({ canvasElement })
   await userEvent.click(await c.findByRole("radio", { name: "Acme Research" }));
 };
 export const ChooseOrganization: Story = {};
+export const OpenCodeOrganization: Story = { parameters: { fixture: { request: { clientName: "OpenCode", redirectOrigin: "http://127.0.0.1:19876", companies: [{ ...request.companies[0], name: "Paperclip Storybook" }] } } } };
 export const AllowDelegation: Story = { play: async context => {
   await chooseOrganization(context);
   const c = within(context.canvasElement);

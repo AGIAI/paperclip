@@ -18,6 +18,7 @@ export interface PublicMcpFixture {
   request?: Partial<McpConnectionRequest>;
   loading?: boolean;
   unavailable?: boolean;
+  connectionsUnavailable?: boolean;
   pending?: boolean;
   mutationError?: boolean;
   empty?: boolean;
@@ -46,7 +47,7 @@ export function installPublicMcpFixture(fixture: PublicMcpFixture = {}) {
       if (fixture.unavailable) return error("Assistant connections are unavailable. Check the experimental setting or reconnect.", 403);
       if (path === "/api/instance/settings/experimental") return Response.json(settings);
       if (path === "/api/mcp/setup") return Response.json({ enabled: settings.enablePublicMcp, serverUrl: "https://paperclip.example/mcp/paperclip" });
-      if (path === "/api/mcp/connections") return Response.json(rows);
+      if (path === "/api/mcp/connections") return fixture.connectionsUnavailable ? error("Connection status is unavailable.") : Response.json(rows);
       if (path === `/api/mcp/requests/${request.id}`) return Response.json({ ...request, ...fixture.request });
     } else {
       if (fixture.pending) return new Promise<Response>(() => {});
