@@ -25,9 +25,9 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Frozen shipping source `0bd040093` passes local Stop, steering, controller restart, native questions and warm continuity. Daytona warm continuity, human denial, corrected Stop and first steering pass. Native questions, native controller-restart and provider-death remain failed. Prior failed attempts remain unchanged. |
 | Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | All 26 cells are attempted at frozen shipping source `0bd040093`: 20 pass and six remain failed. Local has 11 passes and two failures: agent-files and file-edit. Daytona has nine passes and four failures: native-questions, native controller-restart, agent-files and provider-death. The separately corrected Daytona file-edit attempt passes all seven matchers and canonical cleanup on extended definitions 3; its original failure remains failed. Human denial passes nine matchers and cleanup on native definitions 5. Corrected Stop passes five matchers; first steering passes eight; both pass cleanup on controls definitions 8. No cells remain unattempted or running. Original grades and source fingerprints are preserved. |
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases are attempted at `0bd040093`: five pass; context-before-action retains its 120-second terminal timeout, and finish-task retains use of the advisory report without the required task mutation. One context/document workflow retry passes only after verified protection against the recorded host sleep; its original failure stays unchanged. The seven `b148b73ea` passes remain historical. |
-| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Exact-source public CLI/server installation and normal Pi setup pass on all three platforms. Public immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47` imports into native Linux Daytona and passes closed admission. Temporary sandbox cleanup passes. Image jobs 37102904889, 37106313185 and 37110683910 are terminal/cancelled. |
+| Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Public CLI/server installation and normal Pi setup pass on all three platforms at original execution source `0bd040093`. The installer correction at `fcef1eae9` changes CLI and provisioner bytes; fresh normal public artifact/install proof must bind the updated source. Old artifact proofs keep their original labels. Public immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47` imports into native Linux Daytona and passes closed admission. Temporary sandbox cleanup passes. Image jobs 37102904889, 37106313185 and 37110683910 are terminal/cancelled. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Last verified readiness head `baaf444ed` has 53 successful CI checks, two skips, Greptile 5/5 and no unresolved root threads, including full Linux build and typecheck. The prerequisite ancestry reconciliation preserves that tracked source tree before this plan update; the integration must receive its own completed current-head CI and review. All 116 targeted native Linux fixture tests and 13 browser-case collections pass at `04f639eeb`; the new descriptor correction separately passes all 17 free native Linux fault tests. Full typecheck, complete test and build evidence remains recorded below; original failed commands remain failed. Shipping inputs stay equivalent to `0bd040093`. Four prerequisite findings now have scoped upstream corrections with focused verification. The admission finding remains open and standalone prerequisite CI/review is pending on the corrected heads. Production stays held for eight failed gates and prerequisite disposition. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Last verified readiness head `146f578c0` has 53 successful CI checks, two skips, current-head Greptile 5/5 and no unresolved root threads, including full build and typecheck. The new installer integration must receive its own completed current-head CI, review and updated public artifact/install proof. All 116 targeted native Linux fixture tests and 13 browser-case collections pass at `04f639eeb`; the new descriptor correction separately passes all 17 free native Linux fault tests. Full typecheck, complete test and build evidence remains recorded below; original failed commands remain failed. Frozen Pi execution inputs remain equivalent to `0bd040093`; the explicit installer has two changed executable inputs. Prerequisite #14921 passes every test/build/typecheck check but its valid admission review blocks merge. The retained SDK and setup network findings receive scoped corrections with focused verification; their new heads require fresh CI and review. Production stays held for eight failed gates and prerequisite disposition. No merge or release. |
 
 ## Bounded execution
 
@@ -82,8 +82,8 @@ success label is corrected by its strict verdict. All three owned sandboxes are
 deleted. The original paid rejection stage remains unproven.
 
 Prerequisite fixes preserve every previous commit. The latest heads are
-#14921 `89f444850`, #14922 `ec67ba1e0`, #14923 `3250c3f68`, and #14924
-`9753f0716`. They carry the scoped UI/profile assertions and notice-display
+#14921 `7f452cbd7`, #14922 `fcef1eae9`, #14923 `5aff21d77`, and #14924
+`5120ddc8f`. They carry the scoped UI/profile assertions and notice-display
 corrections. The first prerequisite also receives the existing package-local
 Runner probe import repair and remaining admission assertions already present
 downstream. The complete repair includes both public probe export surfaces.
@@ -100,8 +100,10 @@ remain failed or insufficient evidence. The corrected private verification uses
 exact source aliases and the pinned Node directory; no repository configuration
 changes occur.
 
-The additive readiness integration has an identical tracked tree to
-`337ca6bd1` before this plan update. The preceding `aef3b84ce` completes 53 successful
+The preceding readiness integration `146f578c0` completes 53 successful CI
+checks, two skips and a current-head 5/5 review. The new additive integration
+changes only the six scoped installer/fixture/documentation files before this
+plan update. The preceding `aef3b84ce` completes 53 successful
 CI checks and two skips after one bounded rerun of the serialized sidebar job.
 All six sidebar tests also pass locally. The original HTTP 500 cause remains
 unproven; the failed log is retained. The earliest prerequisite's original
@@ -114,11 +116,45 @@ errors; the complete repair above supplies those exports. New-head CI and review
 require their own terminal results. Old passes do not qualify a new head.
 No repeated unchanged rerun is authorized.
 
-Runtime artifacts, profile 14, model/low and suite fingerprints are unchanged.
+Pi execution inputs, profile 14, model/low and suite fingerprints are unchanged.
+The public installer is corrected separately below; original installation
+artifacts do not become proof of the updated bytes.
 The source still declares Pi qualified: the production hold is the draft/release
 gate, not a closed code admission gate. That admission review remains open.
 No GitHub PR merge, release, automatic paid retry, fallback key or model change
 occurs.
+
+## Public installer review corrections — 2026-10-05
+
+The SDK fixture now derives the publication version from the actual SDK
+manifest instead of pinning 0.3.1. Exact dependency identity, byte seals,
+canonical roots and all existing ambient-Node negative fixtures stay enforced.
+
+The explicit CLI setup child and its bundled provisioner now preserve the same
+closed allowlist: `PATH`, fixed `LANG`, optional `LC_ALL`, `HTTP_PROXY`,
+`HTTPS_PROXY`, `NO_PROXY`, `SSL_CERT_FILE`, `SSL_CERT_DIR` and
+`NODE_EXTRA_CA_CERTS`. The CLI enables Node's environment proxy handling before
+the helper starts. Provider keys, `HOME`, npm configuration, `NODE_OPTIONS`,
+`NODE_PATH` and TLS-validation bypass remain excluded. These settings apply to
+explicit public downloads; the Pi execution closure and profile do not change.
+
+At prerequisite #14922 `fcef1eae9`, six CLI tests, eight installed-plugin tests
+and two bundled boundary tests pass with zero provider calls/downloads. The
+real CLI child verifies proxy activation and credential exclusion. The actual
+bundled provisioner verifies its post-sanitization environment and rejects a
+corrupt cache with network/child creation denied. At #14924 `5120ddc8f`, all
+18 focused checks pass, including the two pre-existing ambient-Node negative
+fixtures. The corrections are forwarded through additive merges. An initially
+over-broad SDK whole-file equality guard is retained as a local verification
+failure; the exact correction delta and preserved negative tests then pass.
+Local missing-Commander and incomplete Product source-alias setup failures are
+retained separately; no repository test configuration changes occur.
+
+Normal updated CLI/server tar installation and setup on ARM Mac, Intel Mac and
+Linux remain required before releasing these installer bytes. Original
+`0bd040093` artifacts and all 33 paid grades retain their exact source labels.
+Current production results remain 25 passes and eight failures. No paid retry,
+model/profile change, lockfile edit, workflow edit, merge or release occurs.
 
 ## Accepted corrections — 2026-10-04
 
