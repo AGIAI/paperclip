@@ -27,7 +27,7 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases are attempted at `0bd040093`: five pass; context-before-action retains its 120-second terminal timeout, and finish-task retains use of the advisory report without the required task mutation. One context/document workflow retry passes only after verified protection against the recorded host sleep; its original failure stays unchanged. The seven `b148b73ea` passes remain historical. |
 | Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Exact-source public CLI/server installation and normal Pi setup pass on all three platforms. Public immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47` imports into native Linux Daytona and passes closed admission. Temporary sandbox cleanup passes. Image jobs 37102904889, 37106313185 and 37110683910 are terminal/cancelled. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Last verified PR head `b224e4338` has 53 successful CI checks, two skips, Greptile 5/5 and no unresolved root threads, including full Linux build and typecheck. This file-prompt fixture follow-up requires its own completed latest-head checks and review. All 116 targeted native Linux fixture tests and 13 browser-case collections pass at `04f639eeb`; the new descriptor correction separately passes all 17 free native Linux fault tests. Full typecheck, complete test and build evidence remains recorded below; original failed commands remain failed. Shipping inputs stay equivalent to `0bd040093`. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held for nine failed gates and prerequisite disposition. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Last verified PR head `120eb7f01` has 53 successful CI checks, two skips, Greptile 5/5 and no unresolved root threads, including full Linux build and typecheck. This coverage-assertion synchronization requires its own completed latest-head checks and review. All 116 targeted native Linux fixture tests and 13 browser-case collections pass at `04f639eeb`; the new descriptor correction separately passes all 17 free native Linux fault tests. Full typecheck, complete test and build evidence remains recorded below; original failed commands remain failed. Shipping inputs stay equivalent to `0bd040093`. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held for nine failed gates and prerequisite disposition. No merge or release. |
 
 ## Bounded execution
 
@@ -208,6 +208,17 @@ still fails on six stale linked Runner/adapter declarations. Fresh latest-head
 CI must verify typecheck, tests and build before a PR-ready handoff. The new
 extended-suite fingerprint is
 `121f4cf75267bcdb003e5ed59e165755b2ac0c3d31c82dc217a62c8abe3d1b4d`.
+
+The first expanded Linux preflight at `120eb7f01` passes 296 tests and fails
+one cross-suite coverage assertion that still expects extended definitions 2.
+Normal public install, Pi admission, startup, graph audits and all 13 browser
+collections pass. Its failed test command is retained. The follow-up synchronizes
+that assertion's version and fingerprint with definitions 3 without changing the
+task or oracle. All three focused local files then pass 175 tests. The same owned
+controller requires a separate corrected preflight before any paid dispatch.
+Head `120eb7f01` completes 53 successful CI checks and two skips, with Greptile
+5/5 and no unresolved root review threads. This test synchronization requires
+fresh checks on its own head. No paid attempt occurs during either preparation.
 
 ## Qualification snapshot — 2026-10-03
 
