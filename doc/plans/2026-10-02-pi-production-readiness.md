@@ -5,6 +5,37 @@ set of release gates. Pi remains a candidate until every required gate passes.
 Do not expand this work to additional models, widgets, images, Cursor or Copilot
 qualification. The existing draft stack must be reviewed in dependency order.
 
+## Case corrections — 2026-10-05
+
+The latest completed frozen-runtime proofs are **28/33: Product 21/26 and
+Runner 7/7**. These counts supersede older snapshots below. The two corrected
+Runner prompts pass at private definitions revision `7b112ffe3` with unchanged
+graders, one attempt per correction and zero automatic retries. Their original
+failures remain retained. The Mac file-edit correction also passes.
+
+The provider-death fixture now admits the production runner's stable symlink
+while still checking the resolved bytes, live Node inode and exact Pi-child
+pidfd. All 21 Linux fault tests and 297 Linux fixture checks pass. The next live
+attempt signals the correct Pi child and passes cleanup, but exposes a runtime
+bug: its provider-loss expiry creates a durable question fallback that the
+server mistakes for successful yielded completion.
+
+The runtime correction preserves that fallback while preventing governed-wait
+settlement after provider loss. The Runner emits `turn.failed` for the lost
+provider instead of `turn.interrupted`. The regression fails before the fix;
+169 Runner tests and all 574 native-server tests pass afterward. This changes
+shipping runtime inputs. Existing `0bd040093` artifacts and paid passes do not
+qualify the corrected runtime; fresh public artifacts and source-bound live
+qualification remain required.
+
+The memory prompt now states its nonce-plus-final-LF contract in plain text and
+bounds the native write/read sequence. A free call to the frozen Pi tools
+retains all 33 bytes, including the LF. The corrected local live attempt still
+times out after native policy rejects paths outside the assigned roots.
+Cleanup passes. Both failed corrected local attempts remain failed; the memory
+case is not qualified. No byte assertion, timeout, model or permission boundary
+is relaxed. Production remains held; no merge or release is authorized.
+
 ## Frozen target
 
 - Pi: `@earendil-works/pi-coding-agent@1.0.0`.

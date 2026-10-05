@@ -4813,6 +4813,16 @@ describe("native governed waits", () => {
       payload: { kind: "dynamicToolCall" },
     };
 
+    // The durable fallback preserves the question after provider loss, but
+    // cannot turn that lost execution into a successful governed wait.
+    const providerLost = { ...replayedEvent, eventType: "runtime_request.expired" as const,
+      payload: { reason: "provider_process_lost", replayAllowed: false } };
+    const lostObservation = createGovernedWaitEventObservation(async () => waitResult);
+    await lostObservation.observe(providerLost, true);
+    expect(lostObservation.consume(providerLost)).toBeNull();
+    await lostObservation.observe(replayedEvent, true);
+    expect(lostObservation.consume(replayedEvent)).toBeNull();
+
     // The event consumer can lag the provider: a commentary event emitted
     // before the tool began may be processed after its approval exists in DB.
     // It is not proof that the approval-creating tool response has settled.
