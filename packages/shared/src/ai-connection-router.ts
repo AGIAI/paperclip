@@ -75,3 +75,22 @@ export interface AiConnectionRouterSelection {
   runtimeConfig: Record<string, unknown>;
   notes: string[];
 }
+
+/** Stable, collision-free catalog identity across plugin reinstallations. */
+export function aiConnectionRouterSlug(pluginKey: string): string {
+  return `ai-router-${Array.from(pluginKey, character => character.charCodeAt(0).toString(16).padStart(2, "0")).join("")}`;
+}
+
+export function aiConnectionRouterAppDefinition(pluginKey: string, descriptor: { name: string; description: string }, availability = { available: true } as { available: boolean; reason?: string }): import("./types/app-definition.js").AppDefinition {
+  return {
+    schemaVersion: 1, slug: aiConnectionRouterSlug(pluginKey), ...descriptor,
+    categories: ["ai"], branding: { logoUrl: "/brands/connection-pool.svg" }, urlPatterns: [],
+    aiConnectionRouter: { pluginKey }, availability,
+    methods: [{ key: "pool", purpose: "ai", transport: "runtime_auth", auth: "none", ownershipModes: ["customer"], whenToUse: "Use existing AI connections", guidanceMd: "", riskTier: "S1" }],
+  };
+}
+
+export function aiConnectionRouterPluginKey(connection: { config?: Record<string, unknown> | null }): string | null {
+  const router = connection.config?.aiRouter;
+  return router && typeof router === "object" && "pluginKey" in router && typeof router.pluginKey === "string" ? router.pluginKey : null;
+}

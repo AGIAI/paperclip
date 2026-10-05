@@ -17,6 +17,7 @@ import { secretService } from "../services/secrets.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.js";
 import express from "express";
 import request from "supertest";
+import { toolAccessRoutes } from "../routes/tool-access.js";
 import { aiConnectionRoutes } from "../routes/ai-connections.js";
 import { errorHandler } from "../middleware/index.js";
 import { heartbeatService, buildEffectiveRunSessionConfigMetadata, resolveTaskSessionConfigFreshness } from "../services/heartbeat.js";
@@ -29,7 +30,7 @@ let db: ReturnType<typeof createDb>;
 let home: string;
 const companyId = randomUUID(), otherCompanyId = randomUUID(), agentId = randomUUID(), secondAgentId = randomUUID(), pluginId = randomUUID();
 const pluginKey = "fixture.ai-router";
-const manifest: PaperclipPluginManifestV1 = { id: pluginKey, apiVersion: 1, version: "0.1.0", displayName: "Fixture router", description: "Fixture", author: "Tests", categories: ["connector"], capabilities: ["ai.connections.route"], entrypoints: { worker: "worker.js" } };
+const manifest: PaperclipPluginManifestV1 = { id: pluginKey, apiVersion: 1, version: "0.1.0", displayName: "Fixture router", description: "Fixture", author: "Tests", categories: ["connector"], capabilities: ["ai.connections.route"], aiConnectionRouter: { name: "AI connection pool", description: "Use saved connections" }, entrypoints: { worker: "worker.js" } };
 let members: AiConnectionPoolMember[];
 const proposal = vi.fn(async (_id: string, _method: string, request: AiConnectionRouterRequest): Promise<AiConnectionRouterResult> => {
   const next = (request.memberOrder.indexOf(request.lastMemberId ?? "") + 1) % request.memberOrder.length;
@@ -63,9 +64,34 @@ afterAll(async () => { await database?.cleanup(); vi.unstubAllEnvs(); if (home) 
 describe("durable, authorized connection routing", () => {
   it("defaults off and does not expose selectable pools before opt-in", async () => {
     expect((await instanceSettingsService(db).getExperimental()).enableAiConnectionRouters).toBe(false);
+    expect((await service().catalog())[0]?.availability).toEqual({ available: false, reason: "Enable AI connection routers in Experimental settings." });
     await expect(makePool()).rejects.toThrow("Experimental");
     expect(await service().selectable(companyId, "alice")).toEqual([]);
     await instanceSettingsService(db).updateExperimental({ enableAiConnectionRouters: true });
+  });
+  it("registers native connectors only for declared installed routers", async () => {
+    const entry = (await service().catalog())[0]!;
+    expect(entry.name).toBe("AI connection pool");
+    expect(entry.aiConnectionRouter).toEqual({ pluginKey });
+    expect(entry.availability?.available).toBe(true);
+    await db.update(plugins).set({ status: "disabled" }).where(eq(plugins.id, pluginId));
+    try {
+      expect((await service().catalog())[0]?.availability?.available).toBe(false);
+      await db.update(plugins).set({ status: "uninstalled" }).where(eq(plugins.id, pluginId));
+      expect(await service().catalog()).toEqual([]);
+    } finally { await db.update(plugins).set({ status: "ready" }).where(eq(plugins.id, pluginId)); }
+  });
+  it("native connector removal retains durable pins and ordinary updates cannot bypass pool revisions", async () => {
+    const pool = await makePool(); const selected = await resolve(pool.id, "catalog-removal");
+    const app = express(); app.use(express.json());
+    app.use((req, _res, next) => { req.actor = { type: "board", userId: "alice", source: "local_implicit", companyIds: [companyId], memberships: [{ companyId, status: "active", membershipRole: "owner" }] } as typeof req.actor; next(); });
+    app.use("/api", toolAccessRoutes(db)); app.use(errorHandler);
+    expect((await request(app).patch(`/api/tool-connections/${pool.id}`).send({ name: "Bypass" })).status).toBe(400);
+    expect((await request(app).delete(`/api/tool-connections/${pool.id}`)).status).toBe(200);
+    expect((await service().list(companyId)).some(row => row.id === pool.id)).toBe(false);
+    expect(await db.select().from(aiConnectionTaskPins).where(eq(aiConnectionTaskPins.poolId, pool.id))).toHaveLength(1);
+    expect(await resolve(pool.id, "catalog-removal", { persisted: selected })).toEqual(selected);
+    expect((await db.select().from(toolConnections).where(eq(toolConnections.id, members[0]!.binding.connectionId)))[0]?.status).toBe("active");
   });
   it("requires company connection management authority on pool configuration routes", async () => {
     const app = express(); app.use(express.json());

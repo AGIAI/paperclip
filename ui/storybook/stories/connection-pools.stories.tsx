@@ -67,7 +67,7 @@ function PoolSurfaces({ scenario = "overview" }: { scenario?: Scenario }) {
   const [enabled, setEnabled] = useState(scenario === "flag-on");
   const overview = scenario === "overview";
   return <QueryClientProvider client={client}><main className="mx-auto max-w-3xl space-y-6 p-6">
-    {scenario !== "adoption" && <header className="space-y-2"><h1 className="text-xl font-semibold">Experimental connection pools</h1><a className="text-sm text-primary underline" href="http://127.0.0.1:6010/?path=/story/plugins-connection-pools--pool-list">Create and manage pools in Cloud Storybook</a></header>}
+    {scenario !== "adoption" && <header className="space-y-2"><h1 className="text-xl font-semibold">Experimental connection pools</h1><a className="text-sm text-primary underline" href="http://127.0.0.1:6010/?path=/story/plugins-connection-pools--in-connectors">Connection pool connector in Cloud Storybook</a></header>}
     {(overview || scenario.startsWith("flag")) && <AiConnectionRoutersSetting checked={enabled} onCheckedChange={setEnabled} managed={scenario === "flag-managed" ? { managed: true, managedBy: "paperclip-cloud" } : undefined} />}
     {(overview || ["selector", "legacy", "adoption", "unavailable", "read-only"].includes(scenario)) && <section className="space-y-2"><h2 className="text-sm font-semibold">Agent connection</h2><AiConnectionField companyId={companyId} agentId={agentId} agentName={agent.name}
       adapterType={scenario === "legacy" ? "claude_local" : "codex_local"} routerAdapterType={scenario === "legacy" ? "claude_local" : "paperclip_runner"}

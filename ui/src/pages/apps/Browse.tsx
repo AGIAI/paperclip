@@ -1,4 +1,5 @@
 import {
+  aiConnectionRouterPluginKey,
   connectionSetupVerbForApp,
   isRetiredComposioConnection,
   RETIRED_COMPOSIO_MESSAGE,
@@ -114,6 +115,7 @@ type ConnectionRemovalTarget = {
   accountName: string;
   providerName: string;
   remainingConnectionCount: number;
+  pool?: boolean;
 } & ({ kind: "chat"; provider: ChatProvider } | { kind?: undefined });
 
 // Temporary, page-only hold until Google OAuth verification is approved.
@@ -155,6 +157,7 @@ function chatConnectHref(
 
 function connectHrefFor(entry: AppGalleryDisplayEntry): string | null {
   const slug = appDefinitionSlug(entry);
+  if (entry.aiConnectionRouter) return appSourceConnectHref(slug);
   const definition = getAppStoreDefinition(slug);
   return appSupportsToolCatalogSetup(definition)
     ? appSourceConnectHref(slug)
@@ -230,6 +233,7 @@ function connectorAction(
   href: string | null;
   title?: string;
 } {
+  if (row.entry?.aiConnectionRouter) return { label: "Add connection pool", href: row.entry.availability?.available === false ? null : connectHrefFor(row.entry), title: row.entry.availability?.reason };
   const applicationId = row.applications[0]?.id ?? null;
   const chatHref = (row.slug === "agentmail" || chatConnectorsEnabled)
     ? chatConnectHref(
@@ -291,7 +295,7 @@ function accountActionHref(
  * surface. Connected providers sort first and expand in place to show every
  * account; unconnected providers retain the same catalog setup flows.
  */
-export function Browse({ renderAccountDetails = (connection) => connection.connectionPurpose === "ai" ? <ManagedAiConnectionRow connection={connection} /> : null }: { renderAccountDetails?: (connection: ToolConnection) => ReactNode } = {}) {
+export function Browse({ renderAccountDetails = (connection) => connection.connectionPurpose === "ai" && !aiConnectionRouterPluginKey(connection) ? <ManagedAiConnectionRow connection={connection} /> : null }: { renderAccountDetails?: (connection: ToolConnection) => ReactNode } = {}) {
   const navigate = useNavigate();
   const preselectedChatAgentId =
     typeof window === "undefined"
@@ -368,7 +372,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
       pushToast({
         title: "Connection removed",
         body:
-          target.kind === "chat"
+          target.pool ? "The connections in the pool are kept." : target.kind === "chat"
             ? `${target.providerName} is disconnected. Existing Paperclip tasks remain available.`
             : target.remainingConnectionCount > 0
             ? `${target.providerName} still has ${target.remainingConnectionCount} active ${target.remainingConnectionCount === 1 ? "connection" : "connections"} available to agents.`
@@ -750,7 +754,7 @@ export function Browse({ renderAccountDetails = (connection) => connection.conne
               Remove {connectionToRemove?.accountName ?? "this"} connection?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {connectionToRemove?.kind === "chat"
+              {connectionToRemove?.pool ? "The connections in this pool are kept." : connectionToRemove?.kind === "chat"
                 ? `This connection will stop receiving new work from ${connectionToRemove.providerName}. Existing Paperclip tasks and conversation history remain available. This does not delete the app, bot, or account in ${connectionToRemove.providerName}.`
                 : connectionToRemove &&
                     connectionToRemove.remainingConnectionCount > 0
@@ -866,6 +870,7 @@ export function ConnectorCard({
                 );
                 onRequestRemove({
                   id: connection.id,
+                  pool: Boolean(aiConnectionRouterPluginKey(connection)),
                   accountName,
                   providerName: row.name,
                   remainingConnectionCount: row.connections.filter(

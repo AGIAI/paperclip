@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { aiConnectionPools, aiConnectionRouterCursors, aiConnectionTaskPins, companySecrets, connectionGrants, instanceSettings, plugins, toolApplications, toolConnections, toolConnectionInstalls, type Db } from "@paperclipai/db";
-import { aiConnectionPoolConfigSchema, isAiConnectionCompatible, type AiConnectionPool, type AiConnectionPoolMember, type AiConnectionRouterRequest, type AiConnectionRouterSelection, type AiConnectionPoolSaveInput, type AiConnectionUsage } from "@paperclipai/shared";
+import { aiConnectionRouterAppDefinition, aiConnectionRouterSlug, aiConnectionPoolConfigSchema, isAiConnectionCompatible, type AiConnectionPool, type AiConnectionPoolMember, type AiConnectionRouterRequest, type AiConnectionRouterSelection, type AiConnectionPoolSaveInput, type AiConnectionUsage } from "@paperclipai/shared";
 import { isCodexLocalKnownModel, codexLocalReasoningEffortsForModel } from "@paperclipai/adapter-codex-local";
 import { models as claudeModels, claudeLocalReasoningEffortsForModel } from "@paperclipai/adapter-claude-local";
 import { models as grokModels, grokLocalReasoningEffortsForModel } from "@paperclipai/adapter-grok-local";
@@ -76,6 +76,16 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
   async function enabled() {
     if (!(await instanceSettingsService(db).getExperimental()).enableAiConnectionRouters) throw unprocessable("Enable AI connection routers in Experimental settings", { code: "ai_connection_router_disabled" });
   }
+  async function catalog() {
+    const experimental = (await instanceSettingsService(db).getExperimental()).enableAiConnectionRouters;
+    const installed = await db.select().from(plugins);
+    return installed.filter(plugin => plugin.status !== "uninstalled" && plugin.manifestJson.aiConnectionRouter && plugin.manifestJson.capabilities.includes("ai.connections.route"))
+      .map(plugin => aiConnectionRouterAppDefinition(plugin.pluginKey, plugin.manifestJson.aiConnectionRouter!, {
+        available: experimental && plugin.status === "ready",
+        ...(!experimental ? { reason: "Enable AI connection routers in Experimental settings." }
+          : plugin.status !== "ready" ? { reason: "Enable the connection pool plugin in Plugins." } : {}),
+      }));
+  }
   async function list(companyId: string) {
     const rows = await db.select({ pool: aiConnectionPools }).from(aiConnectionPools)
       .innerJoin(toolConnections, and(eq(toolConnections.id, aiConnectionPools.id), eq(toolConnections.companyId, aiConnectionPools.companyId)))
@@ -129,10 +139,10 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
         await tx.update(toolConnections).set({ name: config.name, enabled: config.enabled, updatedAt: new Date() }).where(and(eq(toolConnections.id, id), eq(toolConnections.companyId, input.companyId)));
       } else {
         const key = `plugin:${pluginKey}:ai-router`;
-        await tx.insert(toolApplications).values({ companyId: input.companyId, applicationKey: key, name: `${plugin.manifestJson.displayName} connections`, type: "paperclip_plugin", pluginId: plugin.id }).onConflictDoNothing();
+        await tx.insert(toolApplications).values({ companyId: input.companyId, applicationKey: key, name: plugin.manifestJson.aiConnectionRouter?.name ?? plugin.manifestJson.displayName, metadata: { sourceTemplateKey: aiConnectionRouterSlug(pluginKey) }, type: "paperclip_plugin", pluginId: plugin.id }).onConflictDoNothing();
         const [application] = await tx.select().from(toolApplications).where(and(eq(toolApplications.companyId, input.companyId), eq(toolApplications.applicationKey, key)));
         if (!application) throw new Error("Router application could not be created");
-        await tx.insert(toolConnections).values({ id, companyId: input.companyId, applicationId: application.id, name: config.name, uid: id, connectionPurpose: "ai", transport: "runtime_auth", enabled: config.enabled, status: "active", healthStatus: "ok", config: { aiRouter: { pluginKey } }, createdByUserId: userId });
+        await tx.insert(toolConnections).values({ id, companyId: input.companyId, applicationId: application.id, name: config.name, uid: id, connectionPurpose: "ai", transport: "runtime_auth", enabled: config.enabled, status: "active", healthStatus: "ok", config: { aiRouter: { pluginKey }, sourceTemplateKey: aiConnectionRouterSlug(pluginKey) }, createdByUserId: userId });
         await tx.insert(aiConnectionPools).values({ id, companyId: input.companyId, pluginKey, config });
         await tx.insert(aiConnectionRouterCursors).values({ poolId: id, companyId: input.companyId });
         await tx.insert(toolConnectionInstalls).values({ companyId: input.companyId, connectionId: id, targetType: "company", targetId: input.companyId, createdByUserId: userId });
@@ -269,5 +279,5 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     }
     throw conflict("Concurrent pool selections changed the cursor; retry this task");
   }
-  return { list, selectable, inspect, save, remove, resolve };
+  return { catalog, list, selectable, inspect, save, remove, resolve };
 }

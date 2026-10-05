@@ -43,18 +43,30 @@ Native recovery retains concrete routing evidence and can finish after the
 router flag or plugin is disabled or uninstalled; it revalidates underlying
 account access and never makes a new allocation.
 
-The private Cloud plugin owns round-robin and quota policy. Its configuration
-page uses authenticated, company-scoped Core pool APIs. New allocations over
+The private Cloud plugin owns round-robin and quota policy. Its manifest declares
+`aiConnectionRouter: { name, description }` alongside `ai.connections.route`.
+Core adds that connector to the regular catalog and hosts its setup and account
+management using authenticated, company-scoped pool APIs. No separate plugin
+page or sidebar entry is needed. New allocations over
 the chosen threshold wait; known exhaustion defers pinned turns. The deferred
 run schedules `ai_connection_pool_wait` without spending the failure retry
 budget, and the UI labels that retry as **Pool exhausted**.
 
-Operators create, list, edit and delete pools in that plugin page. Deletion uses
+Operators choose **Connectors → AI connection pool → Add connection pool**,
+select existing accounts, arrange their order, and create a paused connection.
+The normal account page supports rename, member changes, enabling, and removal.
+Optional usage and runtime defaults live under **Advanced**. Creating another
+account opens the normal catalog in a new tab so the pool draft stays intact.
+The catalog marks experimental-disabled or unavailable plugins as unavailable.
+
+Deletion uses
 `DELETE /api/companies/:companyId/ai-connection-pools/:poolId` with the current
 `expectedRevision`. Core disables and archives the virtual connection, retaining
 its task pins, cursor and run records. It rejects stale edits and new allocations;
 already admitted runs keep their concrete recovery evidence. Cleanup remains
-available when experimental routing or the plugin is disabled.
+available when experimental routing or the plugin is disabled. The ordinary
+connector removal endpoint uses the same pool archive transaction. Ordinary
+connection updates cannot bypass pool config revisions.
 
 Configuration and committed selection are recorded in activity records. Runs
 record the selected member/profile and override notes in the local run log and
@@ -77,5 +89,7 @@ to build the preview.
 Pool configuration stories belong to the private Cloud plugin's own Storybook
 in `extensions/plugin-connection-pool/storybook/`. Both previews use fictional
 accounts; they do not call live providers or mutate a Paperclip instance.
-The Core overview links to Cloud's pool list preview on port 6010; from there,
-use **New pool** or select an existing pool to edit, inspect or delete it.
+Core also owns **Connectors / Pool host** stories for the generic native
+extension. The overview links to Cloud's **In Connectors** preview on port 6010;
+its stories mount these same production routes, header, sidebar and tokens.
+**Full Setup And Management** exercises the complete catalog-to-pool journey.

@@ -1,0 +1,21 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
+import { ConnectionPoolConnectorHost } from "../prototypes/ConnectionPoolConnectorHost";
+const meta = { title: "Connectors/Pool host", component: ConnectionPoolConnectorHost, parameters: { layout: "fullscreen" } } satisfies Meta<typeof ConnectionPoolConnectorHost>;
+export default meta;
+type Story = StoryObj<typeof meta>;
+export const Catalog: Story = {};
+export const Setup: Story = { args: { scenario: "setup" } };
+export const Manage: Story = { args: { scenario: "manage" } };
+export const CreateFromConnectors: Story = { play: async ({ canvasElement }) => {
+  const c = within(canvasElement);
+  await userEvent.click(await c.findByRole("button", { name: "Add connection pool AI connection pool" }));
+  await userEvent.click(await c.findByRole("checkbox", { name: "My ChatGPT account" }));
+  await userEvent.click(c.getByRole("checkbox", { name: "My Claude account" }));
+  await userEvent.click(c.getByRole("button", { name: "Continue" }));
+  await userEvent.click(c.getByRole("button", { name: "Move My Claude account up" }));
+  await expect(within(c.getByRole("list", { name: "Connection order" })).getAllByRole("listitem")[0]).toHaveTextContent("My Claude account");
+  await userEvent.click(c.getByRole("button", { name: "Create pool" }));
+  await expect(await c.findByRole("checkbox", { name: "Enable this pool" })).not.toBeChecked();
+  await expect(c.getByRole("heading", { level: 1, name: "AI connection pool" })).toBeVisible();
+} };

@@ -1,3 +1,5 @@
+import { aiConnectionRouterPluginKey } from "@paperclipai/shared";
+import { aiConnectionRouterService } from "../services/ai-connection-router.js";
 import { Router, type Request, type Response } from "express";
 import type { Db } from "@paperclipai/db";
 import { agents, companies, connectionGrants, issueThreadInteractions, toolConnectionInstalls } from "@paperclipai/db";
@@ -854,9 +856,9 @@ function connectorEnrollmentPrincipal(req: Request): string {
             : "Vercel Connect setup is disabled on this Paperclip instance.",
         },
       },
-      apps: APP_STORE_DEFINITIONS.filter((app) => (enableMemoryConnectors || !isMemoryConnectorId(app.slug))).map((app) =>
+      apps: [...APP_STORE_DEFINITIONS.filter((app) => (enableMemoryConnectors || !isMemoryConnectorId(app.slug))).map((app) =>
         appWithPaperclipCloudConnectorAvailability(app, advertisedProfiles)
-      ),
+      ), ...await aiConnectionRouterService(db).catalog()],
     });
   });
 
@@ -2082,6 +2084,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
     const existing = await getAccessibleResource(req, res, svc.getConnection(req.params.connectionId as string), "Tool connection not found");
     if (!existing) return;
     await assertToolConnectionConfigureAccess(req, existing);
+    if (aiConnectionRouterPluginKey(existing)) throw badRequest("Update this connection pool through its pool settings.");
     const connection = await svc.updateConnection(existing.id, req.body);
     const lifecycleChanges = classifyConnectionUpdate(
       { enabled: existing.enabled, config: existing.config },
@@ -2126,6 +2129,17 @@ function connectorEnrollmentPrincipal(req: Request): string {
     const existing = await getAccessibleResource(req, res, svc.getConnection(req.params.connectionId as string), "Tool connection not found");
     if (!existing) return;
     await assertToolConnectionConfigureAccess(req, existing);
+    if (aiConnectionRouterPluginKey(existing)) {
+      assertBoard(req);
+      if (!await isToolConnectionManager(req, existing.companyId)) throw forbidden("A connection manager must remove this pool");
+      const router = aiConnectionRouterService(db);
+      const pool = (await router.list(existing.companyId)).find(pool => pool.id === existing.id);
+      if (!pool) throw notFound("Connection pool not found");
+      await router.remove(existing.companyId, existing.id, pool.revision, getActorInfo(req).actorId);
+      res.json({ ...existing, status: "archived", enabled: false });
+      return;
+    }
+
     const applicationBefore = await svc.getApplication(existing.applicationId);
     const { connection, removal } = await svc.archiveConnection(
       existing.id,
