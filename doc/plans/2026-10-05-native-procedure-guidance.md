@@ -1,112 +1,119 @@
 # Native hiring and dependency guidance
 
-Status: **hold draft #15218. The change did not pass the no-regression gate.**
-The corrected comparison has baseline 5 PASS / 1 FAIL and candidate 3 PASS /
-3 FAIL: two new failures, no new passes, three unchanged passes and one unchanged
-failure. Codex did not resume its parent after the replacement deliverable;
-OpenCode did not finish the revised hiring story before the deadline. Both
-OpenCode delegation variants finished the parent before the final child revision.
+Status: **ship measurement and eval coverage only. Do not ship the procedure
+relocation or the unqualified runtime repairs.**
 
-The measured reduction is 460 bytes, about 0.9% of the combined standing
-projection. This result does not justify shipping the reduction. Single trials
-do not establish that the changed instructions caused these failures. Retain
-the experiment, original failures and evidence; do not reroll completed cells
-or weaken the oracle. This follows the merged completion slice in #15151.
+The final PR keeps production agent behavior byte-identical to master
+`a65ca0950834a85bb93bcc4b4042ecacdebfef53`. Its changes are limited to the
+measurement test, explicit eval selection, correct hiring credential selection,
+company/lead budget stops, test-runner configuration, and retained reports.
+No production prompt, tool description, tool schema, session catalog, dependency
+mutation or status-transition code changes are included in the final diff.
 
-The [sanitized comparison receipt](2026-10-05-native-procedure-comparison.json)
-contains original grades, exact sources, campaign links, measurement receipts
-and retained evidence hashes. It excludes raw sessions and instance identifiers.
+The experiment did not pass the no-regression gate. The first corrected
+comparison had baseline 5 PASS / 1 FAIL and candidate 3 PASS / 3 FAIL: two new
+failures, no new passes, three unchanged passes and one unchanged failure.
+The attempted repair also had two new failures among five comparable pairs.
+Moving text out of the fixed prompt did not justify shipping worse outcomes.
+Single trials do not establish that the changed instructions caused a failure.
 
-## Readiness repair in progress
+The original candidate reduced the complete standing projection by 460 bytes,
+about 0.9%. Restoring important instructions reduced the saving to 125 bytes,
+about 0.25%. A later, unqualified dependency guard made the projection 127 bytes
+larger than baseline. None of those changes is included in the final production
+tree. The final measurement records the unchanged full catalog. Bytes are not
+tokens, billing, or proof of upstream loading or truncation.
 
-The next candidate restores explicit assigned-teammate revision and latest-child
-review instructions in the standing prompt. Its `set_dependencies` receipt now
-reports readiness at the time of the update, including unfinished dependencies
-and completed children whose workspaces still need finalization. If everything
-is already ready, the receipt directs the parent to review and continue instead
-of blocking for an event that already happened. Additional teammate work needs
-an assigned revision task; a comment on a completed task does not substitute for
-that assignment. Idempotent replay preserves the original readiness snapshot.
-Cancelled dependencies remain unresolved and appear separately in
-`cancelledTaskIds`. Their guidance requires removing an obsolete edge or assigning
-a replacement while preserving other required blockers. Cancellation does not
-count as success and cannot be awaited as a future completion wake.
+The [original sanitized comparison](2026-10-05-native-procedure-comparison.json)
+and [readiness comparison v4](2026-10-05-native-procedure-readiness-v4.json)
+retain exact sources, original grades and evidence hashes. Their old source
+revisions remain historical experiments; they do not describe production changes
+in this measurement-only PR. No completed behavioral failure was rerolled to
+obtain a pass. Earlier infrastructure recovery and missing evidence remain
+explicit below. This follows the merged completion slice in #15151.
 
-This is a new combined instruction and receipt correction, not a regrade of the
-failed experiment. The original results above remain unchanged. A new matched
-comparison must use the integrated master context and the same task requests,
-graders, profiles, deadlines and budgets. The restored discovery and review
-instructions take priority over maximizing byte reduction. Keep the PR draft
-until the repaired source has passed behavioral comparison and current CI/review.
+## Final scope and verification
 
-## Readiness comparison v4 — still held
+The server measurement test instantiates the actual standard-mode tool authority
+with all advertised tools and input schemas. It captures scripted native start,
+resume and continuation payloads across Codex, ACPX Claude and OpenCode and the
+OpenCode MCP declaration list. These are provider-free measurements.
 
-The next comparison measured candidate `aba7ec219b588de02cf323b4ebca559a105e6d01`
-and baseline `ce31f5efd0d416205c3994c55dd02b645f8b8423` on common master
+The two original Everyday Workflows stories remain explicit-only and keep their
+independent artifact and ordering oracles. OpenCode is added only to the local
+hiring/reuse and delegation/feedback cells. These stories use one attempt per
+cell and actual company and lead-agent budget stops. Managed hiring selects
+the credential provider from the chosen profile, including OpenRouter. Existing
+Node test files run under Node's test runner instead of being misclassified as
+empty Vitest suites.
+
+The final production identity check compares `packages/` and production
+`server/` files against the fixed master context. A fresh CI and review must
+qualify the final tree. The full local database suite is unavailable while this
+host's PostgreSQL shared-memory slots are exhausted; hosted CI provides those
+database checks. No new paid campaign is needed to compare unchanged production
+bytes. This does not claim that the existing product is free of the failures
+observed in the retained trials.
+
+## Unqualified runtime repairs retained for follow-up
+
+The local branch `codex/native-procedure-controller-repairs-unqualified` at
+`7e270a3d3` preserves the attempted controller repairs. It is not part of this
+PR's final diff and has not passed live qualification. It scopes completion
+wakes to each committed transition and rejects silent removal of unfinished
+dependencies, with explicit handling for obsolete dependencies. Its regression
+tests still require database execution. Source typecheck, catalog generation,
+and the non-database measurement/session checks passed locally.
+
+The remaining issues need separate bounded investigation:
+
+- Reopened child completion can reuse a previously consumed parent wake key.
+- A parent can discard a still-running required dependency and finish early.
+- OpenCode's v4 hiring candidate failed the exact-credential persistence guard
+  in its local SQLite database. Cleanup removed that database. The credential
+  identity and exact persistence mechanism are not retained. No cause or fix
+  is claimed, and no credential check is weakened.
+
+## Readiness comparison v4 — historical failed experiment
+
+Candidate `aba7ec219b588de02cf323b4ebca559a105e6d01` and baseline
+`ce31f5efd0d416205c3994c55dd02b645f8b8423` use common master
 `a65ca0950834a85bb93bcc4b4042ecacdebfef53`. Candidate
 [campaign 37348723829](https://github.com/paperclipai/paperclip/actions/runs/37348723829)
 and baseline [campaign 37348764875](https://github.com/paperclipai/paperclip/actions/runs/37348764875)
-used trusted workflow `59015846ae02f935411afc620e0867ce812378fb`, distinct
-from both measured trees. Original task requests, graders, models, budgets,
-deadlines and single-attempt policy were unchanged. The
-[sanitized original receipt](2026-10-05-native-procedure-readiness-v4.json)
-retains eleven result/API/ledger sets and 99 evidence hashes.
+use trusted workflow `59015846ae02f935411afc620e0867ce812378fb`, distinct
+from both measured trees. Eleven result/API/ledger sets and 99 evidence hashes
+are retained. Their final ledgers contain 56 started runs, in addition to the
+earlier cohorts. All eleven cleanup results passed.
 
 Candidate: 3 PASS / 3 FAIL. Baseline: 3 PASS / 2 FAIL / 1 setup cell without a
-behavioral grade. Five comparable pairs contain two new failures, two new
-passes and one unchanged pass. One Codex delegation pair is uncomparable:
-baseline Docker setup timed out before its paid step. No completed behavior
-failure was retried. All eleven retained cleanup results passed; their final
-ledgers contain 56 started runs, in addition to the earlier cohorts.
+behavioral grade. Comparable pairs: two new failures, two new passes and one
+unchanged pass. The remaining Codex delegation pair is uncomparable because
+baseline Docker setup timed out before its paid step; no behavioral grade or
+final result artifact exists for that cell.
 
-- Candidate Claude delegation finished the parent before the child's revision
-  completed; baseline passed. The parent removed its dependency while the
-  required revision was still active.
-- Candidate OpenCode hiring failed the exact-credential persistence check in
-  the provider's local SQLite database; baseline passed. The original database
-  was removed during cleanup. Neither the matching credential's identity nor
-  the exact persistence path is retained, so no specific cause is asserted.
-- Candidate Codex delegation correctly waited for the reopened child but ended
-  blocked after that child finished, without an active continuation. Baseline
-  has no behavioral result. The controller reused the first completion's wake
-  key for the same parent/child pair, suppressing later completion wakes.
-- Candidate Claude hiring and OpenCode delegation passed where baseline failed.
-  This does not offset the new failures or establish causal improvement.
+| Story and harness | Baseline | Candidate | Observed missing behavior |
+|---|---|---|---|
+| Codex hiring/reuse | PASS | PASS | None observed by the original oracle |
+| Codex delegation/feedback | No behavioral grade | FAIL | Parent remains blocked after the revised child finishes |
+| Claude hiring/reuse | FAIL | PASS | Baseline did not deliver the revised ZIP |
+| Claude delegation/feedback | PASS | FAIL | Candidate finishes the parent before the child revision |
+| OpenCode hiring/reuse | PASS | FAIL | Candidate credential-persistence guard fails |
+| OpenCode delegation/feedback | FAIL | PASS | Baseline finishes the parent before the child revision |
 
-The restored standing instructions reduced the complete normalized projection
-by only 125 bytes (49,200 to 49,075), about 0.25%, before the next controller
-repair. No token, speed, cost or upstream truncation claim follows.
-The `aba7ec2` normal CI passed on attempt 2 after five infrastructure-interrupted
-jobs were recovered; its fresh review was 5/5. These source checks do not clear
-the behavioral failures.
+The two new passes do not offset the new failures. The `aba7ec2` CI passed on
+attempt 2 after five infrastructure-interrupted jobs were recovered and its
+fresh review was 5/5; source checks did not clear these behavioral failures.
 
-The following unqualified controller repair scopes completion wakes to each
-committed status transition while retaining same-transition idempotency. It
-also rejects native dependency updates that silently remove unfinished work;
-callers can explicitly name genuinely obsolete dependencies in `obsoleteTaskIds`.
-Old and replacement blocker rows are locked while readiness is checked. The
-legacy explicit replacement API remains unchanged. Regression tests cover
-repeat completion, replay, reopened dependencies and explicit cancellation
-replacement. A provider-free working-tree measurement including that schema field is
-49,327 bytes, 127 bytes larger than the 49,200-byte baseline. The repair therefore
-no longer reduces the full standing projection. Reliability takes priority;
-this is not a prompt-size win. Keep the PR draft until these repairs and credential persistence
-are verified. This section preserves the v4 failure and does not relabel it as
-qualification of later source.
+## Historical experiment scope
 
-## Scope
-
-The paid comparison uses master `a386a599983519eb1d399f8b770bfccdb2a74762` as
-the common source context.
-Move hiring/reuse and assigned-worker guidance to the existing `hire_agent` and
-`create_task` descriptions. Keep dependency discovery in the fixed prompt and
-replacement semantics in `set_dependencies`. Return conditional workspace-yield
-guidance after recording a nonempty blocker set. Empty sets do not need waiting
-guidance. Preserve idempotency and the original dependency state transitions.
-
-Leave connection procedures and legacy skill/API instructions unchanged. Advance
-the prompt and native-session catalog revisions so retained threads cannot use
-the old declarations with the new instructions.
+The original paid comparison used master
+`a386a599983519eb1d399f8b770bfccdb2a74762` as common context. It moved
+hiring/reuse and assigned-worker guidance to `hire_agent` and `create_task`,
+kept dependency discovery in the fixed prompt, and returned waiting instructions
+from `set_dependencies`. It advanced prompt and session-catalog revisions.
+Those production changes have been removed from the final PR. Connection
+procedures and legacy skill/API instructions remain unchanged.
 
 ## Measurement boundary
 
@@ -123,7 +130,7 @@ lazy loading, truncation or cognitive use of returned guidance. The previous
 completion-only capture selected a partial catalog and is not a full-tool
 baseline. Preserve its historical evidence unchanged.
 
-## Matched live comparison
+## Historical matched live comparison plan
 
 Use the existing explicit-only `everyday-workflows` suite with original
 `hire-reuse` and `delegate-feedback` requests and independent artifact oracles.
@@ -156,7 +163,7 @@ These two stories do not qualify arbitrary live resume, every existing-blocker
 combination, general coding quality, or cost/speed trends. Explicitly report
 missing evidence. Do not loosen the original oracle to create a pass.
 
-## Complete-catalog measurement
+## Historical complete-catalog measurement
 
 The corrected source `ffe847fabaebbf24bc93924a4b6c8922d46a1fb6` is compared with
 baseline `aecfa3b6a5cab110a9b926e93705311bbcf4db47`. Both include the same
@@ -315,7 +322,7 @@ no-extra-work claim or feedback-consumption inference is made from matching
 names, ordering or counts. These evidence limits remain even for a passing
 original story grade.
 
-## Integration and repository checks
+## Historical integration and repository checks
 
 After the paid sources were frozen, the PR merged master
 `a65ca0950834a85bb93bcc4b4042ecacdebfef53` as
@@ -356,12 +363,12 @@ gave integrated `ee096aa23` 5/5 but noted project-discovery authorization work
 for actors with sparse visibility. Both inline measurement findings are
 resolved; the summary's separate concern is not erased by that count.
 
-Passing code review cannot override the failed behavior comparison. Keep this
-PR draft. Consider the measurement fixture separately from the reduction;
-diagnose the task continuation and final-review failures before proposing a
-new candidate. Do not repeat paid trials simply to obtain passing grades.
+At this historical checkpoint the failed behavior comparison required keeping
+the candidate draft. The final scope separates measurement from the rejected
+reduction. Future behavior changes need their own diagnosis and qualification;
+completed paid failures must not be rerolled simply to obtain passing grades.
 
-## Gates
+## Historical behavior-change gates (not met; change removed)
 
 - [x] Freeze common fixtures and both source revisions.
 - [x] Export comparable full-catalog delivery projections.

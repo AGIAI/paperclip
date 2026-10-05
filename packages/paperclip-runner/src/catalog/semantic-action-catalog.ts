@@ -1,9 +1,6 @@
 import { listProjectsDescription, listProjectsInputSchema } from "../protocol-actions/list-projects.js";
 import { setTaskTitleAction } from "../protocol-actions/set-task-title.js";
 import { reassignTaskAction } from "../protocol-actions/reassign-task.js";
-import { hireAgentAction } from "../protocol-actions/hire-agent.js";
-import { createTaskAction } from "../protocol-actions/create-task.js";
-import { setDependenciesAction } from "../protocol-actions/set-dependencies.js";
 import type {
   PaperclipJsonSchema,
   PaperclipSemanticActionDescriptor,
@@ -340,7 +337,8 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
   descriptor({
     operationId: "hire_agent",
     title: "Hire a native agent",
-    description: hireAgentAction.live.descriptor.description,
+    description:
+      "Create one native Paperclip Runner teammate for the current company and task. The new agent reports to you, inherits your native runtime, and receives no provider, adapter, environment, or credential configuration from the tool. Reuse an existing teammate when appropriate and follow any approval returned by the API.",
     placement: "optional",
     effect: "write",
     requiredClaims: ["delegation:agents:create"],
@@ -458,7 +456,7 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
   descriptor({
     operationId: "set_dependencies",
     title: "Set task dependencies",
-    description: setDependenciesAction.live.descriptor.description,
+    description: "Replace the active task's first-class blocker set.",
     placement: "optional",
     effect: "write",
     requiredClaims: ["dependencies:write"],
@@ -470,7 +468,7 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
       },
       ["idempotencyKey", "blockedByTaskIds"],
     ),
-    outputSchema: setDependenciesAction.live.descriptor.outputSchema,
+    outputSchema: operationReceipt,
   }),
   descriptor({
     operationId: "list_projects",
@@ -509,7 +507,7 @@ const descriptors: readonly PaperclipSemanticActionDescriptor[] = [
   descriptor({
     operationId: "create_task",
     title: "Create task",
-    description: createTaskAction.live.descriptor.description,
+    description: "Create an assigned task. In a conversation, create a project task with no parent; otherwise create a child of the active task. Include initialPlan to persist its plan before execution. Set status to backlog when the user wants to save or plan work without starting it; backlog tasks never wake an agent. Omitted status means todo, subject to blockers.",
     placement: "optional",
     effect: "write",
     requiredClaims: ["delegation:tasks:create"],

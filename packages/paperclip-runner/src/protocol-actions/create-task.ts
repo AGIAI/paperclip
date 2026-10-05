@@ -29,7 +29,7 @@ export const createTaskAction = {
   },
   "documentation": {
     "title": "Create task",
-    "description": "Create a project task from a conversation, or a child from a task. For work or revisions assigned to a teammate, use their assigneeActorId and review their result; keep implementation with them. initialPlan is saved before execution. Use backlog to save work without waking an agent; otherwise todo is subject to blockers.",
+    "description": "Create a project task from a conversation, or a child from an ordinary task. Persist initialPlan before execution. Set status to backlog when the user wants to save or plan work without starting it; backlog tasks never wake an agent. Omitted status means todo, subject to blockers.",
     "note": null
   },
   "examples": {
@@ -77,7 +77,7 @@ export const createTaskAction = {
       "operationId": "create_task",
       "version": 1,
       "title": "Create task",
-      "description": "Create a project task from a conversation, or a child from a task. For work or revisions assigned to a teammate, use their assigneeActorId and review their result; keep implementation with them. initialPlan is saved before execution. Use backlog to save work without waking an agent; otherwise todo is subject to blockers.",
+      "description": "Create a project task from a conversation, or a child from an ordinary task. Persist initialPlan before execution. Set status to backlog when the user wants to save or plan work without starting it; backlog tasks never wake an agent. Omitted status means todo, subject to blockers.",
       "exposure": "optional",
       "requiredClaims": [
         "delegation:tasks:create"

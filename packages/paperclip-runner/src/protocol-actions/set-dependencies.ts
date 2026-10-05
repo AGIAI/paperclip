@@ -27,7 +27,7 @@ export const setDependenciesAction = {
   },
   "documentation": {
     "title": "Set task dependencies",
-    "description": "Replace the active task's blocker set. Preserve existing blocker IDs when adding a dependency. Follow the returned waiting guidance.",
+    "description": "Replace the active task's first-class blocker set.",
     "note": null
   },
   "examples": {
@@ -72,7 +72,7 @@ export const setDependenciesAction = {
       "operationId": "set_dependencies",
       "version": 1,
       "title": "Set task dependencies",
-      "description": "Replace the active task's blocker set. Preserve existing blocker IDs when adding a dependency. Follow the returned waiting guidance.",
+      "description": "Replace the active task's first-class blocker set.",
       "exposure": "optional",
       "requiredClaims": [
         "dependencies:write"
@@ -89,13 +89,6 @@ export const setDependenciesAction = {
             "description": "Caller-stable retry key.",
             "minLength": 1,
             "maxLength": 240
-          },
-          "obsoleteTaskIds": {
-            "type": "array",
-            "description": "Unfinished existing dependencies being removed because their work is no longer required. Never use this to skip required work.",
-            "items": { "type": "string", "minLength": 1 },
-            "maxItems": 200,
-            "uniqueItems": true
           },
           "blockedByTaskIds": {
             "type": "array",
@@ -143,32 +136,6 @@ export const setDependenciesAction = {
             "maxItems": 200,
             "uniqueItems": true
           },
-          "dependencyReadiness": {
-            "type": "object",
-            "description": "Readiness when this update was applied. A replay retains that snapshot; task state can change afterward.",
-            "properties": {
-              "isReady": { "type": "boolean" },
-              "unresolvedTaskIds": {
-                "type": "array",
-                "items": { "type": "string", "minLength": 1 },
-                "maxItems": 200,
-                "uniqueItems": true
-              },
-              "cancelledTaskIds": {
-                "type": "array",
-                "description": "Unresolved dependencies that are cancelled and cannot produce a completion wake.",
-                "items": { "type": "string", "minLength": 1 },
-                "maxItems": 200,
-                "uniqueItems": true
-              }
-            },
-            "required": ["isReady", "unresolvedTaskIds"],
-            "additionalProperties": false
-          },
-          "guidance": {
-            "type": "string",
-            "description": "Next steps for the recorded readiness snapshot."
-          },
           "scheduledWakeIds": {
             "type": "array",
             "description": "Wake identifiers scheduled by the operation.",
@@ -201,13 +168,6 @@ export const setDependenciesAction = {
       "inputSchema": {
         "type": "object",
         "properties": {
-          "obsoleteTaskIds": {
-            "type": "array",
-            "description": "Unfinished existing dependencies being removed because their work is no longer required. Never use this to skip required work.",
-            "items": { "type": "string", "minLength": 1 },
-            "maxItems": 200,
-            "uniqueItems": true
-          },
           "blockedByTaskIds": {
             "type": "array",
             "items": {

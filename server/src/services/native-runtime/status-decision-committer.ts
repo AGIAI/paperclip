@@ -1968,14 +1968,12 @@ export async function commitNativeStatusDecision(input: {
         : false;
       for (const dependent of dependents) {
         const isCompletedChildParent = parent?.id === dependent.id;
-        // A reopened child can complete more than once. Deduplicate this
-        // committed transition, not every future completion of the same edge.
         const idempotencyKey = isCompletedChildParent
-          ? `issue_children_completed:${dependent.id}:${input.issueId}:${decisionRow.id}`
-          : `${buildIssueBlockersResolvedWakeIdempotencyKey({
+          ? `issue_children_completed:${dependent.id}:${input.issueId}`
+          : buildIssueBlockersResolvedWakeIdempotencyKey({
               dependentIssueId: dependent.id,
               resolvedBlockerIssueId: input.issueId,
-            })}:${decisionRow.id}`;
+            });
         const childCompletionContext =
           isCompletedChildParent && parent
             ? {
@@ -2022,7 +2020,7 @@ export async function commitNativeStatusDecision(input: {
           issueId: parent.id,
           agentId: parent.assigneeAgentId,
           reason: "issue_children_completed",
-          idempotencyKey: `issue_children_completed:${parent.id}:${input.issueId}:${decisionRow.id}`,
+          idempotencyKey: `issue_children_completed:${parent.id}:${input.issueId}`,
           payload: {
             completedChildIssueId: input.issueId,
             childIssueIds: parent.childIssueIds,

@@ -7428,44 +7428,20 @@ export function issueService(db: Db) {
     blockedByIssueIds: string[],
     actor: { agentId?: string | null; userId?: string | null } = {},
     dbOrTx: any = db,
-    obsoleteIssueIds?: string[],
   ) {
     const deduped = [...new Set(blockedByIssueIds)];
     if (deduped.some((candidate) => candidate === issueId)) {
       throw unprocessable("Issue cannot be blocked by itself");
     }
 
-    // Native callers require an explicit acknowledgement before discarding
-    // unfinished work. Lock the old blockers too: a child can be reopened
-    // between the caller's last read and this replacement.
-    const previousBlockerIds: string[] = obsoleteIssueIds !== undefined
-      ? await dbOrTx.select({ id: issueRelations.issueId }).from(issueRelations).where(and(
-          eq(issueRelations.companyId, companyId),
-          eq(issueRelations.relatedIssueId, issueId),
-          eq(issueRelations.type, "blocks"),
-        )).then((rows: Array<{ id: string }>) => rows.map((row) => row.id))
-      : [];
-    if (deduped.length > 0 || previousBlockerIds.length > 0) {
-      const lockedIssueIds = [...new Set([issueId, ...deduped, ...previousBlockerIds])].sort();
-      try {
-        await dbOrTx.execute(
-          sql`SELECT ${issues.id} FROM ${issues}
+    if (deduped.length > 0) {
+      const lockedIssueIds = [issueId, ...deduped].sort();
+      await dbOrTx.execute(
+        sql`SELECT ${issues.id} FROM ${issues}
             WHERE ${and(eq(issues.companyId, companyId), inArray(issues.id, lockedIssueIds))}
             ORDER BY ${issues.id}
-            ${obsoleteIssueIds === undefined ? sql`FOR UPDATE` : sql`FOR UPDATE NOWAIT`}`,
-        );
-      } catch (error) {
-        // Child completion locks the child before waking the parent. Native
-        // dependency replacement already owns the parent lock, so it must
-        // release that lock rather than wait in the opposite order.
-        const pgError = error as { code?: unknown; cause?: { code?: unknown } } | null;
-        if (obsoleteIssueIds !== undefined && (pgError?.code === "55P03" || pgError?.cause?.code === "55P03")) {
-          throw conflict("Dependency state is changing. Read the latest task state before retrying this update.");
-        }
-        throw error;
-      }
-    }
-    if (deduped.length > 0) {
+            FOR UPDATE`,
+      );
       const relatedIssues = await dbOrTx
         .select({ id: issues.id })
         .from(issues)
@@ -7478,23 +7454,6 @@ export function issueService(db: Db) {
         );
       }
       await assertNoBlockingCycles(companyId, issueId, deduped, dbOrTx);
-    }
-
-    if (obsoleteIssueIds !== undefined) {
-      const removedIds = previousBlockerIds.filter((id) => !deduped.includes(id));
-      if (obsoleteIssueIds.some((id) => !removedIds.includes(id))) {
-        throw unprocessable("obsoleteTaskIds must name existing dependencies being removed from this task.");
-      }
-      const readiness = (await listIssueDependencyReadinessMap(dbOrTx, companyId, [issueId])).get(issueId)!;
-      const discardedUnfinishedIds = readiness.unresolvedBlockerIssueIds.filter(
-        (id) => removedIds.includes(id) && !obsoleteIssueIds.includes(id),
-      );
-      if (discardedUnfinishedIds.length > 0) {
-        throw conflict(
-          `Dependencies are still unfinished: ${discardedUnfinishedIds.join(", ")}. Preserve these IDs while waiting for their latest work and workspace finalization. Only list them in obsoleteTaskIds if their work is no longer required; do not remove them to bypass waiting.`,
-          { code: "unfinished_dependencies_removed", unresolvedTaskIds: discardedUnfinishedIds },
-        );
-      }
     }
 
     await dbOrTx
@@ -10672,12 +10631,7 @@ export function issueService(db: Db) {
       dbOrTx: any = db,
       postCommitActivityPublications?: ActivityPublication[],
       postCommitActions?: IssuePostCommitAction[],
-      options: {
-        bindRuntimeSharedWorkspace?: boolean;
-        // Undefined preserves the legacy API's explicit replacement semantics.
-        // Native tools pass an array (empty by default) to guard unfinished removals.
-        obsoleteDependencyIssueIds?: string[];
-      } = {},
+      options: { bindRuntimeSharedWorkspace?: boolean } = {},
     ) => {
       const ownedActivityPublications: ActivityPublication[] = [];
       const activityPublications =
@@ -11213,7 +11167,6 @@ export function issueService(db: Db) {
               userId: actorUserId ?? null,
             },
             tx,
-            options.obsoleteDependencyIssueIds,
           );
         }
         if (
