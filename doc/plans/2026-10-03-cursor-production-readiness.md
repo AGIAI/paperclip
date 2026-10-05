@@ -162,10 +162,19 @@ Runner contract/replay checks, 164 focused Runner tests, executor/profile/runtim
 tests, 56 plan-wait tests, fixture typecheck and 9 UI option tests. The new plan-wait
 case preserves valid v11 waits saved with pre-promotion admission metadata;
 incompatible profile identities remain fenced. Original failed test attempts are
-retained separately from their affected successful repeats. The full default local
-test command and final GitHub checks are required before handoff; the PR's live
-checks show the final-head CI state. Historical verification below retains its
-original source and outcomes.
+retained separately from their affected successful repeats. The latest default
+local command passed all general groups and 107 serialized route suites, then
+failed on a socket hang up in `issue-thread-interaction-routes.test.ts`. The
+isolated affected repeat and all remaining 43 suites passed with unchanged source,
+completing all 150 serialized suites. The failed command remains failed. No
+unrelated route repair was made. Final recursive typecheck passed again. Repeated
+assembly exposed a read-only manifest overwrite failure; assembly now replaces
+that manifest atomically, and the server copy can replace an existing read-only
+inode. Two isolated assemblies preserved all three packaged daemon hashes and the
+exact Linux manifest SHA-256/mode. The affected full build and its unchanged
+repeat passed. The PR's live
+checks show final-head CI; green checks are required before handoff. Historical
+verification below retains its original source and outcomes.
 
 The user reconfirmed all remaining work on 2026-10-04 within the original $100 total
 ceiling. Prior committed upper bounds total $47.080380624; the remaining envelope

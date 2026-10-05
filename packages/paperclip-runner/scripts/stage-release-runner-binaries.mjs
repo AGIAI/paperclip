@@ -3,7 +3,7 @@
 // Manifest: {sourceRevision, platforms: {"darwin-arm64": {path, sha256}, ...}}.
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runnerBinaryTarget } from "../src/live/runner-binary.ts";
@@ -44,7 +44,14 @@ for (const artifact of verified) {
 if (remoteProviderPack) {
   const destination = join(root, "dist", "remote-provider-packs", "linux-x64", "provider-pack.json");
   mkdirSync(dirname(destination), { recursive: true });
-  writeFileSync(destination, remoteProviderPack.bytes, { mode: 0o444 });
+  // Replace the inode so repeat assembly can preserve a read-only manifest.
+  const staged = `${destination}.staging-${process.pid}`;
+  try {
+    writeFileSync(staged, remoteProviderPack.bytes, { mode: 0o444, flag: "wx" });
+    renameSync(staged, destination);
+  } finally {
+    rmSync(staged, { force: true });
+  }
 }
 writeFileSync(join(root, "dist", "bin", "release-manifest.json"), JSON.stringify({schema:"paperclip.runner.release-binaries.v1",sourceRevision:manifest.sourceRevision,platforms,
   ...(remoteProviderPack ? { remoteProviderPack: { target: "linux-x64", digest: remoteProviderPack.identity.digest, sourceRevision: remoteProviderPack.identity.payload.runnerSourceRevision } } : {})},null,2)+"\n");
