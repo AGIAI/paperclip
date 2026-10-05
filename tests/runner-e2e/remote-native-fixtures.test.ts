@@ -232,6 +232,20 @@ describe("remote native lease admission", () => {
     if (type === "bad-file") end.targets["result.txt"] = { ...end.targets["result.txt"], absent: false, sha256: hash("missing") };
     h.resolveTerminal(end); await expect(f.finish()).rejects.toThrow();
   });
+  it("reports only closed terminal failure reasons without weakening retirement proof", async () => {
+    const h = harness(), f = await bindRemoteNativeFixture(h.options);
+    await f.publishAction("action.txt", "task");
+    const end = { ...structuredClone(h.current), complete: false,
+      processes: { ...h.current.processes, live: [] }, files: {},
+      failureCodes: ["process_pid_reused", "secret-provider-payload", "process_pid_reused", { arbitrary: "payload" }] };
+    h.resolveTerminal(end);
+    const error = await f.finish().catch(error => error);
+    expect(error.message).toContain("terminal_evidence_incomplete:published=true,complete=false");
+    expect(error.message).toContain(":process_pid_reused");
+    expect(error.message).not.toContain("secret-provider-payload");
+    expect(error.message).not.toContain("arbitrary");
+    expect(remoteNativeFixtureDiagnostics(error)).toEqual([{ phase: "wait", code: "terminal_evidence_incomplete" }]);
+  });
   it("keeps a fixture-owned cross-root sentinel distinct from workspace targets", async () => {
     const h = harness(); h.options.crossRoot = { initialText: "outside sentinel" };
     h.current.targets["@cross-root"] = { absent: false, sha256: hash("outside sentinel"), parent: { dev: "1", ino: "outside" }, mutationCount: 0, complete: true };
@@ -675,6 +689,7 @@ describe("actual generated observer state machine", () => {
     const o = await observerHarness(); o.request("snapshot"); const wait = o.request("wait");
     o.proc.set(21, { ppid: 1, group: 99, ticks: "999", argv: ["/unrelated"] }); o.intervals[0]!(); o.timers.find(t => t.ms === 100)!.fn();
     expect(wait[0].result.complete).toBe(false); expect(wait[0].result.processes.root.startTicks).toBe("100");
+    expect(wait[0].result.failureCodes).toContain("process_pid_reused");
   });
   it("counts transient workspace create/delete and rejects changed setup-file bytes", async () => {
     const o = await observerHarness(); o.request("snapshot");

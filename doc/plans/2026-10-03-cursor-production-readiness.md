@@ -66,11 +66,16 @@ included in the semantic pass count.
 | macOS x64 | `51a146a4013fcf4de05254509cb6056356e60c9f825feec648a347310953899e` | `0efe9ca359b961d429a475354473c462c31b95c6670a1d9ce50be601568c80c8` |
 | Linux x64 | `7c7bdec69c69e890c5ae3da7d8f80026412c397436adec8aa074f3653ff852c2` | `34d1b96550669613e91b3df75752164609ddfbeec70ea821e540558f8a96ddb6` |
 
-The qualification image is built locally at
-`sha256:16c7be3610f45e409f67873dd4bd829f9a1e0e5f017c8826d01db4bb05720f97`.
-Automatic approval review requires explicit authorization to publish it to
-`ghcr.io/paperclipai/paperclip-daytona-runner:cursor-qualification-d0b90756e3ab`.
-That approval is pending; the fresh remote matrix has not started.
+The qualification image is published at
+`ghcr.io/paperclipai/paperclip-daytona-runner@sha256:16c7be3610f45e409f67873dd4bd829f9a1e0e5f017c8826d01db4bb05720f97`.
+The user approved publication and all remaining qualification on 2026-10-04
+within the existing $100 total ceiling. The fresh remote matrix is in progress.
+The first plan attempt failed before a provider call because seven empty directories
+were missing from the controller extraction. All file bytes matched the immutable
+image; restoring its exact directory inventory passed the unchanged manifest.
+The failed attempt and successful cleanup remain recorded; the affected repeat
+uses the same image and runtime. Infrastructure reserves total $29 within the
+$52.919619376 remaining envelope; unknown per-run Cursor costs stay null.
 
 The isolated public package verifier passed at source 473206: 18 public packages,
 enabled lifecycle hooks, no implicit Cursor provisioning, explicit pinned setup,
