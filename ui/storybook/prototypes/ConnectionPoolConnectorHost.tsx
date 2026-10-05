@@ -5,7 +5,7 @@ import { aiConnectionRouterAppDefinition, aiConnectionRouterSlug, getAppStoreDef
 import { Browse } from "@/pages/apps/Browse";
 import { AppsConnect } from "@/pages/apps/AppsConnect";
 import { AppDetail } from "@/pages/apps/AppDetail";
-import { AppDetailSidebar } from "@/components/AppConnectionSidebar.production";
+import { AppDetailSidebar } from "@/components/AppConnectionSidebar";
 import { BreadcrumbBar } from "@/components/BreadcrumbBar";
 
 export type PoolConnectorScenario = "catalog" | "setup" | "manage" | "empty" | "unavailable" | "permission" | "conflict" | "usage" | "exhausted" | "unknown" | "revoked";

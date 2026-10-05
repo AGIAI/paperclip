@@ -94,3 +94,23 @@ Core also owns **Connectors / Pool host** stories for the generic native
 extension. The overview links to Cloud's **In Connectors** preview on port 6010;
 its stories mount these same production routes, header, sidebar and tokens.
 **Full Setup And Management** exercises the complete catalog-to-pool journey.
+
+## Full-app browser acceptance
+
+Install the compatible plugin into an isolated, loopback `local_trusted` instance,
+enable the experimental flag, and use a company named for an E2E or test drive
+with two saved, authorized AI accounts. Run:
+
+```sh
+PAPERCLIP_CONNECTION_POOL_E2E=1 \
+AI_CONNECTIONS_TEST_URL=http://127.0.0.1:3100 \
+AI_CONNECTIONS_TEST_COMPANY_ID=<test-company-id> \
+pnpm exec playwright test --config tests/ai-connections-app/playwright.config.ts connection-pools.spec.ts
+```
+
+These opt-in tests exercise the shipped app, installed plugin and database without
+mocking browser routes or pool APIs. They cover catalog navigation, setup, ordering,
+paused defaults, rename, member changes, refresh persistence, stale edits and
+removal. Cleanup archives only the test's own pool and verifies that existing
+accounts and pools remain intact. This suite does not execute agents or probe
+live usage; provider and restart acceptance remain separate gated test drives.
