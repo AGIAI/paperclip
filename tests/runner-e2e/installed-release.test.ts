@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { installedReleaseEnvironment, installedReleaseLaunch } from "./installed-release.js";
+import { installedReleaseDaytonaPlugin, installedReleaseEnvironment, installedReleaseLaunch } from "./installed-release.js";
 
 const roots: string[] = [];
 afterEach(() => roots.splice(0).forEach(root => rmSync(root, { recursive: true, force: true })));
@@ -17,6 +17,23 @@ describe("ordinary installed release smoke", () => {
     expect(() => installedReleaseLaunch(cli)).toThrow("public package");
     expect(() => installedReleaseLaunch("relative/index.js")).toThrow("absolute path");
   });
+  it("uses the public compiled Daytona plugin beside the installed CLI", () => {
+    const root = realpathSync(mkdtempSync(path.join(tmpdir(), "installed-daytona-"))); roots.push(root);
+    const cliRoot = path.join(root, "node_modules/paperclipai"), plugin = path.join(root, "node_modules/@paperclipai/plugin-daytona");
+    mkdirSync(path.join(cliRoot, "dist"), { recursive: true }); mkdirSync(path.join(plugin, "dist"), { recursive: true });
+    const cli = path.join(cliRoot, "dist/index.js"); writeFileSync(cli, "");
+    writeFileSync(path.join(cliRoot, "package.json"), JSON.stringify({ name: "paperclipai", version: "0.0.0-verify" }));
+    const manifest = { name: "@paperclipai/plugin-daytona", paperclipPlugin: { manifest: "./dist/manifest.js", worker: "./dist/worker.js" }, exports: { ".": { import: "./dist/index.js" } } };
+    for (const file of ["manifest.js", "worker.js"]) writeFileSync(path.join(plugin, "dist", file), "");
+    writeFileSync(path.join(plugin, "package.json"), JSON.stringify(manifest));
+    expect(installedReleaseDaytonaPlugin(cli)).toBe(plugin);
+    writeFileSync(path.join(plugin, "package.json"), JSON.stringify({ ...manifest, exports: { ".": "./src/index.ts" } }));
+    expect(() => installedReleaseDaytonaPlugin(cli)).toThrow("public compiled Daytona");
+    writeFileSync(path.join(plugin, "package.json"), JSON.stringify(manifest));
+    rmSync(path.join(plugin, "dist/worker.js"));
+    expect(() => installedReleaseDaytonaPlugin(cli)).toThrow();
+  });
+
   it("removes repository executables, provider packs, native paths and loader injection", () => {
     const source = { PATH: "/repo/packages/node_modules/.bin:/tmp/provider-bin:/usr/bin:/tmp/node/bin", NODE_OPTIONS: "--import /repo/loader", NODE_PATH: "/repo/node_modules",
       PAPERCLIP_RUNNER_BINARY: "/repo/runner", PAPERCLIP_RUNNER_PROVIDER_PACK_ROOT: "/private/pack",

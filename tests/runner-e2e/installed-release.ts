@@ -14,6 +14,22 @@ export function installedReleaseLaunch(cliPath: string) {
   return { cli, cwd: root, args: [cli, "onboard", "--yes", "--run"], version: manifest.version };
 }
 
+/** Install the public plugin from the same consumer, without a workspace loader. */
+export function installedReleaseDaytonaPlugin(cliPath: string): string {
+  const cli = installedReleaseLaunch(cliPath);
+  const plugin = realpathSync(path.join(path.dirname(cli.cwd), "@paperclipai/plugin-daytona"));
+  const manifest = JSON.parse(readFileSync(path.join(plugin, "package.json"), "utf8"));
+  if (manifest.name !== "@paperclipai/plugin-daytona" ||
+      manifest.paperclipPlugin?.manifest !== "./dist/manifest.js" ||
+      manifest.paperclipPlugin?.worker !== "./dist/worker.js" ||
+      manifest.exports?.["."]?.import !== "./dist/index.js") {
+    throw new Error("Installed release requires the public compiled Daytona plugin package");
+  }
+  realpathSync(path.join(plugin, "dist/manifest.js"));
+  realpathSync(path.join(plugin, "dist/worker.js"));
+  return plugin;
+}
+
 /** Qualification assets must never make a public installed product smoke pass. */
 export function installedReleaseEnvironment(source: NodeJS.ProcessEnv, repositoryRoot: string, providerBin: string): NodeJS.ProcessEnv {
   if (source.PAPERCLIP_RUNNER_ACPX_QUALIFICATION) throw new Error("Installed release smoke requires production admission without qualification overrides");

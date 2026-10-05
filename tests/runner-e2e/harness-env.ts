@@ -116,10 +116,7 @@ export function buildRunnerE2EProcessEnvironment(
     const agent = execution.profile.qualificationCandidate;
     if (!agent || agent === "cursor") continue;
     const admittedSuite = execution.suite.id === "extended-harnesses"
-      || execution.suite.id === "rich-acp-warm-continuity"
-      || (execution.suite.id === "cursor-native" && agent === "cursor")
-      || (execution.suite.id === "native-active-stop" && agent === "cursor")
-      || (execution.suite.id === "native-provider-loss" && agent === "cursor");
+      || execution.suite.id === "rich-acp-warm-continuity";
     if (!admittedSuite || !execution.suite.manualOnly) {
       throw new Error("Candidate qualification requires an explicit provider qualification suite");
     }

@@ -1,5 +1,6 @@
 import { NATIVE_COMPLETION_BUDGET_CENTS } from "./native-completion-defaults.js";
 import path from "node:path";
+import { installedReleaseDaytonaPlugin } from "./installed-release.js";
 import { isManagedHiringCase } from "./chat-cases.js";
 import { FixtureRegistry } from "./fixture-registry.js";
 import { TASK_TITLE_BUDGET_CENTS } from "./task-titles.js";
@@ -115,7 +116,9 @@ export async function setupLiveFixtures(input: {
       id: "sandbox-provider",
       async setup() {
         return api.post<PluginRecord>("/api/plugins/install", {
-          packageName: path.resolve(
+          packageName: process.env.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI
+            ? installedReleaseDaytonaPlugin(process.env.PAPERCLIP_RUNNER_E2E_INSTALLED_CLI)
+            : path.resolve(
             import.meta.dirname,
             "../../packages/plugins/sandbox-providers/daytona",
           ),
