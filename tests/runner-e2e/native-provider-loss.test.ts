@@ -5,10 +5,10 @@ import type { ActiveStopPending } from "./native-active-stop-evidence.js";
 import { buildRunnerE2EProcessEnvironment } from "./harness-env.js";
 import { runnerMatrix } from "./catalog.js";
 
-it("admits only explicit Cursor loss cells through the qualification harness", () => {
+it("runs qualified Cursor loss cells without qualification overrides", () => {
   const execution = runnerMatrix.find(row => row.suite.id === "native-provider-loss" && row.environment.id === "local")!;
-  expect(JSON.parse(buildRunnerE2EProcessEnvironment({}, [execution]).PAPERCLIP_RUNNER_ACPX_QUALIFICATION!))
-    .toEqual([{ agent: "cursor", model: execution.profile.model }]);
+  expect(buildRunnerE2EProcessEnvironment({}, [execution]).PAPERCLIP_RUNNER_ACPX_QUALIFICATION)
+    .toBeUndefined();
   expect(() => buildRunnerE2EProcessEnvironment({}, [{ ...execution, profile: { ...execution.profile, qualificationCandidate: "copilot" } }])).toThrow("explicit provider qualification suite");
 });
 

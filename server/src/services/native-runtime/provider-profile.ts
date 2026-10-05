@@ -25,6 +25,8 @@ export const QUALIFIED_ACPX_RUNNER_MODELS = {
   grok: "grok-4.7",
   claude: "claude-sonnet-5",
   codex: "gpt-5.6-sol",
+  // Cursor models are explicit and provider-verified; there is no default.
+  cursor: "",
 } as const;
 
 export type QualifiedPaperclipRunnerAcpxAgent =
@@ -462,7 +464,10 @@ export function resolvePaperclipRunnerProviderProfile(
     }
     throw new PaperclipRunnerProviderProfileError("paperclip_runner_acpx_agent_unavailable", `${pendingAcpxProfile.label} is awaiting local and Daytona qualification. Its profile is not enabled for production runs.`);
   }
-  if (acpxAgent !== "claude" && acpxAgent !== "codex" && acpxAgent !== "grok") {
+  if (acpxAgent === "cursor" && !model) {
+    throw new PaperclipRunnerProviderProfileError("paperclip_runner_acpx_model_required", "Cursor requires an explicit model ID; there is no default model.");
+  }
+  if (acpxAgent !== "claude" && acpxAgent !== "codex" && acpxAgent !== "grok" && acpxAgent !== "cursor") {
     throw new PaperclipRunnerProviderProfileError(
       "paperclip_runner_acpx_agent_unavailable",
       "Paperclip Runner ACPX requires a qualified agent profile.",

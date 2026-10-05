@@ -67,7 +67,7 @@ function agentCoreProfile(overrides: Record<string, unknown> = {}) {
 }
 
 describe("eval-session request contract", () => {
-  it.each(["pi", "cursor", "copilot"] as const)("admits %s only with the matching CLI diagnostic opt-in", (agent) => {
+  it.each(["pi", "copilot"] as const)("admits %s only with the matching CLI diagnostic opt-in", (agent) => {
     const value = request({ provider: "acpx", acpxAgent: agent, model: "explicit-provider-model" });
     expect(() => parseEvalSessionRequest(value)).toThrow("--candidate-profile");
     expect(parseEvalSessionRequest(value, { candidateProfile: agent })).toMatchObject({ acpxAgent: agent, model: "explicit-provider-model" });
@@ -75,6 +75,11 @@ describe("eval-session request contract", () => {
     expect(() => parseEvalSessionRequest(request({ provider: "acpx", acpxAgent: agent, model: "" }), { candidateProfile: agent })).toThrow("request.model");
     expect(() => parseEvalSessionRequest(request({ provider: "acpx", acpxAgent: "codex", session: { acpxAgent: agent } }))).toThrow("session.acpxAgent must match");
     expect(() => parseEvalSessionRequest(request({ provider: "acpx", acpxAgent: agent, candidateProfile: agent }))).toThrow("--candidate-profile");
+  });
+
+  it("admits qualified Cursor without a diagnostic flag and preserves its explicit model", () => {
+    expect(parseEvalSessionRequest(request({ provider: "acpx", acpxAgent: "cursor", model: "exact-cursor-model" })))
+      .toMatchObject({ acpxAgent: "cursor", model: "exact-cursor-model" });
   });
 
   it("accepts only known diagnostic flags and rejects ambiguous repeated arguments", () => {

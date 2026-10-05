@@ -114,7 +114,7 @@ export function buildRunnerE2EProcessEnvironment(
   const candidates = new Map<string, string>();
   for (const execution of executions) {
     const agent = execution.profile.qualificationCandidate;
-    if (!agent) continue;
+    if (!agent || agent === "cursor") continue;
     const admittedSuite = execution.suite.id === "extended-harnesses"
       || execution.suite.id === "rich-acp-warm-continuity"
       || (execution.suite.id === "cursor-native" && agent === "cursor")

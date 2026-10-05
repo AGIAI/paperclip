@@ -20,10 +20,11 @@ const releaseBinaries = JSON.parse(readFileSync(join(repo, 'server/dist/vendor/p
 assert.equal(releaseBinaries.schema, 'paperclip.runner.release-binaries.v1');
 assert.match(releaseBinaries.sourceRevision, /^[a-f0-9]{40}$/);
 run('git', ['merge-base', '--is-ancestor', releaseBinaries.sourceRevision, sourceRevision], repo);
-// Controller/fixture repairs may follow a frozen runtime. Its exact binary
-// provenance stays unchanged; require the Runner source to remain identical.
-run('git', ['diff', '--quiet', releaseBinaries.sourceRevision, sourceRevision, '--', 'packages/paperclip-runner'], repo);
+// Controller and TypeScript admission may follow a frozen daemon. Keep its
+// exact provenance and require the Rust sources and protocol to remain identical.
+run('git', ['diff', '--quiet', releaseBinaries.sourceRevision, sourceRevision, '--', 'packages/paperclip-runner/runner', 'packages/paperclip-runner/protocol'], repo);
 assert.deepEqual(Object.keys(releaseBinaries.platforms).sort(), ['darwin-arm64', 'darwin-x64', 'linux-x64']);
+assert.equal(releaseBinaries.remoteProviderPack?.target, 'linux-x64', 'Release assembly must include the expected ordinary Daytona image pack');
 const releaseVersion = `0.0.0-cursor-verify.${sourceRevision.slice(0, 12)}`;
 const listing = run(process.execPath, [join(repo, 'scripts/release-package-map.mjs'), 'list'], repo).toString().trim().split('\n').map(line => line.split('\t'));
 const packages = new Map(listing.map(([dir, name]) => [name, {dir, manifest: JSON.parse(readFileSync(join(repo, dir, 'package.json')))}]));
@@ -86,6 +87,7 @@ import { execFileSync } from 'node:child_process';
 import { defaultCapabilityRunnerdBinary } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/live/runnerd-codex-transport.js';
 import { resolvePaperclipRunnerBinary } from '/consumer/node_modules/@paperclipai/server/dist/services/native-runtime/native-codex-runner.js';
 import { runnerBinaryTarget } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/live/runner-binary.js';
+import { bundledRemoteRunnerBinary, bundledRemoteProviderPackManifestPath } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/live/bundled-remote-provider-pack.js';
 import { verifyAcpxProfileInstallation } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/drivers/acpx/profile-installation.js';
 import { resolveQualifiedAcpxProfile } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/drivers/acpx/qualified-profiles.js';
 const profile = resolveQualifiedAcpxProfile('cursor', 'gpt-5.6-luna[context=272k,reasoning=medium,fast=false]');
@@ -107,6 +109,10 @@ for (const [target, artifact] of Object.entries(manifest.platforms)) {
 const binary = defaultCapabilityRunnerdBinary();
 assert.equal(binary, binaryRoot + '/linux-x64/paperclip-runnerd');
 assert.equal(resolvePaperclipRunnerBinary(), binary, 'The installed server must use the same verified platform daemon');
+assert.equal(bundledRemoteRunnerBinary(), binary);
+const remotePack = JSON.parse(readFileSync(bundledRemoteProviderPackManifestPath(), 'utf8'));
+assert.equal(remotePack.digest, manifest.remoteProviderPack.digest);
+assert.equal(remotePack.payload.providers.cursor.qualification, 'qualified');
 const metadata = JSON.parse(execFileSync(binary, ['--build-metadata'], { encoding: 'utf8' }));
 assert.equal(metadata.schema, 'paperclip-runner/runnerd-build-metadata/v1');
 assert.equal(metadata.binaryContractVersion, 2);

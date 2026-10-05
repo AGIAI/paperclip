@@ -1,6 +1,6 @@
 import { verifyCursorInstallation } from "./cursor-installation.js";
 import { assertCursorWorkspacePolicy } from "./cursor-launch-policy.js";
-import type { QualifiedAcpxAgent, QualifiedAcpxProfile } from "./qualified-profiles.js";
+import { resolveQualifiedAcpxProfile, type QualifiedAcpxAgent, type QualifiedAcpxProfile } from "./qualified-profiles.js";
 import { verifyQualifiedAcpxInstallation, type VerifiedAcpxInstallation } from "./installation-integrity.js";
 
 /** Closed build-owned registry. Provider branches add their pinned installations here. */
@@ -47,4 +47,10 @@ export function classifyAcpxProfileError(agent: QualifiedAcpxAgent, error: unkno
     detail = "Cursor could not use the explicitly selected model. Verify its exact identifier and account access, then select a supported model explicitly.";
   } else return null;
   return Object.assign(new Error(detail), { code, retryable: false });
+}
+
+/** Probe trusted installed bytes without credentials or a billable prompt. */
+export async function probeAcpxCursorInstallation(model: string): Promise<void> {
+  const installation = await verifyAcpxProfileInstallation(resolveQualifiedAcpxProfile("cursor", model));
+  await (await installation.openCommand()).close();
 }

@@ -558,7 +558,7 @@ describe("qualified ACPX runtime sidecar", () => {
     ["pi", "openrouter/deepseek/deepseek-v4-flash-0731"],
     ["cursor", "explicit-cursor-model"],
     ["copilot", "explicit-copilot-model"],
-  ] as const)("initializes the declared %s candidate without promoting its profile", async (agent, model) => {
+  ] as const)("initializes the declared %s profile with its current admission status", async (agent, model) => {
     const sidecar = startSidecar();
     sidecar.write(initializeRequest(1, agent, model));
     const frame = await sidecar.next((value) => value.id === 1);
@@ -566,7 +566,7 @@ describe("qualified ACPX runtime sidecar", () => {
     const result = frame.result as Record<string, unknown>;
     expect(result.profile).toEqual(resolveQualifiedAcpxProfile(agent, model));
     expect(result.profile).toMatchObject({ reportedModelId: model });
-    expect(ACPX_CAPABILITY_PROFILES[agent].qualification).toBe("pending");
+    expect(ACPX_CAPABILITY_PROFILES[agent].qualification).toBe(agent === "cursor" ? "qualified" : "pending");
   });
 
   it("fails closed after an unsupported provider bootstrap", async () => {

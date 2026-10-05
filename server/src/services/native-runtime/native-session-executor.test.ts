@@ -310,6 +310,7 @@ import {
   REMOTE_RUNNER_CHILD_LAUNCH_SCRIPT,
   verifyRemoteRunnerReattachment,
   readRemoteProviderPackManifest,
+  readBundledRemoteProviderPackManifest,
   providerSessionIdentityFromDurableProviderState,
   durableProviderCheckpointFailureReason,
   providerSessionIdentityTransitionIsAllowed,
@@ -1156,10 +1157,22 @@ describe("remote provider pack manifest", () => {
     await mkdir(join(root, cursorPath), { recursive: true });
     await writeFile(join(root, cursorPath, "runtime"), "pinned Cursor runtime");
     Object.assign(payload, { providers: { cursor: { version: "2026.09.26-dd393fe", profileDigest: digest("cursor-profile"),
-      closureDigest: digest("cursor-closure"), qualification: "pending", path: cursorPath,
+      closureDigest: digest("cursor-closure"), qualification: "qualified", path: cursorPath,
       sha256: sha256DirectoryTree(join(root, cursorPath)) } } });
     await writeManifest();
     expect(readRemoteProviderPackManifest(root).payload.providers?.cursor?.version).toBe("2026.09.26-dd393fe");
+    const releaseMetadata = await mkdtemp(join(tmpdir(), "paperclip-image-identity-"));
+    const manifestPath = join(releaseMetadata, "provider-pack.json");
+    await cp(join(root, "provider-pack.json"), manifestPath);
+    expect(readBundledRemoteProviderPackManifest(manifestPath).digest).toBe(readRemoteProviderPackManifest(root).digest);
+    // A metadata-only release identity is never accepted as a host asset tree.
+    expect(() => readRemoteProviderPackManifest(releaseMetadata)).toThrow();
+    const originalTarget = payload.target;
+    payload.target = { platform: "darwin", architecture: "arm64" };
+    await writeManifest(); await cp(join(root, "provider-pack.json"), manifestPath);
+    expect(() => readBundledRemoteProviderPackManifest(manifestPath)).toThrow();
+    payload.target = originalTarget; await writeManifest();
+    await rm(releaseMetadata, { recursive: true, force: true });
     await writeFile(join(root, cursorPath, "runtime"), "substitute Cursor runtime");
     expect(() => readRemoteProviderPackManifest(root)).toThrow("asset tree digest mismatch");
     await writeFile(join(root, cursorPath, "runtime"), "pinned Cursor runtime");
@@ -8234,7 +8247,7 @@ describe("native process ownership", () => {
     },
   );
 
-  it.each(["pi", "cursor", "copilot"])("rejects ACPX candidate %s without host authorization before constructing a backend", async (agent) => {
+  it.each(["pi", "copilot"])("rejects ACPX candidate %s without host authorization before constructing a backend", async (agent) => {
     const piExecution = {
       ...execution,
       binding: { ...execution.binding, runId: "run-acpx-pi-rejected" },

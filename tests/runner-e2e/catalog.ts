@@ -325,13 +325,13 @@ export const runnerProfiles: readonly RunnerProfileFixture[] = [
 ] as const;
 
 // Explicit qualification choices from authenticated model discovery, not shipped
-// defaults or claims that these candidates have passed inference qualification.
+// defaults. Cursor has local/Daytona proof; Copilot and Pi remain pending.
 export const extendedHarnessProfiles: readonly RunnerProfileFixture[] = [
   nativeProfile({
-    id: "runner-acpx-cursor", label: "Runner Cursor (candidate)", provider: "acpx", acpxAgent: "cursor",
+    id: "runner-acpx-cursor", label: "Runner Cursor", provider: "acpx", acpxAgent: "cursor",
     qualificationCandidate: "cursor", credential: "CURSOR_AUTH_TOKEN",
     model: "gpt-5.6-luna[context=272k,reasoning=medium,fast=false]",
-    modelQualification: { source: "candidate_runner_profile", qualificationId: "cursor:2026.09.26-dd393fe:discovery-2026-09-28" },
+    modelQualification: { source: "qualified_runner_profile", qualificationId: "cursor:2026.09.26-dd393fe:v11:luna:local-daytona-2026-10-04" },
   }),
   nativeProfile({
     id: "runner-acpx-copilot", label: "Runner Copilot (candidate)", provider: "acpx", acpxAgent: "copilot",

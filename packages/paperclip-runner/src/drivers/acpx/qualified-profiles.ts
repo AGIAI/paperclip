@@ -64,10 +64,10 @@ export const QUALIFIED_ACPX_PROFILES: Readonly<
     agentServerPackage: "cursor-agent", agentServerVersion: "2026.09.26-dd393fe",
     agentRuntimePackage: null, agentRuntimeVersion: null,
     commandDigest: "sha256:2feb50c7b0a317dff454c00115a5bbe4d5c757189691586577be9c80234d477e",
-    // Authenticated discovery has not established a qualification model. Never
-    // turn this empty declaration into a default; callers must select an ID.
+    // Every caller selects a model explicitly; the native provider must verify
+    // that exact ID. Qualification never turns Luna into a default model.
     qualificationModel: "", reportedModelId: "", permissionPolicy: "interactive",
-    modelPolicy: "explicit-provider-verified", qualificationStatus: "pending",
+    modelPolicy: "explicit-provider-verified",
   },
   copilot: {
     driverKind: ACPX_DRIVER_KIND, protocolVersion: ACPX_DRIVER_PROTOCOL_VERSION,

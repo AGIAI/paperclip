@@ -902,7 +902,7 @@ export class CapabilityLiveSessionService {
 
   async create(input: CreateCapabilityLiveSessionInput = {}): Promise<CapabilityLiveSession> {
     if (input.provider === "acpx" && input.acpxAgent !== undefined
-      && ["pi", "cursor", "copilot"].includes(input.acpxAgent)
+      && ["pi", "copilot"].includes(input.acpxAgent)
       && this.#transportOptions.acpxCandidateProfile !== input.acpxAgent) {
       throw new Error("The candidate ACPX profile requires explicit evaluation opt-in");
     }
@@ -1829,7 +1829,7 @@ export class CapabilityLiveSession {
     const candidate = this.#config.acpxAgent;
     if (missingTokens && this.#config.provider === "acpx"
       && (candidate === "pi" || candidate === "cursor" || candidate === "copilot")
-      && this.#transportOptions.acpxCandidateProfile === candidate) {
+      && (candidate === "cursor" || this.#transportOptions.acpxCandidateProfile === candidate)) {
       // Native candidate wrappers can complete a turn without a usage receipt,
       // including entitlement-denied turns. Retain the actual result for the
       // oracle without inventing tokens, charges, or a successful model call.

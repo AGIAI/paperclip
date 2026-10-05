@@ -1,3 +1,4 @@
+import { bundledRemoteProviderPackManifestPath, bundledRemoteRunnerBinary } from "../../vendor/paperclip-runner/index.js";
 import { nativeRetryCancellationEligible, rethrowNativeCancellationLockConflict, assertCancellationRequest, cancellationIntentId as callerCancellationIntentId, cancellationRequestId } from "./native-cancellation-request.js";
 import { readNativeCursorPlanWait } from "./native-cursor-plan-wait.js";
 import { NativeCursorPermissionDeclinedError, readCompletedCursorPermissionDecline } from "./native-cursor-permission-decline.js";
@@ -7502,7 +7503,7 @@ async function executePaperclipNativeSessionWithinScope(
   }
   if (
     input.execution.provider.kind === "acpx" &&
-    ["pi", "cursor", "copilot"].includes(input.execution.provider.agent) &&
+    ["pi", "copilot"].includes(input.execution.provider.agent) &&
     !resolveAcpxQualification(input.execution.provider, process.env)
   ) {
     throw new Error(
@@ -9511,11 +9512,11 @@ type RemoteProviderPackManifest = {
     bridgeDigest: string;
     acpxProfileDigests: typeof REMOTE_PROVIDER_PACK_PROFILE_DIGESTS;
     providers?: Partial<Record<"cursor", {
-      version: string; profileDigest: string; closureDigest: string; qualification: "pending";
+      version: string; profileDigest: string; closureDigest: string; qualification: "qualified" | "pending";
       path: string; sha256: string;
     }>>;
     candidateProviders?: Partial<Record<"cursor" | "copilot" | "pi", {
-      version: string; profileDigest: string; closureDigest: string; qualification: "pending";
+      version: string; profileDigest: string; closureDigest: string; qualification: "qualified" | "pending";
       path: string; sha256: string;
     }>>;
     artifacts: {
@@ -9579,9 +9580,19 @@ function providerPackRelativePath(value: unknown, field: string): string {
   return value;
 }
 
-export function readRemoteProviderPackManifest(
-  packRoot: string,
-): RemoteProviderPackManifest {
+export function readRemoteProviderPackManifest(packRoot: string): RemoteProviderPackManifest {
+  return readRemoteProviderPackIdentity(packRoot, true);
+}
+
+export function readBundledRemoteProviderPackManifest(manifestPath = bundledRemoteProviderPackManifestPath()): RemoteProviderPackManifest {
+  const manifest = readRemoteProviderPackIdentity(dirname(manifestPath), false);
+  if (manifest.payload.target.platform !== "linux" || manifest.payload.target.architecture !== "x64") {
+    throw new Error("runner_remote_provider_artifact_incompatible: bundled image pack must target Linux x64");
+  }
+  return manifest;
+}
+
+function readRemoteProviderPackIdentity(packRoot: string, verifyControllerFiles: boolean): RemoteProviderPackManifest {
   let manifest: RemoteProviderPackManifest;
   try {
     manifest = JSON.parse(
@@ -9669,15 +9680,15 @@ export function readRemoteProviderPackManifest(
       );
     }
     if (
-      typeof artifact?.sha256 !== "string" ||
-      sha256File(resolve(packRoot, artifactPath)) !== artifact.sha256
+      !/^sha256:[a-f0-9]{64}$/.test(artifact?.sha256 ?? "") ||
+      (verifyControllerFiles && sha256File(resolve(packRoot, artifactPath)) !== artifact.sha256)
     ) {
       throw new Error(
         `runner_remote_provider_artifact_incompatible: ${label} digest mismatch`,
       );
     }
   }
-  if (sha256DirectoryTree(resolve(packRoot, "dist")) !== payload.distDigest) {
+  if (verifyControllerFiles && sha256DirectoryTree(resolve(packRoot, "dist")) !== payload.distDigest) {
     throw new Error(
       "runner_remote_provider_artifact_incompatible: provider dist tree digest mismatch",
     );
@@ -9691,7 +9702,7 @@ export function readRemoteProviderPackManifest(
       const expectedPath = `provider-assets/${provider}/${payload.target.platform}-${payload.target.architecture}`;
       if (!(inventory === "providers" ? ["cursor"] : ["cursor", "copilot", "pi"]).includes(provider) || !candidate
         || Object.keys(candidate).some(key => !["version", "profileDigest", "closureDigest", "qualification", "path", "sha256"].includes(key))
-        || candidate.qualification !== "pending" || candidate.path !== expectedPath
+        || candidate.qualification !== (provider === "cursor" ? "qualified" : "pending") || candidate.path !== expectedPath
         || typeof candidate.version !== "string" || !candidate.version || candidate.version.length > 120
         || !/^sha256:[a-f0-9]{64}$/.test(candidate.profileDigest)
         || !/^sha256:[a-f0-9]{64}$/.test(candidate.closureDigest)
@@ -9699,7 +9710,7 @@ export function readRemoteProviderPackManifest(
         throw new Error("runner_remote_provider_artifact_incompatible: invalid candidate identity");
       }
       const candidatePath = providerPackRelativePath(candidate.path, "candidate assets");
-      if (sha256DirectoryTree(resolve(packRoot, candidatePath)) !== candidate.sha256) {
+      if (verifyControllerFiles && sha256DirectoryTree(resolve(packRoot, candidatePath)) !== candidate.sha256) {
         throw new Error("runner_remote_provider_artifact_incompatible: candidate asset tree digest mismatch");
       }
     }
@@ -10915,7 +10926,11 @@ async function createRunnerdBackendWithinSessionClaim(
   const configuredProviderPackRoot =
     input.runnerRemoteProviderPackPath?.trim() || null;
   let expectedProviderPackManifest: RemoteProviderPackManifest | null = null;
-  if (requiresRemoteProviderPack) {
+  const useBundledCursorImageAssets = requiresRemoteProviderPack && !configuredProviderPackRoot &&
+    input.execution.provider.kind === "acpx" && input.execution.provider.agent === "cursor";
+  if (useBundledCursorImageAssets) {
+    expectedProviderPackManifest = readBundledRemoteProviderPackManifest();
+  } else if (requiresRemoteProviderPack) {
     if (
       !configuredProviderPackRoot ||
       !existsSync(configuredProviderPackRoot) ||
@@ -10942,7 +10957,7 @@ async function createRunnerdBackendWithinSessionClaim(
   // When an explicit remote artifact is configured, prepareRemoteRunner stages
   // these exact bytes at remoteBinary before launch.
   const controllerRunnerBinary = remoteTarget
-    ? input.runnerRemoteBinaryPath?.trim() || resolvePaperclipRunnerBinary()
+    ? input.runnerRemoteBinaryPath?.trim() || (useBundledCursorImageAssets ? bundledRemoteRunnerBinary() : resolvePaperclipRunnerBinary())
     : resolvePaperclipRunnerBinary();
   const explicitRemoteCodex = input.runnerRemoteCodexPath?.trim() || null;
   const remoteCodexNpmSpec = input.runnerRemoteCodexNpmSpec?.trim() || null;
@@ -11470,7 +11485,7 @@ async function createRunnerdBackendWithinSessionClaim(
     }
     if (
       requiresRemoteProviderPack &&
-      configuredProviderPackRoot &&
+      expectedProviderPackManifest &&
       stagedRemoteProviderPackRoot
     ) {
       const packSource = await prepareVerifiedRemoteProviderPack({
@@ -11526,6 +11541,9 @@ async function createRunnerdBackendWithinSessionClaim(
           return preinstalledProviderPack !== null;
         },
         stageAndVerify: async () => {
+          if (!configuredProviderPackRoot) {
+            throw new Error("runner_remote_provider_artifact_incompatible: install the matching Paperclip package and Daytona image; the image provider pack did not match the bundled release identity");
+          }
           if (!remoteCommandRunner.syncIn) {
             throw new Error(
               "runner_remote_provider_artifact_incompatible: this remote transport cannot stage a provider pack; preinstall the exact manifest-matched pack",

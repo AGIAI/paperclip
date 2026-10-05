@@ -131,3 +131,6 @@ export const NativeProviderTerminalFailure = runner.NativeProviderTerminalFailur
 
 export const completeTerminatedRemoteNativeSessionCleanup = runner.completeTerminatedRemoteNativeSessionCleanup;
 export const completeTerminatedLocalNativeSessionCleanup = runner.completeTerminatedLocalNativeSessionCleanup;
+
+export const bundledRemoteProviderPackManifestPath = runner.bundledRemoteProviderPackManifestPath;
+export const bundledRemoteRunnerBinary = runner.bundledRemoteRunnerBinary;

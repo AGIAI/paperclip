@@ -76,7 +76,7 @@ describe("Paperclip Runner Codex configuration", () => {
     expect(html).toContain('<option value="acpx" selected="">ACP agents</option>');
     expect(html).toContain("ACP agent");
     expect(html).toContain('<option value="claude" selected="">Claude</option>');
-    expect(html).toContain('<option value="cursor" disabled="">Cursor — qualification pending</option>');
+    expect(html).toContain('<option value="cursor">Cursor</option>');
     expect(html).toContain('<option value="copilot" disabled="">GitHub Copilot — qualification pending</option>');
     expect(html).toContain('<option value="pi" disabled="">Pi — qualification pending</option>');
     expect(html).not.toContain("Codex via ACPX");
