@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Command } from "commander";
 import { afterEach, expect, it } from "vitest";
-import { registerRuntimeCommands, resolvePiProvisioner, resolveRemoteCompanionImporter } from "../commands/runtime.js";
+import { buildPiSetupEnvironment, registerRuntimeCommands, resolvePiProvisioner, resolveRemoteCompanionImporter } from "../commands/runtime.js";
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 async function fixture() {
@@ -42,4 +42,11 @@ it("resolves the companion importer only inside the actual public server tar lay
 it("requires an explicit digest for the companion import command", async () => {
   const program = new Command(); program.exitOverride().configureOutput({ writeErr() {} }); registerRuntimeCommands(program);
   await expect(program.parseAsync(["node", "paperclipai", "runtime", "import-remote", "/unused"])).rejects.toThrow("sha256");
+});
+
+it("passes explicit setup network settings without provider keys or ambient Node/npm configuration", () => {
+  const network = { PATH: "/public/bin", LC_ALL: "C.UTF-8", HTTPS_PROXY: "http://proxy.example:8080", HTTP_PROXY: "http://proxy.example:8080", NO_PROXY: "localhost", SSL_CERT_FILE: "/public/ca.pem", SSL_CERT_DIR: "/public/certs", NODE_EXTRA_CA_CERTS: "/public/extra-ca.pem" };
+  const environment = buildPiSetupEnvironment({ ...network, LANG: "foreign", HOME: "/private/home", OPENROUTER_API_KEY: "must-not-forward", ANTHROPIC_API_KEY: "must-not-forward", NPM_TOKEN: "must-not-forward", npm_config_registry: "https://foreign.example", NODE_OPTIONS: "--require /foreign.js", NODE_PATH: "/foreign/modules", NODE_TLS_REJECT_UNAUTHORIZED: "0" });
+  expect(environment).toEqual({ ...network, LANG: "C.UTF-8" });
+  expect(buildPiSetupEnvironment({})).toEqual({ PATH: "/usr/bin:/bin", LANG: "C.UTF-8" });
 });

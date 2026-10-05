@@ -1043,8 +1043,12 @@ perform it automatically. It installs only this host's supported platform
 (macOS ARM64, macOS x64, or Linux x64), using the source-pinned Node archive, npm
 lock, wrapper patch and complete Pi closure. Node 24, npm, git, tar and the normal
 platform dependency inspector (`otool` or `ldd`) must be available. The server
-package must be writable by the installing account. Setup forwards no instance
-configuration, provider credentials, npm configuration or proxy credentials.
+package must be writable by the installing account. Explicit setup preserves
+`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `SSL_CERT_FILE`, `SSL_CERT_DIR` and
+`NODE_EXTRA_CA_CERTS` for public downloads, and enables Node's environment proxy
+handling. The provisioner keeps the same closed allowlist. Instance settings,
+provider credentials, user npm configuration, `HOME`, `NODE_OPTIONS` and
+`NODE_PATH` are excluded; TLS certificate validation stays enabled.
 
 The public server carries a self-contained setup tool and small pinned inputs in
 `dist/vendor/paperclip-runner/cli`; the installed host closure lives in that
