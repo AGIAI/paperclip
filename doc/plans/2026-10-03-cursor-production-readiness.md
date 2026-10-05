@@ -151,6 +151,10 @@ compiled plugin in its own installed dependency directory; the affected repeat
 passed. A separate credential-free public probe exposed a development-only Runner
 import in the installed configuration check. The production fix uses the vendored
 boundary, and the stronger public verifier and both installed smokes pass.
+The final fixture also checks the selected public plugin's release version and all
+compiled entries. A credential-free repeat against the exact installed plugin
+above passed; missing or mismatched version tests reject stale artifacts. This
+adds an admission check without changing the certified plugin or provider behavior.
 
 Promotion checks passed: recursive typecheck, full build, token gates (1,129 files),
 Runner contract/replay checks, 164 focused Runner tests, executor/profile/runtime-mode coverage,

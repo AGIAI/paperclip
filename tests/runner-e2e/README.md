@@ -1609,6 +1609,15 @@ native binary overrides are removed from the server environment. Qualification
 admission is rejected, so this path requires production admission. Use the
 existing browser/API cases and encrypted company-secret fixture path.
 
+Install the public `@paperclipai/plugin-daytona` package separately for a Daytona
+smoke. Set `PAPERCLIP_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN` to its absolute installed
+package directory when it has its own dependency root. The fixture checks its
+compiled entries and release version before provisioning. The version must match
+the installed CLI by default. If the release uses independent plugin versions,
+set `PAPERCLIP_RUNNER_E2E_INSTALLED_DAYTONA_PLUGIN_VERSION` to the exact plugin
+version in the release record. Record the plugin tarball SHA-256 with that version;
+do not substitute a workspace build or an older installed plugin.
+
 For a diagnosed failure campaign, `PAPERCLIP_RUNNER_E2E_KEEP_FAILED_PRIVATE=1`
 retains the attempt's owner-only private directory after a failed case even
 when owned cleanup passed. This does not alter the case or cleanup outcome.

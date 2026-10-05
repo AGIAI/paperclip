@@ -14,8 +14,8 @@ export function installedReleaseLaunch(cliPath: string) {
   return { cli, cwd: root, args: [cli, "onboard", "--yes", "--run"], version: manifest.version };
 }
 
-/** Install the public plugin from the same consumer, without a workspace loader. */
-export function installedReleaseDaytonaPlugin(cliPath: string, installedPluginPath?: string): string {
+/** Verify the selected public plugin belongs to the release being qualified. */
+export function installedReleaseDaytonaPlugin(cliPath: string, installedPluginPath?: string, expectedVersion?: string): string {
   const cli = installedReleaseLaunch(cliPath);
   if (installedPluginPath && !path.isAbsolute(installedPluginPath)) throw new Error("Installed Daytona plugin path must be absolute");
   const plugin = realpathSync(installedPluginPath ?? path.join(path.dirname(cli.cwd), "@paperclipai/plugin-daytona"));
@@ -26,8 +26,13 @@ export function installedReleaseDaytonaPlugin(cliPath: string, installedPluginPa
       manifest.exports?.["."]?.import !== "./dist/index.js") {
     throw new Error("Installed release requires the public compiled Daytona plugin package");
   }
+  const releaseVersion = expectedVersion ?? cli.version;
+  if (!releaseVersion || manifest.version !== releaseVersion) {
+    throw new Error(`Installed Daytona plugin must match qualified release version ${releaseVersion}`);
+  }
   realpathSync(path.join(plugin, "dist/manifest.js"));
   realpathSync(path.join(plugin, "dist/worker.js"));
+  realpathSync(path.join(plugin, "dist/index.js"));
   return plugin;
 }
 
