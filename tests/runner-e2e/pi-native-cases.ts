@@ -22,6 +22,20 @@ export function piNativeFinish(marker: string): string {
   return `After verifying the requested outcome, call paperclip_finish once with reportedWorkDisposition done, summary ${marker}, the current completion contract revision, satisfied objective criterion, no remaining work, evidence [], and verification []. Wait for acceptance, then reply exactly ${marker}. Do not create unrelated work.`;
 }
 
+export function piNativeMemoryPrompt(nonce: string, outsidePath?: string): string {
+  return [
+    "Follow these steps in order. Use native file tools; do not use bash or the instructions API.",
+    "1. Copy the exact canonical absolute AGENT_HOME path from this turn's runtime instructions. Native file paths do not expand $AGENT_HOME. Do not use a remembered path or reconstruct any directory name.",
+    `2. Use native write once to create ${PI_NATIVE_MEMORY_PATH} under that absolute directory. Set content to the ${Buffer.byteLength(nonce, "utf8")} UTF-8 bytes of ${nonce}, followed by exactly one line-feed byte (U+000A). This is personal memory, not a task deliverable. Do not edit AGENTS.md or a project file.`,
+    "3. Use native read once, without offset or limit, to verify that complete file. Do not trim or repeat the memory write. If either memory operation fails, report the failure and end your turn without claiming success.",
+    ...(outsidePath === undefined ? [] : [
+      `4. After successful memory verification, make a separate native write attempt exactly once to ${JSON.stringify(outsidePath)} with content forbidden. This unassigned root must be denied. That denial is the expected result of this step, not a memory-operation failure. Do not retry or work around it.`,
+    ]),
+    "Paperclip collects the memory file after the provider stops. Do not claim it is already saved to managed storage.",
+    piNativeFinish("PI-NATIVE-MEMORY-STAGED"),
+  ].join("\n");
+}
+
 export function piNativePrompt(id: string, nonce: string): string {
   if (id === "native-pending-provider-death") return [
     'Call paperclip_native_question exactly once with {method:"input",title:"Pi native provider death",placeholder:"Answer"}. Wait for the real answer; never guess it or substitute semantic request_human_input.',
@@ -42,13 +56,7 @@ export function piNativePrompt(id: string, nonce: string): string {
     "Keep the actual four tool result objects in order. Using the native write tool, write their JSON array to pi-native-answers.json in the task workspace. This is an internal verification file, not a deliverable. Do not infer, change, or prefill any answer.",
     piNativeFinish(`PI-NATIVE-${id}-${nonce}`),
   ].join("\n");
-  if (id === "agent-files-fresh-run") return [
-    "Find the exact registered AGENT_HOME working-copy path in your runtime instructions. Use native write/read file tools for this task, not bash or the instructions API.",
-    `Use native write exactly once to create ${PI_NATIVE_MEMORY_PATH} inside that AGENT_HOME. Its content must be the ${Buffer.byteLength(nonce, "utf8")} UTF-8 bytes of ${nonce}, followed by exactly one line-feed byte (U+000A). Set the write tool's content argument to that complete string, including the final line feed. This is personal memory, not a task deliverable. Do not edit AGENTS.md or a project file instead.`,
-    "Use native read exactly once, without offset or limit, to verify the complete file. Do not trim its content, repeat the write, or use bash to inspect or repair it. If the native result is incorrect, report the failure and end your turn without claiming success.",
-    "Do not claim that the file is already saved to managed storage; Paperclip collects it after the provider stops.",
-    piNativeFinish("PI-NATIVE-MEMORY-STAGED"),
-  ].join("\n");
+  if (id === "agent-files-fresh-run") return piNativeMemoryPrompt(nonce);
   if (id === "human-permission-denial") return [
     "Attempt native write exactly once with relative path pi-human-denied.txt and content forbidden. Wait for the actual browser permission decision. Do not retry, use bash or an API, write another path, or work around denial.",
     "After the native write returns its denial, finish this negative test. Native denial is the expected result; never claim that the file was written.",

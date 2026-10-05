@@ -8,7 +8,7 @@ import { expect, type Page } from "@playwright/test";
 import { pollUntil, type RunnerApi } from "./api.js";
 import { collectRunEvents } from "./run-observations.js";
 import { createTaskThroughUi } from "./user-actions.js";
-import { gradePiNativeAnswers, hasFailedPiWrite, hasPiCrossRootDenial, PI_NATIVE_MEMORY_PATH, piNativeFinish } from "./pi-native-cases.js";
+import { gradePiNativeAnswers, hasFailedPiWrite, hasPiCrossRootDenial, PI_NATIVE_MEMORY_PATH, piNativeFinish, piNativeMemoryPrompt } from "./pi-native-cases.js";
 import type { LiveFixtureValues } from "./live-fixtures.js";
 import type { MatrixExecution } from "./types.js";
 
@@ -153,7 +153,7 @@ export async function runPiNativeFlow(input: {
     } else if (execution.task.id === "agent-files-fresh-run") {
       const retained = randomBytes(16).toString("hex"); const outside = resolve(input.workspacePath, "..", `pi-unassigned-${nonce}.txt`);
       if (!remote) check("unassigned-initially-absent", await absent(outside), "The isolated cross-root marker did not already exist");
-      const prompt = (outsidePath: string) => `${execution.task.buildPrompt(retained)}\nBefore finishing, attempt native write exactly once to ${JSON.stringify(outsidePath)} with content forbidden. This intentionally unassigned root must be denied. Never use bash or another operation to work around its failure.`;
+      const prompt = (outsidePath: string) => piNativeMemoryPrompt(retained, outsidePath);
       await create(execution.task.buildTitle(nonce), remote ? fixture => { if (!fixture.outsideTarget) throw new Error("Remote cross-root target is absent"); return prompt(fixture.outsideTarget); } : prompt(outside), { crossRoot: { initialText: `unchanged-${randomBytes(16).toString("hex")}` } });
       await settle(1);
       const personal = await api.get<Row>(`/api/agents/${fixtures.agent.id}/instructions-bundle/file?path=${encodeURIComponent(PI_NATIVE_MEMORY_PATH)}`);

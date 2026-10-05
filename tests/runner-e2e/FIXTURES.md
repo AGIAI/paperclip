@@ -396,8 +396,10 @@ form as well as a copied runner.
 The agent-memory fixture requires the nonce's UTF-8 bytes followed by exactly
 one line-feed byte (`0x0A`). Its prompt states that byte contract in plain text:
 the browser editor can normalize backslash escapes in a quoted JSON example.
-One native write and one complete native read bound the first task; an incorrect
-result must be reported without a repeated rewrite loop. Native readback and the
+The prompt orders one memory write, one complete native read, a separate expected
+cross-root write denial, and then completion. Native paths use the exact current
+absolute agent directory; shell-variable expansion is not assumed. An incorrect
+memory result must be reported without a repeated rewrite loop. Native readback and the
 managed-file API must retain the exact bytes across a new task and controller
 restart. The byte graders remain unchanged.
 
