@@ -36,6 +36,15 @@ Cleanup passes. Both failed corrected local attempts remain failed; the memory
 case is not qualified. No byte assertion, timeout, model or permission boundary
 is relaxed. Production remains held; no merge or release is authorized.
 
+The corrected Linux native-questions attempt delivers the first three typed
+answers, then its editor call fails with `Pi question has unsupported fields`.
+The original schema advertises fields that the selected method cannot accept.
+The schema correction separates the four method contracts while retaining
+strict handler validation. All 37 Pi extension tests pass. A credential-free
+calibration proves that the installed old schema accepts an editor placeholder
+that its handler rejects, while the corrected schema rejects that input before
+execution. This correction also requires fresh runtime artifact qualification.
+
 ## Frozen target
 
 - Pi: `@earendil-works/pi-coding-agent@1.0.0`.
