@@ -6,6 +6,7 @@ import { ApiError } from "@/api/client";
 import { useCompany } from "@/context/CompanyContext";
 import { useBreadcrumbs } from "@/context/BreadcrumbContext";
 import { Link } from "@/lib/router";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import { CompanyPatternIcon } from "@/components/CompanyPatternIcon";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -60,7 +61,7 @@ function CopyValue({ value, label }: { value: string; label: string }) {
     <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
       <pre className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">{value}</pre>
       <Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" aria-label={`Copy ${label}`} onClick={async () => {
-        try { await navigator.clipboard.writeText(value); setCopied(true); setError(false); }
+        try { await copyTextToClipboard(value); setCopied(true); setError(false); }
         catch { setError(true); }
       }}>{copied ? <Check className="size-4" /> : <Copy className="size-4" />}</Button>
     </div>

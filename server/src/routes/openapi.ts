@@ -1666,7 +1666,7 @@ function resolveOperationAuthLevel(
 ): OpenApiAuthLevel {
   const key = operationKey(method, path);
   if (key === "GET /api/mcp/requests/{id}") return "public";
-  if (path.startsWith("/api/mcp/requests/") || path.startsWith("/api/mcp/connections")) return "board";
+  if (path === "/api/mcp/setup" || path.startsWith("/api/mcp/requests/") || path.startsWith("/api/mcp/connections")) return "board";
   if (PUBLIC_OPERATIONS.has(key)) return "public";
   if (key === "POST /api/mcp/project-tools" || key === "POST /api/companies/{companyId}/slack/tasks/{issueId}/tools") return "agent_run";
   if (RUNTIME_TOOLS_OPERATIONS.has(key)) return "runtime_tools";
@@ -11331,6 +11331,16 @@ registerCurrentRoute({
     401: r.unauthorized,
     403: r.forbidden,
     404: r.notFound,
+  },
+});
+
+registerCurrentRoute({
+  method: "get", path: "/api/mcp/setup", tags: ["tool-gateway"],
+  summary: "Read assistant connection setup for a signed-in person",
+  description: "Returns the live experimental setting and canonical MCP server URL. Requires a human browser session; agent and board API keys are not accepted. Remains available while the experiment is disabled and grants no access.",
+  responses: {
+    200: r.ok(z.object({ enabled: z.boolean(), serverUrl: z.string().url() })),
+    401: r.unauthorized, 403: r.forbidden, 404: r.notFound,
   },
 });
 
