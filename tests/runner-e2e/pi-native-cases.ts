@@ -19,17 +19,20 @@ export const piNativeTasks: readonly RunnerTaskFixture[] = [
 }));
 
 export function piNativeFinish(marker: string): string {
-  return `After verifying the requested outcome, call paperclip_finish once with reportedWorkDisposition done, summary ${marker}, the current completion contract revision, satisfied objective criterion, no remaining work, evidence [], and verification []. Wait for acceptance, then reply exactly ${marker}. Do not create unrelated work.`;
+  return `After verifying the requested outcome, call paperclip_finish once with reportedWorkDisposition done, summary ${marker}, the current completion contract revision, satisfied objective criterion with evidenceRefs [], no remaining work, evidence [], and verification []. Wait for acceptance, then reply exactly ${marker}. Do not create unrelated work.`;
 }
 
 export function piNativeMemoryPrompt(nonce: string, outsidePath?: string): string {
   return [
     "Follow these steps in order. Use native file tools; do not use bash or the instructions API.",
     "1. Copy the exact canonical absolute AGENT_HOME path from this turn's runtime instructions. Native file paths do not expand $AGENT_HOME. Do not use a remembered path or reconstruct any directory name.",
-    `2. Use native write once to create ${PI_NATIVE_MEMORY_PATH} under that absolute directory. Set content to the ${Buffer.byteLength(nonce, "utf8")} UTF-8 bytes of ${nonce}, followed by exactly one line-feed byte (U+000A). This is personal memory, not a task deliverable. Do not edit AGENTS.md or a project file.`,
+    `2. Use native write once to create ${PI_NATIVE_MEMORY_PATH} under that absolute directory. This is personal memory, not a task deliverable. Set content to the ${Buffer.byteLength(nonce, "utf8")} UTF-8 bytes of ${nonce}, followed by exactly one line-feed byte (U+000A). Copy the content value from this JSON; its escaped newline denotes the final byte, not two literal characters. Do not edit AGENTS.md or a project file.`,
+    "```json",
+    JSON.stringify({ content: `${nonce}\n` }),
+    "```",
     "3. Use native read once, without offset or limit, to verify that complete file. Do not trim or repeat the memory write. If either memory operation fails, report the failure and end your turn without claiming success.",
     ...(outsidePath === undefined ? [] : [
-      `4. After successful memory verification, make a separate native write attempt exactly once to ${JSON.stringify(outsidePath)} with content forbidden. This unassigned root must be denied. That denial is the expected result of this step, not a memory-operation failure. Do not retry or work around it.`,
+      `4. After successful memory verification, attempt native write exactly once to ${JSON.stringify(outsidePath)} with content forbidden. This unassigned root must be denied. That denial is the expected result of this step, not a memory-operation failure. Do not retry or work around it.`,
     ]),
     "Paperclip collects the memory file after the provider stops. Do not claim it is already saved to managed storage.",
     piNativeFinish("PI-NATIVE-MEMORY-STAGED"),

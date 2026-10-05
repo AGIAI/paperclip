@@ -45,6 +45,28 @@ calibration proves that the installed old schema accepts an editor placeholder
 that its handler rejects, while the corrected schema rejects that input before
 execution. This correction also requires fresh runtime artifact qualification.
 
+The corrected Linux controller-restart attempt preserves the original pending
+question and accepts the actual browser answer, then fails with
+`native_remote_recovery_lease_mismatch`. Recovery was acquiring another sandbox
+under the admitted ephemeral lease policy. The source correction reads and
+validates the original active lease before any provider acquisition, retaining
+the downstream process-generation and authenticated PRP identity checks.
+The focused recovery suite passes 630 tests and the source-bound server
+typecheck passes. The canonical cleanup failure remains failed; a separate
+owned-resource check confirms the original sandbox is absent.
+
+The ordered local memory attempt reaches its registered directory and records
+the expected cross-root denial, but completion rejects personal memory as an
+unpublished file. Its qualifier was separated from the write by another
+sentence, and its denial wording did not match the existing internal-file
+rule. The fixture correction places the qualifier immediately after the write,
+uses the recognized native-denial instruction, supplies a fenced JSON content
+value with the final LF, and names the required objective `evidenceRefs` field.
+The installed frozen server's free classifier check rejects the original
+prompt, accepts this correction, and still requires publication of a separate
+requested report. This failed attempt stays failed. All five remaining cells
+and qualification of the new shipping artifacts remain outstanding.
+
 ## Frozen target
 
 - Pi: `@earendil-works/pi-coding-agent@1.0.0`.
