@@ -29,8 +29,12 @@ const providers: NativeExecutionInput["provider"][] = [
 const receipts: unknown[] = [];
 let mcpReceipt: unknown;
 function measure(value: unknown) {
-  const json = JSON.stringify(value).replaceAll(WORKSPACE, "/workspace");
-  return { utf8Bytes: Buffer.byteLength(json), characters: json.length, sha256: sha(json) };
+  const json = JSON.stringify(value);
+  const normalized = json.replaceAll(WORKSPACE, "/workspace");
+  return {
+    utf8Bytes: Buffer.byteLength(json), characters: json.length, sha256: sha(json),
+    normalizedComparison: { utf8Bytes: Buffer.byteLength(normalized), characters: normalized.length, sha256: sha(normalized) },
+  };
 }
 function execution(provider: NativeExecutionInput["provider"]): NativeExecutionInput {
   const entry = readFileSync(new URL("server/src/onboarding-assets/default/AGENTS.md", root), "utf8");
@@ -61,6 +65,13 @@ function transport(provider: NativeExecutionInput["provider"]) {
 }
 
 describe("production native procedure instruction measurement", () => {
+  it("retains delivered serialized bytes separately from path-normalized comparison", () => {
+    const value = { cwd: WORKSPACE, text: "λ" };
+    expect(measure(value).utf8Bytes).toBe(Buffer.byteLength(JSON.stringify(value)));
+    expect(measure(value).normalizedComparison.utf8Bytes).toBe(Buffer.byteLength(JSON.stringify({ ...value, cwd: "/workspace" })));
+    expect(measure(value).sha256).not.toBe(measure(value).normalizedComparison.sha256);
+  });
+
   it("uses the real standard-mode authority, including optional and connection tools", () => {
     expect(tools.map(tool => tool.name)).toEqual(expect.arrayContaining([
       "hire_agent", "list_agents", "create_task", "set_dependencies", "connections_search", "connection_request", "register_deliverable",
@@ -120,6 +131,7 @@ afterAll(() => {
   if (!output) return;
   if (receipts.length !== 9 || !mcpReceipt) throw new Error("Refusing incomplete instruction measurement");
   const paths = [
+    "server/src/onboarding-assets/default/AGENTS.md",
     "packages/paperclip-runner/src/contracts/runtime-context.ts",
     "packages/paperclip-runner/src/protocol-actions/hire-agent.ts",
     "packages/paperclip-runner/src/protocol-actions/create-task.ts",
@@ -135,11 +147,13 @@ afterAll(() => {
     "server/src/services/native-runtime/native-session-resume.ts",
     "server/src/__tests__/native-procedure-measurement.test.ts",
   ];
-  writeFileSync(output, `${JSON.stringify({ schema: "paperclip.native-procedure-measurement.v1",
+  writeFileSync(output, `${JSON.stringify({ schema: "paperclip.native-procedure-measurement.v2",
     sourceSha: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
-    sourceDirty: execFileSync("git", ["status", "--porcelain", "--", ...paths], { cwd: root, encoding: "utf8" }).trim().length > 0,
+    sourceDirty: execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).trim().length > 0,
+    measuredInputsDirty: execFileSync("git", ["status", "--porcelain", "--", ...paths], { cwd: root, encoding: "utf8" }).trim().length > 0,
     sourceHashes: Object.fromEntries(paths.map(path => [path, sha(readFileSync(new URL(path, root)))])),
     boundary: "scripted runnerd RPC with production standard-mode authority, API tools enabled, local workspace, no assigned external apps",
+    byteAccounting: "utf8Bytes counts the unmodified JSON serialization of each extracted component/projection; normalizedComparison substitutes only the fixture workspace path. Neither is the entire transport request.",
     providerCalls: 0, tokenCount: null, upstreamLoadingOrTruncation: "unverified", vendorStockPrompt: "unavailable",
     toolDescriptions: tools.map(tool => ({ name: tool.name, characters: String(tool.description).length, utf8Bytes: Buffer.byteLength(String(tool.description)), inputSchema: measure(tool.inputSchema) })),
     receipts, mcpReceipt,
