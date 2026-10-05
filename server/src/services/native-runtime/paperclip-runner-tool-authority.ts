@@ -1333,14 +1333,21 @@ export class PaperclipRunnerToolAuthority {
         actorAgentId: this.binding.agentId,
       }, tx);
       if (!updated) throw new Error("paperclip_runner_task_not_found");
+      const readiness = await issueService(tx).getDependencyReadiness(updated.id, tx);
       return {
         commandId: `set-dependencies:${updated.id}:${updated.statusVersion}`,
         disposition: "applied",
         stateRevision: updated.statusVersion,
         entityRefs: [updated.id, ...blockedByIssueIds],
         scheduledWakeIds: [],
+        dependencyReadiness: {
+          isReady: readiness.isDependencyReady,
+          unresolvedTaskIds: readiness.unresolvedBlockerIssueIds,
+        },
         ...(blockedByIssueIds.length > 0 ? {
-          guidance: "If remaining work depends on an unfinished child, complete independent work, then call paperclip_block with the child agent as owner and child completion as the unblock action. End the turn to release the workspace; do not sleep or poll for the child. Paperclip resumes the parent when the dependency completes. If no work remains blocked, continue normally.",
+          guidance: readiness.isDependencyReady
+            ? "All recorded dependencies are complete and their workspaces are finalized at this update. Review the latest results and continue; do not block waiting for these completed tasks. If more teammate work is required, create a revision task with create_task and record its dependency. A comment on a completed task is not a replacement for assigning new work."
+            : "Recorded dependencies are unfinished at this update. Complete independent work, then call paperclip_block with the child agent as owner and child completion as the unblock action. End the turn to release the workspace; do not sleep or poll. Check current task state before blocking if a result has arrived. Paperclip resumes the parent when dependencies complete; review the latest results and pending feedback before finishing.",
         } : {}),
       };
     });

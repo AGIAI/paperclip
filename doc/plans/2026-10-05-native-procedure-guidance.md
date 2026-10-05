@@ -17,6 +17,24 @@ The [sanitized comparison receipt](2026-10-05-native-procedure-comparison.json)
 contains original grades, exact sources, campaign links, measurement receipts
 and retained evidence hashes. It excludes raw sessions and instance identifiers.
 
+## Readiness repair in progress
+
+The next candidate restores explicit assigned-teammate revision and latest-child
+review instructions in the standing prompt. Its `set_dependencies` receipt now
+reports readiness at the time of the update, including unfinished dependencies
+and completed children whose workspaces still need finalization. If everything
+is already ready, the receipt directs the parent to review and continue instead
+of blocking for an event that already happened. Additional teammate work needs
+an assigned revision task; a comment on a completed task does not substitute for
+that assignment. Idempotent replay preserves the original readiness snapshot.
+
+This is a new combined instruction and receipt correction, not a regrade of the
+failed experiment. The original results above remain unchanged. A new matched
+comparison must use the integrated master context and the same task requests,
+graders, profiles, deadlines and budgets. The restored discovery and review
+instructions take priority over maximizing byte reduction. Keep the PR draft
+until the repaired source has passed behavioral comparison and current CI/review.
+
 ## Scope
 
 The paid comparison uses master `a386a599983519eb1d399f8b770bfccdb2a74762` as

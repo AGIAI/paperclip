@@ -136,9 +136,24 @@ export const setDependenciesAction = {
             "maxItems": 200,
             "uniqueItems": true
           },
+          "dependencyReadiness": {
+            "type": "object",
+            "description": "Readiness when this update was applied. A replay retains that snapshot; task state can change afterward.",
+            "properties": {
+              "isReady": { "type": "boolean" },
+              "unresolvedTaskIds": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 },
+                "maxItems": 200,
+                "uniqueItems": true
+              }
+            },
+            "required": ["isReady", "unresolvedTaskIds"],
+            "additionalProperties": false
+          },
           "guidance": {
             "type": "string",
-            "description": "Conditional next steps after recording dependencies."
+            "description": "Next steps for the recorded readiness snapshot."
           },
           "scheduledWakeIds": {
             "type": "array",

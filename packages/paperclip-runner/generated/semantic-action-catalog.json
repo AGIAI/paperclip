@@ -1819,6 +1819,29 @@
           "minLength": 1,
           "type": "string"
         },
+        "dependencyReadiness": {
+          "additionalProperties": false,
+          "description": "Readiness when this update was applied. A replay retains that snapshot; task state can change afterward.",
+          "properties": {
+            "isReady": {
+              "type": "boolean"
+            },
+            "unresolvedTaskIds": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 200,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "isReady",
+            "unresolvedTaskIds"
+          ],
+          "type": "object"
+        },
         "disposition": {
           "enum": [
             "applied",
@@ -1836,7 +1859,7 @@
           "uniqueItems": true
         },
         "guidance": {
-          "description": "Conditional next steps after recording dependencies.",
+          "description": "Next steps for the recorded readiness snapshot.",
           "type": "string"
         },
         "scheduledWakeIds": {

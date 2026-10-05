@@ -24,7 +24,7 @@
     "prpVersion": 1,
     "nativeExecutionVersion": 1,
     "catalogVersion": 1,
-    "catalogSha256": "sha256:4a98f05fc33a6b407ca7b4ae668f799a7b7ac55e4f293fc84888b22fe371c244",
+    "catalogSha256": "sha256:4511b5443cd8679235adace402e8bb926d2967de00a71d324b97deb1900e39ff",
     "driverContractVersion": 1,
     "driverKind": "paperclip-deterministic",
     "driverVersion": "1.0.0"

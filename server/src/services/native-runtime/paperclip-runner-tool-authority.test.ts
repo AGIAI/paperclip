@@ -1043,7 +1043,10 @@ describe("PaperclipRunnerToolAuthority", () => {
         blockedByTaskIds: [prerequisiteId],
       },
     });
-    expect(dependencyReceipt).toMatchObject({ guidance: expect.stringContaining("If remaining work depends on an unfinished child") });
+    expect(dependencyReceipt).toMatchObject({
+      dependencyReadiness: { isReady: false, unresolvedTaskIds: [prerequisiteId] },
+      guidance: expect.stringContaining("Recorded dependencies are unfinished"),
+    });
     expect(dependencyReceipt).toMatchObject({ guidance: expect.stringContaining("do not sleep or poll") });
     await expect(authority.execute({
       tool: "set_dependencies", callId: "wait-for-prerequisite-replay",
@@ -1058,6 +1061,31 @@ describe("PaperclipRunnerToolAuthority", () => {
     await issueService(db).update(prerequisiteId, {
       status: "done",
       actorAgentId: agentId,
+    });
+    // A child can finish before the parent records its dependency. The tool
+    // must expose that fact instead of telling the parent to wait for a wake
+    // that the completed child will never produce.
+    const readyReceipt = await authority.execute({
+      tool: "set_dependencies", callId: "observe-finished-prerequisite",
+      arguments: { idempotencyKey: "observe-finished-prerequisite", blockedByTaskIds: [prerequisiteId] },
+    });
+    expect(readyReceipt).toMatchObject({
+      dependencyReadiness: { isReady: true, unresolvedTaskIds: [] },
+      scheduledWakeIds: [],
+      guidance: expect.stringContaining("do not block waiting for these completed tasks"),
+    });
+    await expect(authority.execute({
+      tool: "set_dependencies", callId: "old-wait-replay-after-completion",
+      arguments: { idempotencyKey: "source-waits-for-prerequisite", blockedByTaskIds: [prerequisiteId] },
+    })).resolves.toEqual(dependencyReceipt);
+    const dependentId = (dependent as { task: { id: string } }).task.id;
+    await issueService(db).update(dependentId, { status: "cancelled", actorAgentId: agentId });
+    await expect(authority.execute({
+      tool: "set_dependencies", callId: "mixed-complete-and-cancelled",
+      arguments: { idempotencyKey: "mixed-complete-and-cancelled", blockedByTaskIds: [prerequisiteId, dependentId] },
+    })).resolves.toMatchObject({
+      dependencyReadiness: { isReady: false, unresolvedTaskIds: [dependentId] },
+      guidance: expect.stringContaining("Recorded dependencies are unfinished"),
     });
     await expect(
       authority.execute({
@@ -1081,6 +1109,7 @@ describe("PaperclipRunnerToolAuthority", () => {
       arguments: { idempotencyKey: "clear-finished-prerequisite", blockedByTaskIds: [] },
     });
     expect(cleared).not.toHaveProperty("guidance");
+    expect(cleared).toMatchObject({ dependencyReadiness: { isReady: true, unresolvedTaskIds: [] } });
     await expect(issueService(db).getRelationSummaries(issueId)).resolves.toMatchObject({ blockedBy: [] });
 
     const nextRunId = "00000000-0000-4000-8000-000000000106";
