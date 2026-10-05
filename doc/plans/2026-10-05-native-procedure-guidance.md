@@ -39,6 +39,61 @@ graders, profiles, deadlines and budgets. The restored discovery and review
 instructions take priority over maximizing byte reduction. Keep the PR draft
 until the repaired source has passed behavioral comparison and current CI/review.
 
+## Readiness comparison v4 — still held
+
+The next comparison measured candidate `aba7ec219b588de02cf323b4ebca559a105e6d01`
+and baseline `ce31f5efd0d416205c3994c55dd02b645f8b8423` on common master
+`a65ca0950834a85bb93bcc4b4042ecacdebfef53`. Candidate
+[campaign 37348723829](https://github.com/paperclipai/paperclip/actions/runs/37348723829)
+and baseline [campaign 37348764875](https://github.com/paperclipai/paperclip/actions/runs/37348764875)
+used trusted workflow `59015846ae02f935411afc620e0867ce812378fb`, distinct
+from both measured trees. Original task requests, graders, models, budgets,
+deadlines and single-attempt policy were unchanged. The
+[sanitized original receipt](2026-10-05-native-procedure-readiness-v4.json)
+retains eleven result/API/ledger sets and 99 evidence hashes.
+
+Candidate: 3 PASS / 3 FAIL. Baseline: 3 PASS / 2 FAIL / 1 setup cell without a
+behavioral grade. Five comparable pairs contain two new failures, two new
+passes and one unchanged pass. One Codex delegation pair is uncomparable:
+baseline Docker setup timed out before its paid step. No completed behavior
+failure was retried. All eleven retained cleanup results passed; their final
+ledgers contain 56 started runs, in addition to the earlier cohorts.
+
+- Candidate Claude delegation finished the parent before the child's revision
+  completed; baseline passed. The parent removed its dependency while the
+  required revision was still active.
+- Candidate OpenCode hiring failed the exact-credential persistence check in
+  the provider's local SQLite database; baseline passed. The original database
+  was removed during cleanup. Neither the matching credential's identity nor
+  the exact persistence path is retained, so no specific cause is asserted.
+- Candidate Codex delegation correctly waited for the reopened child but ended
+  blocked after that child finished, without an active continuation. Baseline
+  has no behavioral result. The controller reused the first completion's wake
+  key for the same parent/child pair, suppressing later completion wakes.
+- Candidate Claude hiring and OpenCode delegation passed where baseline failed.
+  This does not offset the new failures or establish causal improvement.
+
+The restored standing instructions reduced the complete normalized projection
+by only 125 bytes (49,200 to 49,075), about 0.25%, before the next controller
+repair. No token, speed, cost or upstream truncation claim follows.
+The `aba7ec2` normal CI passed on attempt 2 after five infrastructure-interrupted
+jobs were recovered; its fresh review was 5/5. These source checks do not clear
+the behavioral failures.
+
+The following unqualified controller repair scopes completion wakes to each
+committed status transition while retaining same-transition idempotency. It
+also rejects native dependency updates that silently remove unfinished work;
+callers can explicitly name genuinely obsolete dependencies in `obsoleteTaskIds`.
+Old and replacement blocker rows are locked while readiness is checked. The
+legacy explicit replacement API remains unchanged. Regression tests cover
+repeat completion, replay, reopened dependencies and explicit cancellation
+replacement. A provider-free working-tree measurement including that schema field is
+49,327 bytes, 127 bytes larger than the 49,200-byte baseline. The repair therefore
+no longer reduces the full standing projection. Reliability takes priority;
+this is not a prompt-size win. Keep the PR draft until these repairs and credential persistence
+are verified. This section preserves the v4 failure and does not relabel it as
+qualification of later source.
+
 ## Scope
 
 The paid comparison uses master `a386a599983519eb1d399f8b770bfccdb2a74762` as

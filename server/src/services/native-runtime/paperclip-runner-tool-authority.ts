@@ -1327,11 +1327,15 @@ export class PaperclipRunnerToolAuthority {
       throw new Error("paperclip_runner_tool_input_invalid");
     }
     const blockedByIssueIds = input.blockedByTaskIds.map(requiredString);
+    if (input.obsoleteTaskIds !== undefined && !Array.isArray(input.obsoleteTaskIds)) {
+      throw new Error("paperclip_runner_tool_input_invalid");
+    }
+    const obsoleteDependencyIssueIds = (input.obsoleteTaskIds as unknown[] | undefined)?.map(requiredString) ?? [];
     return this.#withMutationReceipt("set_dependencies", idempotencyKey, input, async (tx) => {
       const updated = await issueService(tx).update(this.binding.issueId, {
         blockedByIssueIds,
         actorAgentId: this.binding.agentId,
-      }, tx);
+      }, tx, undefined, undefined, { obsoleteDependencyIssueIds });
       if (!updated) throw new Error("paperclip_runner_task_not_found");
       const readiness = await issueService(tx).getDependencyReadiness(updated.id, tx);
       const cancelledBlockers = readiness.unresolvedBlockerIssueIds.length > 0
@@ -1356,7 +1360,7 @@ export class PaperclipRunnerToolAuthority {
           guidance: readiness.isDependencyReady
             ? "All recorded dependencies are complete and their workspaces are finalized at this update. Review the latest results and continue; do not block waiting for these completed tasks. If more teammate work is required, create a revision task with create_task and record its dependency. A comment on a completed task is not a replacement for assigning new work."
             : cancelledBlockers.length > 0
-              ? "The cancelledTaskIds dependencies are cancelled and will not produce a completion wake. Do not wait for those tasks. Review whether their work is still required, then use set_dependencies to remove obsolete dependencies or replace them with newly assigned tasks while preserving every other required blocker. Do not treat cancellation as successful completion. If a human decision is required, request it explicitly."
+              ? "The cancelledTaskIds dependencies are cancelled and will not produce a completion wake. Do not wait for those tasks. Review whether their work is still required, then use set_dependencies to remove obsolete dependencies or replace them with newly assigned tasks while preserving every other required blocker. Explicitly identify removed unfinished dependencies in obsoleteTaskIds. Do not treat cancellation as successful completion. If a human decision is required, request it explicitly."
               : "Recorded dependencies are unfinished at this update. Complete independent work, then call paperclip_block with the child agent as owner and child completion as the unblock action. End the turn to release the workspace; do not sleep or poll. Check current task state before blocking if a result has arrived. Paperclip resumes the parent when dependencies complete; review the latest results and pending feedback before finishing.",
         } : {}),
       };

@@ -90,6 +90,13 @@ export const setDependenciesAction = {
             "minLength": 1,
             "maxLength": 240
           },
+          "obsoleteTaskIds": {
+            "type": "array",
+            "description": "Unfinished existing dependencies being removed because their work is no longer required. Never use this to skip required work.",
+            "items": { "type": "string", "minLength": 1 },
+            "maxItems": 200,
+            "uniqueItems": true
+          },
           "blockedByTaskIds": {
             "type": "array",
             "description": "Replacement blocker task ids.",
@@ -194,6 +201,13 @@ export const setDependenciesAction = {
       "inputSchema": {
         "type": "object",
         "properties": {
+          "obsoleteTaskIds": {
+            "type": "array",
+            "description": "Unfinished existing dependencies being removed because their work is no longer required. Never use this to skip required work.",
+            "items": { "type": "string", "minLength": 1 },
+            "maxItems": 200,
+            "uniqueItems": true
+          },
           "blockedByTaskIds": {
             "type": "array",
             "items": {

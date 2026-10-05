@@ -1523,13 +1523,13 @@ describe("PaperclipControlPlanePort conformance", () => {
     });
   });
 
-  it("coalesces a completed child dependency into one rich parent wake", async () => {
+  it.each(["child_dependency", "child", "dependency"])("wakes once per completion, including reopened revisions (%s)", async (relationship) => {
+    const hasDependency = relationship !== "child";
+    const isChild = relationship !== "dependency";
     const identity = CONTROL_PLANE_CONFORMANCE_OPEN.identity;
-    const parentIssueId = "30000000-0000-4000-8000-000000000145";
-    const childIssueId = "30000000-0000-4000-8000-000000000146";
-    const localContractId = "31000000-0000-4000-8000-000000000146";
-    const runId = "32000000-0000-4000-8000-000000000146";
-    const runnerInstanceId = "33000000-0000-4000-8000-000000000146";
+    const parentIssueId = randomUUID();
+    const childIssueId = randomUUID();
+    const localContractId = randomUUID();
     await db.insert(issues).values([
       {
         id: parentIssueId,
@@ -1542,14 +1542,14 @@ describe("PaperclipControlPlanePort conformance", () => {
       {
         id: childIssueId,
         companyId: identity.companyId,
-        parentId: parentIssueId,
+        parentId: isChild ? parentIssueId : null,
         title: "Implement the accepted plan",
         status: "in_progress",
         assigneeAgentId: identity.agentId,
         workMode: "standard",
       },
     ]);
-    await db.insert(issueRelations).values({
+    if (hasDependency) await db.insert(issueRelations).values({
       companyId: identity.companyId,
       issueId: childIssueId,
       relatedIssueId: parentIssueId,
@@ -1574,80 +1574,106 @@ describe("PaperclipControlPlanePort conformance", () => {
       createdByActorType: "system",
       createdByActorId: "test",
     });
-    await db.insert(heartbeatRuns).values({
-      id: runId,
-      companyId: identity.companyId,
-      agentId: identity.agentId,
-      status: "running",
-      runtimeMode: "native",
-      nativeIssueId: childIssueId,
-      nativeSessionId: identity.sessionId,
-      runnerInstanceId,
-      completionContractId: localContractId,
-      completionContractSha256: "child-wake-contract",
-      contextSnapshot: { issueId: childIssueId },
-    });
-    const port = new PaperclipControlPlanePort(db, {
-      companyId: identity.companyId,
-      issueId: childIssueId,
-      runId,
-      agentId: identity.agentId,
-      sessionId: identity.sessionId,
-      completionContractId: localContractId,
-      completionContractSha256: "child-wake-contract",
-      sourceInstanceId: runnerInstanceId,
-      controlPlaneSourceInstanceId: "child-wake-control",
-    });
-    await port.openRun({
-      identity: { ...identity, issueId: childIssueId, runId },
-      backendKind: "mock",
-      sourceInstanceId: runnerInstanceId,
-    });
-    const result: PrpStructuredRunResult = {
-      ...structuredClone(CONTROL_PLANE_CONFORMANCE_RESULT),
-      summary: "Implemented the accepted plan and passed 44/44 tests.",
-      completionClaim: {
-        contractRevision: "child-wake-v1",
-        objectiveSatisfied: true,
-        criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [] }],
-        remainingWork: [],
-      },
-      verification: [{ commandOrCheck: "node --test", status: "passed" }],
-      attentionRequests: [],
-    };
-    await port.completeRun({
-      result,
-      terminal: CONTROL_PLANE_CONFORMANCE_TERMINAL,
-      callerResultId: "child-wake-result",
-    });
-    await finalizeNativeRun({ db, runId, workspaceFinalizeStatus: "succeeded" });
+    for (const revision of [1, 2]) {
+      const runId = randomUUID();
+      const runnerInstanceId = randomUUID();
+      if (revision === 2) {
+        // The original completion wake was already consumed. Feedback reopens
+        // the same child while its parent still needs the revised result.
+        await db.update(agentWakeupRequests).set({ status: "completed" })
+          .where(eq(agentWakeupRequests.companyId, identity.companyId));
+        await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, parentIssueId));
+        await db.update(issues).set({ status: "in_progress", statusVersion: 2 })
+          .where(eq(issues.id, childIssueId));
+      }
+      await db.insert(heartbeatRuns).values({
+        id: runId,
+        companyId: identity.companyId,
+        agentId: identity.agentId,
+        status: "running",
+        runtimeMode: "native",
+        nativeIssueId: childIssueId,
+        nativeSessionId: identity.sessionId,
+        runnerInstanceId,
+        completionContractId: localContractId,
+        completionContractSha256: "child-wake-contract",
+        contextSnapshot: { issueId: childIssueId },
+      });
+      const port = new PaperclipControlPlanePort(db, {
+        companyId: identity.companyId,
+        issueId: childIssueId,
+        runId,
+        agentId: identity.agentId,
+        sessionId: identity.sessionId,
+        completionContractId: localContractId,
+        completionContractSha256: "child-wake-contract",
+        sourceInstanceId: runnerInstanceId,
+        controlPlaneSourceInstanceId: "child-wake-control",
+      });
+      await port.openRun({
+        identity: { ...identity, issueId: childIssueId, runId },
+        backendKind: "mock",
+        sourceInstanceId: runnerInstanceId,
+      });
+      const result: PrpStructuredRunResult = {
+        ...structuredClone(CONTROL_PLANE_CONFORMANCE_RESULT),
+        summary: `Implemented revision ${revision} and passed 44/44 tests.`,
+        completionClaim: {
+          contractRevision: "child-wake-v1",
+          objectiveSatisfied: true,
+          criteria: [{ criterionId: "objective", status: "satisfied", evidenceRefs: [] }],
+          remainingWork: [],
+        },
+        verification: [{ commandOrCheck: "node --test", status: "passed" }],
+        attentionRequests: [],
+      };
+      await port.completeRun({
+        result,
+        terminal: CONTROL_PLANE_CONFORMANCE_TERMINAL,
+        callerResultId: "child-wake-result",
+      } : {
+        reason: "issue_blockers_resolved",
+        payload: { issueId: parentIssueId, resolvedBlockerIssueId: childIssueId },
+      });
+      await finalizeNativeRun({ db, runId, workspaceFinalizeStatus: "succeeded" });
 
-    const parentWakes = await db.select().from(agentWakeupRequests)
-      .where(eq(agentWakeupRequests.companyId, identity.companyId))
-      .then((rows) => rows.filter((row) => row.payload?.issueId === parentIssueId));
-    expect(parentWakes).toHaveLength(1);
-    expect(parentWakes[0]).toMatchObject({
-      reason: "issue_children_completed",
-      payload: {
-        issueId: parentIssueId,
-        completedChildIssueId: childIssueId,
-        childIssueIds: [childIssueId],
-        childIssueSummaries: [{
-          id: childIssueId,
-          title: "Implement the accepted plan",
-          status: "done",
-          summary: "Implemented the accepted plan and passed 44/44 tests.",
-        }],
-        childIssueSummaryTruncated: false,
-        _paperclipWakeContext: {
-          wakeReason: "issue_children_completed",
+      const parentWakes = await db.select().from(agentWakeupRequests)
+        .where(eq(agentWakeupRequests.companyId, identity.companyId))
+        .then((rows) => rows.filter((row) => row.payload?.issueId === parentIssueId));
+      expect(parentWakes).toHaveLength(revision);
+      const latestWake = parentWakes.find((wake) => wake.status === "queued");
+      expect(latestWake).toMatchObject(isChild ? {
+        reason: "issue_children_completed",
+        payload: {
+          issueId: parentIssueId,
+          completedChildIssueId: childIssueId,
+          childIssueIds: [childIssueId],
           childIssueSummaries: [{
             id: childIssueId,
-            summary: "Implemented the accepted plan and passed 44/44 tests.",
+            title: "Implement the accepted plan",
+            status: "done",
+            summary: `Implemented revision ${revision} and passed 44/44 tests.`,
           }],
+          childIssueSummaryTruncated: false,
+          _paperclipWakeContext: {
+            wakeReason: "issue_children_completed",
+            childIssueSummaries: [{
+              id: childIssueId,
+              summary: `Implemented revision ${revision} and passed 44/44 tests.`,
+            }],
+          },
         },
-      },
-    });
+      } : {
+        reason: "issue_blockers_resolved",
+        payload: { issueId: parentIssueId, resolvedBlockerIssueId: childIssueId },
+      });
+      await finalizeNativeRun({ db, runId, workspaceFinalizeStatus: "succeeded" });
+      const replayWakes = await db.select().from(agentWakeupRequests)
+        .where(eq(agentWakeupRequests.companyId, identity.companyId))
+        .then((rows) => rows.filter((row) => row.payload?.issueId === parentIssueId));
+      expect(replayWakes).toHaveLength(revision);
+      expect(new Set(replayWakes.map((wake) => wake.idempotencyKey)).size).toBe(revision);
+    }
   });
 
   it("returns a rejected native completion review to the original agent with the reviewer reason", async () => {

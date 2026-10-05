@@ -1057,6 +1057,32 @@ describe("PaperclipRunnerToolAuthority", () => {
     ).resolves.toMatchObject({
       blockedBy: [expect.objectContaining({ id: prerequisiteId })],
     });
+    await expect(authority.execute({
+      tool: "set_dependencies", callId: "reject-unfinished-clear",
+      arguments: { idempotencyKey: "reject-unfinished-clear", blockedByTaskIds: [] },
+    })).rejects.toThrow("Dependencies are still unfinished");
+    await expect(issueService(db).getRelationSummaries(issueId)).resolves.toMatchObject({
+      blockedBy: [expect.objectContaining({ id: prerequisiteId })],
+    });
+    let releaseChild!: () => void;
+    let childLocked!: () => void;
+    const release = new Promise<void>((resolve) => { releaseChild = resolve; });
+    const locked = new Promise<void>((resolve) => { childLocked = resolve; });
+    const childTransition = db.transaction(async (tx) => {
+      await tx.select().from(issues).where(eq(issues.id, prerequisiteId)).for("update");
+      childLocked();
+      await release;
+    });
+    await locked;
+    try {
+      await expect(authority.execute({
+        tool: "set_dependencies", callId: "concurrent-child-transition",
+        arguments: { idempotencyKey: "concurrent-child-transition", blockedByTaskIds: [] },
+      })).rejects.toThrow("Dependency state is changing");
+    } finally {
+      releaseChild();
+      await childTransition;
+    }
 
     await issueService(db).update(prerequisiteId, {
       status: "done",
@@ -1078,6 +1104,14 @@ describe("PaperclipRunnerToolAuthority", () => {
       tool: "set_dependencies", callId: "old-wait-replay-after-completion",
       arguments: { idempotencyKey: "source-waits-for-prerequisite", blockedByTaskIds: [prerequisiteId] },
     })).resolves.toEqual(dependencyReceipt);
+    // A completion receipt is a snapshot. A later revision must not be
+    // discarded on the assumption that the child is still done.
+    await issueService(db).update(prerequisiteId, { status: "in_progress", actorAgentId: agentId });
+    await expect(authority.execute({
+      tool: "set_dependencies", callId: "reject-reopened-clear",
+      arguments: { idempotencyKey: "reject-reopened-clear", blockedByTaskIds: [] },
+    })).rejects.toThrow("Dependencies are still unfinished");
+    await issueService(db).update(prerequisiteId, { status: "done", actorAgentId: agentId });
     const dependentId = (dependent as { task: { id: string } }).task.id;
     await issueService(db).update(dependentId, { status: "cancelled", actorAgentId: agentId });
     const cancelledReceipt = await authority.execute({
@@ -1091,6 +1125,28 @@ describe("PaperclipRunnerToolAuthority", () => {
     expect(cancelledReceipt).toMatchObject({ guidance: expect.stringContaining("preserving every other required blocker") });
     expect(cancelledReceipt).toMatchObject({ guidance: expect.stringContaining("Do not treat cancellation as successful completion") });
     expect((cancelledReceipt as { guidance: string }).guidance).not.toContain("call paperclip_block");
+    await expect(authority.execute({
+      tool: "set_dependencies", callId: "reject-cancelled-clear",
+      arguments: { idempotencyKey: "reject-cancelled-clear", blockedByTaskIds: [] },
+    })).rejects.toThrow("Dependencies are still unfinished");
+    await expect(authority.execute({
+      tool: "set_dependencies", callId: "reject-unrelated-obsolete-id",
+      arguments: { idempotencyKey: "reject-unrelated-obsolete-id", blockedByTaskIds: [], obsoleteTaskIds: [issueId] },
+    })).rejects.toThrow("obsoleteTaskIds must name existing dependencies");
+    const removeObsoleteInput = {
+      idempotencyKey: "remove-obsolete-cancelled-dependency",
+      blockedByTaskIds: [prerequisiteId],
+      obsoleteTaskIds: [dependentId],
+    };
+    const removedObsolete = await authority.execute({
+      tool: "set_dependencies", callId: "remove-obsolete-cancelled-dependency", arguments: removeObsoleteInput,
+    });
+    await expect(authority.execute({
+      tool: "set_dependencies", callId: "remove-obsolete-replay", arguments: removeObsoleteInput,
+    })).resolves.toEqual(removedObsolete);
+    await expect(issueService(db).getRelationSummaries(issueId)).resolves.toMatchObject({
+      blockedBy: [expect.objectContaining({ id: prerequisiteId })],
+    });
     await expect(
       authority.execute({
         tool: "create_task",

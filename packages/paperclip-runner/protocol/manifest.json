@@ -160,7 +160,7 @@
     },
     {
       "path": "fixtures/evals/native-execution-seeded.json",
-      "sha256": "305f6cd36b657fce5ca897be62bec636481e7f3e65715754791b1b2e216a7635",
+      "sha256": "02e7402813770ffca04258d167f46e53d02236e400a2c0b4eb55803299b0c76a",
       "expectation": "accept",
       "compatibilityCase": "canonical"
     },
