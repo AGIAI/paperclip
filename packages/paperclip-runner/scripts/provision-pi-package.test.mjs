@@ -34,14 +34,14 @@ test("public server tar layout carries a self-contained host provisioner and exa
   const installedPackage = join(installed, "package"); const entry = join(installedPackage, "dist/vendor/paperclip-runner/cli/provision-pi.cjs");
   const api = createRequire(import.meta.url)(entry);
   assert.equal((await api.provisionPackageRoot(entry)).root, installedPackage);
-  const network = { PATH: "/usr/bin:/bin", HTTPS_PROXY: "http://proxy.example:8080", HTTP_PROXY: "http://proxy.example:8080", NO_PROXY: "localhost", SSL_CERT_FILE: "/public/ca.pem", SSL_CERT_DIR: "/public/certs", NODE_EXTRA_CA_CERTS: "/public/extra-ca.pem" };
+  const network = { PATH: "/usr/bin:/bin", HTTPS_PROXY: "http://proxy.example:8080", HTTP_PROXY: "http://proxy.example:8080", NO_PROXY: "localhost", http_proxy: "http://127.0.0.1:9", https_proxy: "http://127.0.0.1:9", no_proxy: "localhost", SSL_CERT_FILE: "/public/ca.pem", SSL_CERT_DIR: "/public/certs", NODE_EXTRA_CA_CERTS: "/public/extra-ca.pem" };
   assert.deepEqual(api.provisionEnvironment({ ...network, HOME: "/private/home", OPENROUTER_API_KEY: "sensitive-canary", NPM_TOKEN: "sensitive-canary", NODE_OPTIONS: "--require /foreign.js", NODE_PATH: "/foreign", NODE_TLS_REJECT_UNAUTHORIZED: "0" }), { ...network, LANG: "C.UTF-8" });
   // Real, unmocked installation verifier rejects a corrupt cache before any
   // download/process. The positive full-closure proof uses real platform packs.
   await mkdir(join(installedPackage, "provider-assets/pi", `${process.platform}-${process.arch}`, "runtime"), { recursive: true });
   const deny = join(root, "deny.cjs");
-  await writeFile(deny, `process.nextTick(()=>{const assert=require('node:assert/strict');assert.equal(process.env.HTTP_PROXY,'http://127.0.0.1:9');assert.equal(process.env.HTTPS_PROXY,'http://127.0.0.1:9');assert.equal(process.env.NO_PROXY,'localhost');assert.equal(process.env.NODE_EXTRA_CA_CERTS,'/dev/null');for(const key of ['OPENROUTER_API_KEY','NPM_TOKEN','HOME','NODE_OPTIONS','NODE_PATH','NODE_TLS_REJECT_UNAUTHORIZED'])assert.equal(process.env[key],undefined,key);});const fail=()=>{throw Error('UNEXPECTED_NETWORK_OR_CHILD')}; globalThis.fetch=fail; for(const m of ['node:net','node:tls','node:http','node:https']){const x=require(m);for(const k of ['connect','createConnection','request','get'])if(k in x)x[k]=fail;}const c=require('node:child_process');for(const k of ['spawn','execFile','exec'])c[k]=fail;`);
-  const result = spawnSync(process.execPath, ["--require", deny, entry], { encoding: "utf8", env: { PATH: "/usr/bin:/bin", HTTP_PROXY: "http://127.0.0.1:9", HTTPS_PROXY: "http://127.0.0.1:9", NO_PROXY: "localhost", NODE_EXTRA_CA_CERTS: "/dev/null", OPENROUTER_API_KEY: "sensitive-canary", NPM_TOKEN: "sensitive-canary", HOME: "/private/home", NODE_OPTIONS: "", NODE_PATH: "/foreign", NODE_TLS_REJECT_UNAUTHORIZED: "0" }, timeout: 10_000 });
+  await writeFile(deny, `process.nextTick(()=>{const assert=require('node:assert/strict');assert.equal(process.env.HTTP_PROXY,'http://127.0.0.1:9');assert.equal(process.env.HTTPS_PROXY,'http://127.0.0.1:9');assert.equal(process.env.NO_PROXY,'localhost');assert.equal(process.env.http_proxy,'http://127.0.0.1:9');assert.equal(process.env.https_proxy,'http://127.0.0.1:9');assert.equal(process.env.no_proxy,'localhost');assert.equal(process.env.NODE_EXTRA_CA_CERTS,'/dev/null');for(const key of ['OPENROUTER_API_KEY','NPM_TOKEN','HOME','NODE_OPTIONS','NODE_PATH','NODE_TLS_REJECT_UNAUTHORIZED'])assert.equal(process.env[key],undefined,key);});const fail=()=>{throw Error('UNEXPECTED_NETWORK_OR_CHILD')}; globalThis.fetch=fail; for(const m of ['node:net','node:tls','node:http','node:https']){const x=require(m);for(const k of ['connect','createConnection','request','get'])if(k in x)x[k]=fail;}const c=require('node:child_process');for(const k of ['spawn','execFile','exec'])c[k]=fail;`);
+  const result = spawnSync(process.execPath, ["--require", deny, entry], { encoding: "utf8", env: { PATH: "/usr/bin:/bin", HTTP_PROXY: "http://127.0.0.1:9", HTTPS_PROXY: "http://127.0.0.1:9", NO_PROXY: "localhost", http_proxy: "http://127.0.0.1:9", https_proxy: "http://127.0.0.1:9", no_proxy: "localhost", NODE_EXTRA_CA_CERTS: "/dev/null", OPENROUTER_API_KEY: "sensitive-canary", NPM_TOKEN: "sensitive-canary", HOME: "/private/home", NODE_OPTIONS: "", NODE_PATH: "/foreign", NODE_TLS_REJECT_UNAUTHORIZED: "0" }, timeout: 10_000 });
   assert.ifError(result.error); assert.equal(result.status, 1); assert.match(result.stderr, /Pi setup failed/);
   assert.doesNotMatch(result.stderr, /UNEXPECTED_NETWORK_OR_CHILD|sensitive-canary/);
   assert.deepEqual(await readdir(join(installedPackage, "provider-assets/pi")), [`${process.platform}-${process.arch}`]);
@@ -60,7 +60,7 @@ test("explicit CLI setup passes only network settings to its real child and enab
     assert.deepEqual(process.execArgv,['--use-env-proxy']);
     assert.equal(process.env.HTTP_PROXY,'http://127.0.0.1:9');
     assert.equal(process.env.HTTPS_PROXY,'http://127.0.0.1:9');
-    assert.equal(process.env.NO_PROXY,'localhost');
+    assert.equal(process.env.NO_PROXY,'localhost');assert.equal(process.env.http_proxy,'http://127.0.0.1:9');assert.equal(process.env.https_proxy,'http://127.0.0.1:9');assert.equal(process.env.no_proxy,'localhost');
     assert.equal(process.env.SSL_CERT_FILE,'/public/ca.pem');
     assert.equal(process.env.SSL_CERT_DIR,'/public/certs');
     assert.equal(process.env.NODE_EXTRA_CA_CERTS,'/dev/null');
@@ -69,7 +69,7 @@ test("explicit CLI setup passes only network settings to its real child and enab
   const modulePath = join(root, "runtime.mjs");
   await build({ entryPoints: [resolve(dirname(new URL(import.meta.url).pathname), "../../../cli/src/commands/runtime.ts")], outfile: modulePath, bundle: true, platform: "node", format: "esm", target: "node24", logLevel: "silent" });
   const result = spawnSync(process.execPath, ["--input-type=module", "-e", "const runtime=await import(process.argv[1]);await runtime.setupPiRuntime();", modulePath], {
-    encoding: "utf8", timeout: 10_000, env: { PATH: "/usr/bin:/bin", HTTP_PROXY: "http://127.0.0.1:9", HTTPS_PROXY: "http://127.0.0.1:9", NO_PROXY: "localhost", SSL_CERT_FILE: "/public/ca.pem", SSL_CERT_DIR: "/public/certs", NODE_EXTRA_CA_CERTS: "/dev/null", OPENROUTER_API_KEY: "sensitive-canary", NPM_TOKEN: "sensitive-canary", HOME: "/private/home", NODE_PATH: "/foreign", NODE_TLS_REJECT_UNAUTHORIZED: "0" },
+    encoding: "utf8", timeout: 10_000, env: { PATH: "/usr/bin:/bin", HTTP_PROXY: "http://127.0.0.1:9", HTTPS_PROXY: "http://127.0.0.1:9", NO_PROXY: "localhost", http_proxy: "http://127.0.0.1:9", https_proxy: "http://127.0.0.1:9", no_proxy: "localhost", SSL_CERT_FILE: "/public/ca.pem", SSL_CERT_DIR: "/public/certs", NODE_EXTRA_CA_CERTS: "/dev/null", OPENROUTER_API_KEY: "sensitive-canary", NPM_TOKEN: "sensitive-canary", HOME: "/private/home", NODE_PATH: "/foreign", NODE_TLS_REJECT_UNAUTHORIZED: "0" },
   });
   assert.ifError(result.error); assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /SETUP_NETWORK_BOUNDARY_PASS/);
