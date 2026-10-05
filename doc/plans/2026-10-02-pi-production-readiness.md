@@ -70,12 +70,23 @@ read through the public operator API after observer arming. It retains the
 completed read, resolution and unchanged file hash. All tested write permissions,
 Stop/steering/denial assertions and retirement/no-effect proofs remain required.
 Controls definitions advance to 7 and native definitions to 5. Prior attempt
-fingerprints and grades remain unchanged. All 110 targeted native Linux tests
+fingerprints and grades remain unchanged. All 112 targeted native Linux tests
 pass, including positive Stop/steering settlement and negative setup approvals.
+The browser selectors require exactly one visible card with a pending decline
+button, allowing the resolved setup-read receipt to remain in the transcript.
+Two actionable cards still fail before any control or denial is sent; the
+public native request and exact browser POST checks remain required.
 The local pure oracle tests pass; the local ownership flows still fail their
 unchanged file-watch completeness gate. Local Product typecheck is blocked by
 stale dependency declarations in the existing linked build. Fresh CI must verify
 the committed head. Live proof on the new definitions is still required.
+
+Head `e22a8dfb7` completes 50 successful checks and two skips, while the browser
+aggregate/shard and Greptile checks fail. Greptile identifies the resolved setup
+card count corrected above. The separate agent-run retry feedback test passes
+unchanged in a retained credential-free native Linux browser trace against the
+installed frozen server. Its CI failure remains preserved; this diagnostic does
+not establish its cause or make the failed CI check pass.
 
 Private receipts retain credential and provisional spend checks. Paid dispatch
 requires fresh checks under the approved bounded execution phase. No paid

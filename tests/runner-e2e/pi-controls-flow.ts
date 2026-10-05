@@ -160,7 +160,11 @@ export async function runPiControlsFlow(input: {
       load: async () => { const state = await load(); if (["failed", "timed_out", "cancelled", "succeeded"].includes(state.run.status)) throw new Error("Stopped waiting for Pi unanswered native write: no active pending permission"); return state; },
       accept: state => { observePiControlPending({ ...state, scope: scope() }); return true; } });
     await page.goto(`/${fixtures.company.issuePrefix}/issues/${issue.identifier ?? issue.id}`);
-    const card = page.getByTestId("task-chat-runtime-request").filter({ visible: true });
+    // A resolved bootstrap read remains visible in the transcript. Only the
+    // pending permission has decision buttons; the public event oracle and
+    // browser POST below still bind the decision to the exact write request.
+    const card = page.getByTestId("task-chat-runtime-request").filter({ visible: true })
+      .filter({ has: page.getByRole("button", { name: "Deny", exact: true }) });
     await expect(card).toHaveCount(1); await expect(card.getByRole("button", { name: "Deny", exact: true })).toBeEnabled();
     await input.capture("pending-permission", "Pi write waits for a human decision", "pending-permission.png"); await sample("pending");
     if (stopCase) {

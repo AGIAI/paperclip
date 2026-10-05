@@ -28,7 +28,7 @@ vi.mock("@playwright/test", () => ({ expect: (actual: any, message?: string) => 
   toHaveCount: async (value: number) => { if (typeof actual.count === "function") expect(actual.count()).toBe(value); },
 }) }));
 
-async function exercise(taskId: string, remote: boolean, failure?: "mutation" | "incomplete" | "missing-ack" | "missing-comment" | "foreign-comment" | "foreign-queued-body" | "steer-rejected") {
+async function exercise(taskId: string, remote: boolean, failure?: "mutation" | "incomplete" | "missing-ack" | "missing-comment" | "foreign-comment" | "foreign-queued-body" | "steer-rejected" | "duplicate-permission") {
   harness.target = ""; harness.prompt = ""; harness.message = ""; harness.mutation = failure === "mutation"; harness.incomplete = failure === "incomplete";
   const task = piControlTasks.find(t => t.id === taskId)!, stopCase = taskId === "pending-permission-stop";
   const workspacePath = await mkdtemp(join(tmpdir(), "pi-controls-fixture-"));
@@ -85,9 +85,15 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
     const waiter = waiters.find(w => w.predicate(request)); if (!waiter) throw new Error("Browser request was not awaited");
     waiter.resolve(request); waiters.splice(waiters.indexOf(waiter), 1);
   }
-  const locator = (kind = "other"): any => ({
-    filter: () => locator(kind), last: () => locator(kind), getByText: () => locator(),
-    count: () => kind === "loading" ? 0 : kind === "card" ? 1 : kind === "deny" ? (f.run.status === "running" ? 1 : 0) : 1,
+  const locator = (kind = "other", actionable = false): any => ({
+    filter: (options: { has?: { kind: string } }) => {
+      if (kind === "card" && options.has) expect(options.has.kind).toBe("deny");
+      return locator(kind, actionable || Boolean(options.has));
+    }, last: () => locator(kind, actionable), getByText: () => locator(),
+    kind,
+    // Model the production transcript: the resolved setup card stays visible
+    // beside the pending write, and has no actionable decision buttons.
+    count: () => kind === "loading" ? 0 : kind === "card" ? (actionable ? (failure === "duplicate-permission" ? 2 : 1) : (remote ? 2 : 1)) : kind === "deny" ? (f.run.status === "running" ? 1 : 0) : 1,
     getByRole: (_role: string, options: { name: string }) => locator(options.name === "Deny" ? "deny" : "other"),
     getByTestId: () => locator(),
     click: async () => {
@@ -106,6 +112,7 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
     },
   });
   const page = { goto: async () => {}, reload: async () => {}, getByText: () => locator(),
+    getByRole: (_role: string, options: { name: string }) => locator(options.name === "Deny" ? "deny" : "other"),
     submitReply: (body: string) => {
       // Match the production editor's retained Markdown escaping. Matching the
       // plain input would never observe this otherwise valid queued comment.
@@ -137,7 +144,8 @@ async function exercise(taskId: string, remote: boolean, failure?: "mutation" | 
       execution: { task, suite: { id: "pi-controls" }, environment: { id: remote ? "daytona" : "local" }, profile: { qualificationCandidate: "pi" } }, workspacePath, nonce: "fixture", deadlineAt: Date.now() + 1000,
       observe: () => {}, capture: async () => {}, evidence: async (name: string, value: unknown) => saved.set(name, structuredClone(value)), remoteBootstrap,
       registerCleanupAssertion: (fn: () => Promise<any>) => localCleanup.push(fn), registerBeforeEnvironmentTeardownAssertion: (fn: () => Promise<any>) => remoteCleanup.push(fn) } as any);
-    if (failure === "missing-ack") { await expect(call).rejects.toThrow("acknowledgement"); expect(browserDeclines).toBe(0); }
+    if (failure === "duplicate-permission") { await expect(call).rejects.toThrow(); expect(stops).toBe(0); expect(browserDeclines).toBe(0); expect(browserSteers).toBe(0); }
+    else if (failure === "missing-ack") { await expect(call).rejects.toThrow("acknowledgement"); expect(browserDeclines).toBe(0); }
     else if (failure === "steer-rejected") { await expect(call).rejects.toThrow("steering rejected: HTTP 409"); expect(browserDeclines).toBe(0); }
     else if (failure === "foreign-queued-body") { await expect(call).rejects.toThrow("browser comment queued"); expect(browserSteers).toBe(0); expect(browserDeclines).toBe(0); }
     else if (remote && (failure === "mutation" || failure === "incomplete")) await expect(call).rejects.toThrow();
@@ -181,3 +189,4 @@ it("never denies the native write before the steering acknowledgement exists", (
 it("rejects a queued body that differs from the exact browser submission", () => exercise("same-turn-steering", false, "foreign-queued-body"));
 it("stops before denial when the real steering API rejects the request", () => exercise("same-turn-steering", false, "steer-rejected"));
 it.each(["missing-comment", "foreign-comment"] as const)("retains and rejects %s during cleanup without fabricating persisted output", failure => exercise("same-turn-steering", false, failure));
+it("refuses control when two actionable permission cards remain beside resolved setup history", () => exercise("pending-permission-stop", true, "duplicate-permission"));

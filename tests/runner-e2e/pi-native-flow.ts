@@ -215,11 +215,16 @@ export async function runPiNativeFlow(input: {
       await page.reload();
       const before = await events(identity.runId);
       check("human-permission-reconnect", piPermissionRequests(before, identity.runId).some(value => value.request.requestId === identity.requestId) && !before.some(row => row.payload?.prpEvent?.payload?.requestId === identity.requestId && ["runtime_request.resolved", "runtime_request.expired", "runtime_request.cancelled"].includes(row.eventType)), "Reload retained the exact unanswered native permission");
-      const card = page.getByTestId("task-chat-runtime-request").filter({ visible: true }); await expect(card).toHaveCount(1);
+      const declineLabel = native.request.choices.find((choice: Row) => choice.key === "decline").label;
+      // Resolved setup-read receipts remain visible but have no decision
+      // buttons. Require one actionable card and verify its exact POST below.
+      const card = page.getByTestId("task-chat-runtime-request").filter({ visible: true })
+        .filter({ has: page.getByRole("button", { name: declineLabel, exact: true }) });
+      await expect(card).toHaveCount(1);
       await input.capture("pi-human-denial", "Pi native permission awaiting browser denial", "pi-human-denial.png");
       const route = `/api/heartbeat-runs/${identity.runId}/runtime-requests/${encodeURIComponent(identity.requestId)}/resolve`;
       const posted = page.waitForRequest(request => new URL(request.url()).pathname === route && request.method() === "POST");
-      await card.getByRole("button", { name: native.request.choices.find((choice: Row) => choice.key === "decline").label, exact: true }).click();
+      await card.getByRole("button", { name: declineLabel, exact: true }).click();
       const response = (await posted).postDataJSON();
       check("human-exact-browser-decline", response.turnId === identity.turnId && response.requestKind === "permission_approval" && response.resolution?.action === "decline", "Actual browser POST declines this run, turn and request");
       const final = await settle(1), runEvents = await events(identity.runId);
