@@ -393,10 +393,13 @@ exact `/proc/<runner-pid>/exe` inode. Link replacement, missing targets and a
 different executable fail admission. Linux calibration covers this installation
 form as well as a copied runner.
 
-The agent-memory fixture treats its quoted JSON string as UTF-8 file content,
-including a final line-feed byte (`0x0A`). Native readback and the managed-file
-API must retain those exact bytes across a new task and controller restart.
-The prompt makes that decoding explicit; the byte graders remain unchanged.
+The agent-memory fixture requires the nonce's UTF-8 bytes followed by exactly
+one line-feed byte (`0x0A`). Its prompt states that byte contract in plain text:
+the browser editor can normalize backslash escapes in a quoted JSON example.
+One native write and one complete native read bound the first task; an incorrect
+result must be reported without a repeated rewrite loop. Native readback and the
+managed-file API must retain the exact bytes across a new task and controller
+restart. The byte graders remain unchanged.
 
 The runtime itself must emit `runtime_request.expired` for the original callback
 with `provider_process_lost` and `replayAllowed:false`, followed by native turn

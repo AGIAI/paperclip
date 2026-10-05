@@ -44,8 +44,8 @@ export function piNativePrompt(id: string, nonce: string): string {
   ].join("\n");
   if (id === "agent-files-fresh-run") return [
     "Find the exact registered AGENT_HOME working-copy path in your runtime instructions. Use native write/read file tools for this task, not bash or the instructions API.",
-    `Write exactly ${JSON.stringify(`${nonce}\n`)} to ${PI_NATIVE_MEMORY_PATH} inside that AGENT_HOME and read it back. This is personal memory, not a task deliverable. Do not edit AGENTS.md or a project file instead.`,
-    "Decode the JSON string into file bytes, including its final line-feed byte (0x0A). Do not omit or trim that newline. Verify the exact content with native read before finishing.",
+    `Use native write exactly once to create ${PI_NATIVE_MEMORY_PATH} inside that AGENT_HOME. Its content must be the ${Buffer.byteLength(nonce, "utf8")} UTF-8 bytes of ${nonce}, followed by exactly one line-feed byte (U+000A). Set the write tool's content argument to that complete string, including the final line feed. This is personal memory, not a task deliverable. Do not edit AGENTS.md or a project file instead.`,
+    "Use native read exactly once, without offset or limit, to verify the complete file. Do not trim its content, repeat the write, or use bash to inspect or repair it. If the native result is incorrect, report the failure and end your turn without claiming success.",
     "Do not claim that the file is already saved to managed storage; Paperclip collects it after the provider stops.",
     piNativeFinish("PI-NATIVE-MEMORY-STAGED"),
   ].join("\n");
