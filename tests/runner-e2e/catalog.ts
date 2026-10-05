@@ -1193,10 +1193,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     description: "Real user requests, useful downloaded work, and durable continuation using production instructions.",
     groups: ["native"], profiles: [...everydayProfiles,
       productionStoryProfile(runnerProfiles.find(profile => profile.id === "runner-opencode")!),
-    ].map(profile => ({ ...profile, buildAgent(input) {
-      const agent = profile.buildAgent(input);
-      return /\.(hire-reuse|delegate-feedback)$/.test(input.executionId) ? { ...agent, budgetMonthlyCents: 1_000 } : agent;
-    } })), environments: [localEnvironment, daytonaWarmEnvironment],
+    ], environments: [localEnvironment, daytonaWarmEnvironment],
     tasks: everydayTasks.map(task => ["hire-reuse", "delegate-feedback"].includes(task.id)
       ? { ...task, automaticRetryPolicy: "single_attempt" as const } : task), expectedMatrixSize: 52,
     excludedExecutionIds: [...everydayProfiles.flatMap(profile => everydayTasks
@@ -1207,7 +1204,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
         ...(["hire-reuse", "delegate-feedback"].includes(task.id) ? [] : [`everyday-workflows.runner-opencode.local.${task.id}`]),
       ]),
     ],
-    definitionMetadata: { version: 5, instructions: "production", grading: "outcome-and-invariants", scheduling: "explicit-only",
+    definitionMetadata: { version: 6, instructions: "production", grading: "outcome-and-invariants", scheduling: "explicit-only",
       procedureCases: { ids: ["hire-reuse", "delegate-feedback"], maximumAttemptsPerCell: 1, companyAndLeadBudgetCents: 1_000 } },
   },
   {

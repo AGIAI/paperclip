@@ -19,13 +19,12 @@ describe("bounded native procedure comparison", () => {
     }
     expect(selectRunnerExecutions(parseRunnerSelectors(["--all"]), runnerMatrix).some(cell => cell.suite.id === suite.id)).toBe(false);
   });
-  it("sets each lead's hard stop without fixture completion instructions or provider overrides", () => {
+  it("keeps procedure and completion directions out of the fixture persona", () => {
     for (const profile of suite.profiles) {
-      const input = { executionId: `everyday-workflows.${profile.id}.local.hire-reuse`, environmentId: "env", environmentFixtureId: "local" as const, workspacePath: "/workspace", secretRefs: {
+      const input = { executionId: "random-nonce", environmentId: "env", environmentFixtureId: "local" as const, workspacePath: "/workspace", secretRefs: {
         [profile.credential]: { type: "secret_ref" as const, secretId: "00000000-0000-4000-8000-000000000001", version: "latest" as const },
       } };
       const agent = profile.buildAgent(input);
-      expect(agent.budgetMonthlyCents).toBe(1_000);
       expect(JSON.stringify(agent.instructionsBundle)).not.toMatch(/paperclip_finish|paperclip_block|set_dependencies|hire_agent/);
     }
   });
