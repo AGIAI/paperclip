@@ -3399,7 +3399,7 @@ export function agentRoutes(
     if (binding.mode === "router") {
 
       const settings = await import("../services/instance-settings.js");
-      if (!(await settings.instanceSettingsService(db).getExperimental()).enableAiConnectionRouters) throw unprocessable("Enable AI connection routers in Experimental settings");
+      if (!(await settings.instanceSettingsService(db).getExperimental()).enableAiConnectionRouters) throw unprocessable("Ask your instance operator to enable AI connection routing.");
       const pool = (await aiConnectionRouterService(db).selectable(companyId, responsibleUserForAiRequest(req) ?? "")).find((p) => p.id === binding.connectionId && p.enabled);
       if (!pool) throw unprocessable("Enable the selected connection pool");
       if (!pool.members.some((m) => { try { poolMemberRuntimeConfig(m, adapterType); return true; } catch { return false; } })) throw unprocessable("This pool has no compatible harness");

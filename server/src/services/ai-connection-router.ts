@@ -74,7 +74,7 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     return plugin;
   }
   async function enabled() {
-    if (!(await instanceSettingsService(db).getExperimental()).enableAiConnectionRouters) throw unprocessable("Enable AI connection routers in Experimental settings", { code: "ai_connection_router_disabled" });
+    if (!(await instanceSettingsService(db).getExperimental()).enableAiConnectionRouters) throw unprocessable("Ask your instance operator to enable AI connection routing.", { code: "ai_connection_router_disabled" });
   }
   async function catalog() {
     const experimental = (await instanceSettingsService(db).getExperimental()).enableAiConnectionRouters;
@@ -82,7 +82,7 @@ export function aiConnectionRouterService(db: Db, workerManager?: PluginWorkerMa
     return installed.filter(plugin => plugin.status !== "uninstalled" && plugin.manifestJson.aiConnectionRouter && plugin.manifestJson.capabilities.includes("ai.connections.route"))
       .map(plugin => aiConnectionRouterAppDefinition(plugin.pluginKey, plugin.manifestJson.aiConnectionRouter!, {
         available: experimental && plugin.status === "ready",
-        ...(!experimental ? { reason: "Enable AI connection routers in Experimental settings." }
+        ...(!experimental ? { reason: "Ask your instance operator to enable AI connection routing." }
           : plugin.status !== "ready" ? { reason: "Enable the connection pool plugin in Plugins." } : {}),
       }));
   }

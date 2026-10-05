@@ -4,6 +4,12 @@ AI routers are virtual, company-scoped connections owned by a capability-gated
 plugin (`ai.connections.route`). The instance flag `enableAiConnectionRouters`
 defaults to false. Pools also default to disabled. The host must implement this
 contract; the plugin's minimum version alone does not establish compatibility.
+Routing has no visible enable control in Experimental settings on either
+self-hosted or Cloud instances, even after an operator enables it. Self-hosted
+operators can set `enableAiConnectionRouters` through the instance-admin
+`PATCH /api/instance/settings/experimental` API. Cloud operators use the existing
+fleet or per-stack managed feature configuration. Installing a plugin does not
+enable routing; enabling routing does not enable individual pools.
 
 The host authorizes members using the ordinary company, user, sharing, install,
 health and harness checks. It sends authorized metadata and sanitized usage
@@ -81,10 +87,10 @@ plus the existing AI connection, retry accounting, run-dispatch and UI suites.
 ## UI review in Storybook
 
 Run `pnpm --filter @paperclipai/ui storybook` from Core, then open
-**AI Connections / Connection pools**. The 19 stories use production components
+**AI Connections / Connection pools**. The 16 stories use production components
 for pool selection, legacy-session adoption, unavailable/read-only selections,
 mixed-provider composer models and effort, mobile composer settings, usage waits,
-run selections and override notes, scheduled retries, and the experimental flag.
+run selections and override notes, and scheduled retries.
 `AllCoreSurfaces` provides an overview; individual stories expose the expanded
 menus and adoption dialog. Run `pnpm --filter @paperclipai/ui build-storybook`
 to build the preview.
@@ -96,6 +102,7 @@ Core also owns **Connectors / Pool host** stories for the generic native
 extension. The overview links to Cloud's **In Connectors** preview on port 6010;
 its stories mount these same production routes, header, sidebar and tokens.
 **Full Setup And Management** exercises the complete catalog-to-pool journey.
+Both previews include **Operator Setup Required** for a manually disabled host.
 
 ## Full-app browser acceptance
 
@@ -113,7 +120,8 @@ pnpm exec playwright test --config tests/ai-connections-app/playwright.config.ts
 These opt-in tests exercise the shipped app, installed plugin and database without
 mocking browser routes or pool APIs. They cover catalog navigation, setup, ordering,
 paused defaults, rename, member changes, refresh persistence, stale edits and
-removal. With a test agent already bound to a saved pool, they also verify
+removal. They verify that an operator-enabled host still offers no Experimental
+control for routing. With a test agent already bound to a saved pool, they also verify
 the **Used by** list, avatars and profile links. Cleanup archives only the test's own pool and verifies that existing
 accounts and pools remain intact. This suite does not execute agents or probe
 live usage; provider and restart acceptance remain separate gated test drives.

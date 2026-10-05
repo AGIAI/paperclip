@@ -1046,6 +1046,24 @@ describe("InstanceExperimentalSettings — operator-hidden cards", () => {
     await flushReact();
   }
 
+  it.each([
+    { cloud: false, enabled: false },
+    { cloud: false, enabled: true },
+    { cloud: true, enabled: false },
+    { cloud: true, enabled: true },
+  ])("offers no AI routing control with cloud=$cloud and enabled=$enabled", async ({ cloud, enabled }) => {
+    await renderPage(undefined, {
+      ...defaultExperimentalSettings(),
+      enableAiConnectionRouters: enabled,
+      ...(cloud ? { managedKeys: { enableAiConnectionRouters: { managed: true, managedBy: "paperclip-cloud" as const } } } : {}),
+    });
+
+    expect(container.textContent).toContain("Experimental features");
+    expect(container.textContent).not.toContain("AI connection routers");
+    expect(container.querySelector('button[aria-label="Toggle AI connection routers experimental setting"]')).toBeNull();
+    expect(mockInstanceSettingsApi.updateExperimental).not.toHaveBeenCalled();
+  });
+
   it("renders nothing for an operator-hidden toggle and keeps the rest", async () => {
     await renderPage(["instance.experimental.enableEnvironments"]);
 

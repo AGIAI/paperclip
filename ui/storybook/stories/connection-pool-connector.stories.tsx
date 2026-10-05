@@ -6,6 +6,11 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const Catalog: Story = {};
 export const Setup: Story = { args: { scenario: "setup" } };
+export const OperatorSetupRequired: Story = { args: { scenario: "unavailable" }, play: async ({ canvasElement }) => {
+  const add = await within(canvasElement).findByRole("button", { name: "Add connection pool AI connection pool" });
+  await expect(add).toBeDisabled();
+  await expect(add).toHaveAttribute("title", "Ask your instance operator to enable AI connection routing.");
+} };
 export const Manage: Story = { args: { scenario: "manage" }, play: async ({ canvasElement }) => {
   const usedBy = within(await within(canvasElement).findByRole("region", { name: "Used by" }));
   await expect(await usedBy.findByRole("link", { name: "Researcher" })).toBeVisible();

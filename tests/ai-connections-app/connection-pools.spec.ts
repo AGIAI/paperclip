@@ -34,6 +34,17 @@ test.beforeAll(async ({ request }, testInfo) => {
   expect(accounts, "Use two pre-existing authorized accounts").toHaveLength(2);
 });
 
+test("operator-enabled routing has no experimental settings control", async ({ page, request }) => {
+  const response = await request.get("/api/instance/settings/experimental");
+  expect(response.ok()).toBe(true);
+  expect(await response.json()).toMatchObject({ enableAiConnectionRouters: true });
+  await page.goto(`/${prefix}/company/settings/instance/experimental`);
+  await expect(page.getByRole("heading", { name: "Experimental", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Experimental features", exact: true })).toBeVisible();
+  await expect(page.getByText("AI connection routers", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("switch", { name: "Toggle AI connection routers experimental setting", exact: true })).toHaveCount(0);
+});
+
 test("native catalog setup, account edits, conflicts and removal persist through the full app", async ({ page, request }) => {
   test.setTimeout(90_000);
   const originalPools = await listPools(request);

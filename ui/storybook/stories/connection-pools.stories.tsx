@@ -9,7 +9,6 @@ import { IssueMonitorBanner, IssueMonitorComposerStrip } from "@/components/Issu
 import { ComposerRunSettingsPicker } from "@/components/task-chat/ComposerRunSettingsPicker";
 import type { ComposerRunSettings } from "@/components/task-chat/composer-run-settings";
 import { RunRetryDetails } from "@/components/RunRetryDetails";
-import { AiConnectionRoutersSetting } from "@/pages/InstanceExperimentalSettings";
 import { queryKeys } from "@/lib/queryKeys";
 import { storybookAgents, storybookIssues } from "../fixtures/paperclipData";
 
@@ -28,7 +27,7 @@ const accounts: AiConnectionList = { currentUserId: "user-board", canManageConne
 })) };
 const models = [{ id: "gpt-5.6-sol", label: "GPT-5.6 Sol · Codex" }, { id: "claude-sonnet-5", label: "Claude Sonnet 5 · Claude ACP" }];
 const agent: Agent = { ...storybookAgents.find(a => a.id === agentId)!, adapterType: "paperclip_runner", adapterConfig: { provider: "codex", model: "gpt-5.6-sol" }, runtimeConfig: { aiConnection: { mode: "router", connectionId: poolId } } };
-type Scenario = "overview" | "selector" | "legacy" | "adoption" | "unavailable" | "read-only" | "models" | "effort" | "mobile" | "claude-model" | "quota" | "checking" | "run-codex" | "run-claude" | "fallback" | "retry" | "flag-off" | "flag-on" | "flag-managed";
+type Scenario = "overview" | "selector" | "legacy" | "adoption" | "unavailable" | "read-only" | "models" | "effort" | "mobile" | "claude-model" | "quota" | "checking" | "run-codex" | "run-claude" | "fallback" | "retry";
 
 function PoolComposer({ scenario }: { scenario: Scenario }) {
   const [settings, setSettings] = useState<ComposerRunSettings>({ model: scenario === "claude-model" ? "claude-sonnet-5" : "gpt-5.6-sol", effort: null, fast: false });
@@ -64,11 +63,9 @@ function PoolSurfaces({ scenario = "overview" }: { scenario?: Scenario }) {
     return query;
   });
   const [binding, setBinding] = useState<AiRuntimeConnectionBinding | undefined>(scenario === "adoption" ? undefined : { mode: "router", connectionId: poolId });
-  const [enabled, setEnabled] = useState(scenario === "flag-on");
   const overview = scenario === "overview";
   return <QueryClientProvider client={client}><main className="mx-auto max-w-3xl space-y-6 p-6">
     {scenario !== "adoption" && <header className="space-y-2"><h1 className="text-xl font-semibold">Experimental connection pools</h1><a className="text-sm text-primary underline" href="http://127.0.0.1:6010/?path=/story/plugins-connection-pools--in-connectors">Connection pool connector in Cloud Storybook</a></header>}
-    {(overview || scenario.startsWith("flag")) && <AiConnectionRoutersSetting checked={enabled} onCheckedChange={setEnabled} managed={scenario === "flag-managed" ? { managed: true, managedBy: "paperclip-cloud" } : undefined} />}
     {(overview || ["selector", "legacy", "adoption", "unavailable", "read-only"].includes(scenario)) && <section className="space-y-2"><h2 className="text-sm font-semibold">Agent connection</h2><AiConnectionField companyId={companyId} agentId={agentId} agentName={agent.name}
       adapterType={scenario === "legacy" ? "claude_local" : "codex_local"} routerAdapterType={scenario === "legacy" ? "claude_local" : "paperclip_runner"}
       value={binding} onChange={setBinding} legacy={scenario === "adoption"} readOnly={scenario === "read-only"} /></section>}
@@ -77,7 +74,7 @@ function PoolSurfaces({ scenario = "overview" }: { scenario?: Scenario }) {
     {(overview || ["run-codex", "run-claude", "fallback", "retry"].includes(scenario)) && <section className="space-y-2"><h2 className="text-sm font-semibold">Run account and runtime</h2><PoolRun scenario={scenario === "overview" ? "fallback" : scenario} /></section>}
   </main></QueryClientProvider>;
 }
-const meta = { title: "AI Connections/Connection pools", component: PoolSurfaces, parameters: { layout: "fullscreen", docs: { description: { component: "All user-facing Core additions for the private connection-pool plugin. These stories mount the production selector, composer, quota banners, run details/retry metadata, and instance setting. Accounts are fixtures; no live provider calls or instance mutations occur." } } }, render: args => <PoolSurfaces key={args.scenario} {...args} /> } satisfies Meta<typeof PoolSurfaces>;
+const meta = { title: "AI Connections/Connection pools", component: PoolSurfaces, parameters: { layout: "fullscreen", docs: { description: { component: "All user-facing Core additions for the private connection-pool plugin. These stories mount the production selector, composer, quota banners, and run details/retry metadata. Routing requires manual operator configuration; there is no settings toggle. Accounts are fixtures; no live provider calls or instance mutations occur." } } }, render: args => <PoolSurfaces key={args.scenario} {...args} /> } satisfies Meta<typeof PoolSurfaces>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const AllCoreSurfaces: Story = { args: { scenario: "overview" } };
@@ -96,6 +93,3 @@ export const PinnedCodexRun: Story = { args: { scenario: "run-codex" } };
 export const PinnedClaudeRun: Story = { args: { scenario: "run-claude" } };
 export const IndependentOverrideFallbackNotes: Story = { args: { scenario: "fallback" } };
 export const ScheduledQuotaRetry: Story = { args: { scenario: "retry" } };
-export const ExperimentalOffByDefault: Story = { args: { scenario: "flag-off" } };
-export const ExperimentalEnabled: Story = { args: { scenario: "flag-on" } };
-export const ExperimentalManagedByCloud: Story = { args: { scenario: "flag-managed" } };

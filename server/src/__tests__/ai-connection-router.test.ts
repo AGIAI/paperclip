@@ -64,8 +64,8 @@ afterAll(async () => { await database?.cleanup(); vi.unstubAllEnvs(); if (home) 
 describe("durable, authorized connection routing", () => {
   it("defaults off and does not expose selectable pools before opt-in", async () => {
     expect((await instanceSettingsService(db).getExperimental()).enableAiConnectionRouters).toBe(false);
-    expect((await service().catalog())[0]?.availability).toEqual({ available: false, reason: "Enable AI connection routers in Experimental settings." });
-    await expect(makePool()).rejects.toThrow("Experimental");
+    expect((await service().catalog())[0]?.availability).toEqual({ available: false, reason: "Ask your instance operator to enable AI connection routing." });
+    await expect(makePool()).rejects.toThrow("instance operator");
     expect(await service().selectable(companyId, "alice")).toEqual([]);
     await instanceSettingsService(db).updateExperimental({ enableAiConnectionRouters: true });
   });
