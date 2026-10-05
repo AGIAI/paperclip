@@ -86,6 +86,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { defaultCapabilityRunnerdBinary } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/live/runnerd-codex-transport.js';
 import { resolvePaperclipRunnerBinary } from '/consumer/node_modules/@paperclipai/server/dist/services/native-runtime/native-codex-runner.js';
+import { requireServerAdapter } from '/consumer/node_modules/@paperclipai/server/dist/adapters/registry.js';
 import { runnerBinaryTarget } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/live/runner-binary.js';
 import { bundledRemoteRunnerBinary, bundledRemoteProviderPackManifestPath } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/live/bundled-remote-provider-pack.js';
 import { verifyAcpxProfileInstallation } from '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/drivers/acpx/profile-installation.js';
@@ -96,6 +97,9 @@ assert.equal(installation.agentServerPackageJsonPath,'/consumer/node_modules/@pa
 assert.equal(installation.agentRuntimePackageJsonPath,null);
 assert.equal(installation.commandDigest,profile.commandDigest);
 await (await installation.openCommand()).close();
+const readiness = await requireServerAdapter('paperclip_runner').testEnvironment({ companyId: 'installation-probe', adapterType: 'paperclip_runner', config: { provider: 'acpx', acpxAgent: 'cursor', model: profile.reportedModelId } });
+assert.equal(readiness.status, 'pass', JSON.stringify(readiness));
+assert.equal(readiness.checks[0]?.code, 'acpx_runtime_ready');
 const binaryRoot = '/consumer/node_modules/@paperclipai/server/dist/vendor/paperclip-runner/bin';
 const manifest = JSON.parse(readFileSync(binaryRoot + '/release-manifest.json', 'utf8'));
 assert.equal(manifest.schema, 'paperclip.runner.release-binaries.v1');
