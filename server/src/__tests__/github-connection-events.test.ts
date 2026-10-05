@@ -18,11 +18,12 @@ import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
-const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
+const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? sequentialDescribe : describe.skip;
 
-describeEmbeddedPostgres.sequential("GitHub connection event delivery", () => {
+describeEmbeddedPostgres("GitHub connection event delivery", () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 

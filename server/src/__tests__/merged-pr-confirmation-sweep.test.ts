@@ -23,6 +23,7 @@ import {
   getEmbeddedPostgresTestSupport,
   startEmbeddedPostgresTestDatabase,
 } from "./helpers/embedded-postgres.js";
+import { sequentialDescribe } from "./helpers/sequential-describe.js";
 
 describe("merged pull-request confirmation extraction", () => {
   it("bounds shared pull-request state caches", () => {
@@ -132,9 +133,9 @@ describe("merged pull-request confirmation extraction", () => {
 });
 
 const embeddedPostgresSupport = await getEmbeddedPostgresTestSupport();
-const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? describe : describe.skip;
+const describeEmbeddedPostgres = embeddedPostgresSupport.supported ? sequentialDescribe : describe.skip;
 
-describeEmbeddedPostgres.sequential("merged pull-request confirmation sweep", () => {
+describeEmbeddedPostgres("merged pull-request confirmation sweep", () => {
   let db!: ReturnType<typeof createDb>;
   let tempDb: Awaited<ReturnType<typeof startEmbeddedPostgresTestDatabase>> | null = null;
 
