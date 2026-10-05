@@ -1581,7 +1581,7 @@ describe("PaperclipControlPlanePort conformance", () => {
         // The original completion wake was already consumed. Feedback reopens
         // the same child while its parent still needs the revised result.
         await db.update(agentWakeupRequests).set({ status: "completed" })
-          .where(eq(agentWakeupRequests.companyId, identity.companyId));
+          .where(sql`${agentWakeupRequests.payload}->>'issueId' = ${parentIssueId}`);
         await db.update(issues).set({ status: "blocked" }).where(eq(issues.id, parentIssueId));
         await db.update(issues).set({ status: "in_progress", statusVersion: 2 })
           .where(eq(issues.id, childIssueId));
@@ -1631,9 +1631,6 @@ describe("PaperclipControlPlanePort conformance", () => {
         result,
         terminal: CONTROL_PLANE_CONFORMANCE_TERMINAL,
         callerResultId: "child-wake-result",
-      } : {
-        reason: "issue_blockers_resolved",
-        payload: { issueId: parentIssueId, resolvedBlockerIssueId: childIssueId },
       });
       await finalizeNativeRun({ db, runId, workspaceFinalizeStatus: "succeeded" });
 
