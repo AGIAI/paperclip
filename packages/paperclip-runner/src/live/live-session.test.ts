@@ -1813,6 +1813,9 @@ describe("Capability live runnerd and Codex session", () => {
       sessionId: binding.sessionId,
       attemptId: "attempt-resumed",
       resumeOf: "attempt-killed",
+      // Only the killed attempt deliberately uses the short timeout. Allow
+      // durable disk writes to complete during the resumed successful turn.
+      turnTimeoutMs: 5_000,
     });
     expect(resumed.snapshot().providerThreadId).toBe(state.threadId);
     expect(resumed.snapshot().attempts).toMatchObject([
