@@ -174,7 +174,7 @@ export async function materializePiDistribution({ outputRoot, nodeExecutable, np
     const buildHome = join(staging, "build-home"); await mkdir(buildHome);
     // Do not inherit NPM_TOKEN, npm_config_*, NODE_OPTIONS, provider keys or user
     // .npmrc. Public registry downloads need no private application credential.
-    const environment = Object.fromEntries(["PATH", "LANG", "LC_ALL", "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"].flatMap((key) => typeof process.env[key] === "string" ? [[key, process.env[key]]] : []));
+    const environment = Object.fromEntries(["PATH", "LANG", "LC_ALL", "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"].flatMap((key) => typeof process.env[key] === "string" ? [[key, process.env[key]]] : []));
     environment.HOME = buildHome;
     // npm 10 prunes non-host packages bundled by upstream Pi, unlike the npm
     // 11.19.0 used to qualify this complete closure. Public setup must use the

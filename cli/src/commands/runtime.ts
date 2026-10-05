@@ -30,7 +30,7 @@ export async function resolveRemoteCompanionImporter(serverUrl: string): Promise
 /** Public downloads may use operator network settings, never application secrets. */
 export function buildPiSetupEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = { PATH: source.PATH ?? "/usr/bin:/bin", LANG: "C.UTF-8" };
-  for (const key of ["LC_ALL", "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"]) {
+  for (const key of ["LC_ALL", "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"]) {
     if (typeof source[key] === "string") environment[key] = source[key];
   }
   return environment;

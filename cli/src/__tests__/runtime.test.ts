@@ -50,3 +50,9 @@ it("passes explicit setup network settings without provider keys or ambient Node
   expect(environment).toEqual({ ...network, LANG: "C.UTF-8" });
   expect(buildPiSetupEnvironment({})).toEqual({ PATH: "/usr/bin:/bin", LANG: "C.UTF-8" });
 });
+
+it("preserves lowercase proxy settings and leaves precedence to Node/npm", () => {
+  const lower = { http_proxy: "http://lower-proxy.example:8080", https_proxy: "http://lower-proxy.example:8080", no_proxy: "localhost" };
+  expect(buildPiSetupEnvironment(lower)).toEqual({ PATH: "/usr/bin:/bin", LANG: "C.UTF-8", ...lower });
+  expect(buildPiSetupEnvironment({ ...lower, HTTPS_PROXY: "http://upper-proxy.example:8080", OPENROUTER_API_KEY: "must-not-forward" })).toEqual({ PATH: "/usr/bin:/bin", LANG: "C.UTF-8", ...lower, HTTPS_PROXY: "http://upper-proxy.example:8080" });
+});

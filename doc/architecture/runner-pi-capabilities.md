@@ -1130,7 +1130,8 @@ perform it automatically. It installs only this host's supported platform
 lock, wrapper patch and complete Pi closure. Node 24, npm, git, tar and the normal
 platform dependency inspector (`otool` or `ldd`) must be available. The server
 package must be writable by the installing account. Explicit setup preserves
-`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `SSL_CERT_FILE`, `SSL_CERT_DIR` and
+`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, their lowercase equivalents,
+`SSL_CERT_FILE`, `SSL_CERT_DIR` and
 `NODE_EXTRA_CA_CERTS` for public downloads, and enables Node's environment proxy
 handling. The provisioner keeps the same closed allowlist. Instance settings,
 provider credentials, user npm configuration, `HOME`, `NODE_OPTIONS` and
