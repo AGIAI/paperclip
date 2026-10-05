@@ -27,12 +27,21 @@ export async function resolveRemoteCompanionImporter(serverUrl: string): Promise
   return modulePath;
 }
 
+/** Public downloads may use operator network settings, never application secrets. */
+export function buildPiSetupEnvironment(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = { PATH: source.PATH ?? "/usr/bin:/bin", LANG: "C.UTF-8" };
+  for (const key of ["LC_ALL", "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS"]) {
+    if (typeof source[key] === "string") environment[key] = source[key];
+  }
+  return environment;
+}
+
 export async function setupPiRuntime(): Promise<void> {
   const provisioner = await resolvePiProvisioner(import.meta.resolve("@paperclipai/server"));
-  // Only the explicit setup command can download pinned public dependencies.
-  // Do not forward provider credentials, proxy/npm config, HOME or NODE_OPTIONS.
-  const child = spawn(process.execPath, [provisioner], {
-    stdio: "inherit", env: { PATH: process.env.PATH ?? "/usr/bin:/bin", LANG: "C.UTF-8" },
+  // Only explicit setup downloads. Enable Node's proxy handling for the helper;
+  // provider keys, npm configuration, HOME and Node injection remain excluded.
+  const child = spawn(process.execPath, ["--use-env-proxy", provisioner], {
+    stdio: "inherit", env: buildPiSetupEnvironment(),
   });
   const cancel = () => { if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM"); };
   process.on("SIGINT", cancel); process.on("SIGTERM", cancel);
