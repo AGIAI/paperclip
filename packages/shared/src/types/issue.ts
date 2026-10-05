@@ -1358,6 +1358,17 @@ export type ConnectionIntentPhase = "requested" | "authorizing" | "needs_retry";
  */
 export interface ConnectionIntentPayload {
   version: 1;
+  /** Server-authored consent to a fixed set of tools on an existing connection. */
+  accessRequest?: {
+    connectionId: string;
+    connectionName: string;
+    tools: Array<{
+      catalogEntryId: string;
+      toolName: string;
+      versionHash: string;
+      permission: "allowed" | "ask_first";
+    }>;
+  };
   upstreamService?: { slug: string; name: string; selectionInteractionId?: string };
   /** AI authentication and inbox setup cannot be satisfied by tool credentials. */
   purpose?: "ai" | "channel";
@@ -1516,6 +1527,8 @@ export interface IssueThreadInteractionBase extends IssueThreadInteractionActorF
   summary?: string | null;
   status: IssueThreadInteractionStatus;
   continuationPolicy: IssueThreadInteractionContinuationPolicy;
+  /** Read-time acceptance gate; omitted when no workspace preparation is pending. */
+  acceptanceBlocker?: "workspace_sync_pending";
   /** @deprecated Read requestedResolverPolicy. Kept for API compatibility. */
   resolverPolicy: IssueThreadInteractionCanonicalResolverPolicy;
   requestedResolverPolicy: IssueThreadInteractionCanonicalResolverPolicy;

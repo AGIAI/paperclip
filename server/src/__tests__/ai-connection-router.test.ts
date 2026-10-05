@@ -361,7 +361,7 @@ describe("durable, authorized connection routing", () => {
   it("rejects disabled routing but recovers server-owned native evidence after disable/uninstall", async () => {
     const pool = await makePool(); const selected = await resolve(pool.id, "recovery");
     await instanceSettingsService(db).updateExperimental({ enableAiConnectionRouters: false });
-    try { await expect(resolve(pool.id, "recovery")).rejects.toThrow("Experimental"); expect(await resolve(pool.id, "recovery", { persisted: selected })).toEqual(selected); }
+    try { await expect(resolve(pool.id, "recovery")).rejects.toMatchObject({ status: 422, details: { code: "ai_connection_router_disabled" } }); expect(await resolve(pool.id, "recovery", { persisted: selected })).toEqual(selected); }
     finally { await instanceSettingsService(db).updateExperimental({ enableAiConnectionRouters: true }); }
     await db.update(plugins).set({ status: "disabled" }).where(eq(plugins.id, pluginId));
     try { await expect(resolve(pool.id, "new")).rejects.toThrow("plugin"); expect(await resolve(pool.id, "recovery", { persisted: selected })).toEqual(selected); await db.delete(toolConnections).where(eq(toolConnections.id, pool.id)); expect(await resolve(pool.id, "recovery", { persisted: selected })).toEqual(selected); }

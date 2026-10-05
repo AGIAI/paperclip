@@ -52,6 +52,13 @@ and incomplete result-delivery command IDs and statuses. If execution and
 cleanup both fail, execution retains its original error identity and cleanup is
 attached as `cleanupError`.
 
+Semantic settlement also includes up to 20 content-free failure records, with
+the call ID, operation ID, stage (`dispatch` or `persist_result`), and cause.
+Causes distinguish an oversized command, a full command journal, known storage
+errors, dispatcher rejection, and other persistence failures. Exception messages
+and tool results are excluded. These diagnostics do not authorize replay of an
+operation whose outcome is unknown.
+
 Instruction writes also commit an `agent.instruction_write_attempted` activity
 row and a run-scoped `instructionToolAttempts` entry before permitting the
 filesystem effect. They retain the call ID, operation ID, and input digest, not
@@ -357,3 +364,10 @@ Successful checkpoints can include `checkpointStats`: `scannedEntries`,
 capture, not cumulative traffic or an atomic snapshot of background writers.
 They contain no file contents. The receipt remains in the instance run log;
 it adds no Paperclip Telemetry or OpenTelemetry export.
+
+If instruction-copy release throws, `instruction_cleanup` records a warning
+with payload `{ "state": "deferred" }`. The existing working-copy recovery sweep
+retries cleanup. This event preserves the run outcome and does not claim a file
+save; `instruction_save` remains authoritative for collection. The event contains
+no raw exception, host path, file contents, or lock-owner metadata. Failure to
+write the warning must not replace the provider outcome or stop lease release.
