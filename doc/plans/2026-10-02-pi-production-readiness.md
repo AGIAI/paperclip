@@ -23,11 +23,11 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | --- | --- | --- |
 | Runtime identity and admission | Exact runtime/profile/model; verified effective thinking; startup below the 60-second admission limit; unsupported configuration fails before a prompt | Frozen shipping source `0bd040093` passes normal public CLI/server installation, Pi setup and credential-free profile-14 admission on ARM Mac (7.921 s), Intel Mac (31.692 s), and native Linux in Daytona (8.699 s). No prompt, credentials or binary override is used. The local Rosetta handshake failures remain failed evidence. |
 | Live lifecycle | Pending native question survives controller restart in the original process; one creation and resolution; stale answer after provider death rejected; Stop retires owned processes; three warm turns keep process identity | Frozen shipping source `0bd040093` passes local Stop, steering, controller restart, native questions and warm continuity. Daytona warm continuity, human denial, corrected Stop and first steering pass. Native questions, native controller-restart and provider-death remain failed. Prior failed attempts remain unchanged. |
-| Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | All 26 cells are attempted at frozen shipping source `0bd040093`: 19 pass and seven remain failed. Local has 11 passes and two failures: agent-files and file-edit. Daytona has eight passes and five failures: native-questions, native controller-restart, agent-files, provider-death and file-edit. Human denial passes nine matchers and cleanup on native definitions 5. Corrected Stop passes five matchers; first steering passes eight; both pass cleanup on controls definitions 8. No cells remain unattempted or running. Original grades and source fingerprints are preserved. |
+| Product workflows | All 26 explicit Pi Product E2E cells (13 local, 13 Daytona); screenshots, public state, independent artifacts, terminal and cleanup evidence | All 26 cells are attempted at frozen shipping source `0bd040093`: 20 pass and six remain failed. Local has 11 passes and two failures: agent-files and file-edit. Daytona has nine passes and four failures: native-questions, native controller-restart, agent-files and provider-death. The separately corrected Daytona file-edit attempt passes all seven matchers and canonical cleanup on extended definitions 3; its original failure remains failed. Human denial passes nine matchers and cleanup on native definitions 5. Corrected Stop passes five matchers; first steering passes eight; both pass cleanup on controls definitions 8. No cells remain unattempted or running. Original grades and source fingerprints are preserved. |
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases are attempted at `0bd040093`: five pass; context-before-action retains its 120-second terminal timeout, and finish-task retains use of the advisory report without the required task mutation. One context/document workflow retry passes only after verified protection against the recorded host sleep; its original failure stays unchanged. The seven `b148b73ea` passes remain historical. |
 | Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Exact-source public CLI/server installation and normal Pi setup pass on all three platforms. Public immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47` imports into native Linux Daytona and passes closed admission. Temporary sandbox cleanup passes. Image jobs 37102904889, 37106313185 and 37110683910 are terminal/cancelled. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Last verified PR head `120eb7f01` has 53 successful CI checks, two skips, Greptile 5/5 and no unresolved root threads, including full Linux build and typecheck. This coverage-assertion synchronization requires its own completed latest-head checks and review. All 116 targeted native Linux fixture tests and 13 browser-case collections pass at `04f639eeb`; the new descriptor correction separately passes all 17 free native Linux fault tests. Full typecheck, complete test and build evidence remains recorded below; original failed commands remain failed. Shipping inputs stay equivalent to `0bd040093`. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held for nine failed gates and prerequisite disposition. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Last verified readiness head `baaf444ed` has 53 successful CI checks, two skips, Greptile 5/5 and no unresolved root threads, including full Linux build and typecheck. The prerequisite ancestry reconciliation preserves that tracked source tree before this plan update; the integration must receive its own completed current-head CI and review. All 116 targeted native Linux fixture tests and 13 browser-case collections pass at `04f639eeb`; the new descriptor correction separately passes all 17 free native Linux fault tests. Full typecheck, complete test and build evidence remains recorded below; original failed commands remain failed. Shipping inputs stay equivalent to `0bd040093`. Four prerequisite findings now have scoped upstream corrections with focused verification. The admission finding remains open and standalone prerequisite CI/review is pending on the corrected heads. Production stays held for eight failed gates and prerequisite disposition. No merge or release. |
 
 ## Bounded execution
 
@@ -42,6 +42,58 @@ lifetime credit limit. Do not reset the limit or fall back to an account key.
 Check remaining credit and that BYOK usage stays zero before and after each
 attempt. API key deltas are provisional billing observations. Pi model-catalog
 prices are estimates. Unpriced usage must stay unpriced in the ledger and UI.
+
+## Current qualification snapshot — 2026-10-05
+
+This snapshot supersedes the older counts below. All 33 required cells are
+attempted: **25 pass and eight fail**, with none running or unattempted.
+Product has 20 passes and six failures; Runner has five passes and two failures.
+Remaining failures are local agent-files and file-edit; Daytona native questions,
+agent-files, native controller restart and provider death; and Runner
+context-before-action and finish-task. Preserve every original grade and source.
+
+The corrected Daytona file-edit attempt at harness `baaf444ed` passes all seven
+matchers and canonical cleanup on extended definitions 3. Native identity proves
+profile 14, the frozen model and effective low thinking. Its child sandbox is
+verified absent, all four controller commands are terminal, the uploaded key
+file is absent and the owned controller is deleted. Its corrected free preflight
+passes 297 fixture tests, including 17 native Linux fault cases, and all 13
+browser-case collections. The initial 296-pass/one-failure command stays failed.
+
+The equivalent Mac correction is held before paid dispatch. Normal installed Pi
+admission and 175 focused fixture tests pass. A complete audit verifies 101,216
+consumer files and all 24,352 imported companion entries. Fresh installed server
+startup fails. A separate owned `initdb` probe explicitly reports SysV
+shared-memory exhaustion, with all 32 host slots in use. That probe does not
+retrospectively classify the earlier stderr-free failure. Use a Mac with capacity
+for a fresh owned database. Do not repeat unchanged startup, delete shared
+resources, change host limits or stop unrelated servers. No paid Mac correction
+attempt has been dispatched.
+
+A network-blocked native Pi/Runner calibration uses one fixed loopback response
+and zero real model calls. It reaches the unanswered `elicitation/create`
+question with matching thread/turn/request bindings. The unchanged observer
+signals only the exact Pi child through pidfd and seals complete retirement
+without target effects. All 15 scoped strict checks pass. Its synthetic
+controller records `runner did not durably suspend before checkpoint` on close;
+production qualification and paid retry remain held. Two earlier calibrations
+fail to reach the question and remain failed. The first wrapper's premature
+success label is corrected by its strict verdict. All three owned sandboxes are
+deleted. The original paid rejection stage remains unproven.
+
+Prerequisite fixes preserve every previous commit. PR #14921 at `a7b49fc14`
+corrects profile-12/UI assertions and duplicate failure display. PR #14922 at
+`a23e607ec` and #14923 at `8b0911bdd` carry the corrected ancestry. Each passes
+33 source-bound focused checks. PR #14924 at `b8a59b259` also corrects notice
+severity and compact activity categories; all 82 affected UI checks and required
+token gates pass. Earlier local commands using stale linked builds or incomplete
+verification aliases remain failed or insufficient evidence. Full current-head
+CI and review remain separate gates. The readiness integration has an identical
+tracked tree to `baaf444ed` before this plan update. Runtime artifacts, profile
+14, model/low and suite fingerprints are unchanged. The source still declares
+Pi qualified: the production hold is the draft/release gate, not a closed code
+admission gate. That admission review remains open. No merge, release, automatic
+paid retry, fallback key or model change occurs.
 
 ## Accepted corrections — 2026-10-04
 
