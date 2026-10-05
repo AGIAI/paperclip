@@ -1461,6 +1461,11 @@ death is excluded because this exact ownership mechanism requires Linux pidfd.
 The Python helper calibration uses a synthetic transport and a real title-changing
 Node child; it proves fault ownership only, never paid Pi lifecycle behavior. Run
 it on native Linux with pinned Node on PATH: `python3 tests/runner-e2e/pi-provider-fault.test.py`.
+The calibration covers direct launch and the production bootstrap's held FD 3
+and FD 7 launches. Descriptor launch requires the held descriptor and wrapper
+executable to match the sealed snapshot Node inode; an argv alias alone grants
+no authority. Native suite definitions 6 retain the original live failures and
+require new provider-death qualification after this fixture correction.
 The fault helper validates the profile pin against canonical normalized closure
 entries, matching production admission. JSON formatting is not part of that pin.
 The same free suite checks canonical hash admission, malformed metadata and

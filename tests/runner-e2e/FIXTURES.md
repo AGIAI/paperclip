@@ -377,6 +377,11 @@ ancestry and fresh PID/start-time checks. Pi overwrites Linux argv via
 `process.title`, so the private receipt explicitly uses pinned-parent entrypoint
 attribution and never claims original child argv. A pidfd targets only that child;
 worker death, broad process-name matching and controller Stop cannot substitute.
+The production bootstrap may name its held executable as `/proc/self/fd/3`
+or `/proc/self/fd/7` in the wrapper argv. That form is admitted only when the
+wrapper's corresponding descriptor and executable both have the exact sealed
+snapshot Node inode. The guard and wrapper entrypoint paths remain exact.
+Missing, foreign or other descriptor numbers fail before signalling.
 
 The runtime itself must emit `runtime_request.expired` for the original callback
 with `provider_process_lost` and `replayAllowed:false`, followed by native turn

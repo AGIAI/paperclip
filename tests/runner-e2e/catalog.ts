@@ -1114,7 +1114,7 @@ export const runnerSuites: readonly RunnerSuiteFixture[] = [
     groups: ["native"], profiles: extendedHarnessProfiles.filter(profile => profile.qualificationCandidate === "pi"),
     environments: runnerEnvironments, tasks: piNativeTasks, expectedMatrixSize: 10,
     excludedExecutionIds: ["pi-native.runner-acpx-pi.daytona.restrictive-denial", "pi-native.runner-acpx-pi.local.native-pending-provider-death"],
-    definitionMetadata: { version: 5, qualification: "pending", scheduling: "explicit-only", profileVersion: QUALIFIED_ACPX_PROFILES.pi.agentProfileVersion, providerDeath: "daytona-exact-pi-child-pidfd-production-expiry", remoteBootstrapApproval: "exact-published-native-read-public-accept-once-v1", remoteDenyAll: "unsupported-native-bootstrap-read-is-denied", remoteEvidence: "owned-lease-sealed-observer", pendingControllerRestart: "same-live-native-request" },
+    definitionMetadata: { version: 6, qualification: "pending", scheduling: "explicit-only", profileVersion: QUALIFIED_ACPX_PROFILES.pi.agentProfileVersion, providerDeath: "daytona-exact-pi-child-pidfd-production-expiry", providerFaultExecutable: "snapshot-node-inode-with-held-bootstrap-fd-3-or-7", remoteBootstrapApproval: "exact-published-native-read-public-accept-once-v1", remoteDenyAll: "unsupported-native-bootstrap-read-is-denied", remoteEvidence: "owned-lease-sealed-observer", pendingControllerRestart: "same-live-native-request" },
   },
   {
     id: "native-active-stop", label: "Stop an unanswered native permission", manualOnly: true,

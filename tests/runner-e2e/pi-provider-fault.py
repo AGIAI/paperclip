@@ -151,7 +151,15 @@ def inspect(config):
             continue
         distribution = parent_args[3][:-len('/pi-entry.cjs')]
         require(re.fullmatch(r'/tmp/paperclip-acpx-native-[A-Za-z0-9_-]+/distribution', distribution), 'snapshot_path')
-        require(parent_args == [distribution + '/' + NODE, '--require', distribution + '/' + GUARD, distribution + '/pi-entry.cjs'], 'wrapper_parent')
+        require(parent_args[1:] == ['--require', distribution + '/' + GUARD, distribution + '/pi-entry.cjs'], 'wrapper_parent')
+        descriptor = None
+        if parent_args[0] != distribution + '/' + NODE:
+            # Production nativeBootstrap executes the held Node through child
+            # FD 3 (unfenced) or 7 (guardian/credential fences). The child's
+            # cmdline retains /proc/self/fd/N; it does not name the source path.
+            match = re.fullmatch(r'/proc/self/fd/(3|7)', parent_args[0])
+            require(match is not None, 'wrapper_parent')
+            descriptor = f'/proc/{parent}/fd/{match.group(1)}'
         # Pi sets process.title and overwrites Linux argv. The exact pinned
         # parent's launch code attests the entrypoint; title alone never selects.
         require(argv(pid) == ['pi'], 'pi_process_title')
@@ -168,6 +176,9 @@ def inspect(config):
         require((exe.st_dev, exe.st_ino) == identities[NODE], 'pi_executable')
         parent_exe = os.stat(f'/proc/{parent}/exe')
         require((parent_exe.st_dev, parent_exe.st_ino) == identities[NODE], 'wrapper_executable')
+        if descriptor is not None:
+            held_exe = os.stat(descriptor)
+            require((held_exe.st_dev, held_exe.st_ino) == identities[NODE], 'wrapper_descriptor')
         for identity in chain:
             require(proc(identity['pid'], boot) == identity, 'ancestry_changed')
         matches.append({'target': table[pid], 'ancestry': chain, 'nodeSha256': 'sha256:' + entries[NODE]['sha256'],

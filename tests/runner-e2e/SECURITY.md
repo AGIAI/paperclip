@@ -307,3 +307,12 @@ controller's `processStartedAt` annotations may change as launch metadata settle
 and do not identify a remote process birth. Every remote snapshot and retirement
 seal must retain the original birth identity and complete no-effect journal.
 Local controls retain their separate public process-authority comparison.
+
+Pi provider-death admission accepts the native bootstrap's `/proc/self/fd/3`
+or `/proc/self/fd/7` wrapper launch only after binding that held descriptor and
+the wrapper executable to the sealed snapshot Node inode. Exact guard and
+entrypoint paths, closure hashes, Pi title, run/lease ancestry and fresh process
+birth checks remain required. Other descriptor aliases, missing descriptors and
+foreign inodes fail before any signal. Native Linux calibration exercises both
+descriptor launches with synthetic owned processes and no provider credentials;
+it does not qualify paid Pi behavior or change previous failed grades.

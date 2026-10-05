@@ -27,7 +27,7 @@ qualification. The existing draft stack must be reviewed in dependency order.
 | Runner protocol | Pi roster passes through the native packaged runner and authenticated mock control plane; lifecycle/denial/control cases remain distinct from Product tests | All seven cases are attempted at `0bd040093`: five pass; context-before-action retains its 120-second terminal timeout, and finish-task retains use of the advisory report without the required task mutation. One context/document workflow retry passes only after verified protection against the recorded host sleep; its original failure stays unchanged. The seven `b148b73ea` passes remain historical. |
 | Installed distribution | Public CLI/server tars on ARM Mac, Intel Mac and Linux; normal Pi setup; exact Linux companion and immutable Daytona image imported without binary override | Exact-source public CLI/server installation and normal Pi setup pass on all three platforms. Public immutable image `ghcr.io/paperclipai/paperclip-daytona-runner@sha256:342f1fd5cb8cabfa2242f38f4f686608b28b6536aa879c54b0cb0da6fba9ef47` imports into native Linux Daytona and passes closed admission. Temporary sandbox cleanup passes. Image jobs 37102904889, 37106313185 and 37110683910 are terminal/cancelled. |
 | Governance and spend | Company isolation, human-only permission, duplicate/stale answers, Stop and budget hard stop; pricing estimates never become claimed bills | 58 focused governance/cost/session invariants pass at `f5f57e380`. Live pending-permission Stop passes at `03dd6ef93`. The qualification key cap is not proof of Paperclip budget enforcement. |
-| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Last verified fixture head `04f639eeb` has 53 successful CI checks and two skips, including full Linux build and typecheck. Its documentation consistency finding is addressed in this follow-up; verify the latest PR head and review before handoff. All 116 targeted native Linux fixture tests and 13 browser-case collections pass at `04f639eeb`. Full typecheck, complete test and build evidence remains recorded below; original failed commands remain failed. Shipping inputs stay equivalent to `0bd040093`. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held for nine failed gates and prerequisite disposition. No merge or release. |
+| Integration and rollout | Review each prerequisite; final-head typecheck, tests, build and CI pass; no unresolved review; exact artifacts; rollback recorded | Last verified PR head `4f2300d5b` has 53 successful CI checks, two skips, Greptile 5/5 and no unresolved root threads, including full Linux build and typecheck. This provider-fault fixture follow-up requires its own completed latest-head checks and review. All 116 targeted native Linux fixture tests and 13 browser-case collections pass at `04f639eeb`; the new descriptor correction separately passes all 17 free native Linux fault tests. Full typecheck, complete test and build evidence remains recorded below; original failed commands remain failed. Shipping inputs stay equivalent to `0bd040093`. Four prerequisite findings have downstream corrections; upstream review threads and standalone prerequisite CI remain open. Production stays held for nine failed gates and prerequisite disposition. No merge or release. |
 
 ## Bounded execution
 
@@ -138,10 +138,34 @@ The owned Linux controller passes normal public installation, Pi admission in
 6.949 seconds, complete 101,226-file consumer and 16,356-file plugin audits,
 all 13 browser-case collections and 112 targeted free native Linux tests.
 These preparation checks do not qualify a live behavior. Last verified root
-head `14c48ff40` has 53 successful checks, two skips, Greptile 5/5 and no open
+head `4f2300d5b` has 53 successful checks, two skips, Greptile 5/5 and no open
 root review threads; this fixture follow-up requires its own completed checks.
 Prerequisite reviews/standalone CI and the remaining failed production gates
 stay open. Rollout remains held; no merge or release occurs.
+
+A later credential-free audit identifies another concrete fault-fixture
+incompatibility. The production native bootstrap launches the wrapper through
+its held executable FD 7 (or FD 3 without lifetime/credential fences). Linux
+retains `/proc/self/fd/N` in its argv, while the fault helper requires the
+physical snapshot Node pathname. The existing direct-path calibration misses
+that launch form. A network-blocked native Linux regression rejects both actual
+descriptor launches before the correction with `wrapper_parent`. The correction
+requires the corresponding held descriptor and wrapper executable to match the
+sealed snapshot Node inode, while retaining every other ownership check. All
+17 fault tests pass afterward, including both real descriptor launches and
+foreign/missing-descriptor negatives. The probe uses only synthetic owned
+processes, no provider credentials or model calls, and its sandbox is deleted.
+Native definitions advance from 5 to 6; their new fingerprint is
+`6511c44fd0997ba56b8627d788d04d7e4924b8992b4c2a3085d5ee9aa56cd56b`.
+The local helper/catalog tests pass. The broader local remote-observer suite
+still fails its unchanged transient filesystem-watch test; its other 76 tests
+pass. Preserve that failed command. This is a concrete fixture correction for a
+separately bounded provider-death attempt after fresh preparation and guards;
+no new paid attempt has occurred. The previous live error does not retain its
+internal rejection stage, so complete live qualification remains unproven.
+The retained production matrix stays 24 passes and nine failures. All six
+earlier resumed attempts and their phases are terminal. Their controller and
+child sandboxes are deleted with canonical evidence retained.
 
 ## Qualification snapshot — 2026-10-03
 

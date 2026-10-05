@@ -111,6 +111,28 @@ class IdentityTests(unittest.TestCase):
         self.assertFalse(receipt['originalChildArgvAvailable'])
         self.assertEqual(receipt['ancestry'], [TARGET, PARENT, ROOT])
 
+    def test_descriptor_launch_attests_the_same_pinned_wrapper(self):
+        for descriptor in [3, 7]:
+            self.args[22][0] = f'/proc/self/fd/{descriptor}'
+            with self.subTest(descriptor=descriptor):
+                self.assertEqual(fault.inspect(self.config)['target'], TARGET)
+
+    def test_descriptor_launch_rejects_foreign_missing_or_unbound_fd(self):
+        for name in ['/proc/self/fd/8', '/proc/99/fd/7', '/foreign/node']:
+            self.args[22][0] = name
+            with self.subTest(name=name), self.assertRaisesRegex(RuntimeError, 'wrapper_parent'):
+                fault.inspect(self.config)
+        self.args[22][0] = '/proc/self/fd/7'
+        stat_original = os.stat
+        for problem in ['foreign', 'missing']:
+            def descriptor_stat(path):
+                if path == '/proc/22/fd/7':
+                    if problem == 'missing': raise FileNotFoundError(path)
+                    return SimpleNamespace(st_dev=1, st_ino=999)
+                return stat_original(path)
+            with self.subTest(problem=problem), patch.object(os, 'stat', side_effect=descriptor_stat), self.assertRaises((RuntimeError, FileNotFoundError)):
+                fault.inspect(self.config)
+
     def test_wrong_metadata_never_selects(self):
         for field, value in [('closureSha256', '0' * 64), ('runtimeEnvironmentLeaseId', 'foreign'), ('runnerdSha256', 'sha256:' + '0' * 64)]:
             with self.subTest(field=field), self.assertRaises(RuntimeError): fault.inspect({**self.config, field: value})
@@ -157,6 +179,14 @@ class PidfdTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == 'linux' and hasattr(os, 'pidfd_open'), 'Hosted native Linux calibration required')
     def test_real_title_overwrite_then_exact_child_pidfd(self):
+        self.calibrate_real_child()
+
+    @unittest.skipUnless(sys.platform == 'linux' and hasattr(os, 'pidfd_open'), 'Hosted native Linux descriptor calibration required')
+    def test_real_descriptor_launch_then_exact_child_pidfd(self):
+        for descriptor in [3, 7]:
+            with self.subTest(descriptor=descriptor): self.calibrate_real_child(descriptor)
+
+    def calibrate_real_child(self, descriptor=None):
         node = shutil.which('node'); self.assertIsNotNone(node)
         base = Path(tempfile.mkdtemp(prefix='pi-fault-calibration-', dir='/tmp'))
         snapshot = Path(tempfile.mkdtemp(prefix='paperclip-acpx-native-', dir='/tmp'))
@@ -181,7 +211,16 @@ class PidfdTests(unittest.TestCase):
                 for f in files:
                     p = Path(directory) / f; p.chmod(0o500 if p == distribution / fault.NODE else 0o400)
                 Path(directory).chmod(0o500)
-            script = base / 'root.cjs'; script.write_text('const p=require("node:child_process").spawn(' + json.dumps(str(distribution / fault.NODE)) + ',["--require",' + json.dumps(str(distribution / fault.GUARD)) + ',' + json.dumps(str(distribution / 'pi-entry.cjs')) + '],{stdio:"ignore"});process.on("SIGTERM",()=>{if(p.exitCode!==null||p.signalCode!==null)process.exit(0);p.once("exit",()=>process.exit(0));p.kill("SIGTERM")});setInterval(()=>{},1000);')
+            launch = json.dumps(str(distribution / fault.NODE))
+            setup, stdio, release = '', '"ignore"', ''
+            if descriptor is not None:
+                # Production nativeBootstrap keeps its executable descriptor
+                # at child FD 3, or FD 7 when lifetime/credential fences exist.
+                setup = 'const fd=require("node:fs").openSync(' + launch + ',"r");'
+                launch = json.dumps(f'/proc/self/fd/{descriptor}')
+                stdio = '[' + ','.join(['"ignore"'] * descriptor + ['fd']) + ']'
+                release = 'require("node:fs").closeSync(fd);'
+            script = base / 'root.cjs'; script.write_text(setup + 'const p=require("node:child_process").spawn(' + launch + ',["--require",' + json.dumps(str(distribution / fault.GUARD)) + ',' + json.dumps(str(distribution / 'pi-entry.cjs')) + '],{stdio:' + stdio + '});' + release + 'process.on("SIGTERM",()=>{if(p.exitCode!==null||p.signalCode!==null)process.exit(0);p.once("exit",()=>process.exit(0));p.kill("SIGTERM")});setInterval(()=>{},1000);')
             check_cancelled()
             root_child = subprocess.Popen([str(runtime / 'bin/paperclip-runnerd'), str(script), '--run-id', 'fixture', '--environment-lease-id', 'workspace-id', '--lifecycle-mode', 'per_turn', '--state-dir', str(runtime / 'sessions' / ('a' * 64) / 'runner')], cwd=workspace, env={'PATH': '/usr/bin:/bin'}, start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             try: owned_fds.append(os.pidfd_open(root_child.pid))
