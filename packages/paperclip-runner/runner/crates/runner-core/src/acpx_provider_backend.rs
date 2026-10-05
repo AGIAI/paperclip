@@ -209,7 +209,7 @@ impl AcpxProviderDescriptor {
                 "0.0.33",
                 Some("@earendil-works/pi-coding-agent"),
                 Some("1.0.0"),
-                "sha256:f35145437eeb355ed37bc5a4fa93d7ede561d9c45daf311979b46890b808ddd4",
+                "sha256:790f8b954be995ef63aef0ebdb0e06215e4c0d1416d40d605b33966a3d6ba053",
             ),
             "cursor" => (
                 self.model.as_str(),
@@ -3049,7 +3049,7 @@ mod tests {
                 "pi",
                 "pi-acp",
                 "0.0.33",
-                "sha256:f35145437eeb355ed37bc5a4fa93d7ede561d9c45daf311979b46890b808ddd4",
+                "sha256:790f8b954be995ef63aef0ebdb0e06215e4c0d1416d40d605b33966a3d6ba053",
                 Some("@earendil-works/pi-coding-agent"),
                 Some("1.0.0"),
                 "openrouter/deepseek/deepseek-v4-flash-0731",
@@ -3253,6 +3253,31 @@ mod tests {
             value["providerPolicy"] = json!({"readOnly":true, "protectedPaths":[]});
             assert!(serde_json::from_value::<AcpxProviderDescriptor>(value).is_err());
         }
+    }
+
+    #[test]
+    fn pi_profile_matches_published_identity_and_rejects_profile14() {
+        let published: Value = serde_json::from_str(include_str!(
+            "../../../../test-fixtures/pi-acp/profile-v15-identity.json"
+        ))
+        .unwrap();
+        let mut value = descriptor("codex");
+        value["agent"] = json!("pi");
+        value["model"] = json!("openrouter/deepseek/deepseek-v4-flash-0731");
+        value["agentServerPackage"] = json!("pi-acp");
+        value["agentServerVersion"] = json!("0.0.33");
+        value["agentRuntimePackage"] = json!("@earendil-works/pi-coding-agent");
+        value["agentRuntimeVersion"] = json!("1.0.0");
+        value["piThinkingLevel"] = json!("low");
+        value["providerPolicy"] = json!({"readOnly": true});
+        value["commandDigest"] = published["commandDigest"].clone();
+        let current: AcpxProviderDescriptor = serde_json::from_value(value.clone()).unwrap();
+        current.validate(&context()).unwrap();
+
+        value["commandDigest"] =
+            json!("sha256:f35145437eeb355ed37bc5a4fa93d7ede561d9c45daf311979b46890b808ddd4");
+        let prior: AcpxProviderDescriptor = serde_json::from_value(value).unwrap();
+        assert!(prior.validate(&context()).is_err());
     }
 
     #[test]

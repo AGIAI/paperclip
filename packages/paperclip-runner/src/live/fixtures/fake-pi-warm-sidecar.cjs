@@ -27,7 +27,7 @@ async function handle({ id, command, params = {} }) {
       identity = params.expectedIdentity ?? {
         kind: "acpx", normalizedSessionId: params.normalizedSessionId,
         acpxRecordId: "record-warm", backendSessionId: "backend-warm", agentSessionId: "agent-warm",
-        profileDigest: "sha256:f35145437eeb355ed37bc5a4fa93d7ede561d9c45daf311979b46890b808ddd4",
+        profileDigest: "sha256:790f8b954be995ef63aef0ebdb0e06215e4c0d1416d40d605b33966a3d6ba053",
         workspaceDigest: `sha256:${"2".repeat(64)}`, requestedModel: params.model, effectiveModel: params.model,
         permissionMode: params.permissionMode, piThinkingLevel: params.piThinkingLevel,
         providerLifetimeFenceCandidates: [61001, 61002, 61003],

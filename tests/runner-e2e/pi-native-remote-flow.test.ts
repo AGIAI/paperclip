@@ -40,7 +40,12 @@ it("rebinds both remote runs, saves managed bytes, and reads sealed sandbox byte
     };
     const action = await input.actionPrompt(fixture); expect(armed).toBe(true);
     if (ordinal === 1) {
-      expect(action).toContain(fixture.outsideTarget); const literal = /Write exactly (".*?") to memory\/pi-native.txt/.exec(action)?.[1]; expect(literal).toBeDefined(); personal = JSON.parse(literal!); expect(personal).toMatch(/^[a-f0-9]{32}\n$/);
+      expect(action).toContain(fixture.outsideTarget);
+      const content = /```json\n(.*?)\n```/s.exec(action)?.[1];
+      expect(content).toBeDefined();
+      personal = JSON.parse(content!).content;
+      expect(personal).toMatch(/^[a-f0-9]{32}\n$/);
+      expect(Buffer.byteLength(personal, "utf8")).toBe(33);
     } else { expect(action).not.toContain(personal.trim()); expect(input.targets).toEqual(["pi-agent-memory-proof.txt"]); }
     issues.at(-1).status = "done"; runs.at(-1).status = "succeeded"; captures.push(fixture.binding); return fixture;
   } };
