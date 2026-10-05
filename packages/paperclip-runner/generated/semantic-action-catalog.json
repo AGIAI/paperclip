@@ -1277,7 +1277,7 @@
       "standard",
       "skill_test"
     ],
-    "description": "Create one native Paperclip Runner teammate for the current company and task. The new agent reports to you, inherits your native runtime, and receives no provider, adapter, environment, or credential configuration from the tool. Reuse an existing teammate when appropriate and follow any approval returned by the API.",
+    "description": "Create a persistent company teammate; provider helper threads do not create Paperclip agents. Reuse a suitable agent from list_agents first. The hire reports to you and inherits your native runtime; Paperclip supplies provider, adapter, environment and credentials. Follow any returned approval.",
     "effect": "write",
     "inputSchema": {
       "additionalProperties": false,
@@ -1781,7 +1781,7 @@
       "standard",
       "skill_test"
     ],
-    "description": "Replace the active task's first-class blocker set.",
+    "description": "Replace the active task's blocker set. Preserve existing blocker IDs when adding a dependency. Follow the returned waiting guidance.",
     "effect": "write",
     "inputSchema": {
       "additionalProperties": false,
@@ -1834,6 +1834,10 @@
           "maxItems": 200,
           "type": "array",
           "uniqueItems": true
+        },
+        "guidance": {
+          "description": "Conditional next steps after recording dependencies.",
+          "type": "string"
         },
         "scheduledWakeIds": {
           "description": "Wake identifiers scheduled by the operation.",
@@ -2115,7 +2119,7 @@
       "standard",
       "skill_test"
     ],
-    "description": "Create an assigned task. In a conversation, create a project task with no parent; otherwise create a child of the active task. Include initialPlan to persist its plan before execution. Set status to backlog when the user wants to save or plan work without starting it; backlog tasks never wake an agent. Omitted status means todo, subject to blockers.",
+    "description": "Create a project task from a conversation, or a child from a task. For work or revisions assigned to a teammate, use their assigneeActorId and review their result; keep implementation with them. initialPlan is saved before execution. Use backlog to save work without waking an agent; otherwise todo is subject to blockers.",
     "effect": "write",
     "inputSchema": {
       "additionalProperties": false,

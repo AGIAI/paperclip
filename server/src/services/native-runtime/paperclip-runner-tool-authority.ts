@@ -1339,6 +1339,9 @@ export class PaperclipRunnerToolAuthority {
         stateRevision: updated.statusVersion,
         entityRefs: [updated.id, ...blockedByIssueIds],
         scheduledWakeIds: [],
+        ...(blockedByIssueIds.length > 0 ? {
+          guidance: "If remaining work depends on an unfinished child, complete independent work, then call paperclip_block with the child agent as owner and child completion as the unblock action. End the turn to release the workspace; do not sleep or poll for the child. Paperclip resumes the parent when the dependency completes. If no work remains blocked, continue normally.",
+        } : {}),
       };
     });
   }

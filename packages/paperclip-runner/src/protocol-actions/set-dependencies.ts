@@ -27,7 +27,7 @@ export const setDependenciesAction = {
   },
   "documentation": {
     "title": "Set task dependencies",
-    "description": "Replace the active task's first-class blocker set.",
+    "description": "Replace the active task's blocker set. Preserve existing blocker IDs when adding a dependency. Follow the returned waiting guidance.",
     "note": null
   },
   "examples": {
@@ -72,7 +72,7 @@ export const setDependenciesAction = {
       "operationId": "set_dependencies",
       "version": 1,
       "title": "Set task dependencies",
-      "description": "Replace the active task's first-class blocker set.",
+      "description": "Replace the active task's blocker set. Preserve existing blocker IDs when adding a dependency. Follow the returned waiting guidance.",
       "exposure": "optional",
       "requiredClaims": [
         "dependencies:write"
@@ -135,6 +135,10 @@ export const setDependenciesAction = {
             },
             "maxItems": 200,
             "uniqueItems": true
+          },
+          "guidance": {
+            "type": "string",
+            "description": "Conditional next steps after recording dependencies."
           },
           "scheduledWakeIds": {
             "type": "array",
