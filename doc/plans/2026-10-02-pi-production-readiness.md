@@ -7,11 +7,51 @@ qualification. The existing draft stack must be reviewed in dependency order.
 
 ## Case corrections — 2026-10-05
 
-The latest completed frozen-runtime proofs are **28/33: Product 21/26 and
-Runner 7/7**. These counts supersede older snapshots below. The two corrected
+The historical profile-14 proofs are **28/33: Product 21/26 and
+Runner 7/7**. They do not qualify the current profile-15 runtime. The two corrected
 Runner prompts pass at private definitions revision `7b112ffe3` with unchanged
 graders, one attempt per correction and zero automatic retries. Their original
 failures remain retained. The Mac file-edit correction also passes.
+
+### Latest boundary fixes — 2026-10-05
+
+Normal public installs of runtime `b012b3aebe` admit profile 15 on Mac ARM,
+Mac Intel (through Rosetta), and native Linux. The native Linux image is
+`sha256:3279d92405a59b4654cb6af5de27bfacffee73a2c57311bf5f2d5ff9272b9b67`.
+The corrected remote provider-death case passes all six matchers and cleanup;
+the native-questions case passes all 16 matchers and cleanup. These two passes
+are source-bound evidence, not qualification of the whole shipping roster.
+
+The next Mac memory attempt fails at the unchanged 120-second native-session
+limit, with cleanup passing. Its public description contains invalid JSON:
+the shared issue validator converts the fenced content's literal `\\n` into a
+real newline. Browser `.fill()` also exports an escaped paragraph instead of
+a Markdown code fence. A credential-free actual installed-UI probe reproduces
+that second boundary and confirms that Markdown paste retains the valid JSON
+and all 33 content bytes. Both task submissions are intercepted, so neither
+can create provider work. The shared validator now preserves real multiline
+bodies; legacy single-line self-escaped descriptions retain their recovery.
+The exact old/new validator proof fails before and preserves 33 bytes afterward.
+All 837 shared tests pass using the canonical `/private/tmp` directory.
+
+The next remote restart attempt fails during controller process cleanup with
+`Owned process group identity became uncertain`, before any replacement
+controller starts. Its independently observed remote run retirement passes;
+canonical cleanup remains failed. The exact owned child sandbox is separately
+deleted and verified absent. A regression reproduces rejection of a replacement
+group member whose ancestry still belongs to a separately validated owner.
+Cleanup now admits only that proven ancestry; recycled groups and mixed live
+ownership still fail before signaling. All 31 ownership/restart tests pass,
+including a negative control for a recycled controller ancestry anchor.
+This addresses a reproducible cleanup condition; the original failure lacks
+the process table needed to attribute its exact uncertain group.
+
+`pi-native` definition version 12 records the prompt transport and cleanup
+changes. The nonce-plus-LF, cross-root denial, fresh-task persistence, native
+request identity, and deadline assertions are unchanged. Fresh installed
+artifacts and explicit corrected live attempts remain required. The previous
+`5a23ef659` head's 53 CI checks pass with two skips; this is not CI proof for
+the new boundary changes. No merge or release is authorized.
 
 The provider-death fixture now admits the production runner's stable symlink
 while still checking the resolved bytes, live Node inode and exact Pi-child

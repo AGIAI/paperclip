@@ -394,14 +394,23 @@ different executable fail admission. Linux calibration covers this installation
 form as well as a copied runner.
 
 The agent-memory fixture requires the nonce's UTF-8 bytes followed by exactly
-one line-feed byte (`0x0A`). Its prompt states that byte contract in plain text:
-the browser editor can normalize backslash escapes in a quoted JSON example.
+one line-feed byte (`0x0A`). Its prompt states that byte contract in plain text
+and provides the exact content as fenced JSON. Fenced task prompts use the rich
+editor's Markdown paste path; filling the editor directly produces escaped
+paragraph text instead of a code block. The issue API preserves literal escapes
+in real multiline bodies and only recovers self-escaped line breaks in legacy
+single-line bodies. Code fences and JSON escapes must survive both boundaries.
 The prompt orders one memory write, one complete native read, a separate expected
 cross-root write denial, and then completion. Native paths use the exact current
 absolute agent directory; shell-variable expansion is not assumed. An incorrect
 memory result must be reported without a repeated rewrite loop. Native readback and the
 managed-file API must retain the exact bytes across a new task and controller
 restart. The byte graders remain unchanged.
+
+Controller cleanup can admit a replacement group member only when its ancestry
+belongs to a separately revalidated, continuously owned process. A recycled
+numeric group, a changed PID/start identity, or any unowned live member still
+fails cleanup before signaling. This rule is recorded in `pi-native` version 12.
 
 The runtime itself must emit `runtime_request.expired` for the original callback
 with `provider_process_lost` and `replayAllowed:false`, followed by native turn

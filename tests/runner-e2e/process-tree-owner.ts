@@ -55,10 +55,20 @@ export function createProcessTreeOwner(root: ChildProcess, options: {
       const rootRow = next.find(row => row.pid === root.pid);
       if (!rootStarted && !exited()) rootStarted = rootRow?.started;
       const retained = revalidateObservedProcessGroups(groups, next);
-      // Never acquire a recycled group from its numeric ID alone.
+      const trustedAnchors = retained.flatMap(group => group.members
+        .filter(member => next.some(row => row.pid === member.pid && row.started === member.started
+          && row.processGroupId === group.processGroupId)).map(member => member.pid));
+      if (rootRow && rootStarted === rootRow.started) trustedAnchors.push(rootRow.pid);
+      const ownedNow = new Set(trustedAnchors.flatMap(pid =>
+        observeDescendantProcessTree(next, pid).members.map(member => member.process.pid)));
+      // A short-lived leader can exit between polls while its replacement
+      // remains a descendant of a separately validated owner. Admit that
+      // ancestry, never a recycled numeric group or a mixed ownership group.
       const lost = groups.filter(group => !retained.includes(group) && next.some(row => row.processGroupId === group.processGroupId && running(row)));
-      if (lost.length) throw new Error("Owned process group identity became uncertain");
-      const refreshed = refreshContinuouslyLiveProcessGroups(retained, next)
+      const uncertain = lost.filter(group => next.some(row => row.processGroupId === group.processGroupId
+        && running(row) && !ownedNow.has(row.pid)));
+      if (uncertain.length) throw new Error(`Owned process group identity became uncertain: ${uncertain.map(group => group.processGroupId).join(",")}`);
+      const refreshed = refreshContinuouslyLiveProcessGroups([...retained, ...lost], next)
         .filter(group => group.processGroupId !== callerGroup);
       const anchors = refreshed.flatMap(group => group.members.map(member => member.pid));
       if (rootRow && rootStarted === rootRow.started) anchors.push(rootRow.pid);
